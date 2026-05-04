@@ -15,6 +15,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ShareQ.Core\ShareQ.Core.csproj" />
+    <!-- ShareQ.ImageEffects is referenced for the EffectPreset model + JSON serializer used
+         by SqliteImageEffectPresetStore. Brings in SkiaSharp transitively, but the
+         alternative (a parallel "ShareQ.ImageEffects.Storage" project) duplicates the DI /
+         migration scaffolding for one extra table — not worth it. -->
+    <ProjectReference Include="..\ShareQ.ImageEffects\ShareQ.ImageEffects.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Database\SchemaSql\*.sql" />

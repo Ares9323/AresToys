@@ -25,6 +25,7 @@ public partial class MainWindow : FluentWindow
     private readonly ShareQ.Uploaders.OAuth.OAuthFlowService _oauthFlowService;
     private readonly ShareQ.Pipeline.Profiles.IPipelineProfileStore _profileStore;
     private readonly ShareQ.Storage.Settings.ISettingsStore _settingsStore;
+    private readonly ShareQ.Storage.ImageEffects.IImageEffectPresetStore _imageEffectPresetStore;
     // Set true during the initial Loaded sync so SelectionChanged doesn't immediately overwrite
     // the persisted value with the default-selected item.
     private bool _suppressContextMenuWorkflowChange;
@@ -46,7 +47,8 @@ public partial class MainWindow : FluentWindow
         ShareQ.PluginContracts.IPluginConfigStoreFactory pluginConfigFactory,
         ShareQ.Uploaders.OAuth.OAuthFlowService oauthFlowService,
         ShareQ.Pipeline.Profiles.IPipelineProfileStore profileStore,
-        ShareQ.Storage.Settings.ISettingsStore settingsStore)
+        ShareQ.Storage.Settings.ISettingsStore settingsStore,
+        ShareQ.Storage.ImageEffects.IImageEffectPresetStore imageEffectPresetStore)
     {
         InitializeComponent();
         DataContext = viewModel;
@@ -57,6 +59,7 @@ public partial class MainWindow : FluentWindow
         _oauthFlowService = oauthFlowService;
         _profileStore = profileStore;
         _settingsStore = settingsStore;
+        _imageEffectPresetStore = imageEffectPresetStore;
         // Newly-added workflow: focus the inline name field and select its text so the user can
         // type the real name straight away. Defer to a low-priority dispatcher tick because the
         // edit-view's TextBox isn't realised until the visibility binding flips.
@@ -897,6 +900,19 @@ public partial class MainWindow : FluentWindow
             System.Windows.MessageBox.Show(this, $"Couldn't open folder: {ex.Message}",
                 "ShareQ", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
+    }
+
+    private void OnOpenImageEffectsClicked(object sender, RoutedEventArgs e)
+    {
+        // Wire the SQLite-backed preset store so changes survive across window opens. The
+        // viewmodel auto-loads on construction and persists each mutation through a 600 ms
+        // debounce, so a slider sweep doesn't hammer the database. _settingsStore goes in too
+        // so the window restores its last position / size between sessions, same as MainWindow.
+        var vm = new ShareQ.App.ViewModels.ImageEffects.ImageEffectsViewModel(
+            ShareQ.ImageEffects.ImageEffectRegistry.Default,
+            _imageEffectPresetStore);
+        var window = new ShareQ.App.Views.ImageEffectsWindow(vm, _settingsStore) { Owner = this };
+        window.Show();
     }
 
     private async void OnExportSettingsClicked(object sender, RoutedEventArgs e)

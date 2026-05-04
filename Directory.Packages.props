@@ -37,6 +37,11 @@
     <!-- Capture -->
     <PackageVersion Include="System.Drawing.Common" Version="9.0.0" />
 
+    <!-- Image effects (ShareQ.ImageEffects). SkiaSharp does the per-pixel work for the ported
+         ShareX adjustment / filter / manipulation chain. 3.x is the GPU-capable line; we don't
+         use GPU contexts but the API is otherwise compatible with 2.x ShareX code. -->
+    <PackageVersion Include="SkiaSharp" Version="3.116.1" />
+
     <!-- QR code generation (used by the QR pipeline task + Show QR window) -->
     <PackageVersion Include="QRCoder" Version="1.6.0" />
 

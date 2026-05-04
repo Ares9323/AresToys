@@ -60,6 +60,7 @@
     <ProjectReference Include="..\ShareQ.Hotkeys\ShareQ.Hotkeys.csproj" />
     <ProjectReference Include="..\ShareQ.Pipeline\ShareQ.Pipeline.csproj" />
     <ProjectReference Include="..\ShareQ.Editor\ShareQ.Editor.csproj" />
+    <ProjectReference Include="..\ShareQ.ImageEffects\ShareQ.ImageEffects.csproj" />
     <ProjectReference Include="..\ShareQ.PluginContracts\ShareQ.PluginContracts.csproj" />
     <ProjectReference Include="..\ShareQ.Plugins\ShareQ.Plugins.csproj" />
     <ProjectReference Include="..\ShareQ.CustomUploaders\ShareQ.CustomUploaders.csproj" />

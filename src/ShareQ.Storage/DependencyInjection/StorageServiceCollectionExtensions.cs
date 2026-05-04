@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ShareQ.Storage.Blobs;
 using ShareQ.Storage.Database;
 using ShareQ.Storage.Database.Migrations;
+using ShareQ.Storage.ImageEffects;
 using ShareQ.Storage.Items;
 using ShareQ.Storage.Options;
 using ShareQ.Storage.Paths;
@@ -26,6 +27,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IStoragePathResolver, StoragePathResolver>();
 
         services.AddSingleton<IMigration, Migration001InitialSchema>();
+        services.AddSingleton<IMigration, Migration002ImageEffectPresets>();
         services.AddSingleton<MigrationRunner>(sp =>
             new MigrationRunner(sp.GetServices<IMigration>()));
         services.AddSingleton<IShareQDatabase, ShareQDatabase>();
@@ -40,6 +42,8 @@ public static class StorageServiceCollectionExtensions
 
         services.AddSingleton<IRotationService, RotationService>();
         services.AddSingleton<CategoryRotationService>();
+
+        services.AddSingleton<IImageEffectPresetStore, SqliteImageEffectPresetStore>();
 
         return services;
     }

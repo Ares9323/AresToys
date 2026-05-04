@@ -1310,6 +1310,20 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Image effects editor: opens a separate ShareX-style chain editor where
+                         the user defines named presets (sequences of adjustments / filters /
+                         drawings). Presets live in memory for now; Step 4 wires SQLite
+                         persistence and Step 5 lets a pipeline task apply one to every
+                         capture. -->
+                    <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Image effects" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Text="Define preset chains of adjustments, filters and drawings (ShareX-compatible). Open the editor to add effects to a preset and preview the result on a sample image. Imports ShareX .sxie presets directly." />
+                            <ui:Button Content="Open image effects editor…" Padding="14,4" Click="OnOpenImageEffectsClicked" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Portable JSON dump of every non-sensitive setting. Skips OAuth tokens /
                          credentials / DPAPI-protected payloads — those are bound to the local
                          user account and wouldn't decrypt on another machine anyway. -->
