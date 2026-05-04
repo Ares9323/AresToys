@@ -66,6 +66,29 @@ internal static class EffectPropertyBinder
                 matchY.SetValue(effect, y);
             }
         }
+
+        // ShareX-legacy "Size" strings: {"Size": "10, 10"} maps to int Width + int Height
+        // siblings. Same rationale as the Point pair above — we don't surface a Size struct
+        // for what's effectively two ints. Used by DrawImage's SizeMode-driven sizing.
+        var widthProp = Array.Find(props, p => p.Name == "Width" && p.PropertyType == typeof(int));
+        var heightProp = Array.Find(props, p => p.Name == "Height" && p.PropertyType == typeof(int));
+        if (widthProp is not null && heightProp is not null
+            && (source.TryGetProperty("size", out var sizeEl) || source.TryGetProperty("Size", out sizeEl))
+            && sizeEl.ValueKind == JsonValueKind.String)
+        {
+            var raw = sizeEl.GetString();
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var parts = raw.Split(',', StringSplitOptions.TrimEntries);
+                if (parts.Length == 2
+                    && int.TryParse(parts[0], out var w)
+                    && int.TryParse(parts[1], out var h))
+                {
+                    widthProp.SetValue(effect, w);
+                    heightProp.SetValue(effect, h);
+                }
+            }
+        }
     }
 
     private static readonly JsonSerializerOptions _defaults = BuildDefaults();

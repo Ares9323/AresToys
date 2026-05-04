@@ -21,15 +21,19 @@ public sealed class BoolToVisibilityConverter : IValueConverter
 
 public sealed class NotNullToVisibilityConverter : IValueConverter
 {
+    // DependencyProperty.UnsetValue lands here when a binding path traversal fails (e.g.
+    // SelectedEntry.SideToggles where SelectedEntry is itself null). It's a sentinel, NOT
+    // null — so a naive "value is null" check would treat it as a real value and render the
+    // bound element. Treat UnsetValue as null to keep "no source" hidden.
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is null ? Visibility.Collapsed : Visibility.Visible;
+        => value is null || value == DependencyProperty.UnsetValue ? Visibility.Collapsed : Visibility.Visible;
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 public sealed class NullToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is null ? Visibility.Visible : Visibility.Collapsed;
+        => value is null || value == DependencyProperty.UnsetValue ? Visibility.Visible : Visibility.Collapsed;
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
@@ -46,7 +50,10 @@ public sealed class NonEmptyToVisibilityConverter : IValueConverter
 public sealed class NullOrEmptyToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is null || (value is string s && s.Length == 0) ? Visibility.Visible : Visibility.Collapsed;
+        => value is null
+            || value == DependencyProperty.UnsetValue
+            || (value is string s && s.Length == 0)
+            ? Visibility.Visible : Visibility.Collapsed;
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => Binding.DoNothing;
 }
 

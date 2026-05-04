@@ -164,16 +164,22 @@ public partial class ImageEffectsWindow : Wpf.Ui.Controls.FluentWindow
     private void OnExportPresetClicked(object sender, RoutedEventArgs e)
     {
         if (_viewModel.SelectedPreset is null) return;
+        // Default to .sxie (ZIP package, same shape ShareX produces from its Package button) so
+        // the file can be shared as a single artefact with bundled DrawImage assets. Plain JSON
+        // is still offered as a fallback for users who want the raw config.
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title = "Export preset",
-            Filter = "JSON|*.json",
-            FileName = $"{SafeFileName(_viewModel.SelectedPreset.Name)}.json",
-            DefaultExt = ".json",
+            Filter = "ShareX preset package|*.sxie|JSON|*.json",
+            FileName = $"{SafeFileName(_viewModel.SelectedPreset.Name)}.sxie",
+            DefaultExt = ".sxie",
             AddExtension = true,
         };
         if (dlg.ShowDialog(this) != true) return;
-        _viewModel.ExportPresetTo(dlg.FileName);
+        if (dlg.FileName.EndsWith(".sxie", StringComparison.OrdinalIgnoreCase))
+            _viewModel.ExportPresetToSxie(dlg.FileName);
+        else
+            _viewModel.ExportPresetTo(dlg.FileName);
     }
 
     private void OnLoadImageClicked(object sender, RoutedEventArgs e)

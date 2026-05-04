@@ -285,11 +285,15 @@
                                    Text="{Binding SelectedEntry.DisplayName, StringFormat='Properties — {0}', FallbackValue='Properties — (no selection)', Mode=OneWay}" />
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                            <!-- Compass cluster (Top/Right/Bottom/Left + optional Curved). Built once
-                                 per selected entry; null for effects without these toggles, so the
-                                 ContentControl's NotNullToVisibility hides the section entirely. -->
-                            <ContentControl Content="{Binding SelectedEntry.SideToggles}"
-                                            Visibility="{Binding SelectedEntry.SideToggles, Converter={StaticResource NotNullToVisibility}}"
+                            <!-- Compass cluster (Top/Right/Bottom/Left + optional Curved). Built once per
+                                 selected entry; null for effects without these toggles, so HasSideToggles
+                                 hides the section entirely. We bind Visibility to the boolean (rather than
+                                 path-traversing SelectedEntry.SideToggles) because a failed traversal feeds
+                                 the converter UnsetValue rather than null, which would leave the panel
+                                 visible after the entry is deleted. FallbackValue=Collapsed is belt-and-
+                                 braces against any future binding error. -->
+                            <ContentControl Content="{Binding SelectedEntry.SideToggles, FallbackValue={x:Null}}"
+                                            Visibility="{Binding HasSideToggles, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
                                             Margin="0,0,0,12">
                                 <ContentControl.ContentTemplate>
                                     <DataTemplate DataType="{x:Type vm:SideToggleGroupViewModel}">

@@ -37,6 +37,18 @@ public sealed partial class ImageEffectsViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     private EffectEntryViewModel? _selectedEntry;
 
+    /// <summary>True when the selected entry has a TornEdge-style compass cluster — drives the
+    /// "Sides" group's visibility in the property panel without relying on path-traversal
+    /// fallback (a binding through <c>SelectedEntry.SideToggles</c> would feed UnsetValue to
+    /// the converter when SelectedEntry is null, making the panel render with the last entry's
+    /// state). Recomputed whenever SelectedEntry flips.</summary>
+    public bool HasSideToggles => SelectedEntry?.SideToggles is not null;
+
+    partial void OnSelectedEntryChanged(EffectEntryViewModel? value)
+    {
+        OnPropertyChanged(nameof(HasSideToggles));
+    }
+
     [ObservableProperty]
     private BitmapImage? _previewImage;
 
@@ -311,39 +323,47 @@ public sealed partial class ImageEffectsViewModel : ObservableObject, IDisposabl
         try
         {
             var (json, assetsDir) = await ReadSxiePackageAsync(path).ConfigureAwait(true);
-            var preset = SxiePresetImporter.Import(json, _registry);
 
-            // Patch DrawImage.ImageLocation entries.
+            // Format detection: ShareX writes PascalCase "Effects" + "$type" discriminators;
+            // our own exports write camelCase "effects" + "id". Both shapes can land inside a
+            // .sxie ZIP, so we sniff the JSON root to pick the right deserializer.
+            EffectPreset? preset;
+            using (var doc = System.Text.Json.JsonDocument.Parse(json))
+            {
+                var root = doc.RootElement;
+                var isShareX = false;
+                if (root.TryGetProperty("Effects", out var effEl)
+                    && effEl.ValueKind == System.Text.Json.JsonValueKind.Array
+                    && effEl.GetArrayLength() > 0
+                    && effEl[0].TryGetProperty("$type", out _))
+                {
+                    isShareX = true;
+                }
+                preset = isShareX ? SxiePresetImporter.Import(json, _registry) : _serializer.Deserialize(json);
+            }
+            if (preset is null) throw new InvalidDataException("Couldn't read preset payload.");
+
+            // Patch path-bearing properties in two effects: DrawImage.ImageLocation (single
+            // file) and DrawParticles.ImageFolder (a directory of sprite candidates).
             //  1. ShareX-specific token: "%ShareXImageEffects%" expands to the LocalAppData
             //     folder where ShareX stores downloadable effect packs (e.g. macOSBigSur
             //     border PNGs). If the user has ShareX installed the assets are there;
-            //     otherwise the file just doesn't exist and DrawImage no-ops.
+            //     otherwise the file/folder just doesn't exist and the effect no-ops.
             //  2. Standard env vars (%LOCALAPPDATA%, %USERPROFILE%, ...) get expanded too
             //     so a hand-authored preset can use those.
             //  3. Relative paths (no env vars, not rooted) resolve against the assets folder
             //     extracted from the .sxie package.
             foreach (var entry in preset.Effects)
             {
-                if (entry.Effect is not ShareQ.ImageEffects.Drawings.DrawImageImageEffect di) continue;
-                if (string.IsNullOrEmpty(di.ImageLocation)) continue;
-
-                var location = di.ImageLocation;
-                if (location.Contains("%ShareXImageEffects%", StringComparison.OrdinalIgnoreCase))
+                switch (entry.Effect)
                 {
-                    var shareXBase = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "ShareX", "ImageEffects");
-                    location = location.Replace("%ShareXImageEffects%", shareXBase, StringComparison.OrdinalIgnoreCase);
+                    case ShareQ.ImageEffects.Drawings.DrawImageImageEffect di when !string.IsNullOrEmpty(di.ImageLocation):
+                        di.ImageLocation = ExpandShareXAssetPath(di.ImageLocation, assetsDir, fileNotDir: true);
+                        break;
+                    case ShareQ.ImageEffects.Drawings.DrawParticlesImageEffect dp when !string.IsNullOrEmpty(dp.ImageFolder):
+                        dp.ImageFolder = ExpandShareXAssetPath(dp.ImageFolder, assetsDir, fileNotDir: false);
+                        break;
                 }
-                location = Environment.ExpandEnvironmentVariables(location);
-
-                if (!Path.IsPathRooted(location) && assetsDir is not null)
-                {
-                    var candidate = Path.Combine(assetsDir, location);
-                    if (File.Exists(candidate)) location = candidate;
-                }
-
-                di.ImageLocation = location;
             }
             if (string.IsNullOrEmpty(preset.Name)) preset.Name = Path.GetFileNameWithoutExtension(path);
             preset.Id = Guid.NewGuid().ToString("N");
@@ -360,6 +380,78 @@ public sealed partial class ImageEffectsViewModel : ObservableObject, IDisposabl
         }
     }
 
+    /// <summary>Expand a ShareX-style asset path. Tries, in order:
+    ///  1. The literal expanded path (after rewriting <c>%ShareXImageEffects%</c> + env vars)
+    ///     — this hits when the user has ShareX installed with the same effect pack.
+    ///  2. The .sxie package's own extraction folder, looked up by the last 1–2 segments of
+    ///     the original path. ShareX's <c>Packager</c> writes assets under
+    ///     <c>&lt;PresetName&gt;\&lt;file.png&gt;</c> inside the ZIP, so a path like
+    ///     <c>%ShareXImageEffects%\RTXON\rtx-on.png</c> matches the ZIP entry
+    ///     <c>RTXON\rtx-on.png</c> when the .sxie was bundled with its assets.
+    ///  3. <c>%LOCALAPPDATA%\ShareQ\ImageEffects\&lt;PresetName&gt;\</c> — our own per-user
+    ///     pack folder, so users can drop the missing PNGs there without needing ShareX.
+    /// Falls back to the literal expanded path (which won't exist) so the effect cleanly no-ops.</summary>
+    private static string ExpandShareXAssetPath(string raw, string? assetsDir, bool fileNotDir)
+    {
+        bool Exists(string p) => fileNotDir ? File.Exists(p) : Directory.Exists(p);
+
+        var location = raw;
+        if (location.Contains("%ShareXImageEffects%", StringComparison.OrdinalIgnoreCase))
+        {
+            var shareXBase = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ShareX", "ImageEffects");
+            location = location.Replace("%ShareXImageEffects%", shareXBase, StringComparison.OrdinalIgnoreCase);
+        }
+        location = Environment.ExpandEnvironmentVariables(location);
+
+        // (1) literal path resolved.
+        if (Path.IsPathRooted(location) && Exists(location)) return location;
+
+        // (2) .sxie extraction folder — match by tail (preset\file or just file).
+        if (assetsDir is not null)
+        {
+            // Relative: just join.
+            if (!Path.IsPathRooted(location))
+            {
+                var candidate = Path.Combine(assetsDir, location);
+                if (Exists(candidate)) return candidate;
+            }
+            // Absolute that didn't exist literally — try matching by the trailing two segments,
+            // then by just the file/folder name. Example: ShareX path
+            // "...\ImageEffects\RTXON\rtx-on.png" → look for "RTXON/rtx-on.png" or "rtx-on.png"
+            // inside the package extraction folder.
+            var normalized = location.Replace('/', Path.DirectorySeparatorChar);
+            var segs = normalized.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+            for (var take = Math.Min(2, segs.Length); take >= 1; take--)
+            {
+                var tail = string.Join(Path.DirectorySeparatorChar, segs[^take..]);
+                var candidate = Path.Combine(assetsDir, tail);
+                if (Exists(candidate)) return candidate;
+            }
+        }
+
+        // (3) ShareQ's own per-user folder, mirroring ShareX's layout. We don't auto-create it
+        // here because the user might not want a phantom folder for a no-op preset; they'll
+        // see the empty-state message and create it themselves when they drop assets in.
+        var sharedQBase = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ShareQ", "ImageEffects");
+        if (Path.IsPathRooted(location))
+        {
+            // Try to pick out "<...>\ImageEffects\<rest>" and re-root onto our base.
+            var idx = location.IndexOf(@"ImageEffects" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                var rest = location[(idx + ("ImageEffects" + Path.DirectorySeparatorChar).Length)..];
+                var candidate = Path.Combine(sharedQBase, rest);
+                if (Exists(candidate)) return candidate;
+            }
+        }
+
+        return location;
+    }
+
     public void ExportPresetTo(string path)
     {
         if (SelectedPreset is null) return;
@@ -372,6 +464,78 @@ public sealed partial class ImageEffectsViewModel : ObservableObject, IDisposabl
         catch (Exception ex)
         {
             StatusText = $"Export failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Export the selected preset as a <c>.sxie</c> ZIP package — same shape ShareX
+    /// produces from its "Package" button: <c>Config.json</c> at the root + each DrawImage
+    /// asset bundled as a sibling entry. Absolute paths in <see cref="DrawImageImageEffect.ImageLocation"/>
+    /// are temporarily rewritten to the relative filename inside the archive so the importer
+    /// (ours or anyone else's) can resolve them after extraction. The original ImageLocation
+    /// is restored on the live preset after serialization so the editor keeps working.</summary>
+    public void ExportPresetToSxie(string path)
+    {
+        if (SelectedPreset is null) return;
+        var preset = SelectedPreset.Preset;
+        var savedLocations = new List<(ShareQ.ImageEffects.Drawings.DrawImageImageEffect Effect, string Original)>();
+        var bundles = new List<(string EntryName, string SourcePath)>();
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            // Walk every DrawImage and stage the bundle list. Rewrite ImageLocation to the
+            // relative entry name so the serialized JSON references the asset as "logo.png"
+            // rather than "C:\Users\Bob\..." — re-import resolves that back to an absolute
+            // path after extraction.
+            foreach (var entry in preset.Effects)
+            {
+                if (entry.Effect is not ShareQ.ImageEffects.Drawings.DrawImageImageEffect di) continue;
+                var src = di.ImageLocation;
+                if (string.IsNullOrEmpty(src) || !File.Exists(src)) continue;
+
+                var baseName = Path.GetFileName(src);
+                var entryName = baseName;
+                var counter = 1;
+                while (!usedNames.Add(entryName))
+                {
+                    entryName = $"{Path.GetFileNameWithoutExtension(baseName)}_{counter}{Path.GetExtension(baseName)}";
+                    counter++;
+                }
+                bundles.Add((entryName, src));
+                savedLocations.Add((di, src));
+                di.ImageLocation = entryName;
+            }
+
+            var json = _serializer.Serialize(preset);
+
+            using (var fs = File.Create(path))
+            using (var archive = new System.IO.Compression.ZipArchive(fs, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                var configEntry = archive.CreateEntry("Config.json", System.IO.Compression.CompressionLevel.Optimal);
+                using (var es = configEntry.Open())
+                using (var sw = new StreamWriter(es, System.Text.Encoding.UTF8))
+                    sw.Write(json);
+
+                foreach (var (entryName, srcPath) in bundles)
+                {
+                    var assetEntry = archive.CreateEntry(entryName, System.IO.Compression.CompressionLevel.Optimal);
+                    using var es = assetEntry.Open();
+                    using var srcStream = File.OpenRead(srcPath);
+                    srcStream.CopyTo(es);
+                }
+            }
+            StatusText = $"Exported '{preset.Name}' to {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            // Always restore — the temporary mutation lives only as long as the serialize call.
+            // Skipping this would leave the editor pointing at a relative filename that won't
+            // resolve outside the .sxie package.
+            foreach (var (effect, original) in savedLocations) effect.ImageLocation = original;
         }
     }
 
