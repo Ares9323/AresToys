@@ -186,6 +186,37 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         PasteSelectedCommand.NotifyCanExecuteChanged();
         OpenInEditorCommand.NotifyCanExecuteChanged();
         OpenInExplorerCommand.NotifyCanExecuteChanged();
+        OpenInBrowserCommand.NotifyCanExecuteChanged();
+        // The XAML toolbar binds Visibility to these flags so the icons disappear (rather
+        // than just disabling) when they don't apply to the current selection — matches the
+        // behaviour the user expects from a discoverable shortcut bar.
+        OnPropertyChanged(nameof(IsImageSelected));
+        OnPropertyChanged(nameof(HasFileOnDisk));
+        OnPropertyChanged(nameof(IsUrlSelected));
+    }
+
+    /// <summary>True when the current selection is an image — gates the "Open in editor"
+    /// affordance (text / file rows have nothing to edit in the image annotation editor).</summary>
+    public bool IsImageSelected => SelectedRow?.Kind == ItemKind.Image;
+
+    /// <summary>True when the selected item has a saved file on disk (BlobRef populated by
+    /// the SaveToFile pipeline step). Gates the "Show in explorer" affordance.</summary>
+    public bool HasFileOnDisk => !string.IsNullOrEmpty(_selectedItemBlobRef);
+
+    /// <summary>True when the selected text item is a parseable http(s) URL — gates the
+    /// "Open in browser" affordance. We only treat short-ish text as URL candidates so a
+    /// pasted log file with a URL on line 1 doesn't accidentally launch a browser.</summary>
+    public bool IsUrlSelected
+    {
+        get
+        {
+            if (SelectedRow?.Kind != ItemKind.Text) return false;
+            if (string.IsNullOrWhiteSpace(PreviewText)) return false;
+            var trimmed = PreviewText.Trim();
+            if (trimmed.Length is 0 or > 4096) return false;
+            return Uri.TryCreate(trimmed, UriKind.Absolute, out var parsed)
+                && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps);
+        }
     }
 
     private void ApplyPreview(PreviewKind kind, string? text, byte[]? image, byte[]? rtf, string? html, string? meta)
@@ -277,12 +308,34 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         PasteCompleted?.Invoke(this, EventArgs.Empty);
     }
 
-    [RelayCommand(CanExecute = nameof(IsImageSelection))]
+    [RelayCommand(CanExecute = nameof(IsImageSelected))]
     private async Task OpenInEditorAsync()
     {
         if (SelectedRow is null || SelectedRow.Kind != ItemKind.Image) return;
         var launcher = _services.GetRequiredService<EditorLauncher>();
         await launcher.OpenAsync(SelectedRow.Id, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    [RelayCommand(CanExecute = nameof(IsUrlSelected))]
+    private void OpenInBrowser()
+    {
+        if (string.IsNullOrWhiteSpace(PreviewText)) return;
+        var trimmed = PreviewText.Trim();
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var parsed)) return;
+        if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = parsed.AbsoluteUri,
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            // Browser launch failed (no default handler, sandboxed context, etc.) — silent
+            // since the user can fall back to copy-paste; surfacing a dialog would be noise.
+        }
     }
 
     [RelayCommand(CanExecute = nameof(HasFileOnDisk))]
@@ -365,8 +418,6 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     }
 
     private bool HasSelection() => SelectedRow is not null;
-    private bool IsImageSelection() => SelectedRow?.Kind == ItemKind.Image;
-    private bool HasFileOnDisk() => !string.IsNullOrEmpty(_selectedItemBlobRef);
 
     private static string? NormalizeSearch(string text)
     {

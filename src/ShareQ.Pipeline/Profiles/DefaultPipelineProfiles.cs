@@ -31,6 +31,7 @@ public static class DefaultPipelineProfiles
     public const string CopyTextToClipboardTaskId  = "shareq.copy-text-to-clipboard";
     public const string NotifyToastTaskId          = "shareq.notify-toast";
     public const string OpenEditorBeforeUploadTaskId = "shareq.open-editor-before-upload";
+    public const string ApplyImageEffectsPresetTaskId = "shareq.apply-image-effects-preset";
     public const string OpenPopupTaskId            = "shareq.open-popup";
     public const string ToggleIncognitoTaskId      = "shareq.toggle-incognito";
     public const string ColorSamplerTaskId         = "shareq.color-sampler";

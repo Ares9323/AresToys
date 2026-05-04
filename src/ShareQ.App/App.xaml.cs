@@ -212,6 +212,7 @@ public partial class App : Application
 
                 // App-side pipeline tasks (registered as IPipelineTask alongside Pipeline's baked tasks).
                 services.AddSingleton<IPipelineTask, CopyImageToClipboardTask>();
+                services.AddSingleton<IPipelineTask, ApplyImageEffectsPresetTask>();
                 services.AddSingleton<IPipelineTask, CopyTextToClipboardTask>();
                 services.AddSingleton<IPipelineTask, UploadClipboardTextTask>();
                 services.AddSingleton<IPipelineTask, NotifyToastTask>();
@@ -328,6 +329,25 @@ public partial class App : Application
         // Seed default pipeline profiles (idempotent — leaves user customizations).
         var seeder = _host.Services.GetRequiredService<PipelineProfileSeeder>();
         await seeder.SeedAsync(CancellationToken.None);
+
+        // Register the dynamic-options provider for the WorkflowActionCatalog ComboBox source
+        // keyed by "image_effect_presets". The lookup is sync because the catalog is consumed
+        // on the UI thread when each step row materialises; .GetAwaiter().GetResult() is safe
+        // here — IImageEffectPresetStore.ListAsync uses the singleton SqliteConnection (no
+        // SyncContext capture), so no deadlock risk.
+        var presetStore = _host.Services.GetRequiredService<ShareQ.Storage.ImageEffects.IImageEffectPresetStore>();
+        ShareQ.App.ViewModels.WorkflowActionCatalog.OptionsProviders["image_effect_presets"] = () =>
+        {
+            try
+            {
+                var presets = presetStore.ListAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+                return presets.Select(p => p.Name).ToList();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        };
 
         var incognito = _host.Services.GetRequiredService<IncognitoModeService>();
         await incognito.LoadAsync(CancellationToken.None);

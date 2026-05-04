@@ -379,17 +379,31 @@
                                    Command="{Binding TogglePinSelectedCommand}">
                             <TextBlock Text="&#xE718;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                         </ui:Button>
+                        <!-- Edit / show-in-explorer hidden (Visibility=Collapsed) when they
+                             don't apply to the current selection — text rows have nothing to
+                             edit, ephemeral entries have no file on disk to reveal. -->
                         <ui:Button Width="32" Height="32" Padding="0"
                                    Margin="0,0,0,4"
                                    ToolTip="Open in editor (image only)"
-                                   Command="{Binding OpenInEditorCommand}">
+                                   Command="{Binding OpenInEditorCommand}"
+                                   Visibility="{Binding IsImageSelected, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                         </ui:Button>
                         <ui:Button Width="32" Height="32" Padding="0"
                                    Margin="0,0,0,4"
                                    ToolTip="Show in explorer"
-                                   Command="{Binding OpenInExplorerCommand}">
+                                   Command="{Binding OpenInExplorerCommand}"
+                                   Visibility="{Binding HasFileOnDisk, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="&#xE838;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
+                        </ui:Button>
+                        <!-- Open URL in browser — visible only when the selected text item parses
+                             as an http(s) URL. Glyph: Globe (Segoe Fluent Icons E774). -->
+                        <ui:Button Width="32" Height="32" Padding="0"
+                                   Margin="0,0,0,4"
+                                   ToolTip="Open URL in browser"
+                                   Command="{Binding OpenInBrowserCommand}"
+                                   Visibility="{Binding IsUrlSelected, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="&#xE774;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                         </ui:Button>
                         <ui:Button Width="32" Height="32" Padding="0"
                                    ToolTip="Delete (Del)"

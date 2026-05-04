@@ -63,10 +63,29 @@ public sealed class SaveToFileTask : IPipelineTask
         var titleSlug = context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) && rawTitle is string title
             ? SanitizeForFilename(title)
             : string.Empty;
-        var fileName = string.IsNullOrEmpty(titleSlug)
-            ? $"shareq-{stamp}.{extension.TrimStart('.')}"
-            : $"shareq-{titleSlug}-{stamp}.{extension.TrimStart('.')}";
-        var fullPath = Path.Combine(folder, fileName);
+        var baseName = string.IsNullOrEmpty(titleSlug)
+            ? $"shareq-{stamp}"
+            : $"shareq-{titleSlug}-{stamp}";
+        var bareExt = extension.TrimStart('.');
+        var fullPath = Path.Combine(folder, $"{baseName}.{bareExt}");
+
+        // Collision guard: when a workflow runs Save-to-file twice with Apply-effects in
+        // between (one save for the original, one for the modified), both writes can land
+        // in the same millisecond on fast hardware → the second clobbers the first. Append
+        // -1, -2, … until we find a free slot. Cheap (just a stat call per attempt) and
+        // bounded — file systems realistically never need more than a few iterations.
+        if (File.Exists(fullPath))
+        {
+            for (var n = 1; n < 1000; n++)
+            {
+                var candidate = Path.Combine(folder, $"{baseName}-{n}.{bareExt}");
+                if (!File.Exists(candidate))
+                {
+                    fullPath = candidate;
+                    break;
+                }
+            }
+        }
 
         await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken).ConfigureAwait(false);
 

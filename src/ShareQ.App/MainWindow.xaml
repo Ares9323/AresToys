@@ -722,10 +722,20 @@
                                                                     <TextBlock Grid.Column="0" Text="{Binding Label}"
                                                                                Foreground="#DDD" FontSize="11"
                                                                                VerticalAlignment="Center" />
+                                                                    <!-- Editable ComboBox when the parameter declares an OptionsKey (e.g. preset
+                                                                         picker). IsEditable=True so the user can still type a name not yet in
+                                                                         the list — match-by-name at runtime tolerates fresh presets. -->
+                                                                    <ComboBox Grid.Column="1"
+                                                                              ItemsSource="{Binding Options}"
+                                                                              Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                              IsEditable="True"
+                                                                              FontSize="11"
+                                                                              Visibility="{Binding HasOptions, Converter={StaticResource BoolToVisibility}}" />
                                                                     <ui:TextBox Grid.Column="1"
                                                                                 Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                 PlaceholderText="{Binding Placeholder}"
-                                                                                FontSize="11" />
+                                                                                FontSize="11"
+                                                                                Visibility="{Binding HasOptions, Converter={StaticResource InverseBoolToVisibility}}" />
                                                                     <!-- Picker buttons live to the right of the text box. Visibility is bound
                                                                          to the entry's ShowFileButton / ShowFolderButton flags so a parameter
                                                                          without a picker (args, command) shows just the text box. -->

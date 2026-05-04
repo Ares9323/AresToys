@@ -30,13 +30,16 @@ public enum StringPickerKind
 /// box on the step row. <see cref="Placeholder"/> shows as a hint when the value is empty
 /// (paths, args, commands). <see cref="Picker"/> requests file/folder browse buttons
 /// alongside the text box. The text is persisted verbatim under <see cref="Key"/> in the
-/// step's JSON config.</summary>
+/// step's JSON config. When <see cref="OptionsKey"/> is set the editor renders a ComboBox
+/// instead of a TextBox, populated by the matching entry in
+/// <see cref="WorkflowActionCatalog.OptionsProviders"/> (e.g. <c>"image_effect_presets"</c>).</summary>
 public sealed record StringParameter(
     string Key,
     string Label,
     string DefaultValue,
     string? Placeholder = null,
-    StringPickerKind Picker = StringPickerKind.None);
+    StringPickerKind Picker = StringPickerKind.None,
+    string? OptionsKey = null);
 
 /// <summary>One entry in the "+ Add step" picker for workflows. Maps a pipeline task id to
 /// human-readable metadata + a default config to apply when the user adds the action.</summary>
@@ -63,6 +66,15 @@ public sealed record WorkflowActionDescriptor(
 
 public static class WorkflowActionCatalog
 {
+    /// <summary>Dynamic-options resolvers keyed by <see cref="StringParameter.OptionsKey"/>.
+    /// Populated at app startup (<c>App.xaml.cs</c>) so the catalog itself stays free of
+    /// service-locator / DI plumbing. The provider is invoked once per step row at the
+    /// moment the row is materialised — a fresh open of Settings → Workflows reflects any
+    /// new entries (preset list, etc.). Callers that need live updates have to rebuild the
+    /// row.</summary>
+    public static readonly Dictionary<string, Func<IReadOnlyList<string>>> OptionsProviders =
+        new(StringComparer.Ordinal);
+
     public static readonly IReadOnlyList<WorkflowActionDescriptor> All =
     [
         new("shareq.capture-region",
@@ -136,6 +148,17 @@ public static class WorkflowActionCatalog
             "Pause the pipeline and open the annotation editor on the captured bytes. On save, subsequent steps see the edited image.",
             "Editor"),
 
+        new("shareq.apply-image-effects-preset",
+            "Apply image effects preset",
+            "Run a saved chain of adjustments / filters on the captured image (e.g. add a border, watermark, vignette). Configure presets in Settings → Image effects. Pick the preset from the dropdown (or type a name); leave empty to skip. Toggle 'Keep original in history' to save both pre- and post-effect entries with a single Add-to-history step downstream.",
+            "Editor",
+            BoolParameters: new[]
+            {
+                new BoolParameter("keep_original", "Keep original in clipboard history", false),
+            },
+            StringParameters: [new StringParameter("preset_name", "Preset", string.Empty,
+                Placeholder: "(none)", OptionsKey: "image_effect_presets")]),
+
         new("shareq.save-to-file",
             "Save to file",
             "Write the current bytes to disk under the configured capture folder (Settings → Capture).",
@@ -144,12 +167,12 @@ public static class WorkflowActionCatalog
         new("shareq.add-to-history",
             "Add to clipboard history",
             "Index the item in ShareQ's history so it shows up in Win+V.",
-            "I/O"),
+            "Clipboard"),
 
         new("shareq.copy-image-to-clipboard",
             "Copy image to clipboard",
             "Place the bitmap on the clipboard (overwritten by later text-to-clipboard steps).",
-            "I/O"),
+            "Clipboard"),
 
         new("shareq.paste-history-item",
             "Paste history item",
@@ -180,7 +203,7 @@ public static class WorkflowActionCatalog
         new("shareq.copy-text-to-clipboard",
             "Copy URL to clipboard",
             "Replace the current clipboard content with the upload URL(s) returned by the upload step.",
-            "I/O",
+            "Clipboard",
             DefaultConfigJson: "{\"template\":\"{bag.upload_urls}\"}"),
 
         new("shareq.upload",

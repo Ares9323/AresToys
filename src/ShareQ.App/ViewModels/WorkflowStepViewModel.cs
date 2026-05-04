@@ -73,7 +73,18 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
             {
                 var initial = stringParameterValues is not null && stringParameterValues.TryGetValue(sp.Key, out var v)
                     ? v : sp.DefaultValue;
-                StringParameters.Add(new StringParameterEntry(sp.Key, sp.Label, sp.Placeholder, initial, sp.Picker,
+                // Resolve the dropdown source for parameters that declare an OptionsKey
+                // (e.g. "image_effect_presets" → live preset list). Provider is registered in
+                // App.xaml.cs and may legitimately be missing under unit tests — null Options
+                // simply falls back to a plain TextBox.
+                IReadOnlyList<string>? options = null;
+                if (sp.OptionsKey is not null
+                    && WorkflowActionCatalog.OptionsProviders.TryGetValue(sp.OptionsKey, out var provider))
+                {
+                    try { options = provider(); }
+                    catch { options = Array.Empty<string>(); }
+                }
+                StringParameters.Add(new StringParameterEntry(sp.Key, sp.Label, sp.Placeholder, initial, sp.Picker, options,
                     (key, value) => _onStringParameterChanged?.Invoke(this, key, value)));
             }
         }
@@ -218,12 +229,14 @@ public sealed partial class StringParameterEntry : ObservableObject
         string? placeholder,
         string initialValue,
         StringPickerKind picker,
+        IReadOnlyList<string>? options,
         Action<string, string> onChanged)
     {
         Key = key;
         Label = label;
         Placeholder = placeholder;
         Picker = picker;
+        Options = options;
         _onChanged = onChanged;
         _suppress = true;
         Value = initialValue;
@@ -234,6 +247,11 @@ public sealed partial class StringParameterEntry : ObservableObject
     public string Label { get; }
     public string? Placeholder { get; }
     public StringPickerKind Picker { get; }
+    /// <summary>Optional dropdown source. When non-null and non-empty the editor renders a
+    /// ComboBox (editable so the user can still type a value not in the list — a preset
+    /// the user is about to create / a fallback name).</summary>
+    public IReadOnlyList<string>? Options { get; }
+    public bool HasOptions => Options is { Count: > 0 };
     public bool ShowFileButton => Picker is StringPickerKind.File or StringPickerKind.FileOrFolder;
     public bool ShowFolderButton => Picker is StringPickerKind.Folder or StringPickerKind.FileOrFolder;
 
