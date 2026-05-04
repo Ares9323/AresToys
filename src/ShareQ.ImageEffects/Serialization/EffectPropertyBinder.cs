@@ -5,10 +5,10 @@ using System.Text.Json.Serialization;
 namespace ShareQ.ImageEffects.Serialization;
 
 /// <summary>Reflective copy of JSON object properties into a live <see cref="ImageEffect"/>.
-/// Both our own preset reader and the ShareX <c>.sxie</c> importer go through this — they
-/// just feed it different <see cref="JsonElement"/> shapes (camelCase vs PascalCase). A
-/// missing property is fine (effect keeps its default); an incompatible value is logged-and-
-/// skipped rather than aborting the load, so one bad slider doesn't poison a whole preset.</summary>
+/// We standardise on ShareX's PascalCase shape end-to-end; this binder still tries the
+/// camelCase variant as a fallback so hand-authored or older payloads round-trip. A missing
+/// property is fine (effect keeps its default); an incompatible value is silently skipped
+/// rather than aborting the load, so one bad slider doesn't poison a whole preset.</summary>
 internal static class EffectPropertyBinder
 {
     public static void Apply(ImageEffect effect, JsonElement source, JsonSerializerOptions? options = null)
@@ -23,9 +23,9 @@ internal static class EffectPropertyBinder
             var attr = prop.GetCustomAttribute<JsonPropertyNameAttribute>();
             var camel = attr?.Name ?? options.PropertyNamingPolicy?.ConvertName(prop.Name) ?? prop.Name;
 
-            // Try camelCase first (our format), then raw PropertyName (ShareX format).
-            if (!source.TryGetProperty(camel, out var value)
-                && !source.TryGetProperty(prop.Name, out value)) continue;
+            // Try the raw PropertyName first (ShareX standard), camelCase as a tolerant fallback.
+            if (!source.TryGetProperty(prop.Name, out var value)
+                && !source.TryGetProperty(camel, out value)) continue;
 
             try
             {

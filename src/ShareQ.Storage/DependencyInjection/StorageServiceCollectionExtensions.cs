@@ -27,7 +27,6 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IStoragePathResolver, StoragePathResolver>();
 
         services.AddSingleton<IMigration, Migration001InitialSchema>();
-        services.AddSingleton<IMigration, Migration002ImageEffectPresets>();
         services.AddSingleton<MigrationRunner>(sp =>
             new MigrationRunner(sp.GetServices<IMigration>()));
         services.AddSingleton<IShareQDatabase, ShareQDatabase>();

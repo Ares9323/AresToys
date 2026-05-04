@@ -11,8 +11,6 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
 {
     private readonly IShareQDatabase _database;
     private readonly EffectPresetSerializer _serializer;
-    private bool _schemaEnsured;
-    private readonly Lock _schemaGate = new();
 
     public SqliteImageEffectPresetStore(IShareQDatabase database, EffectPresetSerializer? serializer = null)
     {
@@ -22,41 +20,8 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
 
     public event EventHandler? Changed;
 
-    /// <summary>Defensive CREATE-TABLE-IF-NOT-EXISTS run on first use. Migration002 normally
-    /// creates this table at startup, but if a v1 install upgrades to a build where
-    /// schema_version was bumped past 2 by other means, the migration runner skips it and the
-    /// table stays missing. Running the same DDL here covers that gap idempotently.</summary>
-    private async Task EnsureSchemaAsync(CancellationToken cancellationToken)
-    {
-        lock (_schemaGate)
-        {
-            if (_schemaEnsured) return;
-        }
-
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS image_effect_presets (
-                id            TEXT PRIMARY KEY,
-                name          TEXT NOT NULL,
-                effects_json  TEXT NOT NULL,
-                sort_order    INTEGER NOT NULL DEFAULT 0,
-                created_at    INTEGER NOT NULL,
-                updated_at    INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_image_effect_presets_order ON image_effect_presets(sort_order);
-            """;
-        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        lock (_schemaGate)
-        {
-            _schemaEnsured = true;
-        }
-    }
-
     public async Task<IReadOnlyList<EffectPreset>> ListAsync(CancellationToken cancellationToken)
     {
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         var conn = _database.GetOpenConnection();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT id, name, effects_json, sort_order FROM image_effect_presets ORDER BY sort_order, name;";
@@ -73,7 +38,6 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
     public async Task<EffectPreset?> GetAsync(string id, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         var conn = _database.GetOpenConnection();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT id, name, effects_json FROM image_effect_presets WHERE id = $id LIMIT 1;";
@@ -87,7 +51,6 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
     {
         ArgumentNullException.ThrowIfNull(preset);
         if (string.IsNullOrEmpty(preset.Id)) preset.Id = Guid.NewGuid().ToString("N");
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
 
         // Round-trip-safe id check: name fields with embedded quotes / newlines are JSON-escaped
         // by the serializer, so storing the produced string verbatim is fine.
@@ -129,7 +92,6 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         var conn = _database.GetOpenConnection();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM image_effect_presets WHERE id = $id;";
@@ -143,7 +105,6 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
     {
         ArgumentNullException.ThrowIfNull(orderedIds);
         if (orderedIds.Count == 0) return;
-        await EnsureSchemaAsync(cancellationToken).ConfigureAwait(false);
         var conn = _database.GetOpenConnection();
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         for (var i = 0; i < orderedIds.Count; i++)

@@ -100,3 +100,19 @@ CREATE TABLE settings (
     value           TEXT NOT NULL,
     is_sensitive    INTEGER NOT NULL DEFAULT 0
 );
+
+-- ── Image effects ────────────────────────────────────────────────────────────────────
+-- One row per preset; the chain of effects + their parameters is a single JSON blob in
+-- effects_json (produced by EffectPresetSerializer in ShareX-compatible format). Storing
+-- the chain serialised avoids a per-effect row + reflection table, which would force a
+-- schema bump every time we port a new effect from ShareX.
+CREATE TABLE image_effect_presets (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    effects_json  TEXT NOT NULL,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    created_at    INTEGER NOT NULL,
+    updated_at    INTEGER NOT NULL
+);
+
+CREATE INDEX idx_image_effect_presets_order ON image_effect_presets(sort_order);

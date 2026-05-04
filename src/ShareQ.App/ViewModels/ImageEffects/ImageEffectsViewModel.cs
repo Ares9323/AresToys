@@ -323,25 +323,8 @@ public sealed partial class ImageEffectsViewModel : ObservableObject, IDisposabl
         try
         {
             var (json, assetsDir) = await ReadSxiePackageAsync(path).ConfigureAwait(true);
-
-            // Format detection: ShareX writes PascalCase "Effects" + "$type" discriminators;
-            // our own exports write camelCase "effects" + "id". Both shapes can land inside a
-            // .sxie ZIP, so we sniff the JSON root to pick the right deserializer.
-            EffectPreset? preset;
-            using (var doc = System.Text.Json.JsonDocument.Parse(json))
-            {
-                var root = doc.RootElement;
-                var isShareX = false;
-                if (root.TryGetProperty("Effects", out var effEl)
-                    && effEl.ValueKind == System.Text.Json.JsonValueKind.Array
-                    && effEl.GetArrayLength() > 0
-                    && effEl[0].TryGetProperty("$type", out _))
-                {
-                    isShareX = true;
-                }
-                preset = isShareX ? SxiePresetImporter.Import(json, _registry) : _serializer.Deserialize(json);
-            }
-            if (preset is null) throw new InvalidDataException("Couldn't read preset payload.");
+            var preset = _serializer.Deserialize(json)
+                ?? throw new InvalidDataException("Couldn't read preset payload.");
 
             // Patch path-bearing properties in two effects: DrawImage.ImageLocation (single
             // file) and DrawParticles.ImageFolder (a directory of sprite candidates).

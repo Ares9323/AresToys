@@ -37,13 +37,16 @@ public sealed class PresetSerializerTests
     [Fact]
     public void Deserialize_UnknownEffectId_SkipsEntry()
     {
+        // ShareX format: PascalCase + bare-class-name "$type" discriminator. Unknown $types
+        // are silently skipped so a preset that mixes ported and not-yet-ported effects still
+        // lands the parts we understand.
         const string json = """
         {
-          "id": "test", "name": "Mixed",
-          "effects": [
-            { "id": "brightness", "enabled": true, "amount": 10 },
-            { "id": "imaginary-future-effect", "enabled": true, "magic": 99 },
-            { "id": "contrast", "enabled": true, "amount": -5 }
+          "Name": "Mixed",
+          "Effects": [
+            { "$type": "Brightness", "Amount": 10, "Enabled": true },
+            { "$type": "ImaginaryFutureEffect", "Magic": 99, "Enabled": true },
+            { "$type": "Contrast", "Amount": -5, "Enabled": true }
           ]
         }
         """;
@@ -59,11 +62,14 @@ public sealed class PresetSerializerTests
     [Fact]
     public void Deserialize_GarbledParameter_KeepsDefault()
     {
+        // A non-numeric value where a number is expected gets caught by the property binder's
+        // try/catch and the effect keeps its default — one bad slider doesn't poison the
+        // whole preset.
         const string json = """
         {
-          "id": "test", "name": "Bad",
-          "effects": [
-            { "id": "brightness", "enabled": true, "amount": "not a number" }
+          "Name": "Bad",
+          "Effects": [
+            { "$type": "Brightness", "Amount": "not a number", "Enabled": true }
           ]
         }
         """;
