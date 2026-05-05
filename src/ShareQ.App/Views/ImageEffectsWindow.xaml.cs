@@ -30,6 +30,7 @@ public partial class ImageEffectsWindow : Wpf.Ui.Controls.FluentWindow
         DataContext = _viewModel;
         InitializeComponent();
         ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
+        ShareQ.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         Loaded += OnLoaded;
         Closed += OnClosed;
         SizeChanged += OnPlacementChanged;

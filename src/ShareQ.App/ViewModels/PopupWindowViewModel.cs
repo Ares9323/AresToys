@@ -188,17 +188,29 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         OpenInExplorerCommand.NotifyCanExecuteChanged();
         OpenInBrowserCommand.NotifyCanExecuteChanged();
         CaptureWebpageCommand.NotifyCanExecuteChanged();
+        // CanCaptureWebpage = IsUrlSelected && WebView2 available — the second factor is a
+        // process-lifetime constant, but the predicate fans out through every selection
+        // change because it composes IsUrlSelected.
         // The XAML toolbar binds Visibility to these flags so the icons disappear (rather
         // than just disabling) when they don't apply to the current selection — matches the
         // behaviour the user expects from a discoverable shortcut bar.
         OnPropertyChanged(nameof(IsImageSelected));
         OnPropertyChanged(nameof(HasFileOnDisk));
         OnPropertyChanged(nameof(IsUrlSelected));
+        OnPropertyChanged(nameof(IsTextSelected));
+        OnPropertyChanged(nameof(CanCaptureWebpage));
     }
 
     /// <summary>True when the current selection is an image — gates the "Open in editor"
     /// affordance (text / file rows have nothing to edit in the image annotation editor).</summary>
     public bool IsImageSelected => SelectedRow?.Kind == ItemKind.Image;
+
+    /// <summary>True when the current selection holds text-shaped content — gates the
+    /// "Generate QR code…" affordance (toolbar + context menu). A QR code carries a textual
+    /// payload, so on Image / Video / Files rows the affordance has nothing to encode and
+    /// is hidden.</summary>
+    public bool IsTextSelected =>
+        SelectedRow?.Kind is ItemKind.Text or ItemKind.Html or ItemKind.Rtf;
 
     /// <summary>True when the selected item has a saved file on disk (BlobRef populated by
     /// the SaveToFile pipeline step). Gates the "Show in explorer" affordance.</summary>
@@ -210,6 +222,16 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// <c>href</c> is an http(s) link (browser "Copy link" puts HTML on the clipboard, which
     /// the reader prefers over plain text).</summary>
     public bool IsUrlSelected => ResolveSelectedUrl() is not null;
+
+    /// <summary>True when (a) the selection has a URL and (b) the WebView2 Runtime is
+    /// installed. Gates the "Capture webpage" affordance separately from "Open URL in
+    /// browser" — the latter only needs Process.Start and works without any runtime, but the
+    /// full-page screenshot needs a hosted browser. On machines without WebView2 the button
+    /// hides and the user can install the runtime via the tray menu's fallback entry.</summary>
+    public bool CanCaptureWebpage =>
+        IsUrlSelected
+        && (_services.GetService(typeof(WebView2AvailabilityService)) is WebView2AvailabilityService svc
+            && svc.IsAvailable);
 
     private string? ResolveSelectedUrl()
     {
@@ -368,7 +390,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// history + clipboard + upload + toast). The CaptureWebpageTask short-circuits when it
     /// finds payload bytes already in the bag, so the prompt never shows — we set them via
     /// <see cref="ManualUploadService.IngestBytesAsync"/> before running the profile.</summary>
-    [RelayCommand(CanExecute = nameof(IsUrlSelected))]
+    [RelayCommand(CanExecute = nameof(CanCaptureWebpage))]
     private async Task CaptureWebpageAsync()
     {
         var url = ResolveSelectedUrl();

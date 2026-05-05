@@ -51,6 +51,7 @@ public partial class QrGeneratorWindow : Wpf.Ui.Controls.FluentWindow
 
         InitializeComponent();
         ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
+        ShareQ.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
 
         InputText.TextChanged += (_, _) => Schedule();
         if (!string.IsNullOrEmpty(initialText))

@@ -1,19 +1,20 @@
-<Window x:Class="ShareQ.App.Views.ClipboardWindow"
+<ui:FluentWindow x:Class="ShareQ.App.Views.ClipboardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:ShareQ.App.ViewModels"
         Title="ShareQ - Clipboard"
+        Icon="pack://application:,,,/Assets/icon.ico"
         Width="980" Height="600"
         MinWidth="640" MinHeight="380"
         WindowStartupLocation="Manual"
-        WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        WindowBackdropType="None"
+        Background="{DynamicResource Surface2Brush}"
+        ExtendsContentIntoTitleBar="True"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="CanResize">
-    <Window.Resources>
+    <ui:FluentWindow.Resources>
         <!-- Same Primary-button override as the Settings sidebar: rest = AccentBackgroundDark
              (deeper green/blue), hover/pressed flip to the brighter AccentBackground for
              visible feedback. Border colour matches the fill so no light halo around the
@@ -30,48 +31,53 @@
                          Color="{DynamicResource AccentBackgroundDarkColor}" />
         <SolidColorBrush x:Key="AccentButtonBorderBrushPressed"
                          Color="{DynamicResource AccentBackgroundColor}" />
-    </Window.Resources>
-    <Border Background="{DynamicResource Surface2Brush}" CornerRadius="8"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1">
+    </ui:FluentWindow.Resources>
+    <!-- Accent-tinted 2px frame around the whole window content (titlebar + body), matching
+         MainWindow / ImageEffectsWindow / GradientEditorWindow / QrGeneratorWindow. FluentWindow's
+         own chrome stays outside this Border, so the accent line reads as an inner "telaio". -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
-            <Grid Margin="14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- 0 titlebar -->
+                <RowDefinition Height="*" />     <!-- 1 main content -->
+            </Grid.RowDefinitions>
+
+            <!-- WPF-UI titlebar — handles drag, double-click maximise, min/max/close buttons,
+                 and the dark caption color via DWM. Replaces the old custom DragHandle that had
+                 to live inside an AllowsTransparency=True window with a manual Thumb resize. -->
+            <ui:TitleBar Grid.Row="0" Title="ShareQ - Clipboard">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="{StaticResource ShareQLogo}" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+
+            <Grid Grid.Row="1" Margin="14,0,14,14">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />  <!-- header -->
+                    <RowDefinition Height="Auto" />  <!-- header (Clear all + search) -->
                     <RowDefinition Height="Auto" />  <!-- categories tabs + filters -->
                     <RowDefinition Height="*" />     <!-- history + toolbar + preview -->
                     <RowDefinition Height="Auto" />  <!-- footer -->
                 </Grid.RowDefinitions>
 
-                <!-- ── Header chrome (icon + title + close + search) ───────────────────────── -->
-                <Grid x:Name="DragHandle"
-                      Grid.Row="0"
-                      Background="#01000000"
-                      Cursor="SizeAll"
-                      MouseLeftButtonDown="OnChromeMouseDown"
-                      Margin="0,0,0,8">
+                <!-- ── Header chrome (Clear all + search). Title + icon now live in the
+                      ui:TitleBar above; this row only carries the actions that need to scroll
+                      with the body content. ───────────────────────────────────────────────── -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="220" />
                     </Grid.ColumnDefinitions>
-                    <!-- Header columns: 0 icon | 1 title | 2 spacer | 3 Clear all | 4 search -->
 
-                    <Image Grid.Column="0" Width="20" Height="20" Margin="0,0,8,0"
-                           VerticalAlignment="Center"
-                           Source="{StaticResource ShareQLogo}" />
-                    <TextBlock Grid.Column="1" Text="ShareQ - Clipboard"
-                               Foreground="#FFF" FontWeight="SemiBold" FontSize="13"
-                               VerticalAlignment="Center" />
-                    <ui:Button Grid.Column="3"
+                    <ui:Button Grid.Column="1"
                                Content="Clear all"
                                Appearance="Danger"
                                Margin="0,0,8,0"
                                Cursor="Arrow"
                                Command="{Binding ClearAllCommand}"
                                ToolTip="Delete every non-pinned item (Ctrl+Shift+Del)" />
-                    <ui:TextBox Grid.Column="4" x:Name="SearchBox"
+                    <ui:TextBox Grid.Column="2" x:Name="SearchBox"
                                 PlaceholderText="🔍 Search…"
                                 FontSize="11"
                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
@@ -220,12 +226,13 @@
                                                         </MenuItem.ItemContainerStyle>
                                                     </MenuItem>
                                                     <Separator />
-                                                    <!-- Generate QR — only meaningful for text items, but we leave it
-                                                         enabled regardless and let the handler bail out gracefully on
-                                                         non-text rows; keeps the menu shape stable across selection
-                                                         types. -->
+                                                    <!-- Generate QR — only meaningful for text-shaped rows
+                                                         (Text/Html/Rtf). On Image/Video/Files the entry hides
+                                                         entirely; the handler still has a defensive bail-out for
+                                                         programmatic invocation paths. -->
                                                     <MenuItem Header="Generate QR code…"
-                                                              Click="OnGenerateQrFromItemClicked" />
+                                                              Click="OnGenerateQrFromItemClicked"
+                                                              Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}" />
                                                     <Separator />
                                                     <MenuItem Header="Delete"
                                                               Command="{Binding DeleteSelectedCommand}" />
@@ -408,13 +415,14 @@
                                 <TextBlock Text="&#xE718;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <!-- Generate QR — opens the live generator pre-filled with the row's
-                                 preview text. Always visible (not selection-conditional) so the
-                                 spot stays muscle-memory-stable; clicking on a non-text row just
-                                 opens an empty editor (handler picks the right behaviour). -->
+                                 preview text. Visible only for text-shaped rows (Text/Html/Rtf):
+                                 a QR code carries a textual payload, so on Image/Video/Files
+                                 rows the button has nothing useful to do and collapses out. -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
                                        ToolTip="Generate QR code…"
-                                       Click="OnGenerateQrFromItemClicked">
+                                       Click="OnGenerateQrFromItemClicked"
+                                       Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xED14;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <!-- Edit / show-in-explorer hidden (Visibility=Collapsed) when they
@@ -443,16 +451,18 @@
                                        Visibility="{Binding IsUrlSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE774;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
-                            <!-- Capture webpage — same visibility gate as Open URL. Renders the URL
-                                 in a hidden WebView2, feeds the PNG into the webpage-capture pipeline
-                                 (save / history / copy / upload / toast). Glyph: ScreenSnapshot
-                                 (E89E) — the snapshot rectangle reads as "capture this URL" without
-                                 confusing it with the plain Globe used by Open. -->
+                            <!-- Capture webpage — visible when the row holds a URL AND the
+                                 WebView2 Runtime is installed (CanCaptureWebpage). Older Win10
+                                 builds without the runtime get the button hidden entirely; the
+                                 tray menu offers a "(install runtime)" fallback in that case.
+                                 Renders the URL in a hidden WebView2, feeds the PNG into the
+                                 webpage-capture pipeline (save / history / copy / upload /
+                                 toast). Glyph: ScreenSnapshot (E89E). -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
                                        ToolTip="Capture webpage (full-page screenshot of the URL)"
                                        Command="{Binding CaptureWebpageCommand}"
-                                       Visibility="{Binding IsUrlSelected, Converter={StaticResource BoolToVisibility}}">
+                                       Visibility="{Binding CanCaptureWebpage, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE89E;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <ui:Button Width="32" Height="32" Padding="0"
@@ -472,24 +482,6 @@
                            Foreground="#666" FontSize="11"
                            Text="↑↓ navigate · 1-9 focus · Enter paste · Ctrl+1-9 quick paste · ←→ switch category · Ctrl+F search · Ctrl+P pin · Ctrl+Shift+Del clear all · Esc close" />
             </Grid>
-
-            <!-- Resize grip — same pattern as the launcher (manual thumb because
-                 AllowsTransparency hides the standard window-border resize cursor). -->
-            <Thumb x:Name="ResizeThumb"
-                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                   Width="14" Height="14"
-                   Cursor="SizeNWSE"
-                   DragDelta="OnResizeThumbDelta"
-                   Margin="0,0,4,4">
-                <Thumb.Template>
-                    <ControlTemplate TargetType="Thumb">
-                        <Grid Background="Transparent">
-                            <Path Stroke="#888" StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                  Data="M 4,13 L 13,4 M 7,13 L 13,7 M 10,13 L 13,10" />
-                        </Grid>
-                    </ControlTemplate>
-                </Thumb.Template>
-            </Thumb>
         </Grid>
     </Border>
-</Window>
+</ui:FluentWindow>

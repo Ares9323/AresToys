@@ -52,6 +52,7 @@ public partial class MainWindow : FluentWindow
     {
         InitializeComponent();
         ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
+        ShareQ.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         DataContext = viewModel;
         _screenSampler = screenSampler;
         _colorRecents = colorRecents;
@@ -98,18 +99,6 @@ public partial class MainWindow : FluentWindow
         SizeChanged += (_, _) => _ = SaveWindowPlacementAsync();
         LocationChanged += (_, _) => _ = SaveWindowPlacementAsync();
         StateChanged += (_, _) => _ = SaveWindowPlacementAsync();
-    }
-
-    /// <summary>Manual drag-resize from the bottom-right thumb. Mirrors the Launcher window's
-    /// handler so the corner grab feels identical across the app. The system already permits
-    /// edge resize via FluentWindow chrome; this thumb is the affordance for users who hunt
-    /// for a corner handle.</summary>
-    private void OnMainResizeThumbDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
-    {
-        var newW = Math.Max(MinWidth,  ActualWidth  + e.HorizontalChange);
-        var newH = Math.Max(MinHeight, ActualHeight + e.VerticalChange);
-        Width = newW;
-        Height = newH;
     }
 
     // ── Tray click action ComboBoxes ─────────────────────────────────────────────────

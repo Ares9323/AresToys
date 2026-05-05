@@ -289,6 +289,7 @@ public partial class App : Application
                 services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
                 services.AddSingleton<ShareQ.Core.Imaging.IImageEncoder, WpfImageEncoder>();
                 services.AddSingleton<CaptureImageOutputService>();
+                services.AddSingleton<WebView2AvailabilityService>();
                 // Velopack-backed self-update. Disabled at runtime (IsAvailable=false) when the
                 // app isn't running from a Velopack-managed install — no harm, just shows the
                 // "Check for updates" button as disabled in Settings.
@@ -691,8 +692,15 @@ public partial class App : Application
         return IntPtr.Zero;
     }
 
+    /// <summary>True once <see cref="OnExit(ExitEventArgs)"/> has fired. Singleton windows
+    /// (ClipboardWindow / LauncherWindow) intercept their Closing event to Hide instead of
+    /// Close so the next hotkey press can re-Show them; during shutdown we need them to
+    /// actually close, so they read this flag to skip the cancel-and-hide path.</summary>
+    public static bool IsShuttingDown { get; private set; }
+
     protected override async void OnExit(ExitEventArgs e)
     {
+        IsShuttingDown = true;
         _keyboardHook?.Dispose();
         if (_host is not null)
         {

@@ -1595,25 +1595,6 @@
             </StackPanel>
         </Grid>
     </Grid>
-    <!-- Visual resize handle on the bottom-right corner. The window already supports system
-         resize on its borders (FluentWindow + ResizeMode=CanResize) but the explicit thumb
-         matches the affordance Clipboard / Launcher windows use, so the user has a clear
-         "grab here to resize" target. Z-ordered last so it paints on top of the inner border. -->
-    <Thumb x:Name="MainResizeThumb"
-           HorizontalAlignment="Right" VerticalAlignment="Bottom"
-           Width="14" Height="14"
-           Cursor="SizeNWSE"
-           DragDelta="OnMainResizeThumbDelta"
-           Margin="0,0,4,4">
-        <Thumb.Template>
-            <ControlTemplate TargetType="Thumb">
-                <Grid Background="Transparent">
-                    <Path Stroke="#888" StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                          Data="M 4,13 L 13,4 M 7,13 L 13,7 M 10,13 L 13,10" />
-                </Grid>
-            </ControlTemplate>
-        </Thumb.Template>
-    </Thumb>
     </Grid>
     </Border>
 </ui:FluentWindow>

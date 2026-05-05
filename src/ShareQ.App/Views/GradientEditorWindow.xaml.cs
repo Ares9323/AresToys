@@ -32,6 +32,7 @@ public partial class GradientEditorWindow : Wpf.Ui.Controls.FluentWindow
         DataContext = _viewModel;
         InitializeComponent();
         ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
+        ShareQ.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         Loaded += OnLoaded;
         SizeChanged += OnPlacementChanged;
         LocationChanged += OnPlacementChanged;

@@ -129,8 +129,20 @@ public sealed class TrayIconService : IDisposable
             () => Run<CaptureCoordinator>(c => _ = c.CaptureRegionAsync(CancellationToken.None))));
         capture.Items.Add(BuildMenuItem("Last region",
             () => Run<CaptureCoordinator>(c => _ = c.CaptureLastRegionAsync(CancellationToken.None))));
-        capture.Items.Add(BuildMenuItem("Webpage…",
-            () => Run<CaptureCoordinator>(c => _ = c.CaptureWebpageAsync(CancellationToken.None))));
+        // Webpage capture needs WebView2 Runtime. When missing (old Win10 builds without the
+        // bundled runtime, stripped LTSC images), swap the action for "(install runtime)" that
+        // opens the Microsoft download page rather than firing a capture that would just abort.
+        var webView2 = _services.GetService(typeof(WebView2AvailabilityService)) as WebView2AvailabilityService;
+        if (webView2?.IsAvailable ?? false)
+        {
+            capture.Items.Add(BuildMenuItem("Webpage…",
+                () => Run<CaptureCoordinator>(c => _ = c.CaptureWebpageAsync(CancellationToken.None))));
+        }
+        else
+        {
+            capture.Items.Add(BuildMenuItem("Webpage… (install WebView2 Runtime)",
+                () => webView2?.OpenInstallerPage()));
+        }
         capture.Items.Add(new Separator());
         capture.Items.Add(BuildMenuItem("Screen recording\tCtrl+Alt+S",
             () => Run<Services.Recording.RecordingCoordinator>(c => _ = c.ToggleAsync(ShareQ.Capture.Recording.RecordingFormat.Mp4, CancellationToken.None))));

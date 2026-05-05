@@ -114,7 +114,97 @@ public static partial class DarkTitleBar
     [LibraryImport("gdi32.dll")]
     private static partial IntPtr CreateSolidBrush(uint color);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetWindowRect(IntPtr hwnd, out RECT lpRect);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
     private const int GCLP_HBRBACKGROUND = -10;
     private const int DWMWA_CAPTION_COLOR = 35;   // Win11 build 22000+
     private const int DWMWA_BORDER_COLOR = 34;    // Win11 build 22000+
+
+    private const int WM_NCHITTEST = 0x0084;
+    // Hit-test return codes — see https://learn.microsoft.com/windows/win32/inputdev/wm-nchittest
+    private const int HTBOTTOM = 15;
+    private const int HTBOTTOMLEFT = 16;
+    private const int HTBOTTOMRIGHT = 17;
+    private const int HTLEFT = 10;
+    private const int HTRIGHT = 11;
+
+    /// <summary>Widen the resize hit-test zones along the bottom + left + right edges and the
+    /// two bottom corners. Default Windows resize border is 4–8 logical pixels which is hard
+    /// to grab — particularly the corners, where the diagonal-resize cursor only appears in a
+    /// tiny diamond. We hook WM_NCHITTEST and re-classify the outer <paramref name="cornerSize"/>
+    /// pixels as resize zones, so the user gets the diagonal cursor across a much larger
+    /// catchment area.
+    ///
+    /// Top corners are deliberately left at the system default — the FluentWindow titlebar
+    /// puts the close / minimise / maximise / icon buttons there, and overriding HTCLOSE /
+    /// HTMINBUTTON / HTMAXBUTTON / HTSYSMENU with a resize hit-test breaks them. Side and
+    /// bottom edges have no titlebar competition, so we widen those freely.
+    ///
+    /// No-op while maximised (resize is disabled by Windows in that state) and on
+    /// non-resizable windows. Works with WPF-UI FluentWindow + standard <see cref="Window"/>.</summary>
+    public static void EnlargeResizeHitZones(Window window, int cornerSize = 12)
+    {
+        window.SourceInitialized += (_, _) =>
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            var src = HwndSource.FromHwnd(hwnd);
+            src?.AddHook(MakeNcHitHook(window, cornerSize));
+        };
+    }
+
+    private static HwndSourceHook MakeNcHitHook(Window window, int cornerSize) =>
+        (IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) =>
+        {
+            if (msg != WM_NCHITTEST) return IntPtr.Zero;
+            // Skip when the user can't resize anyway. Maximised windows already disable resize
+            // at the OS level so the hit-test override would just confuse the cursor.
+            if (window.WindowState != WindowState.Normal) return IntPtr.Zero;
+            if (window.ResizeMode is ResizeMode.NoResize or ResizeMode.CanMinimize) return IntPtr.Zero;
+
+            // lParam packs cursor screen coords as low/high 16-bit words. Cast through int
+            // so negative coords (multi-monitor with a primary on the right) survive sign-extend.
+            var raw = lParam.ToInt32();
+            int x = (short)(raw & 0xFFFF);
+            int y = (short)((raw >> 16) & 0xFFFF);
+            if (!GetWindowRect(hwnd, out var rect)) return IntPtr.Zero;
+
+            // DPI-aware corner size: scale by the window's transform-to-device matrix so
+            // 12 logical px is 12 px on a 1× monitor and ~18 px on a 1.5× monitor.
+            int corner = ScalePx(window, cornerSize);
+
+            bool nearLeft   = x >= rect.Left   && x <  rect.Left   + corner;
+            bool nearRight  = x <  rect.Right  && x >= rect.Right  - corner;
+            bool nearBottom = y <  rect.Bottom && y >= rect.Bottom - corner;
+            // Side edges (LEFT / RIGHT) — only when not also near top, so we don't steal the
+            // top-corner buttons (close / max).
+            bool nearTop = y >= rect.Top && y < rect.Top + corner;
+
+            if (nearBottom && nearLeft)  { handled = true; return new IntPtr(HTBOTTOMLEFT); }
+            if (nearBottom && nearRight) { handled = true; return new IntPtr(HTBOTTOMRIGHT); }
+            if (nearBottom)              { handled = true; return new IntPtr(HTBOTTOM); }
+            if (!nearTop && nearLeft)    { handled = true; return new IntPtr(HTLEFT); }
+            if (!nearTop && nearRight)   { handled = true; return new IntPtr(HTRIGHT); }
+            return IntPtr.Zero;
+        };
+
+    private static int ScalePx(Window window, int logicalPx)
+    {
+        try
+        {
+            var src = PresentationSource.FromVisual(window);
+            var m = src?.CompositionTarget?.TransformToDevice ?? System.Windows.Media.Matrix.Identity;
+            var scale = (m.M11 + m.M22) * 0.5;
+            return (int)Math.Round(logicalPx * (scale > 0 ? scale : 1.0));
+        }
+        catch
+        {
+            return logicalPx;
+        }
+    }
 }

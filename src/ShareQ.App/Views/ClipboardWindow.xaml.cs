@@ -3,7 +3,6 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -15,9 +14,11 @@ namespace ShareQ.App.Views;
 
 /// <summary>The Win+V clipboard window — search, categories, history list, preview and
 /// per-item commands all driven by <see cref="PopupWindowViewModel"/> (kept under the legacy
-/// name during the popup→clipboard migration). Same chrome / resize / hide-on-toggle pattern
-/// the launcher uses, so the two surfaces feel like the same family.</summary>
-public partial class ClipboardWindow : Window
+/// name during the popup→clipboard migration). Built on <see cref="Wpf.Ui.Controls.FluentWindow"/>
+/// like the rest of the app (Mica/DWM caption, edge-resize, dark titlebar handled natively)
+/// — was previously a custom-chrome Window with AllowsTransparency=True + manual Thumb resize,
+/// which produced ghosting on resize and worse perf.</summary>
+public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
 {
     private static ClipboardWindow? _current;
     public static bool IsOpen => _current is { IsLoaded: true, IsVisible: true };
@@ -54,6 +55,8 @@ public partial class ClipboardWindow : Window
     public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, ShareQ.Storage.Rotation.CategoryRotationService? categoryRotation = null, ShareQ.App.Services.Qr.QrCodeService? qrService = null, ShareQ.App.Services.ManualUploadService? ingestion = null)
     {
         InitializeComponent();
+        ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
+        ShareQ.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         ViewModel = viewModel;
         DataContext = viewModel;
         _settings = settings;
@@ -74,6 +77,12 @@ public partial class ClipboardWindow : Window
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
         LocationChanged += OnLocationChanged;
+        // The window is registered AddSingleton, so the X button on the FluentWindow titlebar
+        // (which calls Close()) would tear down the singleton instance and the next Win+V
+        // press would throw "Cannot Show after a Window has closed". Intercept the close,
+        // cancel it, and Hide instead — matches Esc / paste-completion flow. App shutdown
+        // closes via Application.Current.Shutdown() which doesn't go through this event.
+        Closing += OnClosing;
         // GridSplitter drags don't trigger the window's SizeChanged — listen on the preview
         // pane itself so we capture both window resizes and splitter drags.
         PreviewPane.SizeChanged += OnPreviewPaneSizeChanged;
@@ -179,6 +188,17 @@ public partial class ClipboardWindow : Window
         _ = _settings.SetAsync(PreviewWidthKey,
             PreviewPane.ActualWidth.ToString(CultureInfo.InvariantCulture),
             sensitive: false, CancellationToken.None);
+    }
+
+    /// <summary>X-button / Alt+F4 → Hide the singleton instead of letting WPF Close() it.
+    /// Once a Window is closed it can't be shown again, and the next Win+V press would throw
+    /// "Cannot Show after a Window has closed". The IsShuttingDown gate lets the real
+    /// Close go through during app exit (WPF closes every window during shutdown).</summary>
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (App.IsShuttingDown) return;
+        e.Cancel = true;
+        BeginHide();
     }
 
     private void OnPasteCompleted(object? sender, EventArgs e)
@@ -616,21 +636,6 @@ public partial class ClipboardWindow : Window
             "Image" => ItemKind.Image,
             _       => null,
         };
-    }
-
-    private void OnChromeMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed) return;
-        try { DragMove(); }
-        catch (InvalidOperationException) { /* WPF throws if the mouse left already; ignore */ }
-    }
-
-    private void OnResizeThumbDelta(object sender, DragDeltaEventArgs e)
-    {
-        var newW = Math.Max(MinWidth,  ActualWidth  + e.HorizontalChange);
-        var newH = Math.Max(MinHeight, ActualHeight + e.VerticalChange);
-        Width  = newW;
-        Height = newH;
     }
 
     /// <summary>Hide on the next dispatcher cycle so the current event handler can fully

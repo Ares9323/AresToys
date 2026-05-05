@@ -18,7 +18,7 @@ namespace ShareQ.App.Views;
 /// the global cell; pressing 1-9 or 0 swaps the active tab; pressing a QWERTY/punctuation
 /// key fires the active tab's cell. Esc / focus loss closes. Right-click on a cell opens an
 /// edit dialog; right-click on a tab header lets the user rename it.</summary>
-public partial class LauncherWindow : Window
+public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly LauncherStore _store;
     private readonly IconService _icons;
@@ -74,6 +74,8 @@ public partial class LauncherWindow : Window
     public LauncherWindow(LauncherStore store, IconService icons, ILogger<LauncherWindow> logger)
     {
         InitializeComponent();
+        ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
+        ShareQ.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         _store = store;
         _icons = icons;
         _logger = logger;
@@ -155,7 +157,18 @@ public partial class LauncherWindow : Window
         return virt.IntersectsWith(rect);
     }
 
-    private void OnLauncherClosing(object sender, CancelEventArgs e) => PersistGeometry();
+    /// <summary>Persist size + position before the user dismisses the launcher, AND intercept
+    /// the X-button / Alt+F4 close so the singleton instance survives. Without the cancel
+    /// the FluentWindow titlebar's close button would tear down the window and the next
+    /// Win+Z press would throw "Cannot Show after a Window has closed". App shutdown
+    /// bypasses the cancel via <see cref="App.IsShuttingDown"/>.</summary>
+    private void OnLauncherClosing(object sender, CancelEventArgs e)
+    {
+        PersistGeometry();
+        if (App.IsShuttingDown) return;
+        e.Cancel = true;
+        BeginHide();
+    }
 
     /// <summary>Snapshot the window's current size + on-screen position to the store.
     /// Called from IsVisibleChanged on hide and from the Closing event on app shutdown — both
@@ -174,13 +187,6 @@ public partial class LauncherWindow : Window
         catch (Exception ex) { _logger.LogWarning(ex, "LauncherWindow: failed to persist geometry"); }
     }
 
-    private void OnResizeThumbDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
-    {
-        var newW = Math.Max(MinWidth,  ActualWidth  + e.HorizontalChange);
-        var newH = Math.Max(MinHeight, ActualHeight + e.VerticalChange);
-        Width  = newW;
-        Height = newH;
-    }
 
     /// <summary>Set by the host (e.g. <c>OpenLauncherDragModeTask</c>) before <c>Show()</c> to
     /// open the launcher already in drag-and-drop mode. Read once on Loaded.</summary>
@@ -412,30 +418,17 @@ public partial class LauncherWindow : Window
 
     private void OnDragToggleClick(object sender, RoutedEventArgs e) => SetDragMode(!_dragMode);
 
-    /// <summary>Mouse-down on the chrome (header strip) starts a window drag while we're in
-    /// drag mode — gives the user a way to move the launcher off where they're picking files.
-    /// Outside of drag mode the launcher is supposed to stay centred and dismiss on focus
-    /// loss, so we don't make it draggable then. Cells / tab headers / buttons handle their
-    /// own MouseDown so the drag won't fire when the user clicks something interactive.</summary>
-    private void OnChromeMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (!_dragMode) return;
-        if (e.LeftButton != MouseButtonState.Pressed) return;
-        try { DragMove(); }
-        catch (InvalidOperationException) { /* WPF throws if the mouse left already; ignore */ }
-    }
-
     /// <summary>Switch the drag-and-drop mode flag and reflect it in the UI (banner + toggle
-    /// button label, resize thumb visibility, draggability of the chrome). Cells already declare
-    /// AllowDrop="True" in XAML; their Drop handler reads <see cref="_dragMode"/> and ignores
-    /// drops outside the mode. The resize thumb only appears here too — outside drag mode the
-    /// launcher is a one-shot ephemeral overlay and shouldn't be resizable.</summary>
+    /// button label). Cells already declare AllowDrop="True" in XAML; their Drop handler
+    /// reads <see cref="_dragMode"/> and ignores drops outside the mode. Window drag and
+    /// edge-resize are now handled natively by the FluentWindow titlebar, so the conditional
+    /// chrome-drag and Thumb-visibility code that used to live here is gone — the user can
+    /// move/resize the launcher anytime, drag mode just changes drop-target behaviour.</summary>
     private void SetDragMode(bool on)
     {
         _dragMode = on;
         DragModeBanner.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         DragToggle.Content = on ? "✓ Drag mode (on)" : "📥 Drag mode";
-        ResizeThumb.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         // Persist so closing the launcher while in drag mode reopens it the same way next time.
         // Fire-and-forget: persistence is sub-ms (single SQLite key write).
         _ = _store.SaveDragModeAsync(on, CancellationToken.None);
