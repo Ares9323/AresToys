@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:ShareQ.App.ViewModels"
+        xmlns:Markup="clr-namespace:ShareQ.App.Markup"
         Title="Pick an icon"
         Width="540" Height="500"
         WindowStartupLocation="CenterOwner"
@@ -88,7 +89,7 @@
                 <!-- Clear sets the picked Glyph to empty string and closes — used to remove an
                      existing icon from a category without re-typing one. -->
                 <ui:Button Grid.Column="0" Content="Clear" Width="80" Click="OnClearClicked" />
-                <ui:Button Grid.Column="2" Content="Cancel" Width="80" IsCancel="True" Click="OnCancelClicked" />
+                <ui:Button Grid.Column="2" Content="{Markup:Loc Common_Cancel}" Width="80" IsCancel="True" Click="OnCancelClicked" />
             </Grid>
         </Grid>
     </Border>

@@ -38,13 +38,16 @@ public sealed partial class WorkflowsViewModel : ObservableObject
     private readonly PipelineProfileSeeder _seeder;
     private readonly HotkeyConfigService _hotkeys;
 
-    public WorkflowsViewModel(IPipelineProfileStore profiles, PipelineProfileSeeder seeder, HotkeyConfigService hotkeys, WorkflowEditorViewModel editor)
+    public WorkflowsViewModel(IPipelineProfileStore profiles, PipelineProfileSeeder seeder, HotkeyConfigService hotkeys, WorkflowEditorViewModel editor, Services.LocalizationService localization)
     {
         _profiles = profiles;
         _seeder = seeder;
         _hotkeys = hotkeys;
         Editor = editor;
         Workflows = [];
+        // Re-translate built-in workflow names when the user flips UI language. Custom workflows
+        // (renamed by the user) keep their stored DisplayName since the helper falls back to it.
+        localization.CultureChanged += async (_, _) => await ReloadWorkflowsAsync().ConfigureAwait(true);
         _ = ReloadWorkflowsAsync();
     }
 
@@ -114,12 +117,20 @@ public sealed partial class WorkflowsViewModel : ObservableObject
         var previousSelectedId = SelectedWorkflow?.Id;
 
         Workflows.Clear();
-        foreach (var profile in stored.OrderBy(p => p.IsBuiltIn ? 0 : 1).ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase))
+        // Localize built-in display names through WorkflowDisplayNameLocalizer; the stored
+        // value (English from the seeder, or whatever the user renamed a custom workflow to)
+        // is the fallback when the id isn't in the built-in map.
+        var localized = stored.Select(p => (
+                Profile: p,
+                Display: Services.WorkflowDisplayNameLocalizer.Localize(p.Id, p.DisplayName)))
+            .OrderBy(t => t.Profile.IsBuiltIn ? 0 : 1)
+            .ThenBy(t => t.Display, StringComparer.OrdinalIgnoreCase);
+        foreach (var (profile, display) in localized)
         {
             var description = BuiltInDescriptions.TryGetValue(profile.Id, out var d)
                 ? d
                 : profile.Trigger;
-            Workflows.Add(new WorkflowOption(profile.Id, profile.DisplayName, description, profile.IsBuiltIn));
+            Workflows.Add(new WorkflowOption(profile.Id, display, description, profile.IsBuiltIn));
         }
 
         var nextSelection = previousSelectedId is null

@@ -4,6 +4,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:ShareQ.App.ViewModels.ImageEffects"
                  xmlns:drawing="clr-namespace:ShareQ.ImageEffects.Drawing;assembly=ShareQ.ImageEffects"
+                 xmlns:Markup="clr-namespace:ShareQ.App.Markup"
                  Title="ShareQ - Gradient editor"
                  Width="900" Height="560"
                  MinWidth="780" MinHeight="480"
@@ -234,9 +235,9 @@
             <!-- OK / Cancel footer -->
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"
                         Margin="12,0,12,12">
-                <ui:Button Content="Cancel" Width="90" Margin="0,0,8,0"
+                <ui:Button Content="{Markup:Loc Common_Cancel}" Width="90" Margin="0,0,8,0"
                            IsCancel="True" Click="OnCancelClicked" />
-                <ui:Button Content="OK" Width="90" Appearance="Primary"
+                <ui:Button Content="{Markup:Loc Common_Ok}" Width="90" Appearance="Primary"
                            IsDefault="True" Click="OnOkClicked" />
             </StackPanel>
         </Grid>

@@ -734,4 +734,29 @@ public partial class ColorPickerWindow : Wpf.Ui.Controls.FluentWindow
         DialogResult = false;
         Close();
     }
+
+    /// <summary>Apply UI translations for the user-facing labels that aren't pure technical
+    /// notation. ShareQ.Editor doesn't reference ShareQ.App so {Markup:Loc …} bindings can't
+    /// resolve here — instead the host (ColorWheelLauncher in ShareQ.App) calls this method
+    /// after construction with the strings already resolved through Strings.ResourceManager.
+    /// Keys not in the dictionary are left untouched, so callers can localise gradually and
+    /// English fallbacks remain visible for any new label.</summary>
+    public void ApplyLocalization(IReadOnlyDictionary<string, string> labels)
+    {
+        if (labels.TryGetValue("Title", out var title)) TitleBarHeader.Title = title;
+        if (labels.TryGetValue("Recent", out var recent)) RecentLabel.Text = recent;
+        if (labels.TryGetValue("Sampler", out var sampler)) SamplerBtn.Content = sampler;
+        if (labels.TryGetValue("Wheel", out var wheel)) WheelShape.Content = wheel;
+        if (labels.TryGetValue("Square", out var square)) SquareShape.Content = square;
+        if (labels.TryGetValue("CopyAll", out var copyAll)) CopyAllBtn.Content = copyAll;
+        if (labels.TryGetValue("CopyRgb", out var copyRgb)) CopyRgbBtn.Content = copyRgb;
+        if (labels.TryGetValue("CopyCmyk", out var copyCmyk)) CopyCmykBtn.Content = copyCmyk;
+        if (labels.TryGetValue("CopyHsb", out var copyHsb)) CopyHsbBtn.Content = copyHsb;
+        if (labels.TryGetValue("CopyLinear", out var copyLinear)) CopyLinearBtn.Content = copyLinear;
+        if (labels.TryGetValue("CopyBgra", out var copyBgra)) CopyBgraBtn.Content = copyBgra;
+        if (labels.TryGetValue("CopyHex", out var copyHex)) CopyHexBtn.Content = copyHex;
+        if (labels.TryGetValue("CopyDec", out var copyDec)) CopyDecBtn.Content = copyDec;
+        if (labels.TryGetValue("Ok", out var ok)) OkButton.Content = ok;
+        if (labels.TryGetValue("Cancel", out var cancel)) CancelButton.Content = cancel;
+    }
 }

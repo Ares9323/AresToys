@@ -26,6 +26,7 @@ public partial class MainWindow : FluentWindow
     private readonly ShareQ.Pipeline.Profiles.IPipelineProfileStore _profileStore;
     private readonly ShareQ.Storage.Settings.ISettingsStore _settingsStore;
     private readonly ShareQ.Storage.ImageEffects.IImageEffectPresetStore _imageEffectPresetStore;
+    private readonly ShareQ.App.Services.LocalizationService _localization;
     // Set true during the initial Loaded sync so SelectionChanged doesn't immediately overwrite
     // the persisted value with the default-selected item.
     private bool _suppressContextMenuWorkflowChange;
@@ -48,7 +49,8 @@ public partial class MainWindow : FluentWindow
         ShareQ.Uploaders.OAuth.OAuthFlowService oauthFlowService,
         ShareQ.Pipeline.Profiles.IPipelineProfileStore profileStore,
         ShareQ.Storage.Settings.ISettingsStore settingsStore,
-        ShareQ.Storage.ImageEffects.IImageEffectPresetStore imageEffectPresetStore)
+        ShareQ.Storage.ImageEffects.IImageEffectPresetStore imageEffectPresetStore,
+        ShareQ.App.Services.LocalizationService localization)
     {
         InitializeComponent();
         ShareQ.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
@@ -62,6 +64,7 @@ public partial class MainWindow : FluentWindow
         _profileStore = profileStore;
         _settingsStore = settingsStore;
         _imageEffectPresetStore = imageEffectPresetStore;
+        _localization = localization;
         // Newly-added workflow: focus the inline name field and select its text so the user can
         // type the real name straight away. Defer to a low-priority dispatcher tick because the
         // edit-view's TextBox isn't realised until the visibility binding flips.
@@ -119,10 +122,14 @@ public partial class MainWindow : FluentWindow
             var profiles = await _profileStore.ListAsync(System.Threading.CancellationToken.None);
             var options = new List<TrayClickProfileOption>
             {
-                new(Services.TrayIconService.NoneMarker, "(do nothing)"),
+                new(Services.TrayIconService.NoneMarker, ShareQ.App.Resources.Strings.Settings_TrayDoNothing),
             };
-            foreach (var p in profiles.OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase))
-                options.Add(new TrayClickProfileOption(p.Id, p.DisplayName));
+            // Localize built-in workflow display names so the picker matches what the user sees
+            // elsewhere; custom profiles (renamed by the user) keep their stored DisplayName.
+            foreach (var p in profiles
+                .Select(p => (Profile: p, Display: ShareQ.App.Services.WorkflowDisplayNameLocalizer.Localize(p.Id, p.DisplayName)))
+                .OrderBy(t => t.Display, StringComparer.OrdinalIgnoreCase))
+                options.Add(new TrayClickProfileOption(p.Profile.Id, p.Display));
 
             var raw = await _settingsStore.GetAsync(key, System.Threading.CancellationToken.None);
             _suppressTrayClickPersist = true;
@@ -157,6 +164,67 @@ public partial class MainWindow : FluentWindow
         if (combo.SelectedValue is not string value || string.IsNullOrEmpty(value)) return;
         try { await _settingsStore.SetAsync(key, value, sensitive: false, System.Threading.CancellationToken.None); }
         catch { /* persistence is best-effort; the next run reads the previous value */ }
+    }
+
+    // ── Language picker (Settings → App settings) ───────────────────────────────────
+    // ItemsSource = LocalizationService.AvailableLanguages, SelectedValuePath = Tag (the
+    // resx culture suffix or "" for "system default"). Persistence + thread-culture switch
+    // happen inside LocalizationService.CurrentTag setter; we just bridge SelectionChanged.
+    private bool _suppressLanguagePersist;
+
+    private sealed record LanguageOption(string Tag, string DisplayName);
+
+    private void OnLanguageComboLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.ComboBox combo) return;
+        var options = ShareQ.App.Services.LocalizationService.AvailableLanguages
+            .Select(l => new LanguageOption(l.Tag,
+                l.Tag == ShareQ.App.Services.LocalizationService.SystemDefaultMarker
+                    ? ShareQ.App.Resources.Strings.Settings_LanguageSystemDefault
+                    : l.DisplayName))
+            .ToList();
+        _suppressLanguagePersist = true;
+        try
+        {
+            combo.DisplayMemberPath = nameof(LanguageOption.DisplayName);
+            combo.SelectedValuePath = nameof(LanguageOption.Tag);
+            combo.ItemsSource = options;
+            combo.SelectedValue = _localization.CurrentTag ?? string.Empty;
+        }
+        finally { _suppressLanguagePersist = false; }
+    }
+
+    private void OnLanguageComboChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_suppressLanguagePersist) return;
+        if (sender is not System.Windows.Controls.ComboBox combo) return;
+        if (combo.SelectedValue is not string tag) return;
+        // CurrentTag setter persists + applies to thread + raises CultureChanged. Subscribers
+        // (TrayIconService, LocalizedStrings singleton) refresh their bindings live.
+        _localization.CurrentTag = tag;
+    }
+
+    /// <summary>Re-spawn the app process and tear down the current one. Used by the language
+    /// picker's "Restart" button: most surfaces re-translate live via {Markup:Loc} bindings, but
+    /// already-rendered tray submenus and the few hard-coded labels we haven't migrated yet only
+    /// pick up the new culture on a fresh boot. Process restart is the cheap, robust way to
+    /// guarantee the whole UI flips, regardless of which surface the user lands on next.</summary>
+    private void OnRestartAppClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(path))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = false,
+                });
+            }
+        }
+        catch { /* best-effort relaunch — Shutdown still runs so the user can re-open manually */ }
+        Application.Current.Shutdown();
     }
 
     private async Task LoadWindowPlacementAsync()

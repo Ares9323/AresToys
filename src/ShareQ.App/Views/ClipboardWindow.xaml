@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:ShareQ.App.ViewModels"
+        xmlns:Markup="clr-namespace:ShareQ.App.Markup"
         Title="ShareQ - Clipboard"
         Icon="pack://application:,,,/Assets/icon.ico"
         Width="980" Height="600"
@@ -60,11 +61,11 @@
                             <ColumnDefinition Width="Auto" />    <!-- pinned toggle -->
                             <ColumnDefinition Width="*" />       <!-- spacer -->
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="ShareQ - Clipboard"
+                        <TextBlock Grid.Column="0" Text="{Markup:Loc Clipboard_Title}"
                                    Foreground="#FFF" FontWeight="SemiBold" FontSize="13"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
                         <ui:TextBox Grid.Column="1" x:Name="SearchBox"
-                                    PlaceholderText="🔍 Search…"
+                                    PlaceholderText="{Markup:Loc Clipboard_SearchPlaceholder}"
                                     FontSize="11"
                                     Margin="0,0,8,0"
                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
@@ -76,7 +77,7 @@
                         <ui:Button Grid.Column="2"
                                    Padding="10,4" FontSize="11"
                                    Click="OnPinnedToggleClick"
-                                   ToolTip="Toggle pinned (sticky) mode — popup stays open after paste / double-click. Esc or Win+V still dismiss.">
+                                   ToolTip="{Markup:Loc Clipboard_TooltipPinned}">
                             <ui:Button.Style>
                                 <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
                                     <Setter Property="Content" Value="📌 Pinned mode" />
@@ -231,7 +232,7 @@
                                Margin="8,0,0,0"
                                Cursor="Arrow"
                                Command="{Binding ClearAllCommand}"
-                               ToolTip="Delete every non-pinned item (Ctrl+Shift+Del)" />
+                               ToolTip="{Markup:Loc Clipboard_TooltipClearAll}" />
                 </Grid>
 
                 <!-- ── Body: history list | splitter | preview pane | vertical toolbar ────── -->
@@ -303,10 +304,10 @@
                                                      Stash the parent VM in Border.Tag and rebind the menu's
                                                      DataContext via PlacementTarget.Tag. -->
                                                 <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                                                    <MenuItem Header="Pin / unpin"
+                                                    <MenuItem Header="{Markup:Loc Clipboard_MenuPinUnpin}"
                                                               Command="{Binding TogglePinSelectedCommand}" />
                                                     <Separator />
-                                                    <MenuItem Header="Move to"
+                                                    <MenuItem Header="{Markup:Loc Clipboard_MenuMoveTo}"
                                                               ItemsSource="{Binding MovableCategories}">
                                                         <MenuItem.ItemContainerStyle>
                                                             <Style TargetType="MenuItem">
@@ -317,7 +318,7 @@
                                                             </Style>
                                                         </MenuItem.ItemContainerStyle>
                                                     </MenuItem>
-                                                    <MenuItem Header="Copy to"
+                                                    <MenuItem Header="{Markup:Loc Clipboard_MenuCopyTo}"
                                                               ItemsSource="{Binding MovableCategories}">
                                                         <MenuItem.ItemContainerStyle>
                                                             <Style TargetType="MenuItem">
@@ -333,11 +334,11 @@
                                                          (Text/Html/Rtf). On Image/Video/Files the entry hides
                                                          entirely; the handler still has a defensive bail-out for
                                                          programmatic invocation paths. -->
-                                                    <MenuItem Header="Generate QR code…"
+                                                    <MenuItem Header="{Markup:Loc Clipboard_MenuGenerateQr}"
                                                               Click="OnGenerateQrFromItemClicked"
                                                               Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}" />
                                                     <Separator />
-                                                    <MenuItem Header="Delete"
+                                                    <MenuItem Header="{Markup:Loc Common_Delete}"
                                                               Command="{Binding DeleteSelectedCommand}" />
                                                 </ContextMenu>
                                             </Border.ContextMenu>
@@ -506,14 +507,14 @@
                         <StackPanel Orientation="Vertical" VerticalAlignment="Top">
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Paste (Enter)"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipPaste}"
                                        Appearance="Primary"
                                        Command="{Binding PasteSelectedCommand}">
                                 <TextBlock Text="&#xE77F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Pin / unpin (Ctrl+P)"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipPin}"
                                        Command="{Binding TogglePinSelectedCommand}">
                                 <TextBlock Text="&#xE718;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
@@ -523,7 +524,7 @@
                                  rows the button has nothing useful to do and collapses out. -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Generate QR code…"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipQr}"
                                        Click="OnGenerateQrFromItemClicked"
                                        Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xED14;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
@@ -532,7 +533,7 @@
                                  file rows. -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Open in image editor"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipOpenEditor}"
                                        Command="{Binding OpenInEditorCommand}"
                                        Visibility="{Binding IsImageSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
@@ -544,14 +545,14 @@
                                  image button — both buttons share the slot mutually-exclusively. -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Edit text in external editor (VSCode / Notepad / …)"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipExtEditor}"
                                        Command="{Binding OpenInExternalEditorCommand}"
                                        Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Show in explorer"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipShowExplorer}"
                                        Command="{Binding OpenInExplorerCommand}"
                                        Visibility="{Binding HasFileOnDisk, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE838;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
@@ -560,7 +561,7 @@
                                  as an http(s) URL. Glyph: Globe (Segoe Fluent Icons E774). -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Open URL in browser"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipOpenUrl}"
                                        Command="{Binding OpenInBrowserCommand}"
                                        Visibility="{Binding IsUrlSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE774;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
@@ -574,13 +575,13 @@
                                  toast). Glyph: ScreenSnapshot (E89E). -->
                             <ui:Button Width="32" Height="32" Padding="0"
                                        Margin="0,0,0,4"
-                                       ToolTip="Capture webpage (full-page screenshot of the URL)"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipCaptureWebpage}"
                                        Command="{Binding CaptureWebpageCommand}"
                                        Visibility="{Binding CanCaptureWebpage, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE89E;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <ui:Button Width="32" Height="32" Padding="0"
-                                       ToolTip="Delete (Del)"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipDelete}"
                                        Appearance="Danger"
                                        Command="{Binding DeleteSelectedCommand}">
                                 <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />

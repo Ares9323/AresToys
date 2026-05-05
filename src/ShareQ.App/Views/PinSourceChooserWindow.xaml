@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:ShareQ.App.Markup"
         Title="Pin to screen"
         SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterScreen"
@@ -25,6 +26,6 @@
         <ui:Button x:Name="FromFileButton" Content="From file…"
                    HorizontalAlignment="Stretch" Margin="0,0,0,12"
                    ToolTip="Pick a PNG / JPG / BMP / GIF file and pin it." />
-        <ui:Button x:Name="CancelButton" Content="Cancel" HorizontalAlignment="Right" Width="100" />
+        <ui:Button x:Name="CancelButton" Content="{Markup:Loc Common_Cancel}" HorizontalAlignment="Right" Width="100" />
     </StackPanel>
 </Window>

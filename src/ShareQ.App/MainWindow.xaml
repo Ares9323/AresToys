@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:ShareQ.App.ViewModels"
+                 xmlns:Markup="clr-namespace:ShareQ.App.Markup"
                  Title="ShareQ"
                  Icon="pack://application:,,,/Assets/icon.ico"
                  Width="900" Height="600"
@@ -222,41 +223,41 @@
                      now where the version / repo links naturally cluster. -->
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="Hotkeys &amp; Workflows"
+                           Content="{Markup:Loc Sidebar_HotkeysWorkflows}"
                            Command="{Binding ShowHotkeysCommand}"
                            Appearance="{Binding IsHotkeysSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="Uploaders"
+                           Content="{Markup:Loc Sidebar_Uploaders}"
                            Command="{Binding ShowUploadersCommand}"
                            Appearance="{Binding IsUploadersSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="Clipboard Categories"
+                           Content="{Markup:Loc Sidebar_ClipboardCategories}"
                            Command="{Binding ShowCategoriesCommand}"
                            Appearance="{Binding IsCategoriesSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="Capture Settings"
+                           Content="{Markup:Loc Sidebar_CaptureSettings}"
                            Command="{Binding ShowCaptureCommand}"
                            Appearance="{Binding IsCaptureSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="App Settings"
+                           Content="{Markup:Loc Sidebar_AppSettings}"
                            Command="{Binding ShowSettingsCommand}"
                            Appearance="{Binding IsSettingsSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="App Theme"
+                           Content="{Markup:Loc Sidebar_AppTheme}"
                            Command="{Binding ShowThemeCommand}"
                            Appearance="{Binding IsThemeSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="Debug Console"
+                           Content="{Markup:Loc Sidebar_DebugConsole}"
                            Command="{Binding ShowDebugCommand}"
                            Appearance="{Binding IsDebugSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                           Content="About"
+                           Content="{Markup:Loc Sidebar_About}"
                            Command="{Binding ShowAboutCommand}"
                            Appearance="{Binding IsAboutSelected, Converter={StaticResource BoolToAppearance}}" />
             </StackPanel>
@@ -298,7 +299,7 @@
                                       IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                       VerticalAlignment="Center" />
                             <ui:Button Grid.Column="1"
-                                       Content="Configure…"
+                                       Content="{Markup:Loc Common_Configure}"
                                        Padding="10,2"
                                        Click="OnConfigureUploaderClicked"
                                        Tag="{Binding}"
@@ -312,9 +313,9 @@
 
                 <!-- Header: title + subtitle, sit above the tab strip. -->
                 <StackPanel Grid.Row="0" Margin="24,16,24,8">
-                    <TextBlock Text="Uploaders" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="{Markup:Loc Sidebar_Uploaders}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap"
-                               Text="Pick which uploaders to use per content type. Multiple selections upload the same file to all of them; the resulting URLs end up on the clipboard, one per line." />
+                               Text="{Markup:Loc Uploaders_Blurb}" />
                 </StackPanel>
 
                 <!-- Tabbed body: 4 category tabs (Image / File / Text / Video) + Custom (.sxcu).
@@ -322,35 +323,35 @@
                      section background; per-tab styling is in UploaderTabItemStyle above. -->
                 <TabControl Grid.Row="1" Margin="24,0,24,16"
                             Background="Transparent" BorderThickness="0" Padding="0">
-                    <TabItem Header="Image" Style="{StaticResource UploaderTabItemStyle}">
+                    <TabItem Header="{Markup:Loc Uploaders_TabImage}" Style="{StaticResource UploaderTabItemStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding Uploaders.ImageUploaders}"
                                           ItemTemplate="{StaticResource UploaderRowTemplate}"
                                           Margin="0,12,0,0" />
                         </ScrollViewer>
                     </TabItem>
-                    <TabItem Header="File" Style="{StaticResource UploaderTabItemStyle}">
+                    <TabItem Header="{Markup:Loc Uploaders_TabFile}" Style="{StaticResource UploaderTabItemStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding Uploaders.FileUploaders}"
                                           ItemTemplate="{StaticResource UploaderRowTemplate}"
                                           Margin="0,12,0,0" />
                         </ScrollViewer>
                     </TabItem>
-                    <TabItem Header="Text" Style="{StaticResource UploaderTabItemStyle}">
+                    <TabItem Header="{Markup:Loc Uploaders_TabText}" Style="{StaticResource UploaderTabItemStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding Uploaders.TextUploaders}"
                                           ItemTemplate="{StaticResource UploaderRowTemplate}"
                                           Margin="0,12,0,0" />
                         </ScrollViewer>
                     </TabItem>
-                    <TabItem Header="Video" Style="{StaticResource UploaderTabItemStyle}">
+                    <TabItem Header="{Markup:Loc Uploaders_TabVideo}" Style="{StaticResource UploaderTabItemStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding Uploaders.VideoUploaders}"
                                           ItemTemplate="{StaticResource UploaderRowTemplate}"
                                           Margin="0,12,0,0" />
                         </ScrollViewer>
                     </TabItem>
-                    <TabItem Header="URL" Style="{StaticResource UploaderTabItemStyle}">
+                    <TabItem Header="{Markup:Loc Uploaders_TabUrl}" Style="{StaticResource UploaderTabItemStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,12,0,0">
                                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
@@ -365,7 +366,7 @@
                          JSON files dropped into %LOCALAPPDATA%\ShareQ\custom-uploaders\ become
                          destinations on next restart and surface in the Image/File/Text/Video
                          tabs above based on their declared DestinationType. -->
-                    <TabItem Header="Custom (.sxcu)" Style="{StaticResource UploaderTabItemStyle}">
+                    <TabItem Header="{Markup:Loc Uploaders_TabCustom}" Style="{StaticResource UploaderTabItemStyle}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,12,0,0">
                                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
@@ -384,7 +385,7 @@
                                                     <TextBlock Text="{Binding Subtitle}" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
                                                 </StackPanel>
                                                 <ui:Button Grid.Column="1"
-                                                           Content="Delete"
+                                                           Content="{Markup:Loc Common_Delete}"
                                                            Appearance="Danger"
                                                            Padding="8,2"
                                                            Click="OnDeleteCustomUploaderClicked"
@@ -400,8 +401,8 @@
                                            Visibility="{Binding Uploaders.HasNoCustomUploaders, Converter={StaticResource BoolToVisibility}}" />
 
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                    <ui:Button Content="Import .sxcu…" Padding="14,4" Margin="0,0,8,0" Click="OnImportCustomUploaderClicked" />
-                                    <ui:Button Content="Open folder" Padding="14,4" Click="OnOpenCustomUploadersFolderClicked" />
+                                    <ui:Button Content="{Markup:Loc Common_ImportSxcu}" Padding="14,4" Margin="0,0,8,0" Click="OnImportCustomUploaderClicked" />
+                                    <ui:Button Content="{Markup:Loc Common_OpenFolder}" Padding="14,4" Click="OnOpenCustomUploadersFolderClicked" />
                                 </StackPanel>
 
                                 <!-- File association toggle: writes per-user HKCU\Software\Classes
@@ -513,59 +514,59 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Hotkeys &amp; Workflows" FontSize="20" FontWeight="SemiBold"
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_HotkeysWorkflows}" FontSize="20" FontWeight="SemiBold"
                                        VerticalAlignment="Center" />
-                            <ui:Button Grid.Column="1" Content="Reset all"
+                            <ui:Button Grid.Column="1" Content="{Markup:Loc Common_ResetAll}"
                                        Appearance="Danger"
                                        Command="{Binding Hotkeys.Workflows.ResetAllToDefaultsCommand}"
                                        ToolTip="Reset every built-in workflow to its default steps and hotkey. Asks for confirmation; custom workflows are not touched." />
                         </Grid>
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap"
-                                   Text="Click the workflow name to open its step list. Click the hotkey chip to set / change / clear the key combo." />
+                                   Text="{Markup:Loc Hotkeys_Blurb}" />
                     </StackPanel>
 
                     <!-- Tabbed body: 4 built-in category tabs + Custom. Same UploaderTabItemStyle
                          the Uploaders section uses, so the strip looks unified across Settings. -->
                     <TabControl Grid.Row="1" Margin="24,0,24,16"
                                 Background="Transparent" BorderThickness="0" Padding="0">
-                        <TabItem Header="Capture" Style="{StaticResource UploaderTabItemStyle}">
+                        <TabItem Header="{Markup:Loc WorkflowCategory_Capture}" Style="{StaticResource UploaderTabItemStyle}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Hotkeys.CaptureItems}"
                                               ItemTemplate="{StaticResource HotkeyRowTemplate}"
                                               Margin="0,12,0,0" />
                             </ScrollViewer>
                         </TabItem>
-                        <TabItem Header="Clipboard" Style="{StaticResource UploaderTabItemStyle}">
+                        <TabItem Header="{Markup:Loc WorkflowCategory_Clipboard}" Style="{StaticResource UploaderTabItemStyle}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Hotkeys.ClipboardItems}"
                                               ItemTemplate="{StaticResource HotkeyRowTemplate}"
                                               Margin="0,12,0,0" />
                             </ScrollViewer>
                         </TabItem>
-                        <TabItem Header="Upload" Style="{StaticResource UploaderTabItemStyle}">
+                        <TabItem Header="{Markup:Loc WorkflowCategory_Upload}" Style="{StaticResource UploaderTabItemStyle}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Hotkeys.UploadItems}"
                                               ItemTemplate="{StaticResource HotkeyRowTemplate}"
                                               Margin="0,12,0,0" />
                             </ScrollViewer>
                         </TabItem>
-                        <TabItem Header="Tools" Style="{StaticResource UploaderTabItemStyle}">
+                        <TabItem Header="{Markup:Loc WorkflowCategory_Tools}" Style="{StaticResource UploaderTabItemStyle}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Hotkeys.ToolsItems}"
                                               ItemTemplate="{StaticResource HotkeyRowTemplate}"
                                               Margin="0,12,0,0" />
                             </ScrollViewer>
                         </TabItem>
-                        <TabItem Header="Custom" Style="{StaticResource UploaderTabItemStyle}">
+                        <TabItem Header="{Markup:Loc Uploaders_TabCustom}" Style="{StaticResource UploaderTabItemStyle}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Text="(none yet — click + Add custom workflow below to create one)"
+                                    <TextBlock Text="{Markup:Loc Hotkeys_NoCustomYet}"
                                                Foreground="#666" FontSize="11" FontStyle="Italic"
                                                Visibility="{Binding Hotkeys.CustomItems.Count, Converter={StaticResource ZeroToVisibility}}"
                                                Margin="0,0,0,8" />
                                     <ItemsControl ItemsSource="{Binding Hotkeys.CustomItems}"
                                                   ItemTemplate="{StaticResource HotkeyRowTemplate}" />
-                                    <ui:Button Content="+ Add custom workflow" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                    <ui:Button Content="{Markup:Loc Hotkeys_AddCustomWorkflow}" HorizontalAlignment="Left" Margin="0,8,0,0"
                                                Command="{Binding Hotkeys.AddCustomWorkflowCommand}" />
                                 </StackPanel>
                             </ScrollViewer>
@@ -592,24 +593,24 @@
                             </Grid.ColumnDefinitions>
                             <ui:Button Grid.Column="0" Content="← Back"
                                        Command="{Binding Hotkeys.BackToListCommand}"
-                                       ToolTip="Back to the hotkey list" />
+                                       ToolTip="{Markup:Loc Hotkeys_BackToList}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                <ui:Button Content="Duplicate" Margin="0,0,4,0"
+                                <ui:Button Content="{Markup:Loc Common_Duplicate}" Margin="0,0,4,0"
                                            Command="{Binding Hotkeys.Workflows.DuplicateWorkflowCommand}"
-                                           ToolTip="Clone this workflow into a new editable copy" />
-                                <ui:Button Content="Remove" Margin="0,0,4,0"
+                                           ToolTip="{Markup:Loc Hotkeys_DuplicateTooltip}" />
+                                <ui:Button Content="{Markup:Loc Common_Remove}" Margin="0,0,4,0"
                                            Appearance="Danger"
                                            Command="{Binding Hotkeys.Workflows.RemoveWorkflowCommand}"
-                                           ToolTip="Delete this workflow (built-ins can't be deleted)" />
-                                <ui:Button Content="Reset to defaults"
+                                           ToolTip="{Markup:Loc Hotkeys_RemoveTooltip}" />
+                                <ui:Button Content="{Markup:Loc Common_ResetToDefaults}"
                                            Appearance="Danger"
                                            Command="{Binding Hotkeys.Workflows.Editor.ResetToDefaultsCommand}"
                                            Visibility="{Binding Hotkeys.Workflows.Editor.CanResetToDefaults, Converter={StaticResource BoolToVisibility}}"
-                                           ToolTip="Restore this built-in workflow's original steps and hotkey." />
+                                           ToolTip="{Markup:Loc Hotkeys_ResetTooltip}" />
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="Workflow name" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBlock Text="{Markup:Loc Hotkeys_WorkflowName}" FontWeight="SemiBold" Margin="0,0,0,4" />
                         <ui:TextBox x:Name="WorkflowNameInline"
                                     Text="{Binding Hotkeys.Workflows.EditingDisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                     LostFocus="OnWorkflowNameLostFocus"
@@ -623,7 +624,7 @@
                              no workflow is selected (e.g. during initial load). -->
                         <StackPanel Margin="0,0,0,16"
                                     Visibility="{Binding Hotkeys.EditingWorkflowHotkey, Converter={StaticResource NotNullToVisibility}}">
-                            <TextBlock Text="Hotkey" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{Markup:Loc Hotkeys_Hotkey}" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <!-- DataContext nailed to the EditingWorkflowHotkey VM so the chip
                                  style's IsAssigned DataTrigger resolves against the right object
                                  (otherwise it'd look up IsAssigned on the root VM and never fire). -->
@@ -643,7 +644,7 @@
                                        VerticalAlignment="Center" />
                         </Grid>
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
-                                   Text="Add actions with the picker below; drag the ⋮⋮ handle to reorder; toggle to mute without removing; × removes. Plumbing steps run automatically and aren't shown." />
+                                   Text="{Markup:Loc Hotkeys_StepEditorBlurb}" />
                         <ItemsControl x:Name="StepsItemsControl" ItemsSource="{Binding Hotkeys.Workflows.Editor.Items}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:WorkflowStepViewModel}">
@@ -836,11 +837,11 @@
             <!-- Capture -->
             <StackPanel Visibility="{Binding IsCaptureSelected, Converter={StaticResource BoolToVisibility}}"
                         Margin="24,16,24,16">
-                <TextBlock Text="Capture Settings" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock Text="{Markup:Loc Sidebar_CaptureSettings}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="Defaults applied when triggering captures from the tray menu or hotkeys. The pipeline that runs after each capture is configured under Workflows." />
+                           Text="{Markup:Loc Capture_Blurb}" />
 
-                <TextBlock Text="Save folder" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Capture_SaveFolder}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -848,17 +849,17 @@
                     </Grid.ColumnDefinitions>
                     <ui:TextBox Grid.Column="0" Text="{Binding Capture.Folder, UpdateSourceTrigger=PropertyChanged}"
                                 PlaceholderText="%USERPROFILE%\Pictures\ShareQ" />
-                    <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding Capture.BrowseFolderCommand}" Margin="6,0,0,0" />
+                    <ui:Button Grid.Column="1" Content="{Markup:Loc Common_Browse}" Command="{Binding Capture.BrowseFolderCommand}" Margin="6,0,0,0" />
                 </Grid>
 
-                <TextBlock Text="Sub-folder pattern (optional)" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Capture_SubFolderPattern}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <ui:TextBox Text="{Binding Capture.SubFolderPattern, UpdateSourceTrigger=PropertyChanged}"
-                            PlaceholderText="e.g. %y-%mo  →  2026-04 sub-folder under the save folder"
+                            PlaceholderText="{Markup:Loc Capture_SubFolderPlaceholder}"
                             Margin="0,0,0,4" />
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="Tokens: %y / %yy 4-digit / 2-digit year, %mo month (01–12), %mon month name, %d day, %h hour, %mi minute, %s second, %pm AM/PM. Leave empty for no sub-folder." />
+                           Text="{Markup:Loc Capture_SubFolderHint}" />
 
-                <TextBlock Text="Screenshot delay (seconds)" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Capture_DelaySeconds}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <ui:NumberBox Value="{Binding Capture.DelaySeconds, Mode=TwoWay}"
                               Minimum="0" Maximum="30" SmallChange="1"
                               HorizontalAlignment="Left" Width="120" />
@@ -869,43 +870,53 @@
                      the user override per-export. AutoJpeg + threshold mirror ShareX so the user
                      can keep PNG default but fall back to JPEG when a screenshot would balloon
                      above the threshold (uploads, history footprint). -->
-                <TextBlock Text="Image format" FontWeight="SemiBold" Margin="0,16,0,4" />
+                <TextBlock Text="{Markup:Loc Capture_ImageFormat}" FontWeight="SemiBold" Margin="0,16,0,4" />
                 <ComboBox ItemsSource="{x:Static vm:CaptureDefaultsViewModel.ImageFormats}"
                           SelectedItem="{Binding Capture.ImageFormat, Mode=TwoWay}"
                           HorizontalAlignment="Left" Width="160" Margin="0,0,0,8" />
 
-                <TextBlock Text="JPEG quality" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Capture_JpegQuality}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="80" />
+                        <ColumnDefinition Width="64" />
                     </Grid.ColumnDefinitions>
                     <Slider Grid.Column="0"
                             Minimum="1" Maximum="100"
                             Value="{Binding Capture.JpegQuality, Mode=TwoWay}"
                             VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <!-- SpinButtonPlacementMode=Hidden: no chevrons → the value renders flush in
+                         a slim column where the spinner buttons would otherwise eat the digits.
+                         The slider remains the primary input; the box is for typing exact values. -->
                     <ui:NumberBox Grid.Column="1"
                                   Value="{Binding Capture.JpegQuality, Mode=TwoWay}"
-                                  Minimum="1" Maximum="100" SmallChange="5" />
+                                  Minimum="1" Maximum="100" SmallChange="5"
+                                  SpinButtonPlacementMode="Hidden"
+                                  HorizontalContentAlignment="Center" />
                 </Grid>
 
-                <CheckBox Content="Auto-switch to JPEG when output exceeds threshold"
-                          IsChecked="{Binding Capture.AutoJpeg, Mode=TwoWay}"
-                          Margin="0,4,0,4" />
-                <TextBlock Text="Threshold (KB)" FontWeight="SemiBold" Margin="0,4,0,4" />
-                <ui:NumberBox Value="{Binding Capture.AutoJpegThresholdKb, Mode=TwoWay}"
-                              Minimum="64" Maximum="65536" SmallChange="256"
-                              IsEnabled="{Binding Capture.AutoJpeg}"
-                              HorizontalAlignment="Left" Width="120" Margin="0,0,0,8" />
+                <TextBlock Text="{Markup:Loc Capture_ThresholdKb}" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <ui:NumberBox Value="{Binding Capture.AutoJpegThresholdKb, Mode=TwoWay}"
+                                  Minimum="64" Maximum="65536" SmallChange="256"
+                                  SpinButtonPlacementMode="Hidden"
+                                  IsEnabled="{Binding Capture.AutoJpeg}"
+                                  HorizontalContentAlignment="Center"
+                                  Width="100" />
+                    <CheckBox Content="{Markup:Loc Capture_AutoJpeg}"
+                              IsChecked="{Binding Capture.AutoJpeg, Mode=TwoWay}"
+                              Margin="12,0,0,0"
+                              VerticalAlignment="Center" />
+                </StackPanel>
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
-                           Text="Active only when format = PNG. Photographic content (gradients, video stills) compresses far more efficiently as JPEG; large screenshots fall back automatically without you noticing." />
+                           Text="{Markup:Loc Capture_AutoJpegHint}" />
 
                 <!-- External editor for clipboard text rows. Empty = let Windows open the temp
                      .txt with whatever's the user's default handler (notepad, VSCode if it
                      hijacked .txt, etc.). Otherwise the path / command runs with the temp
                      file path as argument. The clipboard popup's Edit button (text-row only)
                      fires this; edits stream back via FileSystemWatcher. -->
-                <TextBlock Text="External text editor" FontWeight="SemiBold" Margin="0,16,0,4" />
+                <TextBlock Text="{Markup:Loc Capture_ExternalEditor}" FontWeight="SemiBold" Margin="0,16,0,4" />
                 <Grid Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -913,11 +924,11 @@
                     </Grid.ColumnDefinitions>
                     <ui:TextBox Grid.Column="0"
                                 Text="{Binding Capture.ExternalEditorCommand, UpdateSourceTrigger=PropertyChanged}"
-                                PlaceholderText="(empty = Windows default for .txt — e.g. notepad)" />
-                    <ui:Button Grid.Column="1" Content="Browse…" Command="{Binding Capture.BrowseExternalEditorCommand}" Margin="6,0,0,0" />
+                                PlaceholderText="{Markup:Loc Capture_ExternalEditorPlaceholder}" />
+                    <ui:Button Grid.Column="1" Content="{Markup:Loc Common_Browse}" Command="{Binding Capture.BrowseExternalEditorCommand}" Margin="6,0,0,0" />
                 </Grid>
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
-                           Text="Used by the clipboard popup's Edit button on text rows. Examples: code (VSCode), code.cmd, notepad++.exe, notepad. Edits sync back automatically when you save the file." />
+                           Text="{Markup:Loc Capture_ExternalEditorHint}" />
             </StackPanel>
 
             <!-- Theme — wrapped in ScrollViewer because the page now has three colour rows +
@@ -926,18 +937,18 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24,16,24,16">
-                <TextBlock Text="App Theme" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock Text="{Markup:Loc Sidebar_AppTheme}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="Two colors that flow everywhere ShareQ uses an accent: primary buttons, toggle switches, the pinned-image border, drag-to-reorder indicators, and selected sidebar entries. Edit the hex values to see the changes apply live." />
+                           Text="{Markup:Loc Theme_Blurb}" />
 
                 <!-- Preset picker. Selecting one fills every hex field below in a single
                      suppress-then-apply pass so the swatches + saved theme update once instead
                      of seven times. The first entry is "Custom (current values)" — selecting it
                      is a no-op so reopening the tab doesn't snap-overwrite tweaked colours. -->
-                <TextBlock Text="Preset" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_PresetPicker}" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <ComboBox ItemsSource="{Binding Theme.Presets}"
                           SelectedItem="{Binding Theme.SelectedPreset, Mode=TwoWay}"
-                          DisplayMemberPath="Name"
+                          DisplayMemberPath="DisplayName"
                           Margin="0,0,0,20"
                           Foreground="{DynamicResource AccentForegroundBrush}">
                     <!-- Local popup-chrome override: route every "popup body" key for this
@@ -969,7 +980,7 @@
                 <!-- Foreground rows come first — these drive both the on-accent text colour and
                      the dim subtext used across captions / metadata; visually the most "global"
                      of the seven controls so reading top-to-bottom matches their reach. -->
-                <TextBlock Text="Foreground Light" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_ForegroundLight}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -990,7 +1001,7 @@
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
                            Text="Text / icon colour drawn on top of the accent background — pick one with enough contrast (e.g. white on a dark accent, near-black on a light one)." />
 
-                <TextBlock Text="Foreground Dark" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_ForegroundDark}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1014,7 +1025,7 @@
                 <!-- Background row — renamed "light" so it pairs visually with "Accent background
                      dark" below. Both tint surfaces inside the app: light is the bright primary
                      accent, dark is the ambient surface tone. -->
-                <TextBlock Text="Accent Background Light" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_AccentBackgroundLight}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1035,7 +1046,7 @@
                 <!-- Accent dark — used by ambient surfaces that follow the theme but aren't the
                      primary accent: launcher cells, inactive tab headers. Sits darker than the
                      main accent so the bright accent reads cleanly on top of it. -->
-                <TextBlock Text="Accent Background Dark" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_AccentBackgroundDark}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1059,7 +1070,7 @@
                 <!-- Destructive-action accent: Delete buttons, trash icons, "this is irreversible"
                      cues. Separate from the main accent so a green/blue theme doesn't get stuck
                      with a default red that fights its palette. -->
-                <TextBlock Text="Accent Danger" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_AccentDanger}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1082,7 +1093,7 @@
 
                 <!-- Three neutral surface tones — darkest → lightest. The XAML across the app
                      consumes these via DynamicResource so changes propagate everywhere live. -->
-                <TextBlock Text="Surface 1 (darkest)" FontWeight="SemiBold" Margin="0,12,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_Surface1}" FontWeight="SemiBold" Margin="0,12,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1100,7 +1111,7 @@
                                 FontFamily="Consolas" />
                 </Grid>
 
-                <TextBlock Text="Surface 2 (medium)" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_Surface2}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1118,7 +1129,7 @@
                                 FontFamily="Consolas" />
                 </Grid>
 
-                <TextBlock Text="Surface 3 (lightest)" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_Surface3}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1137,14 +1148,14 @@
                 </Grid>
 
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                           Text="Surface 1 → input fields and list rows. Surface 2 → main window body. Surface 3 → elevated panels and drag handles." />
+                           Text="{Markup:Loc Theme_SurfacesHint}" />
 
                 <!-- No sample / Apply button: clicking a swatch opens the picker, which previews
                      the new colour on its own OK button. The accent only commits app-wide when
                      the picker closes with OK — so editing here doesn't constantly repaint the
                      whole UI behind the dialog. Reset stays as the one button that DOES apply
                      immediately because there's no separate preview surface for it. -->
-                <ui:Button Content="Reset to defaults" HorizontalAlignment="Left"
+                <ui:Button Content="{Markup:Loc Common_ResetToDefaults}" HorizontalAlignment="Left"
                            Appearance="Danger"
                            Command="{Binding Theme.ResetCommand}"
                            ToolTip="Restore the original ShareQ accent and surface palette." />
@@ -1158,15 +1169,15 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="24,16,24,16">
-                    <TextBlock Text="Clipboard Categories" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="{Markup:Loc Sidebar_ClipboardCategories}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
-                               Text="Categories are buckets for clipboard items. Right-click any item in the popup → Move to → … to file it. Items in deleted categories return to the default 'Clipboard' bucket; pinned items keep their pin." />
+                               Text="{Markup:Loc Categories_Blurb}" />
 
                     <!-- Add row -->
                     <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4"
                             Padding="14" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="Add a new category" FontWeight="SemiBold" Margin="0,0,0,8" />
+                            <TextBlock Text="{Markup:Loc Categories_AddNew}" FontWeight="SemiBold" Margin="0,0,0,8" />
                             <Grid>
                                 <!-- Same accent-dark resting / accent-light hover treatment as
                                      the sidebar's selected button — scoped to this Grid so it
@@ -1190,7 +1201,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ui:TextBox Grid.Column="0"
                                             Text="{Binding Categories.NewCategoryName, UpdateSourceTrigger=PropertyChanged}"
-                                            PlaceholderText="Name (e.g. Code)"
+                                            PlaceholderText="{Markup:Loc Categories_NewNamePlaceholder}"
                                             Margin="0,0,8,0" />
                                 <!-- Pick-icon button: square (matches the Name TextBox height
                                      for visual alignment). NewCategoryIcon is seeded with the
@@ -1209,7 +1220,7 @@
                                                FontSize="16" Foreground="#DDD"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Button>
-                                <ui:Button Grid.Column="2" Content="Add"
+                                <ui:Button Grid.Column="2" Content="{Markup:Loc Common_Add}"
                                            Command="{Binding Categories.AddCategoryCommand}"
                                            Appearance="Primary"
                                            Padding="14,4" />
@@ -1372,15 +1383,38 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="24,16,24,16">
-                    <TextBlock Text="App Settings" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="{Markup:Loc Sidebar_AppSettings}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
-                               Text="App-level preferences. Toggle behaviours that don't belong on a specific feature page." />
+                               Text="{Markup:Loc Settings_Blurb}" />
 
                     <CheckBox IsChecked="{Binding StartWithWindows, Mode=TwoWay}"
-                              Content="Run ShareQ when Windows starts"
+                              Content="{Markup:Loc Settings_StartWithWindows}"
                               Foreground="#DDD" FontSize="12"
                               HorizontalAlignment="Left" Margin="0,0,0,16"
-                              ToolTip="Adds (or removes) ShareQ to the per-user Windows startup list. No admin rights needed." />
+                              ToolTip="{Markup:Loc Settings_StartWithWindowsTooltip}" />
+
+                    <!-- UI language picker. Writes the selected culture tag to ui.language; the
+                         picker itself stays in English so a wrong choice is recoverable without
+                         hunting for the right entry in an unfamiliar language. CurrentTag setter
+                         applies live — bound surfaces (tray menu, future XAML Loc bindings)
+                         refresh on CultureChanged without a restart. -->
+                    <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc Settings_Language}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Text="{Markup:Loc Settings_LanguageHint}" />
+                            <StackPanel Orientation="Horizontal">
+                                <ComboBox x:Name="LanguageCombo"
+                                          Loaded="OnLanguageComboLoaded"
+                                          SelectionChanged="OnLanguageComboChanged"
+                                          MinWidth="220" />
+                                <ui:Button Content="{Markup:Loc Settings_LanguageRestart}"
+                                           Margin="8,0,0,0" Padding="14,4"
+                                           Click="OnRestartAppClicked"
+                                           ToolTip="Some surfaces only translate fully on relaunch — use this to apply the new language everywhere at once." />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Tray icon click routing. Each combo writes to a single settings key
                          (tray.left_click / .double_click / .middle_click) read live by
@@ -1388,9 +1422,9 @@
                          behaviour: left → Settings, double → Clipboard, middle → none. -->
                     <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="Tray icon clicks" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{Markup:Loc Settings_TrayClicksTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                                       Text="Pick what each click on the tray icon should do. Right-click always opens the menu." />
+                                       Text="{Markup:Loc Settings_TrayClicksHint}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120" />
@@ -1401,17 +1435,17 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Left click" VerticalAlignment="Center" Margin="0,0,8,8" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Markup:Loc Settings_TrayLeftClick}" VerticalAlignment="Center" Margin="0,0,8,8" />
                                 <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="TrayLeftClickCombo"
                                            Loaded="OnTrayClickComboLoaded"
                                            SelectionChanged="OnTrayLeftClickChanged"
                                            Margin="0,0,0,8" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Double click" VerticalAlignment="Center" Margin="0,0,8,8" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Markup:Loc Settings_TrayDoubleClick}" VerticalAlignment="Center" Margin="0,0,8,8" />
                                 <ComboBox  Grid.Row="1" Grid.Column="1" x:Name="TrayDoubleClickCombo"
                                            Loaded="OnTrayClickComboLoaded"
                                            SelectionChanged="OnTrayDoubleClickChanged"
                                            Margin="0,0,0,8" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Middle click" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{Markup:Loc Settings_TrayMiddleClick}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <ComboBox  Grid.Row="2" Grid.Column="1" x:Name="TrayMiddleClickCombo"
                                            Loaded="OnTrayClickComboLoaded"
                                            SelectionChanged="OnTrayMiddleClickChanged" />
@@ -1426,10 +1460,10 @@
                          capture. -->
                     <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,8,0,0">
                         <StackPanel>
-                            <TextBlock Text="Image effects" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{Markup:Loc Settings_ImageEffectsTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                                       Text="Define preset chains of adjustments, filters and drawings (ShareX-compatible). Open the editor to add effects to a preset and preview the result on a sample image. Imports ShareX .sxie presets directly." />
-                            <ui:Button Content="Open image effects editor…" Padding="14,4" Click="OnOpenImageEffectsClicked" />
+                                       Text="{Markup:Loc Settings_ImageEffectsHint}" />
+                            <ui:Button Content="{Markup:Loc Settings_ImageEffectsOpen}" Padding="14,4" Click="OnOpenImageEffectsClicked" />
 
                             <!-- Same per-user HKCU\Software\Classes shape we use for .sxcu — opt-in, reversible
                                  from the same checkbox. Once Velopack ships the installer it can register both
@@ -1437,12 +1471,12 @@
                             <Border Background="{DynamicResource Surface3Brush}" CornerRadius="4" Padding="12" Margin="0,16,0,0">
                                 <StackPanel>
                                     <CheckBox x:Name="SxieAssociationCheckBox"
-                                              Content="Set ShareQ as the default app for .sxie files"
+                                              Content="{Markup:Loc Settings_SxieAssociation}"
                                               Loaded="OnSxieAssociationCheckBoxLoaded"
                                               Click="OnSxieAssociationToggled" />
                                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                                FontSize="11" TextWrapping="Wrap" Margin="22,4,0,0"
-                                               Text="When on, double-clicking a .sxie file in Explorer opens the image-effects editor with the preset already imported — same flow as ShareX. Per-user only — doesn't touch system-wide settings or need admin rights." />
+                                               Text="{Markup:Loc Settings_SxieAssociationHint}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1453,14 +1487,14 @@
                          user account and wouldn't decrypt on another machine anyway. -->
                     <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,8,0,0">
                         <StackPanel>
-                            <TextBlock Text="Backup &amp; restore" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{Markup:Loc Settings_BackupTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                                       Text="Export every non-sensitive ShareQ setting (theme, hotkeys, launcher cells, workflow steps, capture defaults, plugin selection) to a single JSON file you can sync between machines. Sensitive values (OAuth tokens, credentials) are not included — they'd be unusable on another box anyway." />
+                                       Text="{Markup:Loc Settings_BackupHint}" />
                             <StackPanel Orientation="Horizontal">
-                                <ui:Button Content="Export…" Margin="0,0,8,0" Padding="14,4"
+                                <ui:Button Content="{Markup:Loc Common_Export}" Margin="0,0,8,0" Padding="14,4"
                                            Click="OnExportSettingsClicked"
                                            ToolTip="Save every non-sensitive setting to a JSON file." />
-                                <ui:Button Content="Import…" Padding="14,4"
+                                <ui:Button Content="{Markup:Loc Common_Import}" Padding="14,4"
                                            Click="OnImportSettingsClicked"
                                            ToolTip="Load settings from a previously-exported JSON file. Existing values get overwritten; settings not in the file stay untouched." />
                             </StackPanel>
@@ -1485,7 +1519,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Debug Console" FontSize="20" FontWeight="SemiBold"
+                    <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_DebugConsole}" FontSize="20" FontWeight="SemiBold"
                                VerticalAlignment="Center" />
                     <ui:Button Grid.Column="1" Content="Copy all" Margin="0,0,4,0"
                                Command="{Binding Debug.CopyAllCommand}"

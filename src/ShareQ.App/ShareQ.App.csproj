@@ -22,6 +22,17 @@
          doesn't say "1.0.0.0" and pretend to be a real shipped build. The release workflow
          (and tools/pack-local.ps1) passes -p:Version=<x.y.z> which overrides this. -->
     <Version>0.1.0-dev</Version>
+    <!-- The base Strings.resx is in English. Telling MSBuild this avoids the runtime cost of
+         scanning for an "en" satellite that doesn't exist (the neutral resx covers it) and
+         lets ResourceManager skip a probe round when CurrentUICulture is en-* — also makes
+         the fallback chain explicit for any culture not satellite-shipped. -->
+    <NeutralLanguage>en</NeutralLanguage>
+    <!-- Whitelist of cultures whose satellite assemblies must ship. Without this, the
+         publish step (single-file / trimmed / Velopack pack) may strip per-culture
+         resources to keep the bundle small, leaving GetString to fall back to the neutral
+         resx → user sees English even with CurrentUICulture=it. Append the new tag here
+         every time a Strings.<culture>.resx is added. -->
+    <SatelliteResourceLanguages>en;it</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
@@ -56,6 +67,26 @@
     <None Include="Assets\CustomUploaders\*.sxcu">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Localization: PublicResXFileCodeGenerator emits a Strings.Designer.cs with public
+         accessors so the Loc markup extension can resolve keys via Strings.ResourceManager.
+         Each Strings.<culture>.resx is auto-discovered as a satellite assembly (.dll lives
+         under <output>\<culture>\ShareQ.resources.dll). -->
+    <EmbeddedResource Update="Resources\Strings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <!-- Each per-culture resx is grouped under Strings.resx in the IDE solution view AND
+         confirms the default-include pattern picks them up. .NET SDK does emit a satellite
+         assembly automatically (e.g. <output>/it/ShareQ.resources.dll) for any resx file
+         whose name matches the Name.<culture>.resx pattern. Keep one Update per language. -->
+    <EmbeddedResource Update="Resources\Strings.it.resx">
+      <DependentUpon>Strings.resx</DependentUpon>
+    </EmbeddedResource>
+    <Compile Update="Resources\Strings.Designer.cs">
+      <DependentUpon>Strings.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ShareQ.Core\ShareQ.Core.csproj" />

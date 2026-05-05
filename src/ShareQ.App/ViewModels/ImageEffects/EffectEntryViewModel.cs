@@ -31,7 +31,9 @@ public sealed partial class EffectEntryViewModel : ObservableObject
     public EffectEntryViewModel(EffectPresetEntry entry)
     {
         Entry = entry;
-        DisplayName = entry.Effect?.Name ?? "(empty)";
+        DisplayName = entry.Effect is { } eff
+            ? Services.ImageEffectLocalizer.LocalizeEffect(eff.Id, eff.Name)
+            : "(empty)";
         if (entry.Effect is null) return;
 
         // Reflect once at construction so the property grid stays in sync with the underlying

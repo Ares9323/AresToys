@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+
+  <!-- Italian translations. Common verbs / labels mined from ShareX's
+       Resources.it-IT.resx (GPL-3, compatible). UI-specific entries are written for ShareQ
+       — the upstream keys don't map 1:1 because of the different surface. -->
+  <data name="Common_Ok" xml:space="preserve"><value>OK</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="Common_Save" xml:space="preserve"><value>Salva</value></data>
+  <data name="Common_Apply" xml:space="preserve"><value>Applica</value></data>
+  <data name="Common_Close" xml:space="preserve"><value>Chiudi</value></data>
+  <data name="Common_Yes" xml:space="preserve"><value>Sì</value></data>
+  <data name="Common_No" xml:space="preserve"><value>No</value></data>
+  <data name="Common_Reset" xml:space="preserve"><value>Reimposta</value></data>
+  <data name="Common_Browse" xml:space="preserve"><value>Sfoglia…</value></data>
+  <data name="Common_Add" xml:space="preserve"><value>Aggiungi</value></data>
+  <data name="Common_Remove" xml:space="preserve"><value>Rimuovi</value></data>
+  <data name="Common_Edit" xml:space="preserve"><value>Modifica</value></data>
+  <data name="Common_Delete" xml:space="preserve"><value>Elimina</value></data>
+  <data name="Common_Copy" xml:space="preserve"><value>Copia</value></data>
+  <data name="Common_Paste" xml:space="preserve"><value>Incolla</value></data>
+  <data name="Common_Open" xml:space="preserve"><value>Apri</value></data>
+  <data name="Common_Settings" xml:space="preserve"><value>Impostazioni</value></data>
+  <data name="Common_Search" xml:space="preserve"><value>Cerca…</value></data>
+  <data name="Common_Configure" xml:space="preserve"><value>Configura…</value></data>
+  <data name="Common_Duplicate" xml:space="preserve"><value>Duplica</value></data>
+  <data name="Common_ResetAll" xml:space="preserve"><value>Reimposta tutto</value></data>
+  <data name="Common_ResetToDefaults" xml:space="preserve"><value>Ripristina predefiniti</value></data>
+  <data name="Common_Import" xml:space="preserve"><value>Importa…</value></data>
+  <data name="Common_Export" xml:space="preserve"><value>Esporta…</value></data>
+  <data name="Common_OpenFolder" xml:space="preserve"><value>Apri cartella</value></data>
+  <data name="Common_ImportSxcu" xml:space="preserve"><value>Importa .sxcu…</value></data>
+
+  <data name="Tray_Capture" xml:space="preserve"><value>Cattura</value></data>
+  <data name="Tray_Upload" xml:space="preserve"><value>Carica</value></data>
+  <data name="Tray_Tools" xml:space="preserve"><value>Strumenti</value></data>
+  <data name="Tray_Fullscreen" xml:space="preserve"><value>Schermo intero</value></data>
+  <data name="Tray_Monitor" xml:space="preserve"><value>Monitor</value></data>
+  <data name="Tray_ActiveWindow" xml:space="preserve"><value>Finestra attiva</value></data>
+  <data name="Tray_Region" xml:space="preserve"><value>Regione</value></data>
+  <data name="Tray_LastRegion" xml:space="preserve"><value>Ultima regione</value></data>
+  <data name="Tray_Webpage" xml:space="preserve"><value>Pagina web…</value></data>
+  <data name="Tray_WebpageInstallRuntime" xml:space="preserve"><value>Pagina web… (installa WebView2 Runtime)</value></data>
+  <data name="Tray_ScreenRecording" xml:space="preserve"><value>Registrazione schermo</value></data>
+  <data name="Tray_ScreenRecordingGif" xml:space="preserve"><value>Registrazione schermo (GIF)</value></data>
+  <data name="Tray_ColorSampler" xml:space="preserve"><value>Campiona colore</value></data>
+  <data name="Tray_ColorPicker" xml:space="preserve"><value>Selettore colore…</value></data>
+  <data name="Tray_PinToScreen" xml:space="preserve"><value>Aggancia a schermo…</value></data>
+  <data name="Tray_QrGenerator" xml:space="preserve"><value>Generatore QR…</value></data>
+  <data name="Tray_UploadFile" xml:space="preserve"><value>Carica file…</value></data>
+  <data name="Tray_UploadFromClipboard" xml:space="preserve"><value>Carica dagli appunti</value></data>
+  <data name="Tray_OpenClipboard" xml:space="preserve"><value>Apri appunti</value></data>
+  <data name="Tray_OpenLauncher" xml:space="preserve"><value>Apri launcher</value></data>
+  <data name="Tray_ToggleIncognito" xml:space="preserve"><value>Attiva/disattiva incognito</value></data>
+  <data name="Tray_AppTheme" xml:space="preserve"><value>Tema app</value></data>
+  <data name="Tray_Hotkeys" xml:space="preserve"><value>Scorciatoie</value></data>
+  <data name="Tray_CaptureSettings" xml:space="preserve"><value>Impostazioni cattura</value></data>
+  <data name="Tray_OpenScreenshotFolder" xml:space="preserve"><value>Apri cartella screenshot</value></data>
+  <data name="Tray_AppSettings" xml:space="preserve"><value>Impostazioni app</value></data>
+  <data name="Tray_Quit" xml:space="preserve"><value>Esci</value></data>
+
+  <data name="Sidebar_HotkeysWorkflows" xml:space="preserve"><value>Scorciatoie e workflow</value></data>
+  <data name="Sidebar_Uploaders" xml:space="preserve"><value>Uploader</value></data>
+  <data name="Sidebar_ClipboardCategories" xml:space="preserve"><value>Categorie appunti</value></data>
+  <data name="Sidebar_CaptureSettings" xml:space="preserve"><value>Impostazioni cattura</value></data>
+  <data name="Sidebar_AppSettings" xml:space="preserve"><value>Impostazioni app</value></data>
+  <data name="Sidebar_AppTheme" xml:space="preserve"><value>Tema app</value></data>
+  <data name="Sidebar_DebugConsole" xml:space="preserve"><value>Console debug</value></data>
+  <data name="Sidebar_About" xml:space="preserve"><value>Informazioni</value></data>
+
+  <data name="Settings_Language" xml:space="preserve"><value>Lingua</value></data>
+  <data name="Settings_LanguageHint" xml:space="preserve"><value>Riavvio non necessario — la maggior parte delle superfici cambia subito. Alcune (sottomenu tray già aperti) si aggiornano alla prossima interazione.</value></data>
+  <data name="Settings_LanguageSystemDefault" xml:space="preserve"><value>Predefinito di sistema</value></data>
+  <data name="Settings_LanguageRestart" xml:space="preserve"><value>Riavvia ShareQ</value></data>
+
+  <data name="HotkeyCapture_ResetToDefault" xml:space="preserve"><value>Ripristina predefinito</value></data>
+  <data name="HotkeyCapture_ClearBinding" xml:space="preserve"><value>Rimuovi associazione</value></data>
+
+  <data name="Clipboard_Title" xml:space="preserve"><value>ShareQ - Appunti</value></data>
+  <data name="Clipboard_SearchPlaceholder" xml:space="preserve"><value>🔍 Cerca…</value></data>
+  <data name="Clipboard_MenuPinUnpin" xml:space="preserve"><value>Spilla / rimuovi spillo</value></data>
+  <data name="Clipboard_MenuMoveTo" xml:space="preserve"><value>Sposta in</value></data>
+  <data name="Clipboard_MenuCopyTo" xml:space="preserve"><value>Copia in</value></data>
+  <data name="Clipboard_MenuGenerateQr" xml:space="preserve"><value>Genera codice QR…</value></data>
+  <data name="Clipboard_TooltipPaste" xml:space="preserve"><value>Incolla (Invio)</value></data>
+  <data name="Clipboard_TooltipPin" xml:space="preserve"><value>Spilla / rimuovi spillo (Ctrl+P)</value></data>
+  <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Genera codice QR…</value></data>
+  <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Apri nell'editor immagini</value></data>
+  <data name="Clipboard_TooltipExtEditor" xml:space="preserve"><value>Modifica testo in editor esterno (VSCode / Notepad / …)</value></data>
+  <data name="Clipboard_TooltipShowExplorer" xml:space="preserve"><value>Mostra in Esplora risorse</value></data>
+  <data name="Clipboard_TooltipOpenUrl" xml:space="preserve"><value>Apri URL nel browser</value></data>
+  <data name="Clipboard_TooltipCaptureWebpage" xml:space="preserve"><value>Cattura pagina web (screenshot integrale dell'URL)</value></data>
+  <data name="Clipboard_TooltipDelete" xml:space="preserve"><value>Elimina (Canc)</value></data>
+  <data name="Clipboard_TooltipClearAll" xml:space="preserve"><value>Elimina tutti gli elementi non spillati (Ctrl+Maiusc+Canc)</value></data>
+  <data name="Clipboard_TooltipPinned" xml:space="preserve"><value>Attiva/disattiva modalità persistente — la finestra resta aperta dopo incolla / doppio click. Esc o Win+V chiudono comunque.</value></data>
+
+  <data name="Launcher_Title" xml:space="preserve"><value>ShareQ - Launcher</value></data>
+  <data name="Launcher_TooltipSearch" xml:space="preserve"><value>Filtra le celle per etichetta o percorso. Le celle vuote e la riga F non sono influenzate; le tab senza risultati perdono il titolo.</value></data>
+  <data name="Launcher_TooltipDragMode" xml:space="preserve"><value>Attiva/disattiva modalità drag-and-drop — il launcher resta aperto e le celle accettano file / cartelle / collegamenti rilasciati.</value></data>
+  <data name="Launcher_TabRenameHint" xml:space="preserve"><value>Click destro per rinominare questa tab — rilascia un file per cambiare tab senza eseguire.</value></data>
+  <data name="Launcher_HelpHint" xml:space="preserve"><value>F1-F10 azione globale · 1-9,0 / frecce cambiano tab · QWERTY esegue cella tab · Esc chiude · click destro per modificare</value></data>
+  <data name="Launcher_LabelIcon" xml:space="preserve"><value>Icona</value></data>
+  <data name="Launcher_LabelLabel" xml:space="preserve"><value>Etichetta</value></data>
+
+  <data name="Uploaders_Blurb" xml:space="preserve"><value>Scegli quali uploader usare per ciascun tipo di contenuto. Selezioni multiple caricano lo stesso file su tutti; gli URL risultanti finiscono negli appunti, uno per riga.</value></data>
+  <data name="Hotkeys_Blurb" xml:space="preserve"><value>Clicca il nome del workflow per aprire la lista dei passaggi. Clicca la scorciatoia per impostarla / modificarla / rimuoverla.</value></data>
+  <data name="Hotkeys_StepEditorBlurb" xml:space="preserve"><value>Aggiungi azioni con il selettore sotto; trascina la maniglia ⋮⋮ per riordinare; usa il toggle per silenziare senza rimuovere; × rimuove. I passaggi tecnici vengono eseguiti automaticamente e non sono mostrati.</value></data>
+  <data name="Capture_Blurb" xml:space="preserve"><value>Predefiniti applicati alle catture lanciate dal menu tray o dalle scorciatoie. La pipeline eseguita dopo ogni cattura è configurata in Workflow.</value></data>
+  <data name="Theme_Blurb" xml:space="preserve"><value>Due colori che attraversano ovunque ShareQ usi un accento: bottoni primari, toggle, bordo dell'immagine spillata, indicatori di drag-and-drop e voci selezionate nella sidebar. Modifica i valori hex per vedere il cambiamento in tempo reale.</value></data>
+  <data name="Categories_Blurb" xml:space="preserve"><value>Le categorie sono contenitori per gli elementi degli appunti. Click destro su un elemento del popup → Sposta in → … per archiviarlo. Gli elementi di categorie eliminate tornano al bucket predefinito 'Clipboard'; gli elementi spillati mantengono lo spillo.</value></data>
+  <data name="Settings_Blurb" xml:space="preserve"><value>Preferenze a livello applicazione. Cambia comportamenti che non appartengono a una pagina specifica.</value></data>
+
+  <data name="Uploaders_TabImage" xml:space="preserve"><value>Immagine</value></data>
+  <data name="Uploaders_TabFile" xml:space="preserve"><value>File</value></data>
+  <data name="Uploaders_TabText" xml:space="preserve"><value>Testo</value></data>
+  <data name="Uploaders_TabVideo" xml:space="preserve"><value>Video</value></data>
+  <data name="Uploaders_TabUrl" xml:space="preserve"><value>URL</value></data>
+  <data name="Uploaders_TabCustom" xml:space="preserve"><value>Personalizzati</value></data>
+
+  <data name="Workflow_OnClipboard" xml:space="preserve"><value>Negli appunti</value></data>
+  <data name="Workflow_RegionCapture" xml:space="preserve"><value>Cattura regione</value></data>
+  <data name="Workflow_ActiveWindowCapture" xml:space="preserve"><value>Cattura finestra attiva</value></data>
+  <data name="Workflow_ActiveMonitorCapture" xml:space="preserve"><value>Cattura monitor attivo</value></data>
+  <data name="Workflow_WebpageCapture" xml:space="preserve"><value>Cattura pagina web</value></data>
+  <data name="Workflow_ManualUpload" xml:space="preserve"><value>Caricamento manuale</value></data>
+  <data name="Workflow_UploadClipboardText" xml:space="preserve"><value>Carica testo dagli appunti</value></data>
+  <data name="Workflow_UploadSelectedFile" xml:space="preserve"><value>Carica file selezionato</value></data>
+  <data name="Workflow_ShortenClipboardUrl" xml:space="preserve"><value>Accorcia URL dagli appunti</value></data>
+  <data name="Workflow_ShowPopup" xml:space="preserve"><value>Mostra popup appunti</value></data>
+  <data name="Workflow_ToggleIncognito" xml:space="preserve"><value>Attiva/disattiva incognito</value></data>
+  <data name="Workflow_ColorSampler" xml:space="preserve"><value>Campiona colore</value></data>
+  <data name="Workflow_ColorPicker" xml:space="preserve"><value>Selettore colore</value></data>
+  <data name="Workflow_RecordScreenMp4" xml:space="preserve"><value>Registrazione schermo (mp4)</value></data>
+  <data name="Workflow_RecordScreenGif" xml:space="preserve"><value>Registrazione schermo (gif)</value></data>
+  <data name="Workflow_OpenScreenshotFolder" xml:space="preserve"><value>Apri cartella screenshot</value></data>
+  <data name="Workflow_QrReadFromRegion" xml:space="preserve"><value>QR — leggi da regione schermo</value></data>
+  <data name="Workflow_OpenLauncher" xml:space="preserve"><value>Apri launcher</value></data>
+  <data name="Workflow_OpenSettings" xml:space="preserve"><value>Apri impostazioni</value></data>
+  <data name="Workflow_SaveQrToHistory" xml:space="preserve"><value>Salva QR in cronologia</value></data>
+
+  <data name="WorkflowCategory_Capture" xml:space="preserve"><value>Cattura</value></data>
+  <data name="WorkflowCategory_Upload" xml:space="preserve"><value>Caricamento</value></data>
+  <data name="WorkflowCategory_Clipboard" xml:space="preserve"><value>Appunti</value></data>
+  <data name="WorkflowCategory_Tools" xml:space="preserve"><value>Strumenti</value></data>
+  <data name="WorkflowCategory_Other" xml:space="preserve"><value>Altro</value></data>
+
+  <data name="Settings_StartWithWindows" xml:space="preserve"><value>Avvia ShareQ all'accensione di Windows</value></data>
+  <data name="Settings_StartWithWindowsTooltip" xml:space="preserve"><value>Aggiunge (o rimuove) ShareQ dalla lista di avvio utente di Windows. Non servono permessi di amministratore.</value></data>
+  <data name="Settings_TrayClicksTitle" xml:space="preserve"><value>Click sull'icona tray</value></data>
+  <data name="Settings_TrayClicksHint" xml:space="preserve"><value>Scegli cosa deve fare ogni click sull'icona tray. Il click destro apre sempre il menu.</value></data>
+  <data name="Settings_TrayLeftClick" xml:space="preserve"><value>Click sinistro</value></data>
+  <data name="Settings_TrayDoubleClick" xml:space="preserve"><value>Doppio click</value></data>
+  <data name="Settings_TrayMiddleClick" xml:space="preserve"><value>Click centrale</value></data>
+  <data name="Settings_TrayDoNothing" xml:space="preserve"><value>(nessuna azione)</value></data>
+  <data name="Settings_ImageEffectsTitle" xml:space="preserve"><value>Effetti immagine</value></data>
+  <data name="Settings_ImageEffectsHint" xml:space="preserve"><value>Definisci catene di regolazioni, filtri e disegni (compatibili ShareX). Apri l'editor per aggiungere effetti a un preset e visualizzare l'anteprima su un'immagine campione. Importa direttamente i preset .sxie di ShareX.</value></data>
+  <data name="Settings_ImageEffectsOpen" xml:space="preserve"><value>Apri editor effetti immagine…</value></data>
+  <data name="Settings_SxieAssociation" xml:space="preserve"><value>Imposta ShareQ come app predefinita per i file .sxie</value></data>
+  <data name="Settings_SxieAssociationHint" xml:space="preserve"><value>Quando attivo, il doppio click su un file .sxie in Esplora apre l'editor effetti immagine con il preset già importato — stesso flusso di ShareX. Solo per utente — non modifica impostazioni di sistema né richiede permessi di amministratore.</value></data>
+  <data name="Settings_BackupTitle" xml:space="preserve"><value>Backup e ripristino</value></data>
+  <data name="Settings_BackupHint" xml:space="preserve"><value>Esporta ogni impostazione ShareQ non sensibile (tema, scorciatoie, celle launcher, passaggi workflow, predefiniti cattura, selezione plugin) in un singolo file JSON sincronizzabile tra macchine. I valori sensibili (token OAuth, credenziali) non sono inclusi — sarebbero comunque inutilizzabili su un'altra macchina.</value></data>
+
+  <data name="Hotkeys_WorkflowName" xml:space="preserve"><value>Nome workflow</value></data>
+  <data name="Hotkeys_Hotkey" xml:space="preserve"><value>Scorciatoia</value></data>
+  <data name="Hotkeys_BackToList" xml:space="preserve"><value>Torna alla lista delle scorciatoie</value></data>
+  <data name="Hotkeys_DuplicateTooltip" xml:space="preserve"><value>Clona questo workflow in una nuova copia modificabile</value></data>
+  <data name="Hotkeys_RemoveTooltip" xml:space="preserve"><value>Elimina questo workflow (i predefiniti non possono essere eliminati)</value></data>
+  <data name="Hotkeys_ResetTooltip" xml:space="preserve"><value>Ripristina i passaggi e la scorciatoia originali di questo workflow predefinito.</value></data>
+
+  <data name="Categories_NewNamePlaceholder" xml:space="preserve"><value>Nome (es. Code)</value></data>
+
+  <data name="Capture_SaveFolder" xml:space="preserve"><value>Cartella di salvataggio</value></data>
+  <data name="Capture_SubFolderPattern" xml:space="preserve"><value>Pattern sottocartella (opzionale)</value></data>
+  <data name="Capture_SubFolderPlaceholder" xml:space="preserve"><value>es. %y-%mo  →  sottocartella 2026-04 sotto la cartella di salvataggio</value></data>
+  <data name="Capture_SubFolderHint" xml:space="preserve"><value>Token: %y / %yy anno a 4 / 2 cifre, %mo mese (01–12), %mon nome mese, %d giorno, %h ora, %mi minuto, %s secondo, %pm AM/PM. Lascia vuoto per nessuna sottocartella.</value></data>
+  <data name="Capture_DelaySeconds" xml:space="preserve"><value>Ritardo screenshot (secondi)</value></data>
+  <data name="Capture_ImageFormat" xml:space="preserve"><value>Formato immagine</value></data>
+  <data name="Capture_JpegQuality" xml:space="preserve"><value>Qualità JPEG</value></data>
+  <data name="Capture_AutoJpeg" xml:space="preserve"><value>Passa automaticamente a JPEG quando l'output supera la soglia</value></data>
+  <data name="Capture_ThresholdKb" xml:space="preserve"><value>Soglia (KB)</value></data>
+  <data name="Capture_AutoJpegHint" xml:space="preserve"><value>Attivo solo quando il formato è PNG. Il contenuto fotografico (gradienti, frame video) si comprime in modo molto più efficiente come JPEG; gli screenshot grandi vengono convertiti automaticamente senza che tu te ne accorga.</value></data>
+  <data name="Capture_ExternalEditor" xml:space="preserve"><value>Editor di testo esterno</value></data>
+  <data name="Capture_ExternalEditorPlaceholder" xml:space="preserve"><value>(vuoto = predefinito Windows per .txt — es. notepad)</value></data>
+  <data name="Capture_ExternalEditorHint" xml:space="preserve"><value>Usato dal pulsante Modifica del popup appunti sulle righe di testo. Esempi: code (VSCode), code.cmd, notepad++.exe, notepad. Le modifiche vengono sincronizzate automaticamente quando salvi il file.</value></data>
+
+  <data name="Theme_PresetPicker" xml:space="preserve"><value>Preset</value></data>
+  <data name="Theme_ForegroundLight" xml:space="preserve"><value>Primo piano chiaro</value></data>
+  <data name="Theme_ForegroundDark" xml:space="preserve"><value>Primo piano scuro</value></data>
+  <data name="Theme_AccentBackgroundLight" xml:space="preserve"><value>Sfondo accento chiaro</value></data>
+  <data name="Theme_AccentBackgroundDark" xml:space="preserve"><value>Sfondo accento scuro</value></data>
+  <data name="Theme_AccentDanger" xml:space="preserve"><value>Accento pericolo</value></data>
+  <data name="Theme_Surface1" xml:space="preserve"><value>Superficie 1 (più scura)</value></data>
+  <data name="Theme_Surface2" xml:space="preserve"><value>Superficie 2 (media)</value></data>
+  <data name="Theme_Surface3" xml:space="preserve"><value>Superficie 3 (più chiara)</value></data>
+  <data name="Theme_SurfacesHint" xml:space="preserve"><value>Superficie 1 → campi di input e righe di lista. Superficie 2 → corpo della finestra principale. Superficie 3 → pannelli in primo piano e maniglie di drag.</value></data>
+
+  <data name="ThemePreset_Custom" xml:space="preserve"><value>Personalizzato (valori attuali)</value></data>
+  <data name="ThemePreset_Default" xml:space="preserve"><value>ShareQ predefinito</value></data>
+  <data name="ThemePreset_WizardBlue" xml:space="preserve"><value>Mago blu</value></data>
+  <data name="ThemePreset_SorcererPurple" xml:space="preserve"><value>Stregone viola</value></data>
+  <data name="ThemePreset_DruidGreen" xml:space="preserve"><value>Druido verde</value></data>
+  <data name="ThemePreset_WarlockRed" xml:space="preserve"><value>Warlock rosso</value></data>
+  <data name="ThemePreset_ClericGold" xml:space="preserve"><value>Chierico oro</value></data>
+  <data name="ThemePreset_BardRouge" xml:space="preserve"><value>Bardo rosa</value></data>
+  <data name="ThemePreset_BurnMyEyes" xml:space="preserve"><value>Accecami</value></data>
+
+  <data name="Categories_AddNew" xml:space="preserve"><value>Aggiungi una nuova categoria</value></data>
+  <data name="Hotkeys_AddCustomWorkflow" xml:space="preserve"><value>+ Aggiungi workflow personalizzato</value></data>
+  <data name="Hotkeys_NoCustomYet" xml:space="preserve"><value>(nessuno ancora — clicca + Aggiungi workflow personalizzato qui sotto per crearne uno)</value></data>
+
+  <data name="ColorPicker_Title" xml:space="preserve"><value>ShareQ - Selettore colore</value></data>
+  <data name="ColorPicker_Recent" xml:space="preserve"><value>Recenti</value></data>
+  <data name="ColorPicker_Sampler" xml:space="preserve"><value>Campiona</value></data>
+  <data name="ColorPicker_Wheel" xml:space="preserve"><value>Ruota</value></data>
+  <data name="ColorPicker_Square" xml:space="preserve"><value>Quadrato</value></data>
+  <data name="ColorPicker_CopyAll" xml:space="preserve"><value>Copia tutto</value></data>
+  <data name="ColorPicker_CopyRgb" xml:space="preserve"><value>Copia RGB</value></data>
+  <data name="ColorPicker_CopyCmyk" xml:space="preserve"><value>Copia CMYK</value></data>
+  <data name="ColorPicker_CopyHsb" xml:space="preserve"><value>Copia HSB</value></data>
+  <data name="ColorPicker_CopyLinear" xml:space="preserve"><value>Copia Linear</value></data>
+  <data name="ColorPicker_CopyBgra" xml:space="preserve"><value>Copia BGRA</value></data>
+  <data name="ColorPicker_CopyHex" xml:space="preserve"><value>📋 HEX</value></data>
+  <data name="ColorPicker_CopyDec" xml:space="preserve"><value>📋 DEC</value></data>
+
+  <data name="ImageEffects_Title" xml:space="preserve"><value>ShareQ - Effetti immagine</value></data>
+  <data name="ImageEffects_Presets" xml:space="preserve"><value>Preset</value></data>
+  <data name="ImageEffects_TooltipNewPreset" xml:space="preserve"><value>Nuovo preset</value></data>
+  <data name="ImageEffects_TooltipDeletePreset" xml:space="preserve"><value>Elimina preset</value></data>
+  <data name="ImageEffects_TooltipDuplicate" xml:space="preserve"><value>Duplica</value></data>
+  <data name="ImageEffects_TooltipRename" xml:space="preserve"><value>Rinomina (F2)</value></data>
+  <data name="ImageEffects_TooltipGetEffects" xml:space="preserve"><value>Scarica effetti (apre il browser)</value></data>
+  <data name="ImageEffects_TooltipImport" xml:space="preserve"><value>Importa preset .sxie o .json</value></data>
+  <data name="ImageEffects_EffectsInPreset" xml:space="preserve"><value>Effetti nel preset</value></data>
+  <data name="ImageEffects_TooltipAddEffect" xml:space="preserve"><value>Aggiungi un nuovo effetto</value></data>
+  <data name="ImageEffects_TooltipMoveUp" xml:space="preserve"><value>Sposta su — l'ordine conta: ogni effetto viene applicato all'output del precedente.</value></data>
+  <data name="ImageEffects_TooltipMoveDown" xml:space="preserve"><value>Sposta giù</value></data>
+  <data name="ImageEffects_TooltipRemoveEffect" xml:space="preserve"><value>Rimuovi effetto selezionato</value></data>
+  <data name="ImageEffects_TooltipRemoveAll" xml:space="preserve"><value>Rimuovi tutto</value></data>
+  <data name="ImageEffects_Sides" xml:space="preserve"><value>Lati</value></data>
+  <data name="ImageEffects_SideTop" xml:space="preserve"><value>Alto</value></data>
+  <data name="ImageEffects_SideLeft" xml:space="preserve"><value>Sinistra</value></data>
+  <data name="ImageEffects_SideRight" xml:space="preserve"><value>Destra</value></data>
+  <data name="ImageEffects_SideBottom" xml:space="preserve"><value>Basso</value></data>
+  <data name="ImageEffects_TooltipPickColor" xml:space="preserve"><value>Click per cambiare colore</value></data>
+  <data name="ImageEffects_TooltipEditGradient" xml:space="preserve"><value>Click per modificare il gradiente</value></data>
+  <data name="ImageEffects_UseGradient" xml:space="preserve"><value>Usa gradiente</value></data>
+  <data name="ImageEffects_Uniform" xml:space="preserve"><value>Uniforme</value></data>
+  <data name="ImageEffects_TooltipUniform" xml:space="preserve"><value>Quando attivo, modificando un lato si aggiornano tutti e quattro</value></data>
+  <data name="ImageEffects_TooltipPickImage" xml:space="preserve"><value>Scegli un file immagine…</value></data>
+  <data name="ImageEffects_TooltipBold" xml:space="preserve"><value>Grassetto</value></data>
+  <data name="ImageEffects_TooltipItalic" xml:space="preserve"><value>Corsivo</value></data>
+  <data name="ImageEffects_Preview" xml:space="preserve"><value>Anteprima</value></data>
+  <data name="ImageEffects_LiveUpdate" xml:space="preserve"><value>Aggiornamento live</value></data>
+  <data name="ImageEffects_TooltipLiveUpdate" xml:space="preserve"><value>Ricalcola l'anteprima durante il drag dello slider (~30 fps) invece di aspettare il rilascio.</value></data>
+  <data name="ImageEffects_LoadImage" xml:space="preserve"><value>Carica immagine…</value></data>
+  <data name="ImageEffects_TooltipLoadImage" xml:space="preserve"><value>Sostituisci l'immagine campione</value></data>
+  <data name="ImageEffects_ResetSample" xml:space="preserve"><value>Ripristina campione</value></data>
+  <data name="ImageEffects_ExportPreset" xml:space="preserve"><value>Esporta preset…</value></data>
+
+  <data name="EffectCategory_Adjustments" xml:space="preserve"><value>Regolazioni</value></data>
+  <data name="EffectCategory_Filters" xml:space="preserve"><value>Filtri</value></data>
+  <data name="EffectCategory_Manipulations" xml:space="preserve"><value>Manipolazioni</value></data>
+  <data name="EffectCategory_Drawings" xml:space="preserve"><value>Disegni</value></data>
+
+  <data name="Effect_alpha" xml:space="preserve"><value>Alfa</value></data>
+  <data name="Effect_auto_contrast" xml:space="preserve"><value>Contrasto automatico</value></data>
+  <data name="Effect_black_and_white" xml:space="preserve"><value>Bianco e nero</value></data>
+  <data name="Effect_brightness" xml:space="preserve"><value>Luminosità</value></data>
+  <data name="Effect_channel_swap" xml:space="preserve"><value>Scambio canali</value></data>
+  <data name="Effect_clarity" xml:space="preserve"><value>Nitidezza</value></data>
+  <data name="Effect_color_balance" xml:space="preserve"><value>Bilanciamento colore</value></data>
+  <data name="Effect_color_matrix" xml:space="preserve"><value>Matrice colore</value></data>
+  <data name="Effect_colorize" xml:space="preserve"><value>Colora</value></data>
+  <data name="Effect_contrast" xml:space="preserve"><value>Contrasto</value></data>
+  <data name="Effect_cross_process" xml:space="preserve"><value>Cross process</value></data>
+  <data name="Effect_dehaze" xml:space="preserve"><value>Rimuovi foschia</value></data>
+  <data name="Effect_duotone_gradient_map" xml:space="preserve"><value>Bicromia</value></data>
+  <data name="Effect_exposure" xml:space="preserve"><value>Esposizione</value></data>
+  <data name="Effect_film_emulation" xml:space="preserve"><value>Emulazione pellicola</value></data>
+  <data name="Effect_gamma" xml:space="preserve"><value>Gamma</value></data>
+  <data name="Effect_grayscale" xml:space="preserve"><value>Scala di grigi</value></data>
+  <data name="Effect_hue" xml:space="preserve"><value>Tonalità</value></data>
+  <data name="Effect_invert" xml:space="preserve"><value>Inverti</value></data>
+  <data name="Effect_levels" xml:space="preserve"><value>Livelli</value></data>
+  <data name="Effect_lomo" xml:space="preserve"><value>Lomo</value></data>
+  <data name="Effect_polaroid" xml:space="preserve"><value>Polaroid</value></data>
+  <data name="Effect_posterize" xml:space="preserve"><value>Posterizza</value></data>
+  <data name="Effect_replace_color" xml:space="preserve"><value>Sostituisci colore</value></data>
+  <data name="Effect_saturation" xml:space="preserve"><value>Saturazione</value></data>
+  <data name="Effect_sepia" xml:space="preserve"><value>Seppia</value></data>
+  <data name="Effect_shadows_highlights" xml:space="preserve"><value>Ombre / luci</value></data>
+  <data name="Effect_solarize" xml:space="preserve"><value>Solarizza</value></data>
+  <data name="Effect_split_toning" xml:space="preserve"><value>Tonalità divisa</value></data>
+  <data name="Effect_temperature_tint" xml:space="preserve"><value>Temperatura / Tinta</value></data>
+  <data name="Effect_threshold" xml:space="preserve"><value>Soglia</value></data>
+  <data name="Effect_vibrance" xml:space="preserve"><value>Vivacità</value></data>
+  <data name="Effect_draw_background" xml:space="preserve"><value>Sfondo</value></data>
+  <data name="Effect_draw_border" xml:space="preserve"><value>Bordo</value></data>
+  <data name="Effect_draw_checkerboard" xml:space="preserve"><value>Scacchiera</value></data>
+  <data name="Effect_draw_image" xml:space="preserve"><value>Immagine</value></data>
+  <data name="Effect_draw_particles" xml:space="preserve"><value>Particelle</value></data>
+  <data name="Effect_draw_text_ex" xml:space="preserve"><value>Testo</value></data>
+  <data name="Effect_draw_text" xml:space="preserve"><value>Filigrana di testo</value></data>
+  <data name="Effect_gradient_overlay" xml:space="preserve"><value>Sovrapposizione gradiente</value></data>
+  <data name="Effect_add_noise" xml:space="preserve"><value>Aggiungi rumore</value></data>
+  <data name="Effect_blur" xml:space="preserve"><value>Sfocatura</value></data>
+  <data name="Effect_color_halftone" xml:space="preserve"><value>Mezzitoni colore</value></data>
+  <data name="Effect_edge_detect" xml:space="preserve"><value>Rileva bordi</value></data>
+  <data name="Effect_emboss" xml:space="preserve"><value>Rilievo</value></data>
+  <data name="Effect_glow" xml:space="preserve"><value>Bagliore</value></data>
+  <data name="Effect_motion_blur" xml:space="preserve"><value>Sfocatura movimento</value></data>
+  <data name="Effect_pixelate" xml:space="preserve"><value>Pixel</value></data>
+  <data name="Effect_sharpen" xml:space="preserve"><value>Nitidezza</value></data>
+  <data name="Effect_torn_edge" xml:space="preserve"><value>Bordo strappato</value></data>
+  <data name="Effect_vignette" xml:space="preserve"><value>Vignettatura</value></data>
+  <data name="Effect_auto_crop" xml:space="preserve"><value>Ritaglio automatico</value></data>
+  <data name="Effect_canvas" xml:space="preserve"><value>Tela</value></data>
+  <data name="Effect_crop" xml:space="preserve"><value>Ritaglia</value></data>
+  <data name="Effect_flip_horizontal" xml:space="preserve"><value>Capovolgi orizzontalmente</value></data>
+  <data name="Effect_flip_vertical" xml:space="preserve"><value>Capovolgi verticalmente</value></data>
+  <data name="Effect_rotate_90_cw" xml:space="preserve"><value>Ruota 90° orario</value></data>
+  <data name="Effect_rotate_90_ccw" xml:space="preserve"><value>Ruota 90° antiorario</value></data>
+  <data name="Effect_rotate_180" xml:space="preserve"><value>Ruota 180°</value></data>
+  <data name="Effect_resize" xml:space="preserve"><value>Ridimensiona</value></data>
+  <data name="Effect_rotate" xml:space="preserve"><value>Ruota</value></data>
+  <data name="Effect_rounded_corners" xml:space="preserve"><value>Angoli arrotondati</value></data>
+  <data name="Effect_shadow" xml:space="preserve"><value>Ombra</value></data>
+  <data name="Effect_skew" xml:space="preserve"><value>Inclina</value></data>
+
+  <data name="Param_Amount" xml:space="preserve"><value>Quantità</value></data>
+  <data name="Param_Strength" xml:space="preserve"><value>Intensità</value></data>
+  <data name="Param_Size" xml:space="preserve"><value>Dimensione</value></data>
+  <data name="Param_Opacity" xml:space="preserve"><value>Opacità</value></data>
+  <data name="Param_Angle" xml:space="preserve"><value>Angolo</value></data>
+  <data name="Param_Threshold" xml:space="preserve"><value>Soglia</value></data>
+  <data name="Param_Width" xml:space="preserve"><value>Larghezza</value></data>
+  <data name="Param_Height" xml:space="preserve"><value>Altezza</value></data>
+  <data name="Param_Color" xml:space="preserve"><value>Colore</value></data>
+  <data name="Param_Padding" xml:space="preserve"><value>Margine</value></data>
+  <data name="Param_OffsetX" xml:space="preserve"><value>Offset X</value></data>
+  <data name="Param_OffsetY" xml:space="preserve"><value>Offset Y</value></data>
+  <data name="Param_CornerRadius" xml:space="preserve"><value>Raggio angoli</value></data>
+  <data name="Param_Radius" xml:space="preserve"><value>Raggio</value></data>
+  <data name="Param_Quality" xml:space="preserve"><value>Qualità</value></data>
+  <data name="Param_Vertical" xml:space="preserve"><value>Verticale</value></data>
+  <data name="Param_Horizontal" xml:space="preserve"><value>Orizzontale</value></data>
+</root>

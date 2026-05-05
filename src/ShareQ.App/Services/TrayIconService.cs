@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using H.NotifyIcon;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
+using ShareQ.App.Resources;
 using ShareQ.Core.Pipeline;
 using ShareQ.Pipeline;
 using ShareQ.Pipeline.Profiles;
@@ -36,6 +37,7 @@ public sealed class TrayIconService : IDisposable
     private readonly IPipelineProfileStore _profiles;
     private readonly PipelineExecutor _executor;
     private readonly Hotkeys.HotkeyConfigService _hotkeys;
+    private readonly LocalizationService _localization;
     private readonly TaskbarIcon _icon;
     private MainWindow? _mainWindow;
     // Click handler bound to the most recently shown toast. Cleared after the toast closes
@@ -48,6 +50,7 @@ public sealed class TrayIconService : IDisposable
         IPipelineProfileStore profiles,
         PipelineExecutor executor,
         Hotkeys.HotkeyConfigService hotkeys,
+        LocalizationService localization,
         ILogger<TrayIconService> logger)
     {
         _services = services;
@@ -55,6 +58,7 @@ public sealed class TrayIconService : IDisposable
         _profiles = profiles;
         _executor = executor;
         _hotkeys = hotkeys;
+        _localization = localization;
         _logger = logger;
         _icon = new TaskbarIcon
         {
@@ -68,6 +72,13 @@ public sealed class TrayIconService : IDisposable
         // swapped wholesale — H.NotifyIcon doesn't cache anything off it. Marshal to UI thread
         // because Changed fires from whichever thread did the rebind.
         _hotkeys.Changed += (_, _) => Application.Current?.Dispatcher.BeginInvoke(
+            new Action(() => _icon.ContextMenu = BuildMenu()));
+
+        // Same rebuild on UI-language switch — the labels we set up below come from Strings.*
+        // which respects CurrentUICulture, so a culture flip needs the menu to be re-rendered
+        // for the new strings to show. Already-open submenus won't re-translate live; that's
+        // the trade-off captured in Settings_LanguageHint.
+        _localization.CultureChanged += (_, _) => Application.Current?.Dispatcher.BeginInvoke(
             new Action(() => _icon.ContextMenu = BuildMenu()));
 
         _icon.ContextMenu = BuildMenu();
@@ -129,15 +140,15 @@ public sealed class TrayIconService : IDisposable
         var menu = new ContextMenu();
 
         // Capture submenu — mirrors ShareX's top-level Capture menu.
-        var capture = new MenuItem { Header = "Capture" };
-        capture.Items.Add(BuildMenuItem("Fullscreen",
+        var capture = new MenuItem { Header = Strings.Tray_Capture };
+        capture.Items.Add(BuildMenuItem(Strings.Tray_Fullscreen,
             () => Run<CaptureCoordinator>(c => _ = c.CaptureFullscreenAsync(CancellationToken.None))));
         capture.Items.Add(BuildMonitorSubmenu());
-        capture.Items.Add(BuildMenuItem("Active window",
+        capture.Items.Add(BuildMenuItem(Strings.Tray_ActiveWindow,
             () => Run<CaptureCoordinator>(c => _ = c.CaptureActiveWindowAsync(CancellationToken.None))));
-        capture.Items.Add(BuildShortcutMenuItem("Region", DefaultPipelineProfiles.RegionCaptureId,
+        capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_Region, DefaultPipelineProfiles.RegionCaptureId,
             () => Run<CaptureCoordinator>(c => _ = c.CaptureRegionAsync(CancellationToken.None))));
-        capture.Items.Add(BuildMenuItem("Last region",
+        capture.Items.Add(BuildMenuItem(Strings.Tray_LastRegion,
             () => Run<CaptureCoordinator>(c => _ = c.CaptureLastRegionAsync(CancellationToken.None))));
         // Webpage capture needs WebView2 Runtime. When missing (old Win10 builds without the
         // bundled runtime, stripped LTSC images), swap the action for "(install runtime)" that
@@ -145,42 +156,42 @@ public sealed class TrayIconService : IDisposable
         var webView2 = _services.GetService(typeof(WebView2AvailabilityService)) as WebView2AvailabilityService;
         if (webView2?.IsAvailable ?? false)
         {
-            capture.Items.Add(BuildMenuItem("Webpage…",
+            capture.Items.Add(BuildMenuItem(Strings.Tray_Webpage,
                 () => Run<CaptureCoordinator>(c => _ = c.CaptureWebpageAsync(CancellationToken.None))));
         }
         else
         {
-            capture.Items.Add(BuildMenuItem("Webpage… (install WebView2 Runtime)",
+            capture.Items.Add(BuildMenuItem(Strings.Tray_WebpageInstallRuntime,
                 () => webView2?.OpenInstallerPage()));
         }
         capture.Items.Add(new Separator());
-        capture.Items.Add(BuildShortcutMenuItem("Screen recording", DefaultPipelineProfiles.RecordScreenMp4Id,
+        capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_ScreenRecording, DefaultPipelineProfiles.RecordScreenMp4Id,
             () => Run<Services.Recording.RecordingCoordinator>(c => _ = c.ToggleAsync(ShareQ.Capture.Recording.RecordingFormat.Mp4, CancellationToken.None))));
-        capture.Items.Add(BuildShortcutMenuItem("Screen recording (GIF)", DefaultPipelineProfiles.RecordScreenGifId,
+        capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_ScreenRecordingGif, DefaultPipelineProfiles.RecordScreenGifId,
             () => Run<Services.Recording.RecordingCoordinator>(c => _ = c.ToggleAsync(ShareQ.Capture.Recording.RecordingFormat.Gif, CancellationToken.None))));
         capture.Items.Add(new Separator());
-        capture.Items.Add(BuildShortcutMenuItem("Color sampler", DefaultPipelineProfiles.ColorSamplerId,
+        capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_ColorSampler, DefaultPipelineProfiles.ColorSamplerId,
             () => Run<ScreenColorPickerService>(s => s.PickAtCursor())));
-        capture.Items.Add(BuildMenuItem("Color picker…",
+        capture.Items.Add(BuildMenuItem(Strings.Tray_ColorPicker,
             () => Run<ColorWheelLauncher>(l => _ = l.ShowAsync())));
         menu.Items.Add(capture);
 
         // Upload submenu — kicks off the manual-upload pipeline from arbitrary sources.
-        var upload = new MenuItem { Header = "Upload" };
-        upload.Items.Add(BuildMenuItem("Upload file…", OnUploadFile));
-        upload.Items.Add(BuildMenuItem("Upload from clipboard", OnUploadFromClipboard));
+        var upload = new MenuItem { Header = Strings.Tray_Upload };
+        upload.Items.Add(BuildMenuItem(Strings.Tray_UploadFile, OnUploadFile));
+        upload.Items.Add(BuildMenuItem(Strings.Tray_UploadFromClipboard, OnUploadFromClipboard));
         // Upload text/URL go in a later sprint (need a text-input dialog).
         menu.Items.Add(upload);
 
         // Tools submenu — placeholder; we'll grow this with QR / hash / ruler / etc.
-        var tools = new MenuItem { Header = "Tools" };
-        tools.Items.Add(BuildMenuItem("Color sampler",
+        var tools = new MenuItem { Header = Strings.Tray_Tools };
+        tools.Items.Add(BuildMenuItem(Strings.Tray_ColorSampler,
             () => Run<ScreenColorPickerService>(s => s.PickAtCursor())));
-        tools.Items.Add(BuildMenuItem("Color picker…",
+        tools.Items.Add(BuildMenuItem(Strings.Tray_ColorPicker,
             () => Run<ColorWheelLauncher>(l => _ = l.ShowAsync())));
-        tools.Items.Add(BuildMenuItem("Pin to screen…",
+        tools.Items.Add(BuildMenuItem(Strings.Tray_PinToScreen,
             () => Run<PinToScreenLauncher>(p => _ = p.ShowAsync(CancellationToken.None))));
-        tools.Items.Add(BuildMenuItem("QR generator…",
+        tools.Items.Add(BuildMenuItem(Strings.Tray_QrGenerator,
             () => Run<ShareQ.App.Services.Qr.QrCodeService>(qr =>
                   Run<ShareQ.Storage.Settings.ISettingsStore>(settings =>
                   Run<ShareQ.App.Services.ManualUploadService>(ingestion =>
@@ -192,7 +203,7 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(tools);
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(BuildShortcutMenuItem("Open clipboard", DefaultPipelineProfiles.ShowPopupId,
+        menu.Items.Add(BuildShortcutMenuItem(Strings.Tray_OpenClipboard, DefaultPipelineProfiles.ShowPopupId,
             () =>
             {
                 // Same toggle / capture-foreground / show-and-activate sequence the
@@ -206,7 +217,7 @@ public sealed class TrayIconService : IDisposable
                 Run<TargetWindowTracker>(t => t.CaptureCurrentForeground());
                 Run<ShareQ.App.Views.ClipboardWindow>(w => { w.Show(); w.Activate(); });
             }));
-        menu.Items.Add(BuildShortcutMenuItem("Open launcher", DefaultPipelineProfiles.OpenLauncherId,
+        menu.Items.Add(BuildShortcutMenuItem(Strings.Tray_OpenLauncher, DefaultPipelineProfiles.OpenLauncherId,
             () =>
             {
                 // Same toggle pattern as OpenLauncherMenuTask: closed → open + activate; open
@@ -218,7 +229,7 @@ public sealed class TrayIconService : IDisposable
                 }
                 Run<ShareQ.App.Views.LauncherWindow>(w => { w.Show(); w.Activate(); });
             }));
-        menu.Items.Add(BuildShortcutMenuItem("Toggle incognito", DefaultPipelineProfiles.ToggleIncognitoId,
+        menu.Items.Add(BuildShortcutMenuItem(Strings.Tray_ToggleIncognito, DefaultPipelineProfiles.ToggleIncognitoId,
             () => Run<IncognitoModeService>(s => _ = s.ToggleAsync(CancellationToken.None))));
         menu.Items.Add(new Separator());
         // Three extra entries before "Open screenshot folder" — deep-link into the matching
@@ -226,16 +237,16 @@ public sealed class TrayIconService : IDisposable
         // bottom items lower on screen so the Capture submenu (which auto-flips upward when
         // the tray menu is anchored at the screen edge) has room to render adjacent to its
         // parent without the gap WPF-UI's shadow margin would otherwise reveal.
-        menu.Items.Add(BuildMenuItem("App Theme",
+        menu.Items.Add(BuildMenuItem(Strings.Tray_AppTheme,
             () => OnOpenSettingsTab(ShareQ.App.ViewModels.SettingsTab.Theme)));
-        menu.Items.Add(BuildMenuItem("Hotkeys",
+        menu.Items.Add(BuildMenuItem(Strings.Tray_Hotkeys,
             () => OnOpenSettingsTab(ShareQ.App.ViewModels.SettingsTab.Hotkeys)));
-        menu.Items.Add(BuildMenuItem("Capture Settings",
+        menu.Items.Add(BuildMenuItem(Strings.Tray_CaptureSettings,
             () => OnOpenSettingsTab(ShareQ.App.ViewModels.SettingsTab.Capture)));
-        menu.Items.Add(BuildMenuItem("Open Screenshot Folder", OnOpenScreenshotFolder));
-        menu.Items.Add(BuildMenuItem("App Settings",
+        menu.Items.Add(BuildMenuItem(Strings.Tray_OpenScreenshotFolder, OnOpenScreenshotFolder));
+        menu.Items.Add(BuildMenuItem(Strings.Tray_AppSettings,
             () => OnOpenSettingsTab(ShareQ.App.ViewModels.SettingsTab.Settings)));
-        menu.Items.Add(BuildMenuItem("Quit", OnQuit));
+        menu.Items.Add(BuildMenuItem(Strings.Tray_Quit, OnQuit));
         return menu;
     }
 
@@ -271,7 +282,7 @@ public sealed class TrayIconService : IDisposable
     {
         // Built each time the parent menu opens so monitor changes (hot-plug, resolution change,
         // primary swap) are reflected without an app restart.
-        var item = new MenuItem { Header = "Monitor" };
+        var item = new MenuItem { Header = Strings.Tray_Monitor };
         item.SubmenuOpened += (_, _) =>
         {
             item.Items.Clear();

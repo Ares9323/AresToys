@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vm="clr-namespace:ShareQ.App.ViewModels.ImageEffects"
+                 xmlns:Markup="clr-namespace:ShareQ.App.Markup"
                  Title="ShareQ - Image effects"
                  Width="1200" Height="780"
                  MinWidth="900" MinHeight="600"
@@ -138,7 +139,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <ui:TitleBar Grid.Row="0" Title="ShareQ - Image effects">
+            <ui:TitleBar Grid.Row="0" Title="{Markup:Loc ImageEffects_Title}">
                 <ui:TitleBar.Icon>
                     <ui:ImageIcon Source="{StaticResource ShareQLogo}" Margin="0,0,-12,0" />
                 </ui:TitleBar.Icon>
@@ -165,36 +166,36 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Presets" Style="{StaticResource PanelHeader}" />
+                        <TextBlock Grid.Row="0" Text="{Markup:Loc ImageEffects_Presets}" Style="{StaticResource PanelHeader}" />
                         <!-- First row: + − ⧉ ✎ as discrete CRUD ops. Second row: full-width
                              Import button on its own line so it never clips at narrow widths.
                              All glyphs come from FontAwesome 7 Free Solid (same font already
                              used for the categories picker). -->
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
-                            <ui:Button Margin="0,0,4,0" Command="{Binding AddPresetCommand}" ToolTip="New preset">
+                            <ui:Button Margin="0,0,4,0" Command="{Binding AddPresetCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipNewPreset}">
                                 <TextBlock Text="&#xF067;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
                             <ui:Button Margin="0,0,4,0" Appearance="Danger"
-                                       Command="{Binding RemovePresetCommand}" ToolTip="Delete preset">
+                                       Command="{Binding RemovePresetCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipDeletePreset}">
                                 <TextBlock Text="&#xF068;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
-                            <ui:Button Margin="0,0,4,0" Command="{Binding DuplicatePresetCommand}" ToolTip="Duplicate">
+                            <ui:Button Margin="0,0,4,0" Command="{Binding DuplicatePresetCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipDuplicate}">
                                 <TextBlock Text="&#xF0C5;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
-                            <ui:Button Margin="0,0,4,0" Command="{Binding BeginRenameSelectedCommand}" ToolTip="Rename (F2)">
+                            <ui:Button Margin="0,0,4,0" Command="{Binding BeginRenameSelectedCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipRename}">
                                 <TextBlock Text="&#xF044;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
                             <!-- Globe — opens the public ShareX effects gallery in the user's browser.
                                  Same .sxie format we already import, so anything they download lands via
                                  the existing Import… button. -->
                             <ui:Button Click="OnOpenEffectsGalleryClicked"
-                                       ToolTip="Get effects (opens browser)">
+                                       ToolTip="{Markup:Loc ImageEffects_TooltipGetEffects}">
                                 <TextBlock Text="&#xF0AC;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
                         </StackPanel>
-                        <ui:Button Grid.Row="2" Content="Import…" HorizontalAlignment="Stretch"
+                        <ui:Button Grid.Row="2" Content="{Markup:Loc Common_Import}" HorizontalAlignment="Stretch"
                                    HorizontalContentAlignment="Center" Margin="0,0,0,8"
-                                   Click="OnImportSxieClicked" ToolTip="Import .sxie or .json preset" />
+                                   Click="OnImportSxieClicked" ToolTip="{Markup:Loc ImageEffects_TooltipImport}" />
                         <ListBox Grid.Row="3"
                                  ItemsSource="{Binding Presets}"
                                  SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
@@ -232,26 +233,26 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Effects in preset" Style="{StaticResource PanelHeader}" />
+                        <TextBlock Grid.Row="0" Text="{Markup:Loc ImageEffects_EffectsInPreset}" Style="{StaticResource PanelHeader}" />
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                            <ui:Button x:Name="AddEffectButton" Margin="0,0,4,0" Click="OnAddEffectClicked" ToolTip="Append a new effect">
+                            <ui:Button x:Name="AddEffectButton" Margin="0,0,4,0" Click="OnAddEffectClicked" ToolTip="{Markup:Loc ImageEffects_TooltipAddEffect}">
                                 <TextBlock Text="&#xF067;" Style="{StaticResource GlyphTextBlock}" />
                                 <ui:Button.ContextMenu>
                                     <ContextMenu x:Name="AddEffectMenu" />
                                 </ui:Button.ContextMenu>
                             </ui:Button>
-                            <ui:Button Margin="0,0,4,0" Command="{Binding MoveEffectUpCommand}" ToolTip="Move up — order matters: each effect runs on the output of the previous one.">
+                            <ui:Button Margin="0,0,4,0" Command="{Binding MoveEffectUpCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipMoveUp}">
                                 <TextBlock Text="&#xF062;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
-                            <ui:Button Margin="0,0,4,0" Command="{Binding MoveEffectDownCommand}" ToolTip="Move down">
+                            <ui:Button Margin="0,0,4,0" Command="{Binding MoveEffectDownCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipMoveDown}">
                                 <TextBlock Text="&#xF063;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
                             <ui:Button Margin="0,0,4,0" Appearance="Danger"
-                                       Command="{Binding RemoveSelectedEffectCommand}" ToolTip="Remove selected effect">
+                                       Command="{Binding RemoveSelectedEffectCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipRemoveEffect}">
                                 <TextBlock Text="&#xF068;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
                             <ui:Button Appearance="Danger"
-                                       Command="{Binding ClearEffectsCommand}" ToolTip="Remove all">
+                                       Command="{Binding ClearEffectsCommand}" ToolTip="{Markup:Loc ImageEffects_TooltipRemoveAll}">
                                 <TextBlock Text="&#xF51A;" Style="{StaticResource GlyphTextBlock}" />
                             </ui:Button>
                         </StackPanel>
@@ -314,12 +315,12 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="Sides"
+                                            <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="{Markup:Loc ImageEffects_Sides}"
                                                        Style="{StaticResource PanelHeader}" />
-                                            <ToggleButton Grid.Row="1" Grid.Column="1" Content="Top"
+                                            <ToggleButton Grid.Row="1" Grid.Column="1" Content="{Markup:Loc ImageEffects_SideTop}"
                                                           IsChecked="{Binding Top.BoolValue, Mode=TwoWay}"
                                                           Style="{StaticResource SideChip}" />
-                                            <ToggleButton Grid.Row="2" Grid.Column="0" Content="Left"
+                                            <ToggleButton Grid.Row="2" Grid.Column="0" Content="{Markup:Loc ImageEffects_SideLeft}"
                                                           IsChecked="{Binding Left.BoolValue, Mode=TwoWay}"
                                                           Style="{StaticResource SideChip}" />
                                             <ToggleButton Grid.Row="2" Grid.Column="1"
@@ -327,10 +328,10 @@
                                                           IsChecked="{Binding Center.BoolValue, Mode=TwoWay}"
                                                           Visibility="{Binding HasCenter, Converter={StaticResource BoolToVisibility}}"
                                                           Style="{StaticResource SideChip}" />
-                                            <ToggleButton Grid.Row="2" Grid.Column="2" Content="Right"
+                                            <ToggleButton Grid.Row="2" Grid.Column="2" Content="{Markup:Loc ImageEffects_SideRight}"
                                                           IsChecked="{Binding Right.BoolValue, Mode=TwoWay}"
                                                           Style="{StaticResource SideChip}" />
-                                            <ToggleButton Grid.Row="3" Grid.Column="1" Content="Bottom"
+                                            <ToggleButton Grid.Row="3" Grid.Column="1" Content="{Markup:Loc ImageEffects_SideBottom}"
                                                           IsChecked="{Binding Bottom.BoolValue, Mode=TwoWay}"
                                                           Style="{StaticResource SideChip}" />
                                         </Grid>
@@ -397,7 +398,7 @@
                                                         BorderThickness="1"
                                                         Background="{StaticResource CheckerBrush}"
                                                         Cursor="Hand"
-                                                        ToolTip="Click to change colour"
+                                                        ToolTip="{Markup:Loc ImageEffects_TooltipPickColor}"
                                                         Tag="{Binding}"
                                                         MouseLeftButtonDown="OnColorSwatchMouseDown"
                                                         Visibility="{Binding ShowsColor, Converter={StaticResource BoolToVisibility}}">
@@ -410,7 +411,7 @@
                                                         BorderThickness="1"
                                                         Background="{StaticResource CheckerBrush}"
                                                         Cursor="Hand"
-                                                        ToolTip="Click to edit gradient"
+                                                        ToolTip="{Markup:Loc ImageEffects_TooltipEditGradient}"
                                                         Tag="{Binding PairedGradient}"
                                                         MouseLeftButtonDown="OnGradientSwatchMouseDown"
                                                         Visibility="{Binding ShowsPairedGradient, Converter={StaticResource BoolToVisibility}}">
@@ -419,7 +420,7 @@
                                                 <!-- Inline Use gradient toggle — only on paired Color rows (PairedToggle != null);
                                                      hidden for unpaired Colors so the swatch sits alone. -->
                                                 <CheckBox Grid.Column="1"
-                                                          Content="Use gradient"
+                                                          Content="{Markup:Loc ImageEffects_UseGradient}"
                                                           Margin="12,0,0,0"
                                                           VerticalAlignment="Center"
                                                           IsChecked="{Binding PairedToggle.BoolValue, Mode=TwoWay}"
@@ -459,9 +460,9 @@
                                                      sides start out equal so the user gets the link-by-default for symmetric
                                                      paddings. -->
                                                 <ToggleButton Grid.Row="1" Grid.Column="1"
-                                                              Content="Uniform"
+                                                              Content="{Markup:Loc ImageEffects_Uniform}"
                                                               IsChecked="{Binding IsUniform, Mode=TwoWay}"
-                                                              ToolTip="When on, editing one side updates all four"
+                                                              ToolTip="{Markup:Loc ImageEffects_TooltipUniform}"
                                                               Style="{StaticResource SideChip}" />
                                                 <ui:TextBox Grid.Row="1" Grid.Column="2" Margin="2"
                                                             Text="{Binding PaddingRight, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
@@ -509,7 +510,7 @@
                                                         Cursor="Hand" Margin="4,0,0,0"
                                                         Click="OnBrowseImageFileClicked"
                                                         Tag="{Binding}"
-                                                        ToolTip="Pick an image file…">
+                                                        ToolTip="{Markup:Loc ImageEffects_TooltipPickImage}">
                                                     <TextBlock Text="&#xF15B;"
                                                                FontFamily="{DynamicResource IconFont}"
                                                                FontSize="14" Foreground="#DDD"
@@ -555,12 +556,12 @@
                                                                   FontWeight="Bold"
                                                                   IsChecked="{Binding FontBold, Mode=TwoWay}"
                                                                   Style="{StaticResource SideChip}"
-                                                                  ToolTip="Bold" />
+                                                                  ToolTip="{Markup:Loc ImageEffects_TooltipBold}" />
                                                     <ToggleButton Grid.Column="3" Content="I" Width="36"
                                                                   FontStyle="Italic"
                                                                   IsChecked="{Binding FontItalic, Mode=TwoWay}"
                                                                   Style="{StaticResource SideChip}"
-                                                                  ToolTip="Italic" />
+                                                                  ToolTip="{Markup:Loc ImageEffects_TooltipItalic}" />
                                                 </Grid>
                                             </Grid>
 
@@ -606,13 +607,13 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Preview" Style="{StaticResource PanelHeader}" />
-                            <CheckBox Grid.Column="2" Content="Live update"
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc ImageEffects_Preview}" Style="{StaticResource PanelHeader}" />
+                            <CheckBox Grid.Column="2" Content="{Markup:Loc ImageEffects_LiveUpdate}"
                                       IsChecked="{Binding IsLivePreview, Mode=TwoWay}"
                                       VerticalAlignment="Center"
                                       HorizontalAlignment="Right"
                                       Margin="0,0,0,6"
-                                      ToolTip="Re-render during slider drag (~30 fps) instead of waiting for the drag to settle." />
+                                      ToolTip="{Markup:Loc ImageEffects_TooltipLiveUpdate}" />
                         </Grid>
                         <!-- Preview pane. Background follows the theme (Surface1) instead of
                              hardcoded #202020. Image lives inside a ScrollViewer so the user
@@ -636,9 +637,9 @@
                             </ScrollViewer>
                         </Border>
                         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
-                            <ui:Button Content="Load image…" Margin="0,0,4,0" Click="OnLoadImageClicked" ToolTip="Replace the sample image" />
-                            <ui:Button Content="Reset sample" Click="OnResetSampleClicked" />
-                            <ui:Button Content="Export preset…" Margin="8,0,0,0" Click="OnExportPresetClicked" />
+                            <ui:Button Content="{Markup:Loc ImageEffects_LoadImage}" Margin="0,0,4,0" Click="OnLoadImageClicked" ToolTip="{Markup:Loc ImageEffects_TooltipLoadImage}" />
+                            <ui:Button Content="{Markup:Loc ImageEffects_ResetSample}" Click="OnResetSampleClicked" />
+                            <ui:Button Content="{Markup:Loc ImageEffects_ExportPreset}" Margin="8,0,0,0" Click="OnExportPresetClicked" />
                         </StackPanel>
                     </Grid>
                 </Border>

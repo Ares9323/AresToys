@@ -97,7 +97,7 @@
             </Grid.RowDefinitions>
 
             <!-- Custom titlebar — same pattern as MainWindow / ImageEffects / etc. -->
-            <ui:TitleBar Grid.Row="0" Title="ShareQ - Color picker">
+            <ui:TitleBar Grid.Row="0" x:Name="TitleBarHeader" Title="ShareQ - Color picker">
                 <ui:TitleBar.Icon>
                     <ui:ImageIcon Source="{StaticResource LocalShareQLogo}" Margin="0,0,-12,0" />
                 </ui:TitleBar.Icon>
@@ -126,24 +126,24 @@
             <local:ColorSquareControl Grid.Row="0" x:Name="ColorSquare" Width="280" Height="280"
                                       HorizontalAlignment="Center" Visibility="Collapsed" />
             <UniformGrid Grid.Row="3" Columns="3" Rows="2">
-                <ui:Button Content="Copy all"    Margin="0,0,4,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyAllClicked"
+                <ui:Button x:Name="CopyAllBtn"    Content="Copy all"    Margin="0,0,4,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyAllClicked"
                            ToolTip="Copy every format on separate lines." />
-                <ui:Button Content="Copy RGB"    Margin="0,0,4,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyRgbClicked"
+                <ui:Button x:Name="CopyRgbBtn"    Content="Copy RGB"    Margin="0,0,4,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyRgbClicked"
                            ToolTip="rgb(R, G, B)" />
-                <ui:Button Content="Copy CMYK"   Margin="0,0,0,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyCmykClicked"
+                <ui:Button x:Name="CopyCmykBtn"   Content="Copy CMYK"   Margin="0,0,0,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyCmykClicked"
                            ToolTip="cmyk(C%, M%, Y%, K%)" />
-                <ui:Button Content="Copy HSB"    Margin="0,0,4,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyHsbClicked"
+                <ui:Button x:Name="CopyHsbBtn"    Content="Copy HSB"    Margin="0,0,4,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyHsbClicked"
                            ToolTip="hsb(H°, S%, B%)" />
-                <ui:Button Content="Copy Linear" Margin="0,0,4,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyLinearClicked"
+                <ui:Button x:Name="CopyLinearBtn" Content="Copy Linear" Margin="0,0,4,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyLinearClicked"
                            ToolTip="Unreal FLinearColor (R=…,G=…,B=…,A=…)" />
-                <ui:Button Content="Copy BGRA"   Margin="0,0,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyBgraClicked"
+                <ui:Button x:Name="CopyBgraBtn"   Content="Copy BGRA"   Margin="0,0,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyBgraClicked"
                            ToolTip="Unreal FColor (B=…,G=…,R=…,A=…)" />
             </UniformGrid>
             <!-- Recent palette — sits above the Copy buttons so the swatches stay close to
                  the wheel (where the user just picked a colour) and the action buttons land at
                  the very bottom of the column. -->
             <StackPanel Grid.Row="2" Margin="0,0,0,8">
-                <TextBlock Text="Recent" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                <TextBlock x:Name="RecentLabel" Text="Recent" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                 <ItemsControl x:Name="PaletteHost">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -208,7 +208,7 @@
                 <CheckBox Grid.Column="2" x:Name="SrgbToggle" Content="sRGB" IsChecked="True"
                           Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"
                           ToolTip="Apply sRGB gamma to the preview swatches / sliders / wheel. Disable to see colors interpreted as linear (closer to how renderers like Unreal treat texture pixels)." />
-                <ui:Button Grid.Column="3" Content="🔍 Sampler"
+                <ui:Button Grid.Column="3" x:Name="SamplerBtn" Content="🔍 Sampler"
                            VerticalAlignment="Center"
                            Click="OnEyedropperClicked"
                            ToolTip="Sample a pixel from anywhere on screen" />
@@ -367,11 +367,11 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <ui:Button Grid.Column="0" Content="📋 Hex" Click="OnCopyHexClicked"
+                <ui:Button Grid.Column="0" x:Name="CopyHexBtn" Content="📋 Hex" Click="OnCopyHexClicked"
                            Padding="8,2" ToolTip="Copy hex value" />
                 <TextBox  Grid.Column="1" x:Name="HexBox" Margin="4,0,0,0"
                           FontFamily="Consolas" CharacterCasing="Upper" />
-                <ui:Button Grid.Column="3" Content="📋 Dec" Click="OnCopyDecimalClicked"
+                <ui:Button Grid.Column="3" x:Name="CopyDecBtn" Content="📋 Dec" Click="OnCopyDecimalClicked"
                            Padding="8,2" ToolTip="Copy decimal value" />
                 <TextBox  Grid.Column="4" x:Name="DecBox" Margin="4,0,0,0"
                           FontFamily="Consolas" />
@@ -412,7 +412,7 @@
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
-                <ui:Button Content="Cancel" Width="80" IsCancel="True" Click="OnCancelClicked" />
+                <ui:Button x:Name="CancelButton" Content="Cancel" Width="80" IsCancel="True" Click="OnCancelClicked" />
             </StackPanel>
         </Grid>
         </Grid>

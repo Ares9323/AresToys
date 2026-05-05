@@ -237,7 +237,11 @@ public sealed partial class EffectParameterViewModel : ObservableObject
         _effect = effect;
         _property = property;
         var attr = property.GetCustomAttribute<EffectParameterAttribute>();
-        Label = attr?.DisplayName ?? Humanize(property.Name);
+        // Localise via the property's CLR name as a global key (Param_Amount / Param_Strength /
+        // …). Falls through to the attribute DisplayName, then a Humanize() pass on the raw
+        // property name — same fallback chain as before, just with a translation hop in front.
+        var fallback = attr?.DisplayName ?? Humanize(property.Name);
+        Label = Services.ImageEffectLocalizer.LocalizeParameter(property.Name, fallback);
         _min = attr?.Min ?? -100;
         _max = attr?.Max ?? 100;
         _step = attr?.Step ?? 1;

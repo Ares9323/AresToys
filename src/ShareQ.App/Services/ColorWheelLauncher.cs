@@ -39,6 +39,27 @@ public sealed class ColorWheelLauncher
 
         var dlg = new ColorPickerWindow(initial);
         dlg.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
+        // Cross-assembly localisation handoff: ShareQ.Editor can't reach our resx, so we
+        // resolve every translatable label here and push the dictionary into the dialog.
+        // Technical channels (R/G/B/H/S/Hex/Dec/sRGB) stay literal and aren't included.
+        dlg.ApplyLocalization(new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Title"]      = ShareQ.App.Resources.Strings.ColorPicker_Title,
+            ["Recent"]     = ShareQ.App.Resources.Strings.ColorPicker_Recent,
+            ["Sampler"]    = ShareQ.App.Resources.Strings.ColorPicker_Sampler,
+            ["Wheel"]      = ShareQ.App.Resources.Strings.ColorPicker_Wheel,
+            ["Square"]     = ShareQ.App.Resources.Strings.ColorPicker_Square,
+            ["CopyAll"]    = ShareQ.App.Resources.Strings.ColorPicker_CopyAll,
+            ["CopyRgb"]    = ShareQ.App.Resources.Strings.ColorPicker_CopyRgb,
+            ["CopyCmyk"]   = ShareQ.App.Resources.Strings.ColorPicker_CopyCmyk,
+            ["CopyHsb"]    = ShareQ.App.Resources.Strings.ColorPicker_CopyHsb,
+            ["CopyLinear"] = ShareQ.App.Resources.Strings.ColorPicker_CopyLinear,
+            ["CopyBgra"]   = ShareQ.App.Resources.Strings.ColorPicker_CopyBgra,
+            ["CopyHex"]    = ShareQ.App.Resources.Strings.ColorPicker_CopyHex,
+            ["CopyDec"]    = ShareQ.App.Resources.Strings.ColorPicker_CopyDec,
+            ["Ok"]         = ShareQ.App.Resources.Strings.Common_Ok,
+            ["Cancel"]     = ShareQ.App.Resources.Strings.Common_Cancel,
+        });
 
         // Wire the eyedropper button so clicking 🔍 actually opens the screen sampler. The
         // picker itself has no DI access, hence the bridge here. The hex returned by the

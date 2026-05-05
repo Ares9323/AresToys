@@ -1,9 +1,16 @@
+using System.Globalization;
+using ShareQ.App.Resources;
+
 namespace ShareQ.App.ViewModels;
 
 /// <summary>One curated colour preset the user can apply with a single click. Selecting a preset
 /// in the Theme tab fills every hex field at once and persists via the existing TryApply path —
 /// no separate plumbing. Add new presets here by appending to <see cref="All"/>; the ComboBox
-/// picks them up automatically.</summary>
+/// picks them up automatically.
+///
+/// <see cref="Name"/> stays in English so existing code paths that compare presets by name keep
+/// working; the UI binds to <see cref="DisplayName"/>, which flips through the resx based on
+/// the current culture.</summary>
 public sealed record ThemePreset(
     string Name,
     string AccentForegroundLightHex,
@@ -13,7 +20,13 @@ public sealed record ThemePreset(
     string AccentDangerHex,
     string Surface1Hex,
     string Surface2Hex,
-    string Surface3Hex);
+    string Surface3Hex)
+{
+    /// <summary>Localised name used in the Theme tab ComboBox. Falls back to <see cref="Name"/>
+    /// when the preset isn't in the localiser map (e.g. a user-added preset). Looked up live so
+    /// the dropdown picks up the user's chosen language without rebuilding the collection.</summary>
+    public string DisplayName => ThemePresets.LocalizeName(Name);
+}
 
 public static class ThemePresets
 {
@@ -119,4 +132,26 @@ public static class ThemePresets
         Surface3Hex: "#FFFFFF");
 
     public static readonly IReadOnlyList<ThemePreset> All = [Custom, Default, BardRouge, ClericGold, DruidGreen, SorcererPurple, WarlockRed, WizardBlue, BurnMyEyes];
+
+    /// <summary>English-name → resx key map. Custom presets the user might invent at some
+    /// future point fall through unchanged.</summary>
+    private static readonly Dictionary<string, string> ResourceKeys = new(StringComparer.Ordinal)
+    {
+        ["Custom (current values)"] = nameof(Strings.ThemePreset_Custom),
+        ["ShareQ default"]          = nameof(Strings.ThemePreset_Default),
+        ["Wizard blue"]             = nameof(Strings.ThemePreset_WizardBlue),
+        ["Sorcerer Purple"]         = nameof(Strings.ThemePreset_SorcererPurple),
+        ["Druid Green"]             = nameof(Strings.ThemePreset_DruidGreen),
+        ["Warlock Red"]             = nameof(Strings.ThemePreset_WarlockRed),
+        ["Cleric Gold"]             = nameof(Strings.ThemePreset_ClericGold),
+        ["Bard Rouge"]              = nameof(Strings.ThemePreset_BardRouge),
+        ["Burn My Eyes"]            = nameof(Strings.ThemePreset_BurnMyEyes),
+    };
+
+    public static string LocalizeName(string name)
+    {
+        if (!ResourceKeys.TryGetValue(name, out var key)) return name;
+        var culture = Markup.LocalizedStrings.Instance.Culture ?? CultureInfo.CurrentUICulture;
+        return Strings.ResourceManager.GetString(key, culture) ?? name;
+    }
 }

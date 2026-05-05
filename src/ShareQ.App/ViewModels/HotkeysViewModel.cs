@@ -22,13 +22,16 @@ public sealed partial class HotkeysViewModel : ObservableObject
     private readonly HotkeyConfigService _config;
     private readonly WorkflowsViewModel _workflows;
 
-    public HotkeysViewModel(HotkeyConfigService config, WorkflowsViewModel workflows)
+    public HotkeysViewModel(HotkeyConfigService config, WorkflowsViewModel workflows, ShareQ.App.Services.LocalizationService localization)
     {
         _config = config;
         _workflows = workflows;
         BuiltInItems = [];
         BuiltInGroups = [];
         CustomItems = [];
+        // Re-render rows + group headers when the user flips language so the localized
+        // built-in display names + category titles reflect the new culture without restart.
+        localization.CultureChanged += async (_, _) => await ReloadAsync().ConfigureAwait(true);
         // When a workflow is deleted (only customs can be), bail out of edit view back to the
         // list — otherwise we'd be sitting on a stale editor for a profile that's gone.
         _workflows.WorkflowDeleted += async (_, _) =>
@@ -106,13 +109,15 @@ public sealed partial class HotkeysViewModel : ObservableObject
         BuiltInItems.Clear();
         CustomItems.Clear();
         var catalog = await _config.GetCatalogAsync(CancellationToken.None).ConfigureAwait(true);
-        var sorted = catalog.OrderBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in sorted)
+        var sorted = catalog
+            .Select(e => (Entry: e, Display: ShareQ.App.Services.WorkflowDisplayNameLocalizer.Localize(e.Id, e.DisplayName)))
+            .OrderBy(p => p.Display, StringComparer.OrdinalIgnoreCase);
+        foreach (var (entry, display) in sorted)
         {
             var current = await _config.GetEffectiveAsync(entry.Id, CancellationToken.None).ConfigureAwait(true);
             var item = new HotkeyItemViewModel(
                 entry.Id,
-                entry.DisplayName,
+                display,
                 entry.IsBuiltIn,
                 current,
                 _config,
@@ -171,7 +176,10 @@ public sealed partial class HotkeysViewModel : ObservableObject
                                    .OrderBy(k => k, StringComparer.OrdinalIgnoreCase));
         foreach (var category in orderedCategories)
         {
-            var group = new HotkeyCategoryGroup(category);
+            // Localized header — the bucketing key stays in English ("Capture" / "Upload" / …)
+            // so DefaultPipelineProfiles.CategoriesById keeps working as-is; only the human-facing
+            // group title is swapped through the resx lookup.
+            var group = new HotkeyCategoryGroup(ShareQ.App.Services.WorkflowDisplayNameLocalizer.LocalizeCategory(category));
             foreach (var item in byCategory[category])
                 group.Items.Add(item);
             BuiltInGroups.Add(group);

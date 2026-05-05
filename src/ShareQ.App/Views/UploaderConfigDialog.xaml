@@ -4,6 +4,7 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:ShareQ.App.ViewModels"
         xmlns:svc="clr-namespace:ShareQ.App.Services"
+        xmlns:Markup="clr-namespace:ShareQ.App.Markup"
         Title="Configure uploader"
         Width="460"
         SizeToContent="Height"
@@ -154,9 +155,9 @@
         </ScrollViewer>
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <ui:Button Content="Save" Width="90" Margin="0,0,8,0" IsDefault="True" Click="OnSaveClicked"
+            <ui:Button Content="{Markup:Loc Common_Save}" Width="90" Margin="0,0,8,0" IsDefault="True" Click="OnSaveClicked"
                        Appearance="Primary" />
-            <ui:Button Content="Cancel" Width="90" IsCancel="True" Click="OnCancelClicked" />
+            <ui:Button Content="{Markup:Loc Common_Cancel}" Width="90" IsCancel="True" Click="OnCancelClicked" />
         </StackPanel>
     </Grid>
 </Window>

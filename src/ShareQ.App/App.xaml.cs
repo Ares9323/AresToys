@@ -316,6 +316,7 @@ public partial class App : Application
                 services.AddSingleton<WorkflowsViewModel>();
                 services.AddSingleton<CaptureDefaultsViewModel>();
                 services.AddSingleton<ThemeService>();
+                services.AddSingleton<LocalizationService>();
                 services.AddSingleton<SettingsBackupService>();
                 services.AddSingleton<ThemeViewModel>();
                 services.AddSingleton<CategoriesViewModel>();
@@ -336,6 +337,17 @@ public partial class App : Application
         // time. Loading after MainWindow would cause a one-frame flash of the default blue accent.
         var theme = _host.Services.GetRequiredService<ThemeService>();
         await theme.LoadAsync(CancellationToken.None);
+
+        // Pull the persisted UI language and apply it to the current thread + app default before
+        // any window resolves — Strings.ResourceManager reads CurrentUICulture, so loading after
+        // MainWindow would render the first frame in English even if the user picked Italian.
+        // Attach FIRST: LocalizedStrings.Attach wires the singleton that every {Markup:Loc Key=…}
+        // binding shares; LoadAsync below now raises CultureChanged on initial load too, so any
+        // surface that happens to materialise its bindings between InitializeComponent and the
+        // dispatched ApplyToThread call gets a free refresh once the persisted culture is live.
+        var localization = _host.Services.GetRequiredService<LocalizationService>();
+        ShareQ.App.Markup.LocalizedStrings.Instance.Attach(localization);
+        await localization.LoadAsync(CancellationToken.None);
 
         // Seed default pipeline profiles (idempotent — leaves user customizations).
         var seeder = _host.Services.GetRequiredService<PipelineProfileSeeder>();

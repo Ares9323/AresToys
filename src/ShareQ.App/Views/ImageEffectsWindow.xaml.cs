@@ -223,12 +223,20 @@ public partial class ImageEffectsWindow : Wpf.Ui.Controls.FluentWindow
     private void BuildAddEffectMenu()
     {
         AddEffectMenu.Items.Clear();
+        // Localise the category headers + leaf names. AvailableEffects is sorted by Category +
+        // English Name in the VM; localising here means the visible order may not match the
+        // alphabet of the active culture, but keeping the catalog stable across language flips
+        // is more valuable than re-sorting every time CultureChanged fires.
         foreach (var group in _viewModel.AvailableEffects.GroupBy(d => d.Category))
         {
-            var categoryItem = new MenuItem { Header = group.Key.ToString() };
+            var categoryItem = new MenuItem { Header = Services.ImageEffectLocalizer.LocalizeCategory(group.Key) };
             foreach (var effect in group)
             {
-                var leaf = new MenuItem { Header = effect.Name, Tag = effect.Id };
+                var leaf = new MenuItem
+                {
+                    Header = Services.ImageEffectLocalizer.LocalizeEffect(effect.Id, effect.Name),
+                    Tag = effect.Id,
+                };
                 leaf.Click += (_, _) => _viewModel.AddEffect(effect.Id);
                 categoryItem.Items.Add(leaf);
             }
