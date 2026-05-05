@@ -161,11 +161,12 @@ public sealed class TrayIconService : IDisposable
         tools.Items.Add(BuildMenuItem("QR generator…",
             () => Run<ShareQ.App.Services.Qr.QrCodeService>(qr =>
                   Run<ShareQ.Storage.Settings.ISettingsStore>(settings =>
+                  Run<ShareQ.App.Services.ManualUploadService>(ingestion =>
             {
-                var win = new ShareQ.App.Views.QrGeneratorWindow(qr, null, settings);
+                var win = new ShareQ.App.Views.QrGeneratorWindow(qr, null, settings, ingestion);
                 win.Show();
                 win.Activate();
-            }))));
+            })))));
         menu.Items.Add(tools);
 
         menu.Items.Add(new Separator());

@@ -4,7 +4,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using QRCoder;
+using ShareQ.App.Services;
 using ShareQ.App.Services.Qr;
+using ShareQ.Core.Domain;
+using ShareQ.Pipeline.Profiles;
 using ShareQ.Storage.Settings;
 
 namespace ShareQ.App.Views;
@@ -17,6 +20,7 @@ public partial class QrGeneratorWindow : Wpf.Ui.Controls.FluentWindow
 {
     private readonly QrCodeService _qr;
     private readonly ISettingsStore? _settings;
+    private readonly ManualUploadService? _ingestion;
     private readonly DispatcherTimer _renderDebounce;
     private bool _placementLoaded;
     /// <summary>True while LoadPlacementAsync is restoring the saved options into the controls;
@@ -31,11 +35,12 @@ public partial class QrGeneratorWindow : Wpf.Ui.Controls.FluentWindow
     private const string KeyEcc = "qr.options.ecc";
     private const string KeyDensity = "qr.options.density";
 
-    public QrGeneratorWindow(QrCodeService qrService, string? initialText = null, ISettingsStore? settings = null)
+    public QrGeneratorWindow(QrCodeService qrService, string? initialText = null, ISettingsStore? settings = null, ManualUploadService? ingestion = null)
     {
         ArgumentNullException.ThrowIfNull(qrService);
         _qr = qrService;
         _settings = settings;
+        _ingestion = ingestion;
 
         // Timer goes BEFORE InitializeComponent because the Slider's ValueChanged fires
         // mid-XAML-parse (when Minimum/Maximum/Value attributes are set), and our handler
@@ -57,6 +62,10 @@ public partial class QrGeneratorWindow : Wpf.Ui.Controls.FluentWindow
         SizeChanged += OnPlacementChanged;
         LocationChanged += OnPlacementChanged;
         StateChanged += OnPlacementChanged;
+
+        // Hide the history button when the host didn't wire up the ingestion service —
+        // pop-up callers (e.g. a future test harness) shouldn't see a non-functional button.
+        if (_ingestion is null) SaveToHistoryButton.Visibility = Visibility.Collapsed;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -288,6 +297,27 @@ public partial class QrGeneratorWindow : Wpf.Ui.Controls.FluentWindow
         catch (Exception ex)
         {
             StatusText.Text = $"Save failed: {ex.Message}";
+        }
+    }
+
+    private async void OnSaveToHistoryClicked(object sender, RoutedEventArgs e)
+    {
+        if (_ingestion is null) return;
+        if (string.IsNullOrEmpty(InputText.Text)) return;
+        var bytes = _qr.TryRenderPng(InputText.Text, (int)DensitySlider.Value, GetEccLevel());
+        if (bytes is null) { StatusText.Text = "Render failed — nothing saved."; return; }
+        try
+        {
+            // First 80 chars of the encoded payload form the search-text — same shape Win+V's
+            // history list uses for its row preview, so the QR shows up labelled with its content.
+            var searchText = InputText.Text.Length <= 80 ? InputText.Text : InputText.Text[..80] + "…";
+            await _ingestion.IngestBytesAsync(bytes, "png", ItemKind.Image, $"QR · {searchText}",
+                DefaultPipelineProfiles.SaveQrToHistoryId, System.Threading.CancellationToken.None);
+            StatusText.Text = "Saved to history.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Save-to-history failed: {ex.Message}";
         }
     }
 

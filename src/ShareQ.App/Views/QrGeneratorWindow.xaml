@@ -106,6 +106,9 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <ui:Button Content="Copy image" Margin="0,0,8,0" Click="OnCopyClicked"
                                ToolTip="Copy the QR PNG to the Windows clipboard" />
+                    <ui:Button x:Name="SaveToHistoryButton"
+                               Content="Save to history" Margin="0,0,8,0" Click="OnSaveToHistoryClicked"
+                               ToolTip="Save the QR PNG to the screenshot folder + insert into the clipboard history (same flow as captures)" />
                     <ui:Button Content="Save PNG…" Margin="0,0,8,0" Click="OnSavePngClicked" />
                     <ui:Button Content="Save SVG…" Margin="0,0,8,0" Click="OnSaveSvgClicked"
                                ToolTip="Save as scalable vector — keeps sharp at any size" />

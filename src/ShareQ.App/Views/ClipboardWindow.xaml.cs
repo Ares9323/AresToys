@@ -40,8 +40,9 @@ public partial class ClipboardWindow : Window
 
     private readonly ShareQ.Storage.Rotation.CategoryRotationService? _categoryRotation;
     private readonly ShareQ.App.Services.Qr.QrCodeService? _qrService;
+    private readonly ShareQ.App.Services.ManualUploadService? _ingestion;
 
-    public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, ShareQ.Storage.Rotation.CategoryRotationService? categoryRotation = null, ShareQ.App.Services.Qr.QrCodeService? qrService = null)
+    public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, ShareQ.Storage.Rotation.CategoryRotationService? categoryRotation = null, ShareQ.App.Services.Qr.QrCodeService? qrService = null, ShareQ.App.Services.ManualUploadService? ingestion = null)
     {
         InitializeComponent();
         ViewModel = viewModel;
@@ -49,6 +50,7 @@ public partial class ClipboardWindow : Window
         _settings = settings;
         _categoryRotation = categoryRotation;
         _qrService = qrService;
+        _ingestion = ingestion;
         _current = this;
 
         // Tunneling so Ctrl+digits / arrows / Enter reach this handler before SearchBox
@@ -502,7 +504,7 @@ public partial class ClipboardWindow : Window
         var initial = row.Kind == ItemKind.Image || row.Kind == ItemKind.Video || row.Kind == ItemKind.Files
             ? null
             : row.Preview;
-        var win = new QrGeneratorWindow(_qrService, initial, _settings) { Owner = this };
+        var win = new QrGeneratorWindow(_qrService, initial, _settings, _ingestion) { Owner = this };
         win.Show();
         win.Activate();
     }

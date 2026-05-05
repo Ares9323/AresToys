@@ -25,6 +25,7 @@ public static class DefaultPipelineProfiles
     public const string OpenLauncherId         = "open-launcher";
     public const string OpenSettingsId         = "open-settings";
     public const string QrReadFromRegionId     = "qr-read-from-region";
+    public const string SaveQrToHistoryId      = "save-qr-to-history";
 
     // Task IDs whose implementations live in ShareQ.App (resolved at runtime by the registry).
     public const string CopyImageToClipboardTaskId = "shareq.copy-image-to-clipboard";
@@ -88,6 +89,7 @@ public static class DefaultPipelineProfiles
         [OpenLauncherId]          = "Tools",
         [OpenSettingsId]          = "Tools",
         [QrReadFromRegionId]      = "Tools",
+        [SaveQrToHistoryId]       = "Tools",
     };
 
     private static IReadOnlyList<PipelineProfile> BuildAll() =>
@@ -392,6 +394,25 @@ public static class DefaultPipelineProfiles
             ],
             // No default hotkey — Settings is mostly tray-driven. Exposed as a workflow so the
             // tray click picker (Settings tab) can route to it like any other action.
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: SaveQrToHistoryId,
+            DisplayName: "Save QR to history",
+            Trigger: "menu:qr-save-to-history",
+            Steps:
+            [
+                // Same shape as the screenshot capture profiles minus the capture step (we feed
+                // bag.payload_bytes from outside). Save → history → clipboard → toast keeps the
+                // QR alongside captures in the user's screenshot folder + Win+V history, with
+                // the toast pointing them at the file path. Upload is intentionally not part of
+                // the default; users who want it can clone this profile in Settings and tack on
+                // an Upload step.
+                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
+                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
+                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
+                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"ShareQ\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
+            ],
             IsBuiltIn: true),
     ];
 }

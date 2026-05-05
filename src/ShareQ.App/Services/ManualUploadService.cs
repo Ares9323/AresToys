@@ -36,6 +36,14 @@ public sealed class ManualUploadService
     public Task UploadFileAsync(string path, CancellationToken cancellationToken)
         => UploadFileToProfileAsync(path, DefaultPipelineProfiles.ManualUploadId, cancellationToken);
 
+    /// <summary>Run a profile against a pre-rendered byte buffer — no file on disk yet, no
+    /// clipboard read. Used by the QR generator's "Save to history" button to feed the
+    /// rendered PNG into the standard SaveToFile + AddToHistory chain. <paramref name="kind"/>
+    /// drives ItemKind in the inserted history row; <paramref name="searchText"/> is what the
+    /// clipboard search/preview latches onto.</summary>
+    public Task IngestBytesAsync(byte[] bytes, string extension, ItemKind kind, string searchText, string profileId, CancellationToken cancellationToken)
+        => RunPipelineAsync(bytes, extension, kind, ItemSource.Manual, searchText, profileId, cancellationToken);
+
     /// <summary>Read <paramref name="path"/> from disk and run it through the named pipeline
     /// profile instead of the default <c>manual-upload</c>. Lets the Explorer context-menu entry
     /// (and any future Settings-driven entry point) target a user-chosen workflow — e.g. "upload
