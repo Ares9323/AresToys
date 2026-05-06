@@ -224,6 +224,12 @@ public partial class EditorWindow : FluentWindow
     /// <see cref="ColorSwatchButton.EyedropperHandler"/>.</summary>
     public static Func<byte[], System.Windows.Window?, Task<byte[]?>>? OpenEffectsHandler { get; set; }
 
+    /// <summary>Cross-assembly handoff for the Trace tool. Takes source bytes + owner window
+    /// (for Save dialog parenting); the host opens its own dialog and writes the .svg to
+    /// disk so the editor stays I/O-free. Fire-and-forget — the editor doesn't get the SVG
+    /// back since tracing produces a separate vector artifact rather than a new raster.</summary>
+    public static Func<byte[], System.Windows.Window?, Task>? TraceHandler { get; set; }
+
     private async void OnEffectsClicked(object sender, RoutedEventArgs e)
     {
         var handler = OpenEffectsHandler;
@@ -241,6 +247,19 @@ public partial class EditorWindow : FluentWindow
         }
     }
 
+    private async void OnTraceClicked(object sender, RoutedEventArgs e)
+    {
+        var handler = TraceHandler;
+        if (handler is null || _vm.SourcePngBytes.Length == 0) return;
+        TraceBtn.IsEnabled = false;
+        try { await handler(_vm.SourcePngBytes, this); }
+        catch
+        {
+            // Trace failures are logged inside the handler (host-side); the editor stays open.
+        }
+        finally { TraceBtn.IsEnabled = true; }
+    }
+
     /// <summary>Render the canvas (image + shapes) to PNG bytes. Hosts (EditorLauncher) call
     /// this from the <c>Closed</c> handler when <see cref="Saved"/> is true; the in-window
     /// "Save as…" button calls it inline. Hides selection adorners (dashed bbox + grip handles)
@@ -249,7 +268,7 @@ public partial class EditorWindow : FluentWindow
     public byte[] ExportCanvasPng()
     {
         var canvasHost = (System.Windows.Controls.Grid)FindName("CanvasHost")!;
-        var (exportW, exportH) = ResolveExportPixels(canvasHost);
+        var (exportW, exportH, dpiX, dpiY) = ResolveExportPixels(canvasHost);
 
         // Adorners (selection bbox + every resize/rotate/bend grip) all live as direct children
         // of DrawingCanvas with Tag="adorner" — see RefreshSelectionAdorner. Collapse them for
@@ -268,7 +287,7 @@ public partial class EditorWindow : FluentWindow
         foreach (var a in hidden) a.Visibility = Visibility.Collapsed;
         try
         {
-            return ShareQ.Editor.Rendering.CanvasPngExporter.Export(canvasHost, exportW, exportH);
+            return ShareQ.Editor.Rendering.CanvasPngExporter.Export(canvasHost, exportW, exportH, dpiX, dpiY);
         }
         finally
         {
@@ -309,6 +328,7 @@ public partial class EditorWindow : FluentWindow
         if (_labels.TryGetValue("Tool_SmartEraser", out var se)) SmartEraserToolBtn.ToolTip = se;
         if (_labels.TryGetValue("Tool_Crop", out var cr)) CropToolBtn.ToolTip = cr;
         if (_labels.TryGetValue("Tool_Resize", out var rz)) ResizeBtn.ToolTip = rz;
+        if (_labels.TryGetValue("Tool_Trace", out var tr)) TraceBtn.ToolTip = tr;
 
         // Action triplet (top of right column).
         if (_labels.TryGetValue("Save", out var save)) SaveButton.Content = save;
@@ -779,17 +799,20 @@ public partial class EditorWindow : FluentWindow
     /// <summary>Same logic <see cref="ShareQ.App.Services.EditorLauncher"/> uses to size the
     /// export — find the source <c>BitmapSource</c> inside CanvasHost and use its native
     /// pixel dimensions, falling back to the host's ActualWidth/Height if the lookup fails.</summary>
-    private static (int W, int H) ResolveExportPixels(System.Windows.Controls.Grid canvasHost)
+    private static (int W, int H, double DpiX, double DpiY) ResolveExportPixels(System.Windows.Controls.Grid canvasHost)
     {
         foreach (var child in canvasHost.Children)
         {
             if (child is System.Windows.Controls.Image img &&
                 img.Source is System.Windows.Media.Imaging.BitmapSource src)
             {
-                return (src.PixelWidth, src.PixelHeight);
+                // Honour the source's embedded DPI metadata. GDI+ (BitBltCaptureSource) writes
+                // the system DPI into the PNG, so on a 150% display DpiX is 144 and the
+                // exporter MUST use that for the RTB or the visual tree paints at half-width.
+                return (src.PixelWidth, src.PixelHeight, src.DpiX, src.DpiY);
             }
         }
-        return ((int)Math.Round(canvasHost.ActualWidth), (int)Math.Round(canvasHost.ActualHeight));
+        return ((int)Math.Round(canvasHost.ActualWidth), (int)Math.Round(canvasHost.ActualHeight), 96, 96);
     }
 
     private void OnCancelClicked(object sender, RoutedEventArgs e) { Saved = false; Close(); }

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,14 +19,63 @@ public partial class RegionOverlayWindow : Window
     private const int MagnifierCursorOffset = 24;
     private BitmapSource? _screenSnapshot;
     private int _screenSnapshotLeft, _screenSnapshotTop;
+
+    /// <summary>PNG bytes of the picked region, cropped from the screen snapshot the
+    /// overlay took at open-time. Non-null when <see cref="PickRegion"/> returned a
+    /// region — callers can use these directly and skip a second BitBlt round-trip.
+    /// Why: the freeze-then-crop flow (ShareX-style) eliminates the gap between the
+    /// user's mouse-up and the capture, so transient UI (open dropdowns, hover popups)
+    /// stays visible in the screenshot exactly as the user saw it during selection.</summary>
+    public byte[]? PickedSnapshotBytes { get; private set; }
     private System.Windows.Threading.DispatcherTimer? _magnifierTimer;
     private int _lastMagnifierX = int.MinValue, _lastMagnifierY = int.MinValue;
     // Top-level windows enumerated once when the overlay opens. Used for snap-to-window.
     private IReadOnlyList<WindowSnapshot> _windows = Array.Empty<WindowSnapshot>();
     private WindowSnapshot? _hoveredWindow;
 
-    public RegionOverlayWindow()
+    /// <summary>Snapshot the entire virtual screen RIGHT NOW and return a frozen
+    /// <see cref="BitmapSource"/> alongside its origin in physical pixels. Static / public
+    /// so callers can capture at the EARLIEST point in their pipeline (before any focus
+    /// shift caused by clicking a tray menu, opening a window, etc.) and pass the result
+    /// into <see cref="RegionOverlayWindow"/>'s constructor — same trick ShareX uses to
+    /// keep open dropdowns / hover popups visible in the captured image. Returns
+    /// <c>(null, 0, 0)</c> on Win32 failure; callers can fall back to letting the overlay
+    /// take its own snapshot.</summary>
+    public static (BitmapSource? Snapshot, int Left, int Top) CaptureVirtualScreen()
     {
+        var (left, top, w, h) = VirtualScreen.GetBounds();
+        try
+        {
+            using var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                g.CopyFromScreen(left, top, 0, 0, new System.Drawing.Size(w, h));
+            }
+            var hbm = bmp.GetHbitmap();
+            try
+            {
+                var src = Imaging.CreateBitmapSourceFromHBitmap(hbm, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                src.Freeze();
+                return (src, left, top);
+            }
+            finally { _ = DeleteObject(hbm); }
+        }
+        catch (System.ComponentModel.Win32Exception) { return (null, left, top); }
+        catch (ArgumentException) { return (null, left, top); }
+    }
+
+    public RegionOverlayWindow() : this(null, 0, 0) { }
+
+    /// <summary>Construct the overlay with a pre-captured snapshot. Pass null to have the
+    /// overlay take its own snapshot at <see cref="PickRegion"/> time (back-compat path).</summary>
+    public RegionOverlayWindow(BitmapSource? prefabSnapshot, int prefabLeft, int prefabTop)
+    {
+        if (prefabSnapshot is not null)
+        {
+            _screenSnapshot = prefabSnapshot;
+            _screenSnapshotLeft = prefabLeft;
+            _screenSnapshotTop = prefabTop;
+        }
         InitializeComponent();
 
         // SystemParameters.VirtualScreen* returns DIPs (DPI-aware), unlike VirtualScreen.GetBounds()
@@ -106,9 +156,11 @@ public partial class RegionOverlayWindow : Window
 
     public CaptureRegion? PickRegion()
     {
-        // Snapshot the screen BEFORE showing the overlay — used both as the window background
-        // (so we don't need AllowsTransparency) and by the magnifier preview.
-        TakeScreenSnapshot();
+        // If the caller pre-supplied a snapshot via the constructor, skip the internal
+        // capture — the prefab was taken at a moment that respected the user's UI state
+        // (e.g. before any focus shift could close an open dropdown). Otherwise capture
+        // here as a fallback.
+        if (_screenSnapshot is null) TakeScreenSnapshot();
         if (_screenSnapshot is not null) ScreenshotImage.Source = _screenSnapshot;
         // Enumerate visible windows for snap-on-hover. EnumWindows returns top-most z-order first
         // (which is what we want — clicking on overlapping windows snaps to the foreground one).
@@ -303,6 +355,7 @@ public partial class RegionOverlayWindow : Window
         if (rawW < 5 && rawH < 5 && _hoveredWindow is { } w)
         {
             _result = new CaptureRegion(w.X, w.Y, w.Width, w.Height, WindowTitle: w.Title);
+            PickedSnapshotBytes = TryCropSnapshot(w.X, w.Y, w.Width, w.Height);
             Close();
             return;
         }
@@ -322,7 +375,36 @@ public partial class RegionOverlayWindow : Window
         else
         {
             _result = new CaptureRegion(pixelX, pixelY, pixelW, pixelH);
+            PickedSnapshotBytes = TryCropSnapshot(pixelX, pixelY, pixelW, pixelH);
         }
         Close();
+    }
+
+    /// <summary>Crop the screen snapshot to the picked region and PNG-encode it. Returns
+    /// null if no snapshot is available (rare — Win32 capture failure at overlay open) or
+    /// the requested region falls outside the snapshot bounds. Coordinates are virtual-
+    /// screen absolute pixels; the snapshot's top-left is at <c>_screenSnapshotLeft/Top</c>
+    /// so we offset before cropping.</summary>
+    private byte[]? TryCropSnapshot(int absX, int absY, int w, int h)
+    {
+        var snap = _screenSnapshot;
+        if (snap is null) return null;
+        var srcX = absX - _screenSnapshotLeft;
+        var srcY = absY - _screenSnapshotTop;
+        if (srcX < 0 || srcY < 0 || srcX + w > snap.PixelWidth || srcY + h > snap.PixelHeight)
+        {
+            return null;
+        }
+        try
+        {
+            var cropped = new CroppedBitmap(snap, new Int32Rect(srcX, srcY, w, h));
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(cropped));
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            return ms.ToArray();
+        }
+        catch (ArgumentException) { return null; }
+        catch (System.Runtime.InteropServices.COMException) { return null; }
     }
 }

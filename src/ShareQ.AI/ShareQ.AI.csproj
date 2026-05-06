@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>ShareQ.AI</RootNamespace>
+    <AssemblyName>ShareQ.AI</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+</Project>

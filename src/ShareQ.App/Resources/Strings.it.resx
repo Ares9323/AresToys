@@ -404,7 +404,6 @@
   <data name="Update_StatusFoundFormat" xml:space="preserve"><value>Versione {0} disponibile — apro la conferma…</value></data>
   <data name="Update_StatusFailedFormat" xml:space="preserve"><value>Controllo fallito: {0}</value></data>
   <data name="Update_StatusUnknown" xml:space="preserve"><value>Risultato sconosciuto.</value></data>
-  <data name="ImageEffects_TooltipApplyToEditor" xml:space="preserve"><value>Renderizza il preset corrente sull'immagine dell'editor e la invia come nuova canvas (annullabile).</value></data>
 
   <data name="EffectCategory_Adjustments" xml:space="preserve"><value>Regolazioni</value></data>
   <data name="EffectCategory_Filters" xml:space="preserve"><value>Filtri</value></data>
@@ -776,6 +775,38 @@
   <data name="Editor_Tool_SmartEraser" xml:space="preserve"><value>K Gomma intelligente — riempie il riquadro con un gradiente bilineare dei 4 colori d'angolo</value></data>
   <data name="Editor_Tool_Crop" xml:space="preserve"><value>C Ritaglia</value></data>
   <data name="Editor_Tool_Resize" xml:space="preserve"><value>Ridimensiona…</value></data>
+  <data name="Editor_Tool_Trace" xml:space="preserve"><value>Vettorizza in SVG…</value></data>
+  <data name="Trace_SaveDialogTitle" xml:space="preserve"><value>Salva SVG vettorizzato</value></data>
+  <data name="Trace_FilterSvg" xml:space="preserve"><value>Immagine SVG|*.svg|Tutti i file|*.*</value></data>
+  <data name="Trace_FailMessage" xml:space="preserve"><value>Vettorizzazione fallita — potrace.exe potrebbe mancare dall'installazione. Controlla il log.</value></data>
+  <data name="Trace_WindowTitle" xml:space="preserve"><value>Vettorizza in SVG</value></data>
+  <data name="Trace_SaveButton" xml:space="preserve"><value>Salva…</value></data>
+  <data name="Trace_PresetLabel" xml:space="preserve"><value>Preset:</value></data>
+  <data name="Trace_PresetSave" xml:space="preserve"><value>Salva preset…</value></data>
+  <data name="Trace_PresetDelete" xml:space="preserve"><value>Elimina</value></data>
+  <data name="Trace_ViewLabel" xml:space="preserve"><value>Vista:</value></data>
+  <data name="Trace_ModeLabel" xml:space="preserve"><value>Modalità:</value></data>
+  <data name="Trace_ModeColor" xml:space="preserve"><value>Colore</value></data>
+  <data name="Trace_ModeGrayscale" xml:space="preserve"><value>Scala di grigi</value></data>
+  <data name="Trace_ModeBlackAndWhite" xml:space="preserve"><value>Bianco e nero</value></data>
+  <data name="Trace_PaletteLabel" xml:space="preserve"><value>Tavolozza:</value></data>
+  <data name="Trace_ParamColors" xml:space="preserve"><value>Colori</value></data>
+  <data name="Trace_ParamThreshold" xml:space="preserve"><value>Soglia</value></data>
+  <data name="Trace_ParamPaths" xml:space="preserve"><value>Tracciati</value></data>
+  <data name="Trace_ParamCorners" xml:space="preserve"><value>Angoli</value></data>
+  <data name="Trace_ParamNoise" xml:space="preserve"><value>Rumore</value></data>
+  <data name="Trace_ParamMethod" xml:space="preserve"><value>Metodo</value></data>
+  <data name="Trace_MethodOverlapping" xml:space="preserve"><value>Sovrapposto</value></data>
+  <data name="Trace_MethodAbutting" xml:space="preserve"><value>Adiacente</value></data>
+  <data name="Trace_ParamSnapCurves" xml:space="preserve"><value>Aggancia curve a linee</value></data>
+  <data name="Trace_ParamTransparency" xml:space="preserve"><value>Trasparenza</value></data>
+  <data name="Trace_ParamAutoGrouping" xml:space="preserve"><value>Raggruppamento automatico</value></data>
+  <data name="Trace_ParamIgnoreColor" xml:space="preserve"><value>Ignora colore</value></data>
+  <data name="Trace_ParamPickIgnore" xml:space="preserve"><value>Scegli…</value></data>
+  <data name="Trace_ParamTolerance" xml:space="preserve"><value>Tolleranza</value></data>
+  <data name="Trace_PreviewToggle" xml:space="preserve"><value>Anteprima</value></data>
+  <data name="Trace_TraceNow" xml:space="preserve"><value>Vettorizza</value></data>
+  <data name="Trace_InfoLabel" xml:space="preserve"><value>Info</value></data>
   <data name="Editor_Shape_Rectangle" xml:space="preserve"><value>Rettangolo</value></data>
   <data name="Editor_Shape_Ellipse" xml:space="preserve"><value>Ellisse</value></data>
   <data name="Editor_Shape_Arrow" xml:space="preserve"><value>Freccia</value></data>

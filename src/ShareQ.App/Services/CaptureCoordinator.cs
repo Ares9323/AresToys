@@ -46,10 +46,17 @@ public sealed class CaptureCoordinator
     public async Task CaptureRegionAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Capture region: opening overlay");
-        var region = await Application.Current.Dispatcher.InvokeAsync(() =>
+        // Take the screen snapshot RIGHT NOW — before any dispatcher hop, before constructing
+        // the overlay window — so transient UI (open dropdowns, hover popups) stays visible
+        // in the captured image. Same pattern ShareX uses (see CaptureRegion.cs:76-95). If we
+        // wait for the overlay to take its own snapshot, the dropdown is gone by the time we
+        // get there because focus has shifted to ShareQ in the meantime.
+        var (prefabSnapshot, prefabLeft, prefabTop) = RegionOverlayWindow.CaptureVirtualScreen();
+        var (region, prefab) = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            var overlay = new RegionOverlayWindow();
-            return overlay.PickRegion();
+            var overlay = new RegionOverlayWindow(prefabSnapshot, prefabLeft, prefabTop);
+            var picked = overlay.PickRegion();
+            return (picked, overlay.PickedSnapshotBytes);
         }).Task.ConfigureAwait(false);
 
         if (region is null)
@@ -58,10 +65,16 @@ public sealed class CaptureCoordinator
             return;
         }
 
-        _logger.LogInformation("Capture region: picked ({X}, {Y}) {W}×{H} px",
-            region.X, region.Y, region.Width, region.Height);
+        _logger.LogInformation("Capture region: picked ({X}, {Y}) {W}×{H} px (prefab snapshot: {Has})",
+            region.X, region.Y, region.Width, region.Height, prefab is not null);
         await PersistLastRegionAsync(region, cancellationToken).ConfigureAwait(false);
-        await RunPipelineAsync(region, ItemSource.CaptureRegion, cancellationToken).ConfigureAwait(false);
+        // Pass the cropped snapshot bytes from the overlay so we don't BitBlt twice — the
+        // overlay already captured the full virtual screen at open-time, and the bytes here
+        // are that snapshot cropped to the picked region. Skipping the second capture means
+        // transient UI (open dropdowns, hover popups) stays visible exactly as the user saw
+        // it — without the gap between mouse-up and the second BitBlt the dropdown would
+        // close in.
+        await RunPipelineAsync(region, ItemSource.CaptureRegion, cancellationToken, prefab).ConfigureAwait(false);
     }
 
     public async Task CaptureFullscreenAsync(CancellationToken cancellationToken)
@@ -142,9 +155,14 @@ public sealed class CaptureCoordinator
         await CaptureRegionAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task RunPipelineAsync(CaptureRegion region, ItemSource source, CancellationToken cancellationToken)
+    private async Task RunPipelineAsync(CaptureRegion region, ItemSource source, CancellationToken cancellationToken, byte[]? prefabPng = null)
     {
-        var captured = await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
+        // Region capture passes prefabPng = the snapshot cropped at mouse-up time; everything
+        // else (fullscreen, monitor, last-region, active-window-via-this-path) BitBlts here.
+        // Wrapping the prefab in CapturedImage keeps the rest of the pipeline ignorant.
+        var captured = prefabPng is { Length: > 0 }
+            ? new CapturedImage(region.Width, region.Height, prefabPng)
+            : await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
 
         var profile = await _profiles.GetAsync(DefaultPipelineProfiles.RegionCaptureId, cancellationToken).ConfigureAwait(false);
         if (profile is null)

@@ -130,6 +130,27 @@
         </DrawingImage.Drawing>
     </DrawingImage>
 
+    <!-- Trace: a stylised path-with-anchors silhouette so the toolbar reads "convert to
+         vector" at a glance. Two filled corners on a stroked outline mimics a Bezier path
+         in Illustrator / Inkscape. -->
+    <DrawingImage x:Key="ToolIconTrace">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="White" Thickness="4" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry Figures="M 10,52 C 10,20 30,10 52,18 L 52,52 Z" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="White" Geometry="M 6,48 H 14 V 56 H 6 Z" />
+                <GeometryDrawing Brush="White" Geometry="M 48,48 H 56 V 56 H 48 Z" />
+                <GeometryDrawing Brush="White" Geometry="M 48,14 H 56 V 22 H 48 Z" />
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
     <DrawingImage x:Key="ToolIconResize">
         <DrawingImage.Drawing>
             <DrawingGroup>

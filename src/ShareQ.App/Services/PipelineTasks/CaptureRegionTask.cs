@@ -47,10 +47,16 @@ public sealed class CaptureRegionTask : IPipelineTask
             return;
         }
 
-        var region = await Application.Current.Dispatcher.InvokeAsync(() =>
+        // Snapshot synchronously BEFORE the dispatcher hop — by the time the overlay window
+        // is constructed, focus has shifted to ShareQ and transient UI like open dropdowns
+        // are gone. ShareX-style: capture once at the earliest entry point, hand the bitmap
+        // to the overlay, crop on mouse-up.
+        var (prefabSnapshot, prefabLeft, prefabTop) = RegionOverlayWindow.CaptureVirtualScreen();
+        var (region, prefabBytes) = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            var overlay = new RegionOverlayWindow();
-            return overlay.PickRegion();
+            var overlay = new RegionOverlayWindow(prefabSnapshot, prefabLeft, prefabTop);
+            var picked = overlay.PickRegion();
+            return (picked, overlay.PickedSnapshotBytes);
         }).Task.ConfigureAwait(false);
 
         if (region is null)
@@ -60,8 +66,14 @@ public sealed class CaptureRegionTask : IPipelineTask
             return;
         }
 
-        var captured = await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
-        var (bytes, ext) = await _outputEncoder.EncodeAsync(captured.PngBytes, cancellationToken).ConfigureAwait(false);
+        // If the overlay produced cropped bytes from the prefab snapshot (the common path),
+        // use those directly — skips a redundant BitBlt and keeps any animations/dropdowns
+        // visible in the snapshot frozen as the user saw them. Only fall back to the live
+        // capture source if the prefab path failed (Win32 capture error at overlay open).
+        var rawPng = prefabBytes is { Length: > 0 }
+            ? prefabBytes
+            : (await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false)).PngBytes;
+        var (bytes, ext) = await _outputEncoder.EncodeAsync(rawPng, cancellationToken).ConfigureAwait(false);
 
         context.Bag[PipelineBagKeys.PayloadBytes] = bytes;
         context.Bag[PipelineBagKeys.FileExtension] = ext;
@@ -82,6 +94,6 @@ public sealed class CaptureRegionTask : IPipelineTask
             CreatedAt: DateTimeOffset.UtcNow,
             Payload: bytes,
             PayloadSize: bytes.LongLength,
-            SearchText: $"{searchTextPrefix} {captured.Width}×{captured.Height}");
+            SearchText: $"{searchTextPrefix} {region.Width}×{region.Height}");
     }
 }

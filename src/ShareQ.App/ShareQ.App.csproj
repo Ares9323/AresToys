@@ -98,10 +98,23 @@
     <ProjectReference Include="..\ShareQ.Pipeline\ShareQ.Pipeline.csproj" />
     <ProjectReference Include="..\ShareQ.Editor\ShareQ.Editor.csproj" />
     <ProjectReference Include="..\ShareQ.ImageEffects\ShareQ.ImageEffects.csproj" />
+    <ProjectReference Include="..\ShareQ.AI\ShareQ.AI.csproj" />
     <ProjectReference Include="..\ShareQ.PluginContracts\ShareQ.PluginContracts.csproj" />
     <ProjectReference Include="..\ShareQ.Plugins\ShareQ.Plugins.csproj" />
     <ProjectReference Include="..\ShareQ.CustomUploaders\ShareQ.CustomUploaders.csproj" />
     <ProjectReference Include="..\ShareQ.Uploaders\ShareQ.Uploaders.csproj" />
     <ProjectReference Include="..\ShareQ.Updater\ShareQ.Updater.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- potrace.exe (BSD, https://potrace.sourceforge.net/) shipped alongside the app for the
+         raster->SVG trace feature. Same convention as FFmpeg / yt-dlp: a small native binary
+         in Tools/, located at runtime via PotraceLocator. PreserveNewest so debug builds don't
+         keep recopying it. COPYING is the upstream license; mandatory for redistribution. -->
+    <Content Include="Tools\potrace.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\COPYING">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

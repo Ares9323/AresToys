@@ -48,6 +48,9 @@ public sealed class EditorLauncher
         // user's "Apply to editor" click (or cancel), and returns the rendered PNG bytes.
         // The editor swaps them in via an undoable ReplaceSourceCommand.
         ShareQ.Editor.Views.EditorWindow.OpenEffectsHandler = OpenEffectsAsync;
+        // Trace tool delegates here too: the editor doesn't reference ShareQ.AI directly so
+        // we resolve the tracer from DI on demand and own the Save dialog + file IO.
+        ShareQ.Editor.Views.EditorWindow.TraceHandler = TraceToSvgAsync;
     }
 
     /// <summary>Open <see cref="ImageEffectsWindow"/> with the editor's current source bytes
@@ -90,6 +93,67 @@ public sealed class EditorLauncher
         });
 
         return tcs.Task;
+    }
+
+    /// <summary>Trace handler: open <see cref="ShareQ.App.Views.TraceWindow"/> preloaded with
+    /// the editor's source bytes, await the user's Save (or cancel), and only THEN pop a
+    /// SaveFileDialog parented to the editor to write the user-confirmed SVG to disk. Mirrors
+    /// the modeless Show + TaskCompletionSource-on-Closed pattern from
+    /// <see cref="OpenEffectsAsync"/> — keeps the rest of the app interactive while the user
+    /// dials in trace parameters. Failure modes (potrace missing, tracer crash) surface inline
+    /// in the preview window's "(no output)" placeholder, so the legacy MessageBox is gone.</summary>
+    private async Task TraceToSvgAsync(byte[] sourceBytes, System.Windows.Window? owner)
+    {
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+        var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                var tracer = _services.GetRequiredService<ShareQ.AI.IImageTracer>();
+                var presetStore = _services.GetRequiredService<TracePresetStore>();
+                var window = new ShareQ.App.Views.TraceWindow(tracer, presetStore, sourceBytes)
+                {
+                    Owner = owner
+                };
+                window.Closed += (_, _) =>
+                {
+                    // ResultSvg is non-null only when the user clicked Save inside TraceWindow;
+                    // closing via X / Esc leaves it null, which the caller treats as cancel.
+                    tcs.TrySetResult(window.ResultSvg);
+                };
+                window.Show();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "EditorLauncher: opening trace window failed");
+                tcs.TrySetResult(null);
+            }
+        }).Task.ConfigureAwait(false);
+
+        var svg = await tcs.Task.ConfigureAwait(true);
+        if (string.IsNullOrEmpty(svg)) return;
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = LocStatic("Trace_SaveDialogTitle"),
+            Filter = LocStatic("Trace_FilterSvg"),
+            FileName = $"shareq-trace-{DateTime.Now:yyyyMMdd-HHmmss}.svg",
+            DefaultExt = ".svg",
+            AddExtension = true,
+        };
+        if (dlg.ShowDialog(owner) != true) return;
+
+        try
+        {
+            await System.IO.File.WriteAllTextAsync(dlg.FileName, svg).ConfigureAwait(false);
+            _logger.LogInformation("EditorLauncher: traced {Path}", dlg.FileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "EditorLauncher: writing traced SVG failed");
+        }
     }
 
     public async Task OpenAsync(long itemId, CancellationToken cancellationToken)
@@ -342,6 +406,18 @@ public sealed class EditorLauncher
     /// assembly can't reach our resx, so the host is the bridge — same handoff pattern used
     /// for <c>ColorPickerWindow</c>. Resolution honours the singleton's pinned culture so
     /// language switches at runtime take effect on the next editor open without a restart.</summary>
+    /// <summary>Class-level resx lookup honouring the singleton's pinned culture. Needed
+    /// outside <see cref="BuildEditorLabels"/> for ad-hoc dialog strings (Save dialog title,
+    /// MessageBox bodies) — the local <c>Loc</c> closure inside BuildEditorLabels can't be
+    /// reached from sibling methods. Same fallback semantics: returns the key itself if the
+    /// resource is missing.</summary>
+    private static string LocStatic(string key)
+    {
+        var culture = ShareQ.App.Markup.LocalizedStrings.Instance.Culture
+                      ?? System.Globalization.CultureInfo.CurrentUICulture;
+        return ShareQ.App.Resources.Strings.ResourceManager.GetString(key, culture) ?? key;
+    }
+
     private static Dictionary<string, string> BuildEditorLabels()
     {
         var culture = ShareQ.App.Markup.LocalizedStrings.Instance.Culture
@@ -404,6 +480,7 @@ public sealed class EditorLauncher
             ["Tool_SmartEraser"]        = Loc("Editor_Tool_SmartEraser"),
             ["Tool_Crop"]               = Loc("Editor_Tool_Crop"),
             ["Tool_Resize"]             = Loc("Editor_Tool_Resize"),
+            ["Tool_Trace"]              = Loc("Editor_Tool_Trace"),
             ["Shape_Rectangle"]         = Loc("Editor_Shape_Rectangle"),
             ["Shape_Ellipse"]           = Loc("Editor_Shape_Ellipse"),
             ["Shape_Arrow"]             = Loc("Editor_Shape_Arrow"),

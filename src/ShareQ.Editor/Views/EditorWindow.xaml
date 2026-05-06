@@ -163,6 +163,9 @@
                             <ui:Button x:Name="EffectsBtn" Style="{StaticResource ToolBtn}" Click="OnEffectsClicked" ToolTip="Effects…">
                                 <Image Source="{StaticResource ToolIconEffects}" Style="{StaticResource ToolIcon}" />
                             </ui:Button>
+                            <ui:Button x:Name="TraceBtn" Style="{StaticResource ToolBtn}" Click="OnTraceClicked" ToolTip="Trace to SVG…">
+                                <Image Source="{StaticResource ToolIconTrace}" Style="{StaticResource ToolIcon}" />
+                            </ui:Button>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

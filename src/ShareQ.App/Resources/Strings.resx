@@ -441,7 +441,6 @@
   <data name="Update_StatusFoundFormat" xml:space="preserve"><value>Version {0} available — opening confirmation…</value></data>
   <data name="Update_StatusFailedFormat" xml:space="preserve"><value>Check failed: {0}</value></data>
   <data name="Update_StatusUnknown" xml:space="preserve"><value>Unknown result.</value></data>
-  <data name="ImageEffects_TooltipApplyToEditor" xml:space="preserve"><value>Render the current preset against the editor's source image and send the result back as the new editor canvas (undoable).</value></data>
 
   <!-- Image effect categories. -->
   <data name="EffectCategory_Adjustments" xml:space="preserve"><value>Adjustments</value></data>
@@ -837,6 +836,38 @@
   <data name="Editor_Tool_SmartEraser" xml:space="preserve"><value>K Smart eraser — fills the rect with a bilinear gradient of the 4 corner colors</value></data>
   <data name="Editor_Tool_Crop" xml:space="preserve"><value>C Crop</value></data>
   <data name="Editor_Tool_Resize" xml:space="preserve"><value>Resize…</value></data>
+  <data name="Editor_Tool_Trace" xml:space="preserve"><value>Trace to SVG…</value></data>
+  <data name="Trace_SaveDialogTitle" xml:space="preserve"><value>Save traced SVG</value></data>
+  <data name="Trace_FilterSvg" xml:space="preserve"><value>SVG image|*.svg|All files|*.*</value></data>
+  <data name="Trace_FailMessage" xml:space="preserve"><value>Tracing failed — potrace.exe may be missing from the install. Check the log.</value></data>
+  <data name="Trace_WindowTitle" xml:space="preserve"><value>Trace to SVG</value></data>
+  <data name="Trace_SaveButton" xml:space="preserve"><value>Save…</value></data>
+  <data name="Trace_PresetLabel" xml:space="preserve"><value>Preset:</value></data>
+  <data name="Trace_PresetSave" xml:space="preserve"><value>Save preset…</value></data>
+  <data name="Trace_PresetDelete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Trace_ViewLabel" xml:space="preserve"><value>View:</value></data>
+  <data name="Trace_ModeLabel" xml:space="preserve"><value>Mode:</value></data>
+  <data name="Trace_ModeColor" xml:space="preserve"><value>Color</value></data>
+  <data name="Trace_ModeGrayscale" xml:space="preserve"><value>Grayscale</value></data>
+  <data name="Trace_ModeBlackAndWhite" xml:space="preserve"><value>Black and White</value></data>
+  <data name="Trace_PaletteLabel" xml:space="preserve"><value>Palette:</value></data>
+  <data name="Trace_ParamColors" xml:space="preserve"><value>Colors</value></data>
+  <data name="Trace_ParamThreshold" xml:space="preserve"><value>Threshold</value></data>
+  <data name="Trace_ParamPaths" xml:space="preserve"><value>Paths</value></data>
+  <data name="Trace_ParamCorners" xml:space="preserve"><value>Corners</value></data>
+  <data name="Trace_ParamNoise" xml:space="preserve"><value>Noise</value></data>
+  <data name="Trace_ParamMethod" xml:space="preserve"><value>Method</value></data>
+  <data name="Trace_MethodOverlapping" xml:space="preserve"><value>Overlapping</value></data>
+  <data name="Trace_MethodAbutting" xml:space="preserve"><value>Abutting</value></data>
+  <data name="Trace_ParamSnapCurves" xml:space="preserve"><value>Snap Curves To Lines</value></data>
+  <data name="Trace_ParamTransparency" xml:space="preserve"><value>Transparency</value></data>
+  <data name="Trace_ParamAutoGrouping" xml:space="preserve"><value>Auto Grouping</value></data>
+  <data name="Trace_ParamIgnoreColor" xml:space="preserve"><value>Ignore Color</value></data>
+  <data name="Trace_ParamPickIgnore" xml:space="preserve"><value>Pick…</value></data>
+  <data name="Trace_ParamTolerance" xml:space="preserve"><value>Tolerance</value></data>
+  <data name="Trace_PreviewToggle" xml:space="preserve"><value>Preview</value></data>
+  <data name="Trace_TraceNow" xml:space="preserve"><value>Trace</value></data>
+  <data name="Trace_InfoLabel" xml:space="preserve"><value>Info</value></data>
   <!-- Shape kind names — used for the dynamic Properties title ("{0} Properties") and tool
        category headers when the panel shows defaults for the active tool. -->
   <data name="Editor_Shape_Rectangle" xml:space="preserve"><value>Rectangle</value></data>

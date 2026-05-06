@@ -227,6 +227,7 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, CopyTextToClipboardTask>();
                 services.AddSingleton<IPipelineTask, UploadClipboardTextTask>();
                 services.AddSingleton<IPipelineTask, NotifyToastTask>();
+                services.AddSingleton<IPipelineTask, TraceToSvgTask>();
                 services.AddSingleton<IPipelineTask, OpenEditorBeforeUploadTask>();
                 services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
                 services.AddSingleton<IPipelineTask, ColorSamplerTask>();
@@ -310,6 +311,8 @@ public partial class App : Application
                 services.AddSingleton<Services.Recording.RecordingCoordinator>();
                 services.AddSingleton<ShareQ.Editor.Persistence.ColorRecentsStore>();
                 services.AddSingleton<ShareQ.Editor.Persistence.EditorDefaultsStore>();
+                services.AddSingleton<ShareQ.AI.IImageTracer, ShareQ.AI.PotraceImageTracer>();
+                services.AddSingleton<TracePresetStore>();
 
                 services.AddTransient<PopupWindowViewModel>();
 
