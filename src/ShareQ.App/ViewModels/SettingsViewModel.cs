@@ -10,6 +10,7 @@ namespace ShareQ.App.ViewModels;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private const string StartMinimizedKey = "app.start_minimized";
+    private const string EditorStartMaximizedKey = "app.editor_start_maximized";
     private readonly AutostartService _autostart;
     private readonly ISettingsStore _settingsStore;
 
@@ -35,12 +36,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         StartWithWindows = autostart.IsEnabled;
         _suppressAutostartPersist = false;
 
-        // StartMinimized hydrates async from the SQLite settings store. The fire-and-forget is
-        // intentional: SettingsViewModel is constructed eagerly during DI, before the user has
-        // navigated to the Settings tab, so we don't block startup waiting for a value most
-        // users will never look at on this launch. Suppress persists during the load so the
-        // initial assignment doesn't round-trip back to disk with the same value.
-        _ = LoadStartMinimizedAsync();
+        // StartMinimized + EditorStartMaximized hydrate async from the SQLite settings store.
+        // The fire-and-forget is intentional: SettingsViewModel is constructed eagerly during
+        // DI, before the user has navigated to the Settings tab, so we don't block startup
+        // waiting for values most users will never look at on this launch. Suppress flags
+        // prevent the initial assignment from round-tripping back to disk with the same value.
+        _ = LoadPersistedSettingsAsync();
         Uploaders = uploaders;
         // Hotkeys "Add custom workflow" button → run the Add flow (no modal — auto-default name)
         // then drop straight into the edit view with the inline name field focused + selected
@@ -99,20 +100,43 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _startMinimized;
 
-    private bool _suppressStartMinimizedPersist;
+    /// <summary>Bound to the Settings-tab "Start editor maximized" checkbox. Persisted under
+    /// <see cref="EditorStartMaximizedKey"/>. Honoured by <c>EditorLauncher.OpenAsync</c> (the
+    /// non-pipeline open path: toast click, history → edit). Workflow tasks have their own
+    /// <c>fullscreen</c> JSON config which is read inside <c>EditAsync</c> and overrides this
+    /// — the user's per-task choice always wins over the global default.</summary>
+    [ObservableProperty]
+    private bool _editorStartMaximized;
 
-    private async Task LoadStartMinimizedAsync()
+    private bool _suppressStartMinimizedPersist;
+    private bool _suppressEditorStartMaximizedPersist;
+
+    private async Task LoadPersistedSettingsAsync()
     {
-        var raw = await _settingsStore.GetAsync(StartMinimizedKey, CancellationToken.None).ConfigureAwait(true);
+        var rawMin = await _settingsStore.GetAsync(StartMinimizedKey, CancellationToken.None).ConfigureAwait(true);
         _suppressStartMinimizedPersist = true;
-        try { StartMinimized = string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase); }
+        try { StartMinimized = string.Equals(rawMin, "true", StringComparison.OrdinalIgnoreCase); }
         finally { _suppressStartMinimizedPersist = false; }
+
+        var rawMax = await _settingsStore.GetAsync(EditorStartMaximizedKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressEditorStartMaximizedPersist = true;
+        try { EditorStartMaximized = string.Equals(rawMax, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressEditorStartMaximizedPersist = false; }
     }
 
     partial void OnStartMinimizedChanged(bool value)
     {
         if (_suppressStartMinimizedPersist) return;
         _ = _settingsStore.SetAsync(StartMinimizedKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnEditorStartMaximizedChanged(bool value)
+    {
+        if (_suppressEditorStartMaximizedPersist) return;
+        _ = _settingsStore.SetAsync(EditorStartMaximizedKey,
             value ? "true" : "false",
             sensitive: false,
             CancellationToken.None);

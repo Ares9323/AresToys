@@ -13,12 +13,16 @@ public sealed class WpfToastNotifier : IToastNotifier
 
     private readonly List<ToastWindow> _active = [];
 
-    public void Show(string title, string message, Action? onClick = null, string? imagePath = null)
+    public void Show(string title, string message, Action? onClick = null, string? imagePath = null,
+                     IReadOnlyList<ToastButtonChoice>? buttons = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
         ArgumentNullException.ThrowIfNull(message);
         // imagePath is the IToastNotifier API for inline image previews. The custom WPF
         // toast doesn't render images today; ignored silently — callers get a text-only toast.
+        // buttons are similarly ignored — this notifier is a fallback for environments where
+        // WinRT toasts can't run; the modern WindowsToastNotifier renders buttons properly.
+        _ = buttons;
 
         Application.Current.Dispatcher.InvokeAsync(() =>
         {

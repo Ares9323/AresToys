@@ -74,32 +74,74 @@ public sealed class EditorLauncher
 
         var defaults = await _defaultsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
-        var window = _services.GetRequiredService<EditorWindow>();
-        var vm = (EditorViewModel)window.DataContext;
-        vm.SourcePngBytes = record.Payload.ToArray();
-        vm.EditingItemId = itemId;
-        vm.OutlineColor = defaults.Outline;
-        vm.FillColor = defaults.Fill;
-        vm.StrokeWidth = defaults.StrokeWidth;
-        vm.CurrentTool = defaults.Tool;
-        vm.CurrentTextStyle = defaults.TextStyle;
-        vm.FreehandSmoothDefault = defaults.FreehandSmooth;
-        vm.FreehandEndArrowDefault = defaults.FreehandEndArrow;
-        vm.ResetStepCounter();
-        window.ApplyLocalization(BuildEditorLabels());
-        window.Owner = System.Windows.Application.Current.MainWindow;
-        window.ShowDialog();
+        // Global "Start editor maximized" preference (Settings → Settings tab). Applies only
+        // to non-pipeline opens (this method = toast / history); pipeline tasks pass their own
+        // fullscreen flag through EditAsync and bypass this default. We read here before the
+        // dispatcher hop so the setting hits the same UI-thread block that constructs the
+        // window — easier than a second Dispatcher.InvokeAsync just to query an int setting.
+        var rawStartMax = await _settings.GetAsync("app.editor_start_maximized", cancellationToken).ConfigureAwait(false);
+        var startMaximized = string.Equals(rawStartMax, "true", StringComparison.OrdinalIgnoreCase);
 
-        await _defaultsStore.SaveAsync(
-            new EditorDefaults(vm.OutlineColor, vm.FillColor, vm.StrokeWidth, vm.CurrentTool, vm.CurrentTextStyle,
-                vm.FreehandSmoothDefault, vm.FreehandEndArrowDefault),
-            CancellationToken.None).ConfigureAwait(false);
+        // Modeless Show() instead of ShowDialog so the editor doesn't take the app-wide modal
+        // lock (toast → click → editor used to freeze MainWindow / ClipboardWindow / tray
+        // dialogs until close). Same pattern EditAsync uses for pipeline opens; the
+        // TaskCompletionSource on Closed restores the "OpenAsync returns when the editor is
+        // dismissed" semantics so callers see no behavioural change.
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+        var doneTcs = new TaskCompletionSource<(EditorDefaults Snapshot, bool Saved, byte[]? Png)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
-        if (!window.Saved) return;
+        await dispatcher.InvokeAsync(() =>
+        {
+            var window = _services.GetRequiredService<EditorWindow>();
+            var vm = (EditorViewModel)window.DataContext;
+            vm.SourcePngBytes = record.Payload.ToArray();
+            vm.EditingItemId = itemId;
+            vm.OutlineColor = defaults.Outline;
+            vm.FillColor = defaults.Fill;
+            vm.StrokeWidth = defaults.StrokeWidth;
+            vm.CurrentTool = defaults.Tool;
+            vm.CurrentTextStyle = defaults.TextStyle;
+            vm.FreehandSmoothDefault = defaults.FreehandSmooth;
+            vm.FreehandEndArrowDefault = defaults.FreehandEndArrow;
+            vm.ResetStepCounter();
+            window.ApplyLocalization(BuildEditorLabels());
+            window.Owner = System.Windows.Application.Current.MainWindow;
+            if (startMaximized)
+            {
+                // Active monitor = the one currently under the cursor. Falls back to the primary
+                // when the cursor sits in a multi-monitor gap (rare). Same pattern EditAsync
+                // uses for the pipeline's fullscreen flag.
+                var monitor = ShareQ.Capture.MonitorEnumeration.GetMonitorUnderCursor();
+                if (monitor is not null)
+                    window.EnableFullscreen(monitor.X, monitor.Y, monitor.Width, monitor.Height);
+            }
+            window.Closed += (_, _) =>
+            {
+                // Snapshot ON the UI thread before the window unloads — reading VM state from
+                // a pool thread later would race the WPF binding system. Same precaution as
+                // EditAsync.
+                var snap = new EditorDefaults(vm.OutlineColor, vm.FillColor, vm.StrokeWidth,
+                    vm.CurrentTool, vm.CurrentTextStyle,
+                    vm.FreehandSmoothDefault, vm.FreehandEndArrowDefault);
+                byte[]? png = null;
+                if (window.Saved)
+                {
+                    var canvasHost = (Grid)window.FindName("CanvasHost")!;
+                    var (exportW, exportH) = ResolveExportPixels(canvasHost);
+                    png = CanvasPngExporter.Export(canvasHost, exportW, exportH);
+                }
+                doneTcs.TrySetResult((snap, window.Saved, png));
+            };
+            window.Show();
+        });
 
-        var canvasHost = (Grid)window.FindName("CanvasHost")!;
-        var (exportW, exportH) = ResolveExportPixels(canvasHost);
-        var pngBytes = CanvasPngExporter.Export(canvasHost, exportW, exportH);
+        var (snapshot, saved, pngBytes) = await doneTcs.Task.ConfigureAwait(false);
+
+        await _defaultsStore.SaveAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+
+        if (!saved || pngBytes is null) return;
+
         var bytes = await EncodeForGlobalFormatAsync(pngBytes, cancellationToken).ConfigureAwait(false);
         await _items.UpdatePayloadAsync(itemId, bytes, bytes.LongLength, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation("EditorLauncher: saved {Bytes} bytes back to item {Id}", bytes.Length, itemId);

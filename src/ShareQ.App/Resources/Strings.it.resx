@@ -179,8 +179,15 @@
 
   <data name="Settings_StartWithWindows" xml:space="preserve"><value>Avvia ShareQ all'accensione di Windows</value></data>
   <data name="Settings_StartWithWindowsTooltip" xml:space="preserve"><value>Aggiunge (o rimuove) ShareQ dalla lista di avvio utente di Windows. Non servono permessi di amministratore.</value></data>
+  <data name="Toast_OpenUrl" xml:space="preserve"><value>Apri URL</value></data>
+  <data name="Toast_CopyUrl" xml:space="preserve"><value>Copia URL</value></data>
+  <data name="Toast_CopyPathToClipboard" xml:space="preserve"><value>Copia path negli appunti</value></data>
+  <data name="Toast_OpenInEditor" xml:space="preserve"><value>Apri nell'editor</value></data>
+  <data name="Toast_ShowInFolder" xml:space="preserve"><value>Mostra in cartella</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Avvia minimizzato</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>All'avvio salta la finestra principale e resta nella tray. Clicca l'icona tray per aprire le Impostazioni quando serve.</value></data>
+  <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Avvia editor a schermo intero</value></data>
+  <data name="Settings_EditorStartMaximizedTooltip" xml:space="preserve"><value>Apre l'editor massimizzato sul monitor attivo quando viene lanciato fuori da un workflow (clic su toast, history). Le task di workflow hanno il proprio toggle fullscreen che ha la precedenza su questo.</value></data>
   <data name="Settings_TrayClicksTitle" xml:space="preserve"><value>Click sull'icona tray</value></data>
   <data name="Settings_TrayClicksHint" xml:space="preserve"><value>Scegli cosa deve fare ogni click sull'icona tray. Il click destro apre sempre il menu.</value></data>
   <data name="Settings_TrayLeftClick" xml:space="preserve"><value>Click sinistro</value></data>

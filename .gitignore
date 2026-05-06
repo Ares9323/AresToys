@@ -62,4 +62,4 @@ $RECYCLE.BIN/
 
 # Internal design docs / brainstorming notes — kept local only
 docs/
-src/ShareQ.App/ShareQ.App_actvamal_wpftmp.csproj
+src/ShareQ.App/*.csproj

@@ -18,21 +18,34 @@ namespace ShareQ.App.Services;
 public sealed class WindowsToastNotifier : IToastNotifier
 {
     private readonly ILogger<WindowsToastNotifier> _logger;
-    private readonly Dictionary<string, Action> _pendingClicks = new(StringComparer.Ordinal);
+    /// <summary>Per-toast callback set, keyed by the unique tag we attach as a toast argument.
+    /// Each entry holds the optional body-click handler plus a button-index → handler map; the
+    /// arrival of any click clears the entry (the toast dismisses regardless of which action
+    /// fired, so a second activation can't reach the same toast). Replaces the old
+    /// <c>_pendingClicks</c> dict which only supported a single body handler per toast.</summary>
+    private readonly Dictionary<string, ToastCallbacks> _pendingToasts = new(StringComparer.Ordinal);
     private static int _nextTag;
+
+    private sealed class ToastCallbacks
+    {
+        public Action? Body;
+        public Dictionary<string, Action> Buttons { get; } = new(StringComparer.Ordinal);
+    }
 
     public WindowsToastNotifier(ILogger<WindowsToastNotifier> logger)
     {
         _logger = logger;
 
         // Single global activation handler. The toolkit dispatches every click here; we route
-        // by the toast's "tag" arg (a monotonic counter assigned at Show-time) into the
-        // matching onClick callback. Subscribing here is fine even if we never received a
-        // toast yet — the toolkit just queues the handler.
+        // by the toast's "toastTag" arg (a monotonic counter assigned at Show-time) into the
+        // matching ToastCallbacks entry, then by "button" arg if a button was clicked.
+        // Subscribing here is fine even if we never received a toast yet — the toolkit just
+        // queues the handler.
         ToastNotificationManagerCompat.OnActivated += OnToastActivated;
     }
 
-    public void Show(string title, string message, Action? onClick = null, string? imagePath = null)
+    public void Show(string title, string message, Action? onClick = null, string? imagePath = null,
+                     IReadOnlyList<ToastButtonChoice>? buttons = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
         ArgumentNullException.ThrowIfNull(message);
@@ -63,10 +76,35 @@ public sealed class WindowsToastNotifier : IToastNotifier
             //     the same app keys off the same pair; flat "no two are equal" defeats it.
             var uid = System.Threading.Interlocked.Increment(ref _nextTag).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+            var callbacks = new ToastCallbacks();
             if (onClick is not null)
             {
-                lock (_pendingClicks) _pendingClicks[uid] = onClick;
+                callbacks.Body = onClick;
+                // Body-click activation: just the toastTag, no "button" arg → router falls
+                // through to the body handler.
                 builder.AddArgument("toastTag", uid);
+            }
+
+            if (buttons is { Count: > 0 })
+            {
+                // Up to 5 buttons (Windows hard cap). Each button gets its own arg key
+                // ("button=N") so the activation handler can distinguish them. The toastTag
+                // arg is duplicated on every button — the click args inherit the top-level
+                // ones too, but being explicit costs nothing and makes the intent obvious.
+                for (var i = 0; i < buttons.Count && i < 5; i++)
+                {
+                    var idx = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    callbacks.Buttons[idx] = buttons[i].OnClick;
+                    builder.AddButton(new ToastButton()
+                        .SetContent(buttons[i].Label)
+                        .AddArgument("toastTag", uid)
+                        .AddArgument("button", idx));
+                }
+            }
+
+            if (callbacks.Body is not null || callbacks.Buttons.Count > 0)
+            {
+                lock (_pendingToasts) _pendingToasts[uid] = callbacks;
             }
 
             // Show with a customizer to set Tag + Group on the WinRT ToastNotification before
@@ -95,17 +133,25 @@ public sealed class WindowsToastNotifier : IToastNotifier
     {
         var args = ToastArguments.Parse(e.Argument);
         if (!args.TryGetValue("toastTag", out var tag)) return;
-        Action? onClick;
-        lock (_pendingClicks)
+
+        Action? action = null;
+        lock (_pendingToasts)
         {
-            if (!_pendingClicks.Remove(tag, out onClick)) return;
+            // First click on a toast wins: remove the whole entry so a second activation
+            // (shouldn't happen — Windows dismisses the toast — but defensive) is a no-op.
+            if (!_pendingToasts.Remove(tag, out var callbacks)) return;
+            if (args.TryGetValue("button", out var idx) && callbacks.Buttons.TryGetValue(idx, out var btn))
+                action = btn;
+            else
+                action = callbacks.Body;
         }
+        if (action is null) return;
         try
         {
             // Marshal to UI thread — onClick handlers typically open windows / activate UI.
             // The toolkit fires OnActivated on a background thread when the app is already
             // running, which would crash any direct WPF call.
-            System.Windows.Application.Current?.Dispatcher.BeginInvoke(onClick);
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(action);
         }
         catch (Exception ex)
         {
