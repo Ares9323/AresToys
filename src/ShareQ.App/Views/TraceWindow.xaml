@@ -126,6 +126,7 @@
                         <RowDefinition />
                         <RowDefinition />
                         <RowDefinition />
+                        <RowDefinition />
                     </Grid.RowDefinitions>
 
                     <!-- Column 1 — Colors / Threshold (Mode-dependent visibility) -->
@@ -213,6 +214,30 @@
                         <TextBlock Text="{markup:Loc Trace_ParamTolerance}" Width="120" />
                         <TextBox Text="{Binding IgnoreTolerance}" Width="48" DockPanel.Dock="Right" />
                         <Slider Value="{Binding IgnoreTolerance}" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+
+                    <!-- Row 4 — Quality knobs (smoothing / blur / overlap). Each is a 0-3
+                         tick slider because the underlying operations are integer iteration
+                         counts (majority-filter passes, box-blur passes, dilation pixels);
+                         a continuous slider would round to the same values and feel laggy. -->
+                    <DockPanel Grid.Column="0" Grid.Row="4" LastChildFill="True" Margin="0,0,12,0">
+                        <TextBlock Text="{markup:Loc Trace_ParamSmoothing}" Width="120" />
+                        <TextBox Text="{Binding SmoothingIterations}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding SmoothingIterations}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="1" Grid.Row="4" LastChildFill="True" Margin="12,0,12,0">
+                        <TextBlock Text="{markup:Loc Trace_ParamPreBlur}" Width="120" />
+                        <TextBox Text="{Binding PreBlurStrength}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding PreBlurStrength}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
+                    </DockPanel>
+                    <!-- Overlap radius is greyed out in Abutting mode (the dilation only
+                         applies to Overlapping); using MethodIsOverlapping as the IsEnabled
+                         binding keeps the visual cue obvious without hiding the knob. -->
+                    <DockPanel Grid.Column="2" Grid.Row="4" LastChildFill="True" Margin="12,0,0,0"
+                               IsEnabled="{Binding MethodIsOverlapping}">
+                        <TextBlock Text="{markup:Loc Trace_ParamOverlap}" Width="120" />
+                        <TextBox Text="{Binding OverlapRadius}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding OverlapRadius}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
                     </DockPanel>
                 </Grid>
             </Border>

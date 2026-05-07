@@ -23,6 +23,11 @@ public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
     private readonly TraceParametersViewModel _params;
     private CancellationTokenSource? _previewCts;
     private string? _lastSvg;
+    // True once the WebView2 has finished its initial NavigationCompleted — from that point
+    // on we swap content via ExecuteScriptAsync instead of NavigateToString. The point is to
+    // keep the document alive across re-traces so zoom/pan state survives parameter tweaks
+    // (without this, every slider change snapped the user back to fit-to-window).
+    private bool _previewDocumentReady;
 
     public string? ResultSvg { get; private set; }
 
@@ -47,6 +52,11 @@ public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
             {
                 wv2Settings.IsZoomControlEnabled = false;
             }
+            // Set _previewDocumentReady once the initial document has fully loaded so the
+            // window.shareqSetContent function is defined before we try to call it. Each
+            // subsequent NavigateToString (e.g. window resize edge cases) flips it back off
+            // until the next NavigationCompleted fires.
+            SvgPreviewWeb.NavigationCompleted += (_, _) => _previewDocumentReady = true;
             await _params.LoadCustomPresetsAsync(CancellationToken.None);
             // Restore the last-used preset so the user returns to whatever they were
             // dialling in. Falls back to [Default] when nothing is stored or the saved
@@ -116,11 +126,25 @@ public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
     /// <summary>Re-render the right pane based on the currently-selected View dropdown
     /// item. The 5 modes wrap the same trace SVG in different HTML templates: full result,
     /// stroked outlines on a checker bg, outlines + source overlay, source-only, etc.
-    /// See <see cref="ViewModels.TraceViewModeRenderer"/> for the per-mode HTML builders.</summary>
+    /// See <see cref="ViewModels.TraceViewModeRenderer"/> for the per-mode HTML builders.
+    /// <para>First call: NavigateToString on the full HTML document. Subsequent calls:
+    /// ExecuteScriptAsync into the existing document so we only swap the inner content,
+    /// keeping zoom/pan state intact across re-traces — the user can stay zoomed in on a
+    /// problem area while tweaking parameters and watch the fix land in place.</para></summary>
     private void RefreshPreview()
     {
-        var html = TraceViewModeRenderer.Render(
-            _lastSvg, _sourcePng, _params.SelectedViewMode?.Mode ?? TraceViewMode.TracingResult);
+        var mode = _params.SelectedViewMode?.Mode ?? TraceViewMode.TracingResult;
+        if (_previewDocumentReady && SvgPreviewWeb.CoreWebView2 is { } cw)
+        {
+            var body = TraceViewModeRenderer.RenderBody(_lastSvg, _sourcePng, mode);
+            // JsonSerializer.Serialize handles all the JS-string escaping (quotes, backslashes,
+            // unicode) we'd otherwise have to roll by hand for an inline script literal.
+            var bodyJs = System.Text.Json.JsonSerializer.Serialize(body);
+            _ = cw.ExecuteScriptAsync($"window.shareqSetContent({bodyJs})");
+            return;
+        }
+        var html = TraceViewModeRenderer.Render(_lastSvg, _sourcePng, mode);
+        _previewDocumentReady = false;
         SvgPreviewWeb.NavigateToString(html);
     }
 

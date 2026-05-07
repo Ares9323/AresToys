@@ -50,7 +50,21 @@ public enum TraceMethod { Overlapping, Abutting }
 ///   per-pixel mask in <c>EncodePbm</c>.
 /// • <see cref="AutoGrouping"/>: presentational — wraps each colour layer in a labelled
 ///   <c>&lt;g id="…"/&gt;</c> in the composite SVG so Illustrator/Inkscape can pick them
-///   apart. No effect on tracing math.</summary>
+///   apart. No effect on tracing math.
+/// • <see cref="SmoothingIterations"/>: 0-3 — number of 3x3 majority-filter passes over
+///   the per-pixel layer assignment before tracing. 0 = off (raw quantisation, traces
+///   every anti-alias zigzag). 1 = collapse single-pixel oscillations. 2 = also catch
+///   2-pixel notches/bumps (default). 3+ starts eating ≤1px features.
+/// • <see cref="PreBlurStrength"/>: 0-3 — number of 3x3 box-blur passes applied to the
+///   source bitmap before quantisation. 0 = none (raw source, anti-aliased pixels stay
+///   ambiguous). 1 = single pass (default; cleans most screenshot AA). 2-3 = stronger,
+///   softens fine detail but produces cleaner colour boundaries on noisy sources.
+/// • <see cref="OverlapRadius"/>: 0-3 — pixels each layer's mask is dilated into adjacent
+///   layers in <see cref="TraceMethod.Overlapping"/> mode, to close the smoothing-driven
+///   gaps between potrace's per-layer paths. 0 = strict partition (gaps may show).
+///   1 = default (closes most gaps). 2-3 = aggressive overlap, may show tinted halo on
+///   the smaller layer's silhouette but eliminates the worst gap cases. Has no effect
+///   in <see cref="TraceMethod.Abutting"/> mode.</summary>
 public sealed record TraceOptions(
     TraceMode Mode = TraceMode.BlackAndWhite,
     TracePalette Palette = TracePalette.Limited,
@@ -64,4 +78,7 @@ public sealed record TraceOptions(
     bool Transparency = false,
     System.Drawing.Color? IgnoreColor = null,
     int IgnoreTolerance = 32,
-    bool AutoGrouping = true);
+    bool AutoGrouping = true,
+    int SmoothingIterations = 2,
+    int PreBlurStrength = 1,
+    int OverlapRadius = 1);

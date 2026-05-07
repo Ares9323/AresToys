@@ -856,6 +856,9 @@
   <data name="Trace_ParamPaths" xml:space="preserve"><value>Paths</value></data>
   <data name="Trace_ParamCorners" xml:space="preserve"><value>Corners</value></data>
   <data name="Trace_ParamNoise" xml:space="preserve"><value>Noise</value></data>
+  <data name="Trace_ParamSmoothing" xml:space="preserve"><value>Smoothing</value></data>
+  <data name="Trace_ParamPreBlur" xml:space="preserve"><value>Pre-blur</value></data>
+  <data name="Trace_ParamOverlap" xml:space="preserve"><value>Overlap</value></data>
   <data name="Trace_ParamMethod" xml:space="preserve"><value>Method</value></data>
   <data name="Trace_MethodOverlapping" xml:space="preserve"><value>Overlapping</value></data>
   <data name="Trace_MethodAbutting" xml:space="preserve"><value>Abutting</value></data>

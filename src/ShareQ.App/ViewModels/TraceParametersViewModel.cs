@@ -114,6 +114,14 @@ public sealed partial class TraceParametersViewModel : ObservableObject
     [ObservableProperty] private bool _autoGrouping = true;
     [ObservableProperty] private bool _previewEnabled = true;
 
+    // Quality knobs — exposed because previously hardcoded constants were either too
+    // weak (1-pass smoothing left visible saw-tooth on heavy AA sources) or too strong
+    // (always-on box blur softened sharp logos that didn't need it). Defaults match the
+    // previous hardcoded behaviour so existing presets render identically.
+    [ObservableProperty] private int _smoothingIterations = 2;
+    [ObservableProperty] private int _preBlurStrength = 1;
+    [ObservableProperty] private int _overlapRadius = 1;
+
     // Method radio bridges (Task 5 Step 2) — two RadioButtons funnel into the single
     // TraceMethod enum value, mirroring the Mode bridge pattern above.
     public bool MethodIsOverlapping { get => Method == TraceMethod.Overlapping; set { if (value) Method = TraceMethod.Overlapping; OnPropertyChanged(); } }
@@ -152,7 +160,10 @@ public sealed partial class TraceParametersViewModel : ObservableObject
         Transparency: Transparency,
         IgnoreColor: IgnoreColor is { } c ? System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B) : null,
         IgnoreTolerance: IgnoreTolerance,
-        AutoGrouping: AutoGrouping);
+        AutoGrouping: AutoGrouping,
+        SmoothingIterations: SmoothingIterations,
+        PreBlurStrength: PreBlurStrength,
+        OverlapRadius: OverlapRadius);
 
     /// <summary>Apply every field from <paramref name="o"/> in sequence. Each setter fires
     /// its own PropertyChanged → the window's <c>OnParamsChanged</c> queues N debounced
@@ -179,6 +190,9 @@ public sealed partial class TraceParametersViewModel : ObservableObject
         IgnoreColorEnabled = o.IgnoreColor is not null;
         IgnoreTolerance = o.IgnoreTolerance;
         AutoGrouping = o.AutoGrouping;
+        SmoothingIterations = o.SmoothingIterations;
+        PreBlurStrength = o.PreBlurStrength;
+        OverlapRadius = o.OverlapRadius;
     }
 
     /// <summary>Parse the rendered SVG to fill the Info readout. Cheap regex over the

@@ -36,26 +36,41 @@ public static class TraceViewModeRenderer
     //   transform: scale instead.
     // - Drag pans via translate on the wrapper.
     // - Double-click resets z=1 + pan=0 → snaps back to the fit-to-window.
+    // The script wires zoom/pan AND exposes window.shareqSetContent(html) so the host can
+    // swap the SVG/img inside #zoomwrap without ever re-navigating the document. Keeping
+    // the document constant means z/tx/ty (the user's zoom + pan state) survive every
+    // re-trace caused by a parameter change — the user can zoom into a problem area, tweak
+    // a parameter, and stay zoomed where they were. Recomputing fit on each swap covers
+    // dimension changes (e.g. switching to Source Image view).
     private const string ZoomScript =
-        "<script>(()=>{let z=1,tx=0,ty=0;const w=document.getElementById('zoomwrap');" +
+        "<script>(()=>{let z=1,tx=0,ty=0,fit=1;let targets=[],bases=[];" +
+        "const w=document.getElementById('zoomwrap');" +
         "if(!w)return;" +
-        "const targets=[...w.querySelectorAll('svg,img')];" +
-        "if(targets.length===0)return;" +
-        // Wait one rAF tick so getBoundingClientRect / naturalWidth are populated.
-        "requestAnimationFrame(()=>{" +
-        "const vw=window.innerWidth,vh=window.innerHeight;" +
-        "const bases=targets.map(t=>{" +
-        "if(t.tagName.toLowerCase()==='svg'&&t.viewBox&&t.viewBox.baseVal.width>0){return{w:t.viewBox.baseVal.width,h:t.viewBox.baseVal.height,svg:true}}" +
-        "return{w:t.naturalWidth||t.getBoundingClientRect().width||300,h:t.naturalHeight||t.getBoundingClientRect().height||150,svg:false}" +
-        "});" +
-        // Fit factor based on the largest target so all of them fit.
-        "const fit=Math.min(...bases.map(b=>Math.min(vw/b.w,vh/b.h)*0.95));" +
-        "function applyZoom(){const eff=fit*z;targets.forEach((t,i)=>{const b=bases[i];" +
+        "function applyZoom(){if(!targets.length)return;const eff=fit*z;targets.forEach((t,i)=>{const b=bases[i];" +
         "if(b.svg){t.style.width=(b.w*eff)+'px';t.style.height=(b.h*eff)+'px'}" +
         "else{t.style.transformOrigin='center center';t.style.transform=`scale(${eff})`}" +
         "})}" +
         "function applyPan(){w.style.transform=`translate(${tx}px,${ty}px)`}" +
-        "applyZoom();applyPan();" +
+        // Re-acquire targets+bases after content swaps. fit is recomputed (image dims may
+        // have changed when switching view modes); z stays as the user left it so the
+        // perceived zoom level is preserved across re-traces.
+        "function recompute(){targets=[...w.querySelectorAll('svg,img')];" +
+        "if(!targets.length){applyPan();return}" +
+        "const vw=window.innerWidth,vh=window.innerHeight;" +
+        "bases=targets.map(t=>{" +
+        "if(t.tagName.toLowerCase()==='svg'&&t.viewBox&&t.viewBox.baseVal.width>0)return{w:t.viewBox.baseVal.width,h:t.viewBox.baseVal.height,svg:true};" +
+        "return{w:t.naturalWidth||t.getBoundingClientRect().width||300,h:t.naturalHeight||t.getBoundingClientRect().height||150,svg:false}" +
+        "});" +
+        "fit=Math.min(...bases.map(b=>Math.min(vw/b.w,vh/b.h)*0.95));" +
+        "applyZoom();applyPan()}" +
+        // Wait one rAF tick so getBoundingClientRect / naturalWidth are populated.
+        "requestAnimationFrame(recompute);" +
+        // Host calls this after each re-trace. innerHTML swap is cheap, leaves the wrapper +
+        // its event listeners intact (handlers are bound to w, not the children). For images
+        // that haven't loaded yet (data: URI decode latency), schedule a second recompute
+        // on load so naturalWidth is available before we set the fit factor.
+        "window.shareqSetContent=function(html){w.innerHTML=html;requestAnimationFrame(recompute);" +
+        "w.querySelectorAll('img').forEach(img=>{if(!img.complete)img.addEventListener('load',recompute,{once:true})})};" +
         "window.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();" +
         // Early-return at the cap so we don't accumulate phantom zoom: if the user keeps
         // wheeling up past the max, internally z just stays at 100 (no growth) and the next
@@ -70,27 +85,36 @@ public static class TraceViewModeRenderer
         "w.addEventListener('pointermove',e=>{if(!drag)return;tx=e.clientX-drag.x;ty=e.clientY-drag.y;applyPan()});" +
         "w.addEventListener('pointerup',e=>{drag=null;try{w.releasePointerCapture(e.pointerId)}catch{}});" +
         "window.addEventListener('dblclick',()=>{z=1;tx=0;ty=0;applyZoom();applyPan()});" +
-        "});" +
         "})();</script>";
 
+    /// <summary>Build the full HTML document — used for the FIRST navigation only. Subsequent
+    /// re-traces use <see cref="RenderBody"/> + the JS swap path so the document (and the
+    /// user's zoom / pan state inside it) survives the update.</summary>
     public static string Render(string? svg, byte[]? sourcePng, TraceViewMode mode)
+        => Wrap(RenderBody(svg, sourcePng, mode));
+
+    /// <summary>Build only the inner HTML that goes inside <c>#zoomwrap</c>. The host calls
+    /// <c>window.shareqSetContent(this)</c> via ExecuteScriptAsync to swap in the new render
+    /// without touching the document — preserves z/tx/ty across parameter tweaks so the
+    /// user can stay zoomed into a problem area while iterating on settings.</summary>
+    public static string RenderBody(string? svg, byte[]? sourcePng, TraceViewMode mode)
     {
         if (mode == TraceViewMode.SourceImage)
         {
-            return Wrap($"<img src=\"{DataUri(sourcePng)}\" />");
+            return $"<img src=\"{DataUri(sourcePng)}\" />";
         }
         if (string.IsNullOrEmpty(svg))
         {
-            return Wrap("<div style='color:#aaa;font-family:sans-serif'>(no output)</div>");
+            return "<div style='color:#aaa;font-family:sans-serif'>(no output)</div>";
         }
         return mode switch
         {
-            TraceViewMode.TracingResult => Wrap(svg),
-            TraceViewMode.TracingResultWithOutlines => Wrap(LayerOver(svg, MakeOutlines(svg))),
-            TraceViewMode.Outlines => Wrap(MakeOutlines(svg)),
-            TraceViewMode.OutlinesWithSource => Wrap($"<img src=\"{DataUri(sourcePng)}\" style='position:absolute' />" +
-                                                     $"<div style='position:relative'>{MakeOutlines(svg)}</div>"),
-            _ => Wrap(svg),
+            TraceViewMode.TracingResult => svg,
+            TraceViewMode.TracingResultWithOutlines => LayerOver(svg, MakeOutlines(svg)),
+            TraceViewMode.Outlines => MakeOutlines(svg),
+            TraceViewMode.OutlinesWithSource => $"<img src=\"{DataUri(sourcePng)}\" style='position:absolute' />" +
+                                                $"<div style='position:relative'>{MakeOutlines(svg)}</div>",
+            _ => svg,
         };
     }
 
