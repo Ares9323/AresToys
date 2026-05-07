@@ -3,10 +3,34 @@
 All notable changes to ShareQ. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.1] — 2026-05-06
+## [0.1.1] — 2026-05-07
 
 Second alpha. Big editor refactor, full Italian localization, image trace (raster → SVG)
-feature, plus a sweep of UX polish across capture, clipboard, launcher and effects.
+and AI background removal (Magic eraser), clipboard-first save flow, plus a sweep of UX
+polish across capture, clipboard, launcher and effects.
+
+### New — AI background removal ("Magic eraser")
+- New eraser button in the editor toolbar opens a dedicated BgRemoverWindow with side-by-
+  side source / cutout preview (cutout pane on a checker background to make alpha visible).
+- U2NetP saliency model (~4.5 MB, Apache 2.0) embedded via ONNX Runtime. DirectML on Win10
+  /11 (any DX12 GPU) with automatic CPU fallback. First call ~150-500 ms warm-up; subsequent
+  calls ~100-500 ms inference-only.
+- Post-processing pipeline (re-runs locally, no ONNX rerun on slider edits): Threshold,
+  Feather (Gaussian), Edge offset (erode / dilate via blur+threshold), Background opacity
+  (preview-only — see what was cut to paint it back).
+- Brush tool (Add / Remove) with hardness control. Hardness drives both edge falloff AND
+  per-stamp alpha cap so a soft brush genuinely builds up gradually instead of saturating
+  instantly. Per-stroke buffer + Lighten blend keeps the falloff visible end-to-end across
+  long continuous drags.
+- Brush keyboard / mouse shortcuts: `X` toggle Add↔Remove, `Alt` invert mode mid-stroke,
+  `Shift+Wheel` hardness, `Wheel` size, `Ctrl+Wheel` zoom (anchored at mouse, 0.1×–20×),
+  middle-mouse-button pan, `Ctrl+Z` undo last stroke (20-level stack), `Reset brush`,
+  `Reset view`. Apply via `Enter`, Cancel via `Esc`.
+- Brush cursor visualizer: two concentric rings (outer = stamp radius, inner-dashed =
+  hardness core). Stays at screen-size regardless of zoom level. Centres on the cursor
+  even after slider tweaks (the ring re-flashes at the canvas centre when sliders are
+  driven from outside the preview).
+- Pipeline task `shareq.remove-background` exposes the same operation to workflows.
 
 ### New — Image trace (raster → SVG)
 - New "Trace" button in the editor toolbar opens an Illustrator-style preview window:
@@ -17,13 +41,24 @@ feature, plus a sweep of UX polish across capture, clipboard, launcher and effec
   `Sketched Art`, `Silhouettes`, `Line Art`, `Technical Drawing`) + user-saved custom
   presets persisted in settings.
 - Modes: Color / Grayscale / Black and White. Palette: Automatic (elbow-prune) / Limited /
-  Full Tone. Parameters: Colors (2-30), Threshold (0-255 for B&W), Paths %, Corners %,
+  Full Tone. Parameters: Colors (2-64), Threshold (0-255 for Black and White), Paths %,
+  Corners %,
   Noise (despeckle), Snap Curves to Lines, Transparency, Auto Grouping.
+- Quality knobs (exposed sliders 0-3): Smoothing iterations (majority filter on the
+  per-pixel layer assignment — collapses 1-2 px boundary oscillations from anti-aliased
+  edges), Pre-blur strength (3×3 box passes on the source — cleans AA noise before
+  quantisation), Overlap radius (Overlapping-mode dilation in pixels — closes the seams
+  between adjacent layers' potrace-smoothed paths).
 - Ignore Color eyedropper drops a picked colour from the trace; tolerance slider widens
   the match. Toggling Ignore Color auto-enables Transparency so the effect is visible.
 - View dropdown: Tracing Result / + Outlines / Outlines / + Source Image / Source Image —
   swaps the right pane without re-tracing.
 - Preview toggle + explicit Trace button so the user can pause auto-rerun on slow inputs.
+- Live preview supports `Ctrl+Wheel` zoom anchored at mouse (custom JS — vector-quality at
+  any scale, no rasterisation) + drag-to-pan. Source image is displayed at WebView2's
+  native scale; the checker bg stays stable while only the artwork zooms.
+- State preservation across re-traces: zoom + pan survive every parameter tweak so the
+  user can stay zoomed into a problem area while iterating sliders.
 - Bundled `potrace.exe` 1.16 (BSD) under `Tools/`. Pipeline task `Trace to SVG` exposes the
   same tracer to workflows.
 
@@ -43,6 +78,16 @@ feature, plus a sweep of UX polish across capture, clipboard, launcher and effec
 - Crop + effect chain after editor confirmation now produces correctly-sized output
   (previously caused vertical-strip artifacts on high-DPI displays — DPI metadata was
   ignored by the canvas exporter).
+- Clipboard-first save flow: the primary action button (formerly "Save", now a copy icon)
+  creates a NEW history item with the edited bytes AND publishes them to the Windows
+  clipboard, so the typical "screenshot → annotate → paste in Telegram" loop is one click.
+  The original item is preserved untouched in history. "Save as…" (floppy icon) keeps its
+  one-shot file-export semantics; "Cancel" (X icon, danger appearance) discards.
+- Footer action buttons are now icon-only (Copy / Floppy / Dismiss via FontAwesome 7),
+  with localised tooltips. Apply respects `Enter` (IsDefault), Cancel respects `Esc`
+  (IsCancel).
+- Blur / Pixelate over arrow shapes no longer erases them — the canvas renders effects
+  before annotations regardless of insertion order.
 
 ### Capture
 - Region capture: snapshot is now taken **before** the overlay window is constructed, so
@@ -63,6 +108,14 @@ feature, plus a sweep of UX polish across capture, clipboard, launcher and effec
 - "Generate QR code…" affordances (toolbar button + context menu) now hide on non-text
   rows (Image / Video / Files).
 - Smart notifications: per-item tag/group so successive toasts don't replace or stack.
+- Image copy-to-clipboard preserves alpha. The pipeline task, AutoPaster, editor's
+  `Ctrl+C`, and pinned-image window now publish images via the registered "PNG" clipboard
+  format — Telegram (send-as-file), Discord, Slack, browsers and modern Office paste with
+  the alpha channel intact. The legacy CF_BITMAP path was overriding alpha and turning
+  semi-transparent pixels (Shadow effect glow, Magic-eraser cutouts) into hard solid
+  colour on paste; CF_BITMAP is now skipped for images that have alpha so well-behaved
+  consumers always get the alpha-correct PNG. Fully-opaque captures still publish both
+  formats so Paint / older Word still work.
 
 ### Launcher
 - Faster invocation; resize handles polished; cell-edit dialog restyled to match the rest
