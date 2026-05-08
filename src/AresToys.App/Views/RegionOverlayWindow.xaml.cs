@@ -38,6 +38,12 @@ public partial class RegionOverlayWindow : Window
     private BitmapSource? _screenSnapshot;
     private int _screenSnapshotLeft, _screenSnapshotTop;
 
+    /// <summary>When true, the overlay closes on the FIRST committed region (single drag
+    /// or one snap-to-window click) without waiting for Enter — single-shot semantics that
+    /// match the pre-multi-region behaviour. Set by callers (e.g. the CaptureRegionTask
+    /// pipeline task) per workflow. Default false = current multi-region UX.</summary>
+    public bool AutoConfirmOnFirstSelection { get; set; }
+
     /// <summary>PNG bytes of the picked region, cropped from the screen snapshot the
     /// overlay took at open-time. Non-null when <see cref="PickRegion"/> returned a
     /// region — callers can use these directly and skip a second BitBlt round-trip.
@@ -118,7 +124,17 @@ public partial class RegionOverlayWindow : Window
             Activate(); Focus(); Cursor = Cursors.Cross;
             MagnifierCircle.Width = MagnifierCircle.Height = MagnifierBoxPx;
             UpdateDim(0, 0, 0, 0);
-            await PositionToolbarFromSettingsOrDefaultAsync().ConfigureAwait(true);
+            // Auto-confirm mode hides the multi-region toolbar entirely — the affordances it
+            // exposes (region count, Apply, Cancel for accumulated rects) are meaningless when
+            // the overlay closes on the first mouse-up. The Esc shortcut still cancels.
+            if (AutoConfirmOnFirstSelection)
+            {
+                Toolbar.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                await PositionToolbarFromSettingsOrDefaultAsync().ConfigureAwait(true);
+            }
             // Drive magnifier + cursor coords from a 60Hz timer instead of MouseMove (which fires 200+/s
             // on high-poll devices and causes redraw-time lag).
             _magnifierTimer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Render)
@@ -720,6 +736,13 @@ public partial class RegionOverlayWindow : Window
         UpdateMultiDim();
         UpdateRegionSelectionVisuals();
         UpdateToolbarStatus();
+        // Auto-confirm mode: every commit path (drag mouse-up, snap-to-window click,
+        // anything that lands here) collapses to "first valid region wins". One call
+        // site is enough because OnMouseUp / snap-click both funnel through CommitRegion.
+        if (AutoConfirmOnFirstSelection)
+        {
+            ConfirmCommittedRegions();
+        }
     }
 
     /// <summary>Refresh the bottom toolbar's status text + Apply button enabled state.

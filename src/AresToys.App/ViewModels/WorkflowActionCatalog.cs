@@ -94,7 +94,12 @@ public static class WorkflowActionCatalog
         new("arestoys.capture-region",
             "Capture region",
             "Show the region selection overlay and capture the chosen rectangle. Skipped automatically when a payload is already in the bag (e.g. fullscreen / monitor entry-points).",
-            "Capture"),
+            "Capture",
+            DefaultConfigJson: "{\"autoConfirmOnFirstSelection\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("autoConfirmOnFirstSelection", "Auto-confirm on first selection (skip multi-region)", false),
+            }),
 
         new("arestoys.capture-active-window",
             "Capture active window",

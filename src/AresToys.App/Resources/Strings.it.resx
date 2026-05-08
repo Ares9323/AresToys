@@ -666,6 +666,7 @@
   <data name="WorkflowActionParam_arestoys_save_to_file_format" xml:space="preserve"><value>Formato</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original" xml:space="preserve"><value>Mantieni l'originale nella cronologia appunti</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name" xml:space="preserve"><value>Preset</value></data>
+  <data name="WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection" xml:space="preserve"><value>Conferma automatica alla prima selezione (salta multi-regione)</value></data>
   <data name="WorkflowActionParam_arestoys_copy_color_hex_alpha" xml:space="preserve"><value>Includi alpha (RRGGBBAA)</value></data>
   <data name="WorkflowActionParam_arestoys_copy_color_hex_hash" xml:space="preserve"><value>Prefisso #</value></data>
 

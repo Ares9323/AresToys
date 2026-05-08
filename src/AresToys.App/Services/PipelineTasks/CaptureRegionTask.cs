@@ -47,6 +47,12 @@ public sealed class CaptureRegionTask : IPipelineTask
             return;
         }
 
+        // Per-workflow opt-in: when set, the overlay closes on the first valid mouse-up
+        // (drag rect or snap-to-window click) without waiting for Enter — single-shot
+        // semantics matching the pre-multi-region behaviour, useful for "rapid screenshot"
+        // workflows where the user never wants to add a second region.
+        var autoConfirm = (bool?)config?["autoConfirmOnFirstSelection"] ?? false;
+
         // Snapshot synchronously BEFORE the dispatcher hop — by the time the overlay window
         // is constructed, focus has shifted to AresToys and transient UI like open dropdowns
         // are gone. ShareX-style: capture once at the earliest entry point, hand the bitmap
@@ -54,7 +60,10 @@ public sealed class CaptureRegionTask : IPipelineTask
         var (prefabSnapshot, prefabLeft, prefabTop) = RegionOverlayWindow.CaptureVirtualScreen();
         var (region, prefabBytes) = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            var overlay = new RegionOverlayWindow(prefabSnapshot, prefabLeft, prefabTop);
+            var overlay = new RegionOverlayWindow(prefabSnapshot, prefabLeft, prefabTop)
+            {
+                AutoConfirmOnFirstSelection = autoConfirm,
+            };
             var picked = overlay.PickRegion();
             return (picked, overlay.PickedSnapshotBytes);
         }).Task.ConfigureAwait(false);
