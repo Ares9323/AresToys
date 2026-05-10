@@ -2,15 +2,18 @@ namespace AresToys.Editor.Model;
 
 /// <summary>Free-drawn polyline. Rotation spins the stroke around its bounding-box centre.
 /// <see cref="Smooth"/> tells the renderer to draw the points through a Catmull-Rom curve
-/// instead of a jagged polyline — same data, gentler look. <see cref="EndArrow"/> caps the
-/// stroke with a filled arrow head tangent to the last segment (ShareX-style "freehand
-/// arrow"); the head shares <see cref="Outline"/> so the cap reads as part of the line.</summary>
+/// instead of a jagged polyline — same data, gentler look. <see cref="StartCap"/> /
+/// <see cref="EndCap"/> attach an arrowhead tangent to the first / last segment
+/// (ShareX-style "freehand arrow"); <see cref="TipStyle"/> picks the cap geometry. The
+/// head shares <see cref="Outline"/> so it reads as part of the line.</summary>
 public sealed record FreehandShape(
     IReadOnlyList<(double X, double Y)> Points,
     ShapeColor Outline, double StrokeWidth,
     double Rotation = 0,
     bool Smooth = false,
-    bool EndArrow = false)
+    bool StartCap = false,
+    bool EndCap = false,
+    LineTipStyle TipStyle = LineTipStyle.ShareXCurve)
     : Shape(Outline, ShapeColor.Transparent, StrokeWidth)
 {
     /// <summary>Pivot for rotation: bbox centre. Returns (0, 0) when the stroke has no points.</summary>

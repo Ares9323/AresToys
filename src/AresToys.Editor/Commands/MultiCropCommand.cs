@@ -116,7 +116,6 @@ public sealed class MultiCropCommand : IEditorCommand
     {
         RectangleShape r => r with { X = r.X + dx, Y = r.Y + dy },
         EllipseShape e => e with { X = e.X + dx, Y = e.Y + dy },
-        ArrowShape a => a with { FromX = a.FromX + dx, FromY = a.FromY + dy, ToX = a.ToX + dx, ToY = a.ToY + dy },
         LineShape l => l with { FromX = l.FromX + dx, FromY = l.FromY + dy, ToX = l.ToX + dx, ToY = l.ToY + dy },
         FreehandShape f => f with { Points = f.Points.Select(p => (p.X + dx, p.Y + dy)).ToList() },
         TextShape t => t with { X = t.X + dx, Y = t.Y + dy },
@@ -137,7 +136,6 @@ public sealed class MultiCropCommand : IEditorCommand
     {
         RectangleShape r => (r.X, r.Y, r.Width, r.Height),
         EllipseShape e => (e.X, e.Y, e.Width, e.Height),
-        ArrowShape a => (Math.Min(a.FromX, a.ToX), Math.Min(a.FromY, a.ToY), Math.Abs(a.ToX - a.FromX), Math.Abs(a.ToY - a.FromY)),
         LineShape l => (Math.Min(l.FromX, l.ToX), Math.Min(l.FromY, l.ToY), Math.Abs(l.ToX - l.FromX), Math.Abs(l.ToY - l.FromY)),
         FreehandShape f when f.Points.Count > 0 => (f.Points.Min(p => p.X), f.Points.Min(p => p.Y),
             f.Points.Max(p => p.X) - f.Points.Min(p => p.X), f.Points.Max(p => p.Y) - f.Points.Min(p => p.Y)),

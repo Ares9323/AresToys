@@ -17,6 +17,9 @@ public class LineToolTests
         var line = Assert.IsType<LineShape>(shape);
         Assert.Equal(10, line.FromX);
         Assert.Equal(60, line.ToY);
+        // Default LineTool has no caps — produces a plain line.
+        Assert.False(line.StartCap);
+        Assert.False(line.EndCap);
     }
 
     [Fact]

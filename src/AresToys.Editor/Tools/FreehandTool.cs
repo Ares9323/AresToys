@@ -17,10 +17,12 @@ public sealed class FreehandTool : IDrawingTool
     /// panel also updates this so the next stroke inherits the same choice.</summary>
     public bool SmoothStrokes { get; set; } = true;
 
-    /// <summary>Sticky default for the "freehand arrow" cap (ShareX-style). Same propagation
-    /// flow as <see cref="SmoothStrokes"/>: per-stroke override in the properties panel writes
-    /// back here so subsequent strokes inherit it.</summary>
-    public bool EndArrow { get; set; }
+    /// <summary>Sticky cap defaults for ShareX-style freehand arrows. Same propagation flow as
+    /// <see cref="SmoothStrokes"/>: per-stroke overrides in the properties panel write back here
+    /// so subsequent strokes inherit them.</summary>
+    public bool StartCap { get; set; }
+    public bool EndCap { get; set; }
+    public LineTipStyle TipStyle { get; set; } = LineTipStyle.ShareXCurve;
 
     public void Begin(double x, double y, ShapeColor outline, ShapeColor fill, double strokeWidth)
     {
@@ -28,7 +30,7 @@ public sealed class FreehandTool : IDrawingTool
         _points.Add((x, y));
         _outline = outline; _strokeWidth = strokeWidth;
         _active = true;
-        PreviewShape = new FreehandShape([.. _points], _outline, _strokeWidth, Smooth: SmoothStrokes, EndArrow: EndArrow);
+        PreviewShape = MakeShape();
     }
 
     public void Update(double x, double y)
@@ -37,7 +39,7 @@ public sealed class FreehandTool : IDrawingTool
         var last = _points[^1];
         if (Math.Abs(last.X - x) < 0.5 && Math.Abs(last.Y - y) < 0.5) return;
         _points.Add((x, y));
-        PreviewShape = new FreehandShape([.. _points], _outline, _strokeWidth, Smooth: SmoothStrokes, EndArrow: EndArrow);
+        PreviewShape = MakeShape();
     }
 
     public Shape? Commit(double x, double y)
@@ -45,8 +47,12 @@ public sealed class FreehandTool : IDrawingTool
         if (!_active) return null;
         _active = false;
         if (_points.Count < 2) { PreviewShape = null; return null; }
-        var shape = new FreehandShape([.. _points], _outline, _strokeWidth, Smooth: SmoothStrokes, EndArrow: EndArrow);
+        var shape = MakeShape();
         PreviewShape = null;
         return shape;
     }
+
+    private FreehandShape MakeShape() =>
+        new([.. _points], _outline, _strokeWidth,
+            Smooth: SmoothStrokes, StartCap: StartCap, EndCap: EndCap, TipStyle: TipStyle);
 }

@@ -12,7 +12,16 @@ public sealed record EditorDefaults(
     EditorTool Tool,
     TextStyle TextStyle,
     bool FreehandSmooth = true,
-    bool FreehandEndArrow = false);
+    bool FreehandStartCap = false,
+    bool FreehandEndCap = false,
+    // Line/Arrow share the same internal tool but persist distinct cap defaults so the two
+    // toolbar buttons keep their identity ("clicking Arrow gives me an arrow"). LineTipStyle
+    // is shared across line/arrow/freehand — picking a tip style is a global aesthetic choice.
+    bool LineStartCap = false,
+    bool LineEndCap = false,
+    bool ArrowStartCap = false,
+    bool ArrowEndCap = true,
+    LineTipStyle LineTipStyle = LineTipStyle.ShareXCurve);
 
 public sealed class EditorDefaultsStore
 {
@@ -20,7 +29,7 @@ public sealed class EditorDefaultsStore
 
     public static readonly EditorDefaults Initial =
         new(ShapeColor.Red, ShapeColor.Transparent, 2, EditorTool.Rectangle, TextStyle.Default,
-            FreehandSmooth: true, FreehandEndArrow: false);
+            FreehandSmooth: true);
 
     private readonly ISettingsStore _settings;
 
@@ -45,6 +54,12 @@ public sealed class EditorDefaultsStore
                 ? TextStyle.Default.Color
                 : new ShapeColor(dto.TextColorA, dto.TextColorR, dto.TextColorG, dto.TextColorB);
             var align = Enum.IsDefined(typeof(TextAlign), dto.Align) ? (TextAlign)dto.Align : TextAlign.Left;
+            // Legacy migration: the pre-0.1.5 payload only had `FreehandEndArrow` (bool); map it
+            // into the new EndCap. StartCap had no equivalent so it stays at its default (false).
+            var freehandEndCap = dto.FreehandEndCap || dto.FreehandEndArrow;
+            var tipStyle = Enum.IsDefined(typeof(LineTipStyle), dto.LineTipStyle)
+                ? (LineTipStyle)dto.LineTipStyle
+                : LineTipStyle.ShareXCurve;
             return new EditorDefaults(
                 new ShapeColor(dto.OutlineA, dto.OutlineR, dto.OutlineG, dto.OutlineB),
                 new ShapeColor(dto.FillA, dto.FillR, dto.FillG, dto.FillB),
@@ -52,7 +67,13 @@ public sealed class EditorDefaultsStore
                 Enum.IsDefined(typeof(EditorTool), dto.Tool) ? (EditorTool)dto.Tool : Initial.Tool,
                 new TextStyle(family, size, dto.Bold, dto.Italic, textColor, align),
                 FreehandSmooth: dto.FreehandSmooth,
-                FreehandEndArrow: dto.FreehandEndArrow);
+                FreehandStartCap: dto.FreehandStartCap,
+                FreehandEndCap: freehandEndCap,
+                LineStartCap: dto.LineStartCap,
+                LineEndCap: dto.LineEndCap,
+                ArrowStartCap: dto.ArrowStartCap,
+                ArrowEndCap: dto.ArrowEndCap,
+                LineTipStyle: tipStyle);
         }
         catch (JsonException)
         {
@@ -62,6 +83,8 @@ public sealed class EditorDefaultsStore
 
     public async Task SaveAsync(EditorDefaults defaults, CancellationToken cancellationToken)
     {
+        // FreehandEndArrow is always written as `false` — once a user saves through the new code
+        // the legacy field is harmlessly cleared, future loads ignore it.
         var dto = new Dto(
             defaults.Outline.A, defaults.Outline.R, defaults.Outline.G, defaults.Outline.B,
             defaults.Fill.A, defaults.Fill.R, defaults.Fill.G, defaults.Fill.B,
@@ -74,7 +97,14 @@ public sealed class EditorDefaultsStore
             defaults.TextStyle.Color.A, defaults.TextStyle.Color.R, defaults.TextStyle.Color.G, defaults.TextStyle.Color.B,
             (int)defaults.TextStyle.Align,
             defaults.FreehandSmooth,
-            defaults.FreehandEndArrow);
+            FreehandEndArrow: false,
+            defaults.FreehandStartCap,
+            defaults.FreehandEndCap,
+            defaults.LineStartCap,
+            defaults.LineEndCap,
+            defaults.ArrowStartCap,
+            defaults.ArrowEndCap,
+            (int)defaults.LineTipStyle);
         var json = JsonSerializer.Serialize(dto);
         await _settings.SetAsync(SettingsKey, json, sensitive: false, cancellationToken).ConfigureAwait(false);
     }
@@ -93,7 +123,16 @@ public sealed class EditorDefaultsStore
         // Defaults to true so older payloads (pre-Smooth field) load with smoothing enabled —
         // matches the new "smooth on by default" UX.
         bool FreehandSmooth = true,
-        // Defaults to false so older payloads (pre-EndArrow field) load with the cap off —
-        // matches "no arrow unless the user asked for one".
-        bool FreehandEndArrow = false);
+        // Legacy field (pre-0.1.5). Kept on the Dto only for load-time migration into the new
+        // FreehandEndCap; SaveAsync always writes it as `false`.
+        bool FreehandEndArrow = false,
+        // New cap fields (pre-existing payloads load with all-false defaults except ArrowEndCap,
+        // which mirrors the historical "arrow has the head" behaviour).
+        bool FreehandStartCap = false,
+        bool FreehandEndCap = false,
+        bool LineStartCap = false,
+        bool LineEndCap = false,
+        bool ArrowStartCap = false,
+        bool ArrowEndCap = true,
+        int LineTipStyle = 0);
 }

@@ -26,6 +26,13 @@
              pack URI because AresToys.Editor doesn't reference AresToys.App's resource
              dictionary directly. Same pattern as the Window.Icon above. -->
         <BitmapImage x:Key="LocalAresToysLogo" UriSource="pack://application:,,,/AresToys;component/Assets/AresToysLogo.png" />
+        <!-- Override WPF-UI v4's checkbox brush keys so checkboxes (Smooth stroke / End arrow,
+             Bold/Italic in step + text sections) follow the AresToys accent theme instead of
+             the default teal. Same approach used in MainWindow.xaml's UploaderRowTemplate. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource AccentBackgroundDarkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource AccentBackgroundDarkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBorderBrush" Color="{DynamicResource AccentForegroundColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForeground" Color="{DynamicResource AccentForegroundColor}" />
         </ResourceDictionary>
     </ui:FluentWindow.Resources>
 
@@ -420,12 +427,41 @@
                         <CheckBox x:Name="SelFreehandSmoothCheck"
                                   Content="Smooth stroke"
                                   Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
-                                  Margin="0,0,0,4"
+                                  Margin="0,0,0,6"
                                   ToolTip="Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke." />
-                        <CheckBox x:Name="SelFreehandEndArrowCheck"
-                                  Content="End arrow"
-                                  Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
-                                  ToolTip="Cap the stroke with an arrow head tangent to the last segment (ShareX-style freehand arrow)." />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <CheckBox x:Name="SelFreehandStartCapCheck"
+                                      Content="Start cap"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      Margin="0,0,12,0"
+                                      ToolTip="Cap the start of the stroke with a ShareX-style arrowhead tangent to the first segment." />
+                            <CheckBox x:Name="SelFreehandEndCapCheck"
+                                      Content="End cap"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      ToolTip="Cap the end of the stroke with a ShareX-style arrowhead tangent to the last segment." />
+                        </StackPanel>
+                        <TextBlock x:Name="SelFreehandTipStyleLabel" Text="Tip style" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <ComboBox x:Name="SelFreehandTipStyleCombo"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip="Visual style of the cap geometry — ShareX curve (V with concave base, integrates with stroke) or solid filled triangle." />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelLineSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <CheckBox x:Name="SelLineStartCapCheck"
+                                      Content="Start cap"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      Margin="0,0,12,0"
+                                      ToolTip="Add a ShareX-style arrowhead at the From end of this line, oriented along the bezier tangent at that point." />
+                            <CheckBox x:Name="SelLineEndCapCheck"
+                                      Content="End cap"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      ToolTip="Add a ShareX-style arrowhead at the To end of this line, oriented along the bezier tangent at that point." />
+                        </StackPanel>
+                        <TextBlock x:Name="SelLineTipStyleLabel" Text="Tip style" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <ComboBox x:Name="SelLineTipStyleCombo"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip="Visual style of the cap geometry — ShareX curve (V with concave base, integrates with stroke) or solid filled triangle." />
                     </StackPanel>
 
                     <StackPanel x:Name="SelRotationSection" Visibility="Collapsed" Margin="0,0,0,12">

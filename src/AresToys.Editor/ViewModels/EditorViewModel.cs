@@ -16,11 +16,15 @@ public sealed partial class EditorViewModel : ObservableObject
 
     public EditorViewModel()
     {
+        // Line and Arrow are intent aliases — both map to a separate LineTool instance so each
+        // can carry its own sticky cap defaults (clicking Arrow seeds (false, true), Line seeds
+        // (false, false)). Both produce LineShape; downstream code never branches on which key
+        // was used to draw it.
         _tools = new Dictionary<EditorTool, IDrawingTool>
         {
             [EditorTool.Select] = new SelectTool(),
             [EditorTool.Rectangle] = new RectangleTool(),
-            [EditorTool.Arrow] = new ArrowTool(),
+            [EditorTool.Arrow] = new LineTool { StartCap = false, EndCap = true },
             [EditorTool.Line] = new LineTool(),
             [EditorTool.Ellipse] = new EllipseTool(),
             [EditorTool.Freehand] = new FreehandTool(),
@@ -87,15 +91,73 @@ public sealed partial class EditorViewModel : ObservableObject
         if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.SmoothStrokes = value;
     }
 
-    /// <summary>Sticky default for the freehand "end arrow" cap (ShareX-style). Same propagation
-    /// rules as <see cref="FreehandSmoothDefault"/>: tool reads on stroke start, per-shape toggle
-    /// writes back, persisted across sessions via EditorDefaults.</summary>
+    /// <summary>Sticky cap defaults for the freehand "ShareX-style arrow" feature. Same
+    /// propagation rules as <see cref="FreehandSmoothDefault"/>: tool reads on stroke start,
+    /// per-shape toggle writes back, persisted across sessions via EditorDefaults.</summary>
     [ObservableProperty]
-    private bool _freehandEndArrowDefault;
+    private bool _freehandStartCapDefault;
 
-    partial void OnFreehandEndArrowDefaultChanged(bool value)
+    partial void OnFreehandStartCapDefaultChanged(bool value)
     {
-        if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.EndArrow = value;
+        if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.StartCap = value;
+    }
+
+    [ObservableProperty]
+    private bool _freehandEndCapDefault;
+
+    partial void OnFreehandEndCapDefaultChanged(bool value)
+    {
+        if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.EndCap = value;
+    }
+
+    /// <summary>Sticky cap defaults for the unified Line/Arrow tool. The two toolbar buttons
+    /// (<see cref="EditorTool.Line"/> / <see cref="EditorTool.Arrow"/>) are intent aliases for
+    /// the same internal LineTool — they keep distinct default sets here so clicking "Arrow"
+    /// always reseeds an arrow-style cap regardless of what the user was just doing in Line mode,
+    /// matching the muscle memory of the original two-tool layout.</summary>
+    [ObservableProperty]
+    private bool _lineStartCapDefault;
+
+    partial void OnLineStartCapDefaultChanged(bool value)
+    {
+        if (_tools.TryGetValue(EditorTool.Line, out var t) && t is LineTool lt) lt.StartCap = value;
+    }
+
+    [ObservableProperty]
+    private bool _lineEndCapDefault;
+
+    partial void OnLineEndCapDefaultChanged(bool value)
+    {
+        if (_tools.TryGetValue(EditorTool.Line, out var t) && t is LineTool lt) lt.EndCap = value;
+    }
+
+    [ObservableProperty]
+    private bool _arrowStartCapDefault;
+
+    partial void OnArrowStartCapDefaultChanged(bool value)
+    {
+        if (_tools.TryGetValue(EditorTool.Arrow, out var t) && t is LineTool lt) lt.StartCap = value;
+    }
+
+    [ObservableProperty]
+    private bool _arrowEndCapDefault = true;
+
+    partial void OnArrowEndCapDefaultChanged(bool value)
+    {
+        if (_tools.TryGetValue(EditorTool.Arrow, out var t) && t is LineTool lt) lt.EndCap = value;
+    }
+
+    /// <summary>Tip-style default shared across Line, Arrow and Freehand. Picking a tip style
+    /// is a global aesthetic choice — there's no muscle-memory case for "different look per
+    /// tool" — so we keep one slot and broadcast it to all three tools.</summary>
+    [ObservableProperty]
+    private LineTipStyle _lineTipStyleDefault = LineTipStyle.ShareXCurve;
+
+    partial void OnLineTipStyleDefaultChanged(LineTipStyle value)
+    {
+        if (_tools.TryGetValue(EditorTool.Line, out var lt) && lt is LineTool l1) l1.TipStyle = value;
+        if (_tools.TryGetValue(EditorTool.Arrow, out var at) && at is LineTool l2) l2.TipStyle = value;
+        if (_tools.TryGetValue(EditorTool.Freehand, out var ft) && ft is FreehandTool f) f.TipStyle = value;
     }
 
     /// <summary>What alt+click does on a placement tool (Rectangle, Ellipse, Arrow, Line,

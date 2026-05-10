@@ -818,9 +818,15 @@
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Spotlight blur (px)</value></data>
   <data name="Editor_EdgeBlur" xml:space="preserve"><value>Edge blur (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Smooth stroke</value></data>
-  <data name="Editor_EndArrow" xml:space="preserve"><value>End arrow</value></data>
+  <data name="Editor_StartCap" xml:space="preserve"><value>Start cap</value></data>
+  <data name="Editor_EndCap" xml:space="preserve"><value>End cap</value></data>
+  <data name="Editor_TipStyle" xml:space="preserve"><value>Tip style</value></data>
+  <data name="Editor_TipStyle_ShareXCurve" xml:space="preserve"><value>ShareX curve</value></data>
+  <data name="Editor_TipStyle_FilledTriangle" xml:space="preserve"><value>Filled triangle</value></data>
   <data name="Editor_TooltipSmoothStroke" xml:space="preserve"><value>Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke.</value></data>
-  <data name="Editor_TooltipEndArrow" xml:space="preserve"><value>Cap the stroke with an arrow head tangent to the last segment (ShareX-style freehand arrow).</value></data>
+  <data name="Editor_TooltipStartCap" xml:space="preserve"><value>Add an arrowhead at the start of the line / freehand stroke, oriented along the tangent at that endpoint.</value></data>
+  <data name="Editor_TooltipEndCap" xml:space="preserve"><value>Add an arrowhead at the end of the line / freehand stroke, oriented along the tangent at that endpoint.</value></data>
+  <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Visual style of the cap geometry — ShareX curve (V with concave base, integrates with stroke) or solid filled triangle.</value></data>
   <data name="Editor_ApplyToSelected" xml:space="preserve"><value>Apply to selected</value></data>
   <data name="Editor_TooltipApplyToSelected" xml:space="preserve"><value>Apply the default outline / fill / stroke above to the selected shape(s)</value></data>
   <data name="Editor_SetAsDefault" xml:space="preserve"><value>Set as default</value></data>

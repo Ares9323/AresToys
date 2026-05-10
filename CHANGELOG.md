@@ -3,7 +3,43 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.6] — 2026-05-10
+## [0.1.7] — 2026-05-10
+
+Line and Arrow tools unified into a single primitive with per-end cap toggles
+(Start cap, End cap) and a pickable tip style — ShareX-style curved cap (default,
+the V with concave base that integrates with the stroke) or solid filled triangle.
+Same caps mechanism applied to Freehand. Toolbar keeps the two intent buttons (L
+for Line, A for Arrow) and their muscle memory: clicking Arrow seeds a fresh
+EndCap=true gesture, clicking Line seeds both off. Editor checkboxes now follow
+the AresToys accent theme instead of the WPF-UI default teal.
+
+### Editor — Line, Arrow, Freehand caps
+- `ArrowShape` removed; `LineShape` is now the single primitive for line and
+  arrow renders, carrying `StartCap`, `EndCap`, `TipStyle`. `FreehandShape`
+  gains the same trio in place of the legacy single `EndArrow` bool. Persisted
+  defaults migrate transparently — pre-0.1.7 payloads pick up `EndCap` from the
+  old `FreehandEndArrow` value, the legacy field is then cleared on next save.
+- Two toolbar buttons (Line / Arrow) remain as intent aliases for the same
+  internal tool. Each persists its own pair of cap defaults (Line: both off,
+  Arrow: EndCap on) so cycling between them always reseeds the expected look.
+- New "Tip style" combobox in the per-shape properties panel for Line/Arrow and
+  Freehand selections. Default `ShareX curve` reproduces ShareX's V with a
+  concave curved base; `Filled triangle` is a heavier solid alternative.
+- Cap rendering trims the underlying stroke parametrically (quadratic-bezier
+  sub-curve for Line, arc-length walk for Freehand) by ~1.2× stroke width on
+  each capped side so the round line cap no longer pokes past the V apex. The
+  cap apex stays anchored at the user's actual endpoint.
+- Short-line guard mirrors ShareX: when both caps are requested but the line
+  is too short, only EndCap renders so the heads don't visually flip.
+- Selection labels track intent: a `LineShape` with any cap toggled on reads
+  as "Arrow" in the properties panel header; with no caps it reads "Line".
+
+### Editor — UI polish
+- Properties-panel checkboxes (Smooth stroke, Start cap, End cap, Bold, Italic
+  in step / text sections) now follow the AresToys accent theme. Previously
+  picked up WPF-UI's hard-coded teal.
+
+
 
 ShareX-style step counter with draggable tail and right-click delete-renumber. Canvas
 plus preview pan moved from right mouse button to middle mouse button across the app to

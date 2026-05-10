@@ -218,8 +218,18 @@ public partial class EditorWindow : FluentWindow
         SelRotationBox.KeyDown += (_, ev) => { if (ev.Key == Key.Enter) OnSelRotationBoxCommitted(); };
         SelFreehandSmoothCheck.Checked += (_, _) => OnSelFreehandSmoothChanged();
         SelFreehandSmoothCheck.Unchecked += (_, _) => OnSelFreehandSmoothChanged();
-        SelFreehandEndArrowCheck.Checked += (_, _) => OnSelFreehandEndArrowChanged();
-        SelFreehandEndArrowCheck.Unchecked += (_, _) => OnSelFreehandEndArrowChanged();
+        SelFreehandStartCapCheck.Checked += (_, _) => OnSelFreehandCapsChanged();
+        SelFreehandStartCapCheck.Unchecked += (_, _) => OnSelFreehandCapsChanged();
+        SelFreehandEndCapCheck.Checked += (_, _) => OnSelFreehandCapsChanged();
+        SelFreehandEndCapCheck.Unchecked += (_, _) => OnSelFreehandCapsChanged();
+        PopulateTipStyleCombo(SelFreehandTipStyleCombo);
+        SelFreehandTipStyleCombo.SelectionChanged += (_, _) => OnSelFreehandTipStyleChanged();
+        SelLineStartCapCheck.Checked += (_, _) => OnSelLineCapsChanged();
+        SelLineStartCapCheck.Unchecked += (_, _) => OnSelLineCapsChanged();
+        SelLineEndCapCheck.Checked += (_, _) => OnSelLineCapsChanged();
+        SelLineEndCapCheck.Unchecked += (_, _) => OnSelLineCapsChanged();
+        PopulateTipStyleCombo(SelLineTipStyleCombo);
+        SelLineTipStyleCombo.SelectionChanged += (_, _) => OnSelLineTipStyleChanged();
 
         WireFontPickers();
         SelFontSizeSlider.ValueChanged += (_, _) => OnSelFontSizeSliderChanged();
@@ -458,9 +468,40 @@ public partial class EditorWindow : FluentWindow
             SelStepItalicCheck.Content = ital;
         }
         if (_labels.TryGetValue("SmoothStroke", out var ss)) SelFreehandSmoothCheck.Content = ss;
-        if (_labels.TryGetValue("EndArrow", out var ea)) SelFreehandEndArrowCheck.Content = ea;
+        if (_labels.TryGetValue("StartCap", out var sc))
+        {
+            SelFreehandStartCapCheck.Content = sc;
+            SelLineStartCapCheck.Content = sc;
+        }
+        if (_labels.TryGetValue("EndCap", out var ec))
+        {
+            SelFreehandEndCapCheck.Content = ec;
+            SelLineEndCapCheck.Content = ec;
+        }
+        if (_labels.TryGetValue("TipStyle", out var ts))
+        {
+            SelFreehandTipStyleLabel.Text = ts;
+            SelLineTipStyleLabel.Text = ts;
+        }
         if (_labels.TryGetValue("TooltipSmoothStroke", out var tSs)) SelFreehandSmoothCheck.ToolTip = tSs;
-        if (_labels.TryGetValue("TooltipEndArrow", out var tEa)) SelFreehandEndArrowCheck.ToolTip = tEa;
+        if (_labels.TryGetValue("TooltipStartCap", out var tSc))
+        {
+            SelFreehandStartCapCheck.ToolTip = tSc;
+            SelLineStartCapCheck.ToolTip = tSc;
+        }
+        if (_labels.TryGetValue("TooltipEndCap", out var tEc))
+        {
+            SelFreehandEndCapCheck.ToolTip = tEc;
+            SelLineEndCapCheck.ToolTip = tEc;
+        }
+        if (_labels.TryGetValue("TooltipTipStyle", out var tTs))
+        {
+            SelFreehandTipStyleCombo.ToolTip = tTs;
+            SelLineTipStyleCombo.ToolTip = tTs;
+        }
+        // Refresh combo item labels after the localization dictionary is populated.
+        PopulateTipStyleCombo(SelFreehandTipStyleCombo);
+        PopulateTipStyleCombo(SelLineTipStyleCombo);
 
         // "Set as default" button + tooltip.
         if (_labels.TryGetValue("SetAsDefault", out var sad)) SetAsDefaultBtn.Content = sad;
@@ -1068,7 +1109,6 @@ public partial class EditorWindow : FluentWindow
         AresToys.Editor.Model.RectangleShape r  => r  with { StrokeWidth = w },
         AresToys.Editor.Model.EllipseShape e    => e  with { StrokeWidth = w },
         AresToys.Editor.Model.TextShape t       => t  with { StrokeWidth = w },
-        AresToys.Editor.Model.ArrowShape a      => a  with { StrokeWidth = w },
         AresToys.Editor.Model.LineShape l       => l  with { StrokeWidth = w },
         AresToys.Editor.Model.FreehandShape f   => f  with { StrokeWidth = w },
         AresToys.Editor.Model.StepCounterShape sc => sc with { StrokeWidth = w },
@@ -1082,7 +1122,6 @@ public partial class EditorWindow : FluentWindow
         AresToys.Editor.Model.EllipseShape e   => e.Rotation,
         AresToys.Editor.Model.TextShape t      => t.Rotation,
         AresToys.Editor.Model.ImageShape img   => img.Rotation,
-        AresToys.Editor.Model.ArrowShape a     => a.Rotation,
         AresToys.Editor.Model.LineShape l      => l.Rotation,
         AresToys.Editor.Model.FreehandShape f  => f.Rotation,
         _ => null,
@@ -1094,7 +1133,6 @@ public partial class EditorWindow : FluentWindow
         AresToys.Editor.Model.EllipseShape e      => e with { Rotation = r },
         AresToys.Editor.Model.TextShape t         => t with { Rotation = r },
         AresToys.Editor.Model.ImageShape img      => img with { Rotation = r },
-        AresToys.Editor.Model.ArrowShape a        => a with { Rotation = r },
         AresToys.Editor.Model.LineShape l         => l with { Rotation = r },
         AresToys.Editor.Model.FreehandShape f     => f with { Rotation = r },
         _ => null,
@@ -1562,7 +1600,7 @@ public partial class EditorWindow : FluentWindow
 
         // Alt+click on a placement tool: short-circuit BeginGesture and instead select an
         // existing shape of the SAME type as the active tool under the cursor (Rectangle tool →
-        // pick a RectangleShape, Arrow tool → pick an ArrowShape, etc.), then SWITCH to the
+        // pick a RectangleShape, Arrow/Line tool → pick a LineShape, etc.), then SWITCH to the
         // Select tool so the grips / tail handle / properties row become editable. Alt is the
         // place-mode "select" modifier; Shift remains the multi-select modifier (matching the
         // Select tool's own shift+click toggle behaviour). Combined Alt+Shift toggles the hit
@@ -1615,7 +1653,9 @@ public partial class EditorWindow : FluentWindow
     {
         EditorTool.Rectangle   => typeof(RectangleShape),
         EditorTool.Ellipse     => typeof(EllipseShape),
-        EditorTool.Arrow       => typeof(ArrowShape),
+        // Line and Arrow are intent aliases for the same internal LineTool — both produce
+        // LineShape, so alt+click in either tool selects any LineShape under the cursor.
+        EditorTool.Arrow       => typeof(LineShape),
         EditorTool.Line        => typeof(LineShape),
         EditorTool.Freehand    => typeof(FreehandShape),
         EditorTool.Text        => typeof(TextShape),
@@ -1980,7 +2020,6 @@ public partial class EditorWindow : FluentWindow
     {
         RectangleShape r => r with { X = r.X + dx, Y = r.Y + dy },
         EllipseShape e => e with { X = e.X + dx, Y = e.Y + dy },
-        ArrowShape a => a with { FromX = a.FromX + dx, FromY = a.FromY + dy, ToX = a.ToX + dx, ToY = a.ToY + dy },
         LineShape l => l with { FromX = l.FromX + dx, FromY = l.FromY + dy, ToX = l.ToX + dx, ToY = l.ToY + dy },
         FreehandShape f => f with { Points = f.Points.Select(p => (p.X + dx, p.Y + dy)).ToList() },
         TextShape t => t with { X = t.X + dx, Y = t.Y + dy },
@@ -2154,17 +2193,108 @@ public partial class EditorWindow : FluentWindow
         }
     }
 
-    private void OnSelFreehandEndArrowChanged()
+    private void OnSelFreehandCapsChanged()
     {
         if (_suppressLiveUpdates) return;
-        var endArrow = SelFreehandEndArrowCheck.IsChecked == true;
+        var startCap = SelFreehandStartCapCheck.IsChecked == true;
+        var endCap = SelFreehandEndCapCheck.IsChecked == true;
         foreach (var s in _vm.SelectedShapes.ToList())
         {
-            if (s is FreehandShape f && f.EndArrow != endArrow)
-                _vm.LiveReplaceShape(s, f with { EndArrow = endArrow });
+            if (s is FreehandShape f && (f.StartCap != startCap || f.EndCap != endCap))
+                _vm.LiveReplaceShape(s, f with { StartCap = startCap, EndCap = endCap });
         }
-        // Sticky: same propagation pattern as Smooth — next stroke inherits.
-        _vm.FreehandEndArrowDefault = endArrow;
+        // Sticky: next stroke inherits whichever caps the user just chose.
+        _vm.FreehandStartCapDefault = startCap;
+        _vm.FreehandEndCapDefault = endCap;
+    }
+
+    private void OnSelFreehandTipStyleChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        if (SelFreehandTipStyleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not LineTipStyle tip) return;
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is FreehandShape f && f.TipStyle != tip)
+                _vm.LiveReplaceShape(s, f with { TipStyle = tip });
+        }
+        _vm.LineTipStyleDefault = tip;
+    }
+
+    private void OnSelLineCapsChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var startCap = SelLineStartCapCheck.IsChecked == true;
+        var endCap = SelLineEndCapCheck.IsChecked == true;
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is LineShape l && (l.StartCap != startCap || l.EndCap != endCap))
+                _vm.LiveReplaceShape(s, l with { StartCap = startCap, EndCap = endCap });
+        }
+        // Push the change into whichever Line/Arrow tool the user is currently in (so the next
+        // gesture inherits) AND into the matching persisted slot so it survives the session.
+        // When the user is on a non-line tool, default to writing to the Line slot — they're
+        // typically priming an "I want my plain lines to look like this" change.
+        var writeToArrow = _vm.CurrentTool == EditorTool.Arrow;
+        if (writeToArrow)
+        {
+            _vm.ArrowStartCapDefault = startCap;
+            _vm.ArrowEndCapDefault = endCap;
+        }
+        else
+        {
+            _vm.LineStartCapDefault = startCap;
+            _vm.LineEndCapDefault = endCap;
+        }
+    }
+
+    private void OnSelLineTipStyleChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        if (SelLineTipStyleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not LineTipStyle tip) return;
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is LineShape l && l.TipStyle != tip)
+                _vm.LiveReplaceShape(s, l with { TipStyle = tip });
+        }
+        _vm.LineTipStyleDefault = tip;
+    }
+
+    /// <summary>(Re)populate a TipStyle ComboBox with one entry per <see cref="LineTipStyle"/>
+    /// value, label sourced from the localization dictionary (with a sensible fallback when
+    /// the dict isn't populated yet — e.g. before <c>ApplyLocalization</c> runs). Item.Tag
+    /// stores the enum value so the SelectionChanged handlers don't have to map by index.</summary>
+    private void PopulateTipStyleCombo(ComboBox combo)
+    {
+        var preserveTag = combo.SelectedItem is ComboBoxItem prevItem ? prevItem.Tag : null;
+        combo.Items.Clear();
+        foreach (LineTipStyle value in Enum.GetValues<LineTipStyle>())
+        {
+            var labelKey = value switch
+            {
+                LineTipStyle.ShareXCurve => "TipStyleShareXCurve",
+                LineTipStyle.FilledTriangle => "TipStyleFilledTriangle",
+                _ => null,
+            };
+            var label = (labelKey is not null && _labels.TryGetValue(labelKey, out var loc)) ? loc : value.ToString();
+            var item = new ComboBoxItem { Content = label, Tag = value };
+            combo.Items.Add(item);
+            if (preserveTag is LineTipStyle preserved && preserved == value) combo.SelectedItem = item;
+        }
+        if (combo.SelectedItem is null && combo.Items.Count > 0) combo.SelectedIndex = 0;
+    }
+
+    /// <summary>Pick the ComboBoxItem whose Tag matches <paramref name="value"/>. No-op if not
+    /// found (e.g. the combo hasn't been populated yet).</summary>
+    private static void SelectTipStyleInCombo(ComboBox combo, LineTipStyle value)
+    {
+        foreach (var raw in combo.Items)
+        {
+            if (raw is ComboBoxItem item && item.Tag is LineTipStyle tip && tip == value)
+            {
+                combo.SelectedItem = item;
+                return;
+            }
+        }
     }
 
     private void OnSelRotationSliderChanged()
@@ -2825,6 +2955,7 @@ public partial class EditorWindow : FluentWindow
         bool Stroke,
         bool Text,
         bool Freehand,
+        bool Line,
         ShapeCategory.EffectKind Effect)
     {
         public enum EffectKind { None, Blur, Pixelate, Spotlight }
@@ -2832,16 +2963,16 @@ public partial class EditorWindow : FluentWindow
 
     private static ShapeCategory? ToolCategory(EditorTool tool) => tool switch
     {
-        EditorTool.Rectangle   => new("Rectangle",   Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, ShapeCategory.EffectKind.None),
-        EditorTool.Ellipse     => new("Ellipse",     Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, ShapeCategory.EffectKind.None),
-        EditorTool.Arrow       => new("Arrow",       Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, ShapeCategory.EffectKind.None),
-        EditorTool.Line        => new("Line",        Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, ShapeCategory.EffectKind.None),
-        EditorTool.Freehand    => new("Freehand",    Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: true,  ShapeCategory.EffectKind.None),
-        EditorTool.Text        => new("Text",        Outline: false, Fill: false, Stroke: false, Text: true,  Freehand: false, ShapeCategory.EffectKind.None),
-        EditorTool.StepCounter => new("Step counter",Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, ShapeCategory.EffectKind.None),
-        EditorTool.Blur        => new("Blur",        Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, ShapeCategory.EffectKind.Blur),
-        EditorTool.Pixelate    => new("Pixelate",    Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, ShapeCategory.EffectKind.Pixelate),
-        EditorTool.Spotlight   => new("Spotlight",   Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, ShapeCategory.EffectKind.Spotlight),
+        EditorTool.Rectangle   => new("Rectangle",   Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.None),
+        EditorTool.Ellipse     => new("Ellipse",     Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.None),
+        EditorTool.Arrow       => new("Arrow",       Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  ShapeCategory.EffectKind.None),
+        EditorTool.Line        => new("Line",        Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  ShapeCategory.EffectKind.None),
+        EditorTool.Freehand    => new("Freehand",    Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: true,  Line: false, ShapeCategory.EffectKind.None),
+        EditorTool.Text        => new("Text",        Outline: false, Fill: false, Stroke: false, Text: true,  Freehand: false, Line: false, ShapeCategory.EffectKind.None),
+        EditorTool.StepCounter => new("Step counter",Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.None),
+        EditorTool.Blur        => new("Blur",        Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.Blur),
+        EditorTool.Pixelate    => new("Pixelate",    Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.Pixelate),
+        EditorTool.Spotlight   => new("Spotlight",   Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.Spotlight),
         // Select / Crop / SmartEraser have no per-shape props worth previewing — fall back to
         // the empty-state hint.
         _ => null,
@@ -2851,8 +2982,10 @@ public partial class EditorWindow : FluentWindow
     {
         RectangleShape    => Loc("Shape_Rectangle",   "Rectangle"),
         EllipseShape      => Loc("Shape_Ellipse",     "Ellipse"),
-        ArrowShape        => Loc("Shape_Arrow",       "Arrow"),
-        LineShape         => Loc("Shape_Line",        "Line"),
+        // A LineShape with any cap toggled on reads as "Arrow" in the user's mental model
+        // (the unified tool started as a separate Line and Arrow). Use the label that matches
+        // what they see.
+        LineShape l       => Loc(l.StartCap || l.EndCap ? "Shape_Arrow" : "Shape_Line", l.StartCap || l.EndCap ? "Arrow" : "Line"),
         FreehandShape     => Loc("Shape_Freehand",    "Freehand"),
         TextShape         => Loc("Shape_Text",        "Text"),
         StepCounterShape  => Loc("Shape_StepCounter", "Step counter"),
@@ -2894,6 +3027,7 @@ public partial class EditorWindow : FluentWindow
         SelStrokeSection.Visibility  = category.Stroke  ? Visibility.Visible : Visibility.Collapsed;
         SelTextStyleSection.Visibility = category.Text  ? Visibility.Visible : Visibility.Collapsed;
         SelFreehandSection.Visibility  = category.Freehand ? Visibility.Visible : Visibility.Collapsed;
+        SelLineSection.Visibility      = category.Line ? Visibility.Visible : Visibility.Collapsed;
         SelEffectSection.Visibility    = category.Effect != ShapeCategory.EffectKind.None ? Visibility.Visible : Visibility.Collapsed;
         // Rotation only makes sense once a concrete shape exists with an X/Y/W/H bbox, so it
         // stays hidden in the defaults view — there's nothing to rotate yet.
@@ -2913,7 +3047,19 @@ public partial class EditorWindow : FluentWindow
             if (category.Freehand)
             {
                 SelFreehandSmoothCheck.IsChecked = _vm.FreehandSmoothDefault;
-                SelFreehandEndArrowCheck.IsChecked = _vm.FreehandEndArrowDefault;
+                SelFreehandStartCapCheck.IsChecked = _vm.FreehandStartCapDefault;
+                SelFreehandEndCapCheck.IsChecked = _vm.FreehandEndCapDefault;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, _vm.LineTipStyleDefault);
+            }
+            if (category.Line)
+            {
+                // Pre-fill from the active tool's defaults: Arrow tool → ArrowStart/End, Line
+                // tool → LineStart/End. The user sees what their next stroke will look like.
+                var startCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowStartCapDefault : _vm.LineStartCapDefault;
+                var endCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowEndCapDefault : _vm.LineEndCapDefault;
+                SelLineStartCapCheck.IsChecked = startCap;
+                SelLineEndCapCheck.IsChecked = endCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, _vm.LineTipStyleDefault);
             }
             // Effect-tool defaults: surface the slider's range/label even when no shape exists
             // yet, so the user sees what they're about to draw. Concrete values come from the
@@ -3002,6 +3148,31 @@ public partial class EditorWindow : FluentWindow
             // TextTool factory and the text swatch through the PropertyChanged handler above.
             _vm.CurrentTextStyle = _vm.CurrentTextStyle with { Color = t.Style.Color };
         }
+        // Cap defaults: project the selected shape's caps onto the matching default slot. A
+        // selected LineShape pushes into the Line OR Arrow slot based on the active tool —
+        // the user's intent is "make the kind of stroke I'm currently in look like this".
+        // FreehandShape always pushes into the Freehand slot. TipStyle is shared, so any
+        // selection updates the global default.
+        if (s is LineShape l)
+        {
+            if (_vm.CurrentTool == EditorTool.Arrow)
+            {
+                _vm.ArrowStartCapDefault = l.StartCap;
+                _vm.ArrowEndCapDefault = l.EndCap;
+            }
+            else
+            {
+                _vm.LineStartCapDefault = l.StartCap;
+                _vm.LineEndCapDefault = l.EndCap;
+            }
+            _vm.LineTipStyleDefault = l.TipStyle;
+        }
+        else if (s is FreehandShape fh)
+        {
+            _vm.FreehandStartCapDefault = fh.StartCap;
+            _vm.FreehandEndCapDefault = fh.EndCap;
+            _vm.LineTipStyleDefault = fh.TipStyle;
+        }
     }
 
     /// <summary>Project the default text colour onto a TextShape's Style.Color. Non-TextShapes
@@ -3016,7 +3187,6 @@ public partial class EditorWindow : FluentWindow
     {
         RectangleShape r => r with { Outline = c },
         EllipseShape e => e with { Outline = c },
-        ArrowShape a => a with { Outline = c },
         LineShape l => l with { Outline = c },
         FreehandShape f => f with { Outline = c },
         TextShape t => t with { Outline = c },
@@ -3041,18 +3211,17 @@ public partial class EditorWindow : FluentWindow
     /// <see cref="ImageShape"/> participates because outer-aligned outlines wrap the bitmap
     /// without affecting the rendered pixels — same UX as Photoshop's "Stroke" layer effect.</summary>
     private static bool ShapeSupportsOutline(Shape s) =>
-        s is RectangleShape or EllipseShape or ArrowShape or LineShape or FreehandShape or StepCounterShape or ImageShape;
+        s is RectangleShape or EllipseShape or LineShape or FreehandShape or StepCounterShape or ImageShape;
 
     /// <summary>True for shapes that visually use StrokeWidth. TextShape uses FontSize, effect shapes
     /// have no stroke.</summary>
     private static bool ShapeSupportsStroke(Shape s) =>
-        s is RectangleShape or EllipseShape or ArrowShape or LineShape or FreehandShape or StepCounterShape or ImageShape;
+        s is RectangleShape or EllipseShape or LineShape or FreehandShape or StepCounterShape or ImageShape;
 
     private static Shape ApplyStrokeWidth(Shape s, double w) => s switch
     {
         RectangleShape r => r with { StrokeWidth = w },
         EllipseShape e => e with { StrokeWidth = w },
-        ArrowShape a => a with { StrokeWidth = w },
         LineShape l => l with { StrokeWidth = w },
         FreehandShape f => f with { StrokeWidth = w },
         StepCounterShape sc => sc with { StrokeWidth = w },
@@ -3636,7 +3805,6 @@ public partial class EditorWindow : FluentWindow
     {
         RectangleShape r => (r.X, r.Y, r.Width, r.Height),
         EllipseShape e => (e.X, e.Y, e.Width, e.Height),
-        ArrowShape a => (Math.Min(a.FromX, a.ToX), Math.Min(a.FromY, a.ToY), Math.Abs(a.ToX - a.FromX), Math.Abs(a.ToY - a.FromY)),
         LineShape l => (Math.Min(l.FromX, l.ToX), Math.Min(l.FromY, l.ToY), Math.Abs(l.ToX - l.FromX), Math.Abs(l.ToY - l.FromY)),
         FreehandShape f => FreehandBounds(f),
         TextShape t => (t.X, t.Y, t.Width, t.Height),
@@ -3665,7 +3833,6 @@ public partial class EditorWindow : FluentWindow
         {
             RectangleShape r => CreateRectangle(r),
             EllipseShape e => CreateEllipse(e),
-            ArrowShape a => CreateArrow(a),
             LineShape l => CreateLine(l),
             FreehandShape f => CreateFreehand(f),
             TextShape t => CreateText(t),
@@ -3767,82 +3934,180 @@ public partial class EditorWindow : FluentWindow
 
     private static UIElement CreateLine(LineShape l)
     {
-        // Quadratic bezier through the optional control point. When ControlOffsetX/Y are zero
-        // the control coincides with the midpoint and the bezier degenerates to a straight line —
-        // visually identical to the previous Line element.
+        // Quadratic bezier through the optional control point. Caps (when enabled) are filled
+        // overlay paths anchored to From/To. The stroke is *trimmed* parametrically on each
+        // capped end so it ends inside the cap geometry — without the trim, the round line
+        // cap pokes out past the apex of the V and the line "shoulders" stick out around the
+        // narrow part of the cap (visually: a small red bump at the tip). The cap apex stays
+        // at the user-clicked endpoint; only the underlying stroke shrinks.
         var (cx, cy) = l.ControlPoint;
-        var geom = new PathGeometry();
-        var fig = new PathFigure { StartPoint = new Point(l.FromX, l.FromY) };
-        fig.Segments.Add(new QuadraticBezierSegment(new Point(cx, cy), new Point(l.ToX, l.ToY), true));
-        geom.Figures.Add(fig);
-        var path = new System.Windows.Shapes.Path
+        var brush = ToBrush(l.Outline);
+
+        var dx = l.ToX - l.FromX;
+        var dy = l.ToY - l.FromY;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+        var capHeight = Math.Max(8, l.StrokeWidth * 4);
+        var bothFit = dist > capHeight * 2;
+        var drawStart = l.StartCap && (!l.EndCap || bothFit);
+        var drawEnd = l.EndCap;
+
+        // Trim amount per side: stroke width covers the round line cap + the line shoulders
+        // up to where the V/triangle becomes wider than the stroke. 1.2× is a safety margin —
+        // perceptually invisible because the cap is filled with the same colour as the stroke
+        // anyway, so a small overlap underneath is harmless.
+        var inset = l.StrokeWidth * 1.2;
+        var tStart = drawStart && dist > 0 ? Math.Min(0.45, inset / dist) : 0;
+        var tEnd = drawEnd && dist > 0 ? Math.Max(0.55, 1 - inset / dist) : 1;
+
+        var p0 = new Point(l.FromX, l.FromY);
+        var p1 = new Point(cx, cy);
+        var p2 = new Point(l.ToX, l.ToY);
+        var (sp0, sp1, sp2) = TrimQuadraticBezier(p0, p1, p2, tStart, tEnd);
+
+        var bezGeom = new PathGeometry();
+        var fig = new PathFigure { StartPoint = sp0 };
+        fig.Segments.Add(new QuadraticBezierSegment(sp1, sp2, true));
+        bezGeom.Figures.Add(fig);
+        var stroke = new System.Windows.Shapes.Path
         {
-            Data = geom,
-            Stroke = ToBrush(l.Outline),
+            Data = bezGeom,
+            Stroke = brush,
             StrokeThickness = l.StrokeWidth,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round
         };
+
+        // No caps → return the stroke directly (avoids a Canvas wrap when none is needed).
+        if (!drawStart && !drawEnd)
+        {
+            if (l.Rotation != 0)
+            {
+                var (mx, my) = l.Midpoint;
+                stroke.RenderTransform = new RotateTransform(l.Rotation, mx, my);
+            }
+            return stroke;
+        }
+
+        var canvas = new Canvas { IsHitTestVisible = false };
+        canvas.Children.Add(stroke);
+        if (drawEnd)
+        {
+            var tdx = l.ToX - cx;
+            var tdy = l.ToY - cy;
+            var tlen = Math.Max(Math.Sqrt(tdx * tdx + tdy * tdy), 1);
+            canvas.Children.Add(MakeTipCap(l.ToX, l.ToY, tdx / tlen, tdy / tlen, l.StrokeWidth, l.TipStyle, brush));
+        }
+        if (drawStart)
+        {
+            var tdx = l.FromX - cx;
+            var tdy = l.FromY - cy;
+            var tlen = Math.Max(Math.Sqrt(tdx * tdx + tdy * tdy), 1);
+            canvas.Children.Add(MakeTipCap(l.FromX, l.FromY, tdx / tlen, tdy / tlen, l.StrokeWidth, l.TipStyle, brush));
+        }
         if (l.Rotation != 0)
         {
-            // Path geometry uses absolute canvas coords (no Canvas.SetLeft/Top), so the rotate
-            // pivot is also expressed in canvas coords — the segment midpoint.
             var (mx, my) = l.Midpoint;
-            path.RenderTransform = new RotateTransform(l.Rotation, mx, my);
+            canvas.RenderTransform = new RotateTransform(l.Rotation, mx, my);
         }
-        return path;
+        return canvas;
     }
 
-    private static UIElement CreateArrow(ArrowShape a)
+    /// <summary>Build a filled arrowhead cap anchored at (<paramref name="tipX"/>,<paramref name="tipY"/>)
+    /// and oriented so its tip points along (<paramref name="ux"/>,<paramref name="uy"/>) (a unit vector
+    /// pointing toward the tip from the cap's base). Geometry mirrors ShareX's
+    /// <c>ArrowDrawingShape.CreatePen</c> arrow path: V with a concave-curved base for
+    /// <see cref="LineTipStyle.ShareXCurve"/>, solid isosceles for <see cref="LineTipStyle.FilledTriangle"/>.
+    /// Same scale relation as the legacy renderer (head ≈ stroke × 4) so existing arrows keep
+    /// roughly the visual weight users are used to.</summary>
+    private static System.Windows.Shapes.Path MakeTipCap(
+        double tipX, double tipY,
+        double ux, double uy,
+        double strokeWidth,
+        LineTipStyle style,
+        Brush fill)
     {
-        // Quadratic bezier from From → ControlPoint → To. The arrowhead is anchored to the
-        // tangent at the END of the curve (= ToPoint − ControlPoint), not the straight-line
-        // direction, so the head still points "out of" the curve when bent.
-        var (cx, cy) = a.ControlPoint;
-        var tdx = a.ToX - cx;
-        var tdy = a.ToY - cy;
-        var tlen = Math.Max(Math.Sqrt(tdx * tdx + tdy * tdy), 1);
-        var ux = tdx / tlen; var uy = tdy / tlen;
-        var headSize = Math.Max(8, a.StrokeWidth * 4);
-        var leftX = a.ToX - ux * headSize - uy * (headSize / 2);
-        var leftY = a.ToY - uy * headSize + ux * (headSize / 2);
-        var rightX = a.ToX - ux * headSize + uy * (headSize / 2);
-        var rightY = a.ToY - uy * headSize - ux * (headSize / 2);
+        var halfWidth = Math.Max(2, strokeWidth * 2);
+        var height = Math.Max(8, strokeWidth * 4);
+        var concave = Math.Max(1, strokeWidth);
+        // Right-hand perpendicular to (ux, uy) for laying out the base wings symmetrically.
+        var vx = -uy;
+        var vy = ux;
+        var baseCx = tipX - ux * height;
+        var baseCy = tipY - uy * height;
+        var leftX = baseCx - vx * halfWidth;
+        var leftY = baseCy - vy * halfWidth;
+        var rightX = baseCx + vx * halfWidth;
+        var rightY = baseCy + vy * halfWidth;
 
         var geom = new PathGeometry();
-        var fig = new PathFigure { StartPoint = new Point(a.FromX, a.FromY) };
-        fig.Segments.Add(new QuadraticBezierSegment(new Point(cx, cy), new Point(a.ToX, a.ToY), true));
-        fig.Segments.Add(new LineSegment(new Point(leftX, leftY), true));
-        fig.Segments.Add(new LineSegment(new Point(a.ToX, a.ToY), true));
-        fig.Segments.Add(new LineSegment(new Point(rightX, rightY), true));
+        var fig = new PathFigure { StartPoint = new Point(tipX, tipY), IsClosed = true, IsFilled = true };
+        fig.Segments.Add(new LineSegment(new Point(leftX, leftY), false));
+        if (style == LineTipStyle.ShareXCurve)
+        {
+            // Concave base: pulled `concave` units toward the tip so the bottom of the cap
+            // dips into the stroke instead of cutting it flat. CloseFigure on the figure
+            // closes from rightWing back to tipX/tipY automatically.
+            var concaveCx = baseCx + ux * concave;
+            var concaveCy = baseCy + uy * concave;
+            fig.Segments.Add(new QuadraticBezierSegment(new Point(concaveCx, concaveCy), new Point(rightX, rightY), false));
+        }
+        else
+        {
+            fig.Segments.Add(new LineSegment(new Point(rightX, rightY), false));
+        }
         geom.Figures.Add(fig);
 
-        var path = new System.Windows.Shapes.Path
+        return new System.Windows.Shapes.Path
         {
             Data = geom,
-            Stroke = ToBrush(a.Outline),
-            StrokeThickness = a.StrokeWidth,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round
+            Fill = fill
         };
-        if (a.Rotation != 0)
-        {
-            var (mx, my) = a.Midpoint;
-            path.RenderTransform = new RotateTransform(a.Rotation, mx, my);
-        }
-        return path;
+    }
+
+    /// <summary>Return the sub-bezier of the quadratic <paramref name="p0"/>..<paramref name="p2"/>
+    /// over the parameter interval [<paramref name="tStart"/>, <paramref name="tEnd"/>] as a
+    /// new (P0, P1, P2) triple. Used to trim the visible stroke under a tip cap so it ends
+    /// inside the cap geometry rather than poking out past the apex.</summary>
+    private static (Point P0, Point P1, Point P2) TrimQuadraticBezier(
+        Point p0, Point p1, Point p2, double tStart, double tEnd)
+    {
+        // Sub-bezier from [0, u] of a quadratic:
+        //   P0' = P0
+        //   P1' = (1-u)·P0 + u·P1
+        //   P2' = B(u)
+        var u = tEnd;
+        var p1a = new Point((1 - u) * p0.X + u * p1.X, (1 - u) * p0.Y + u * p1.Y);
+        var p2a = QuadBezier(p0, p1, p2, u);
+        var p0a = p0;
+
+        if (tStart <= 0) return (p0a, p1a, p2a);
+
+        // Now sub-bezier of (p0a, p1a, p2a) over [v, 1] where v maps tStart from the original:
+        //   v = tStart / tEnd
+        //   P0'' = B'(v)   (B' is the new bezier defined by p0a/p1a/p2a)
+        //   P1'' = (1-v)·P1' + v·P2'
+        //   P2'' = P2'
+        var v = tStart / u;
+        var p0b = QuadBezier(p0a, p1a, p2a, v);
+        var p1b = new Point((1 - v) * p1a.X + v * p2a.X, (1 - v) * p1a.Y + v * p2a.Y);
+        return (p0b, p1b, p2a);
+    }
+
+    private static Point QuadBezier(Point p0, Point p1, Point p2, double t)
+    {
+        var omt = 1 - t;
+        return new Point(omt * omt * p0.X + 2 * omt * t * p1.X + t * t * p2.X,
+                         omt * omt * p0.Y + 2 * omt * t * p1.Y + t * t * p2.Y);
     }
 
     private static UIElement CreateFreehand(FreehandShape f)
     {
-        // Whichever branch we take below, we want a uniform PathGeometry so adding the
-        // optional end-arrow cap is just two appended LineSegments instead of an extra
-        // overlay element. Non-smooth strokes get a polyline-as-path; smooth strokes get a
-        // Catmull-Rom-through-Bezier path. The cap then anchors to whatever the last
-        // rendered point is — same code path for both styles.
-        IReadOnlyList<(double X, double Y)> renderPts;
-        var geom = new PathGeometry();
+        // Build the stroke as a PathGeometry (polyline for raw, Catmull-Rom-Bezier for smooth).
+        // `displayPts` is what the user effectively sees rendered (smoothing, if requested).
+        // `strokePts` is `displayPts` with the capped end(s) trimmed back by ~strokeWidth so
+        // the round line cap doesn't poke past the V apex. Caps stay anchored to the *original*
+        // displayPts endpoints — the visible tip is the user's actual stroke endpoint.
+        IReadOnlyList<(double X, double Y)> displayPts;
         if (f.Smooth && f.Points.Count >= 3)
         {
             // Smoothing pipeline:
@@ -3853,89 +4118,182 @@ public partial class EditorWindow : FluentWindow
             //      the gesture entirely. Endpoints are preserved by the windowed clamp.
             //   2. Catmull-Rom → cubic Bezier rendering through the denoised points so the
             //      stroke looks like a continuous ink curve, not micro-segments.
-            var pts = MovingAverage(MovingAverage(f.Points, 7), 7);
-            renderPts = pts;
-            var fig = new PathFigure { StartPoint = new Point(pts[0].X, pts[0].Y) };
-            for (var i = 0; i < pts.Count - 1; i++)
+            displayPts = MovingAverage(MovingAverage(f.Points, 7), 7);
+        }
+        else
+        {
+            displayPts = f.Points;
+        }
+
+        var hasCaps = (f.StartCap || f.EndCap) && displayPts.Count >= 2;
+        var inset = f.StrokeWidth * 1.2;
+        var strokePts = hasCaps
+            ? TrimPolyline(displayPts, trimStart: f.StartCap ? inset : 0, trimEnd: f.EndCap ? inset : 0)
+            : displayPts;
+
+        var geom = new PathGeometry();
+        if (f.Smooth && strokePts.Count >= 3)
+        {
+            var fig = new PathFigure { StartPoint = new Point(strokePts[0].X, strokePts[0].Y) };
+            for (var i = 0; i < strokePts.Count - 1; i++)
             {
-                var p0 = pts[Math.Max(0, i - 1)];
-                var p1 = pts[i];
-                var p2 = pts[i + 1];
-                var p3 = pts[Math.Min(pts.Count - 1, i + 2)];
+                var p0 = strokePts[Math.Max(0, i - 1)];
+                var p1 = strokePts[i];
+                var p2 = strokePts[i + 1];
+                var p3 = strokePts[Math.Min(strokePts.Count - 1, i + 2)];
                 var c1x = p1.X + (p2.X - p0.X) / 6.0;
                 var c1y = p1.Y + (p2.Y - p0.Y) / 6.0;
                 var c2x = p2.X - (p3.X - p1.X) / 6.0;
                 var c2y = p2.Y - (p3.Y - p1.Y) / 6.0;
                 fig.Segments.Add(new BezierSegment(new Point(c1x, c1y), new Point(c2x, c2y), new Point(p2.X, p2.Y), true));
             }
-            AppendEndArrowIfNeeded(fig, pts, f);
             geom.Figures.Add(fig);
         }
-        else
+        else if (strokePts.Count > 0)
         {
-            renderPts = f.Points;
-            if (f.Points.Count > 0)
-            {
-                var fig = new PathFigure { StartPoint = new Point(f.Points[0].X, f.Points[0].Y) };
-                for (var i = 1; i < f.Points.Count; i++)
-                    fig.Segments.Add(new LineSegment(new Point(f.Points[i].X, f.Points[i].Y), true));
-                AppendEndArrowIfNeeded(fig, f.Points, f);
-                geom.Figures.Add(fig);
-            }
+            var fig = new PathFigure { StartPoint = new Point(strokePts[0].X, strokePts[0].Y) };
+            for (var i = 1; i < strokePts.Count; i++)
+                fig.Segments.Add(new LineSegment(new Point(strokePts[i].X, strokePts[i].Y), true));
+            geom.Figures.Add(fig);
         }
 
-        var element = new System.Windows.Shapes.Path
+        var brush = ToBrush(f.Outline);
+        var stroke = new System.Windows.Shapes.Path
         {
             Data = geom,
-            Stroke = ToBrush(f.Outline),
+            Stroke = brush,
             StrokeThickness = f.StrokeWidth,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round,
             StrokeLineJoin = PenLineJoin.Round
         };
+
+        UIElement root;
+        if (hasCaps)
+        {
+            var canvas = new Canvas { IsHitTestVisible = false };
+            canvas.Children.Add(stroke);
+            if (f.EndCap)
+            {
+                var cap = MakeFreehandCap(displayPts, fromEnd: true, f.StrokeWidth, f.TipStyle, brush);
+                if (cap is not null) canvas.Children.Add(cap);
+            }
+            if (f.StartCap)
+            {
+                var cap = MakeFreehandCap(displayPts, fromEnd: false, f.StrokeWidth, f.TipStyle, brush);
+                if (cap is not null) canvas.Children.Add(cap);
+            }
+            root = canvas;
+        }
+        else
+        {
+            root = stroke;
+        }
+
         if (f.Rotation != 0)
         {
             var (px, py) = f.Pivot;
-            element.RenderTransform = new RotateTransform(f.Rotation, px, py);
+            root.RenderTransform = new RotateTransform(f.Rotation, px, py);
         }
-        _ = renderPts; // reserved for future hit-testing on the rendered geometry
-        return element;
+        return root;
     }
 
-    /// <summary>If <see cref="FreehandShape.EndArrow"/> is set, append two stroked line segments
-    /// that form a "&gt;" arrowhead at the last rendered point. Tangent is averaged over the
-    /// final stretch of the stroke (up to 8 points back) so a single jittery last sample doesn't
-    /// flick the head sideways. Falls back to a no-op when the stroke has fewer than 2 points.</summary>
-    private static void AppendEndArrowIfNeeded(PathFigure fig,
-        IReadOnlyList<(double X, double Y)> pts,
-        FreehandShape f)
+    /// <summary>Walk a polyline inward from each end and return a new list with
+    /// <paramref name="trimStart"/> / <paramref name="trimEnd"/> units of arc length removed
+    /// from the matching side. Used to shorten a freehand stroke under a tip cap so the round
+    /// line cap doesn't poke past the apex. Pass 0 to leave a side untouched.</summary>
+    private static IReadOnlyList<(double X, double Y)> TrimPolyline(
+        IReadOnlyList<(double X, double Y)> pts, double trimStart, double trimEnd)
     {
-        if (!f.EndArrow || pts.Count < 2) return;
+        if (pts.Count < 2 || (trimStart <= 0 && trimEnd <= 0)) return pts;
 
+        // Find new start: walk forward consuming distance until we've used trimStart units.
+        var startIdx = 0;
+        var startCarry = (X: pts[0].X, Y: pts[0].Y);
+        if (trimStart > 0)
+        {
+            var consumed = 0.0;
+            for (var i = 0; i < pts.Count - 1; i++)
+            {
+                var ax = pts[i].X; var ay = pts[i].Y;
+                var bx = pts[i + 1].X; var by = pts[i + 1].Y;
+                var segLen = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                if (consumed + segLen >= trimStart)
+                {
+                    var need = trimStart - consumed;
+                    var t = segLen > 0 ? need / segLen : 0;
+                    startCarry = (ax + (bx - ax) * t, ay + (by - ay) * t);
+                    startIdx = i + 1;
+                    break;
+                }
+                consumed += segLen;
+                startIdx = i + 1;
+            }
+        }
+
+        // Find new end: walk backward symmetrically.
         var endIdx = pts.Count - 1;
-        var anchorIdx = Math.Max(0, endIdx - 8);
-        var endX = pts[endIdx].X; var endY = pts[endIdx].Y;
-        var dx = endX - pts[anchorIdx].X;
-        var dy = endY - pts[anchorIdx].Y;
+        var endCarry = (X: pts[^1].X, Y: pts[^1].Y);
+        if (trimEnd > 0)
+        {
+            var consumed = 0.0;
+            for (var i = pts.Count - 1; i > 0; i--)
+            {
+                var ax = pts[i].X; var ay = pts[i].Y;
+                var bx = pts[i - 1].X; var by = pts[i - 1].Y;
+                var segLen = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                if (consumed + segLen >= trimEnd)
+                {
+                    var need = trimEnd - consumed;
+                    var t = segLen > 0 ? need / segLen : 0;
+                    endCarry = (ax + (bx - ax) * t, ay + (by - ay) * t);
+                    endIdx = i - 1;
+                    break;
+                }
+                consumed += segLen;
+                endIdx = i - 1;
+            }
+        }
+
+        // Degenerate case (trim swallowed the whole stroke): fall back to a 2-point sliver
+        // around the midpoint so the geometry stays valid (we still need at least 2 points
+        // for the cap-tangent code to work).
+        if (startIdx > endIdx)
+        {
+            var mid = ((pts[0].X + pts[^1].X) / 2, (pts[0].Y + pts[^1].Y) / 2);
+            return new[] { mid, mid };
+        }
+
+        var result = new List<(double X, double Y)>(endIdx - startIdx + 3) { startCarry };
+        for (var i = startIdx; i <= endIdx; i++)
+        {
+            // Skip duplicates of the carry-in point that sit right at the trim boundary.
+            if (i == startIdx && startCarry.X == pts[i].X && startCarry.Y == pts[i].Y) continue;
+            result.Add(pts[i]);
+        }
+        if (endCarry.X != result[^1].X || endCarry.Y != result[^1].Y) result.Add(endCarry);
+        return result;
+    }
+
+    /// <summary>Anchor a filled cap to either end of a freehand stroke. Tangent is averaged over
+    /// up to 8 points back from the chosen endpoint so a single jittery sample doesn't flick the
+    /// head sideways. Returns null when the tangent is degenerate (sub-pixel motion at the tip).</summary>
+    private static System.Windows.Shapes.Path? MakeFreehandCap(
+        IReadOnlyList<(double X, double Y)> pts,
+        bool fromEnd,
+        double strokeWidth,
+        LineTipStyle style,
+        Brush fill)
+    {
+        var tipIdx = fromEnd ? pts.Count - 1 : 0;
+        var anchorIdx = fromEnd ? Math.Max(0, tipIdx - 8) : Math.Min(pts.Count - 1, tipIdx + 8);
+        var tipX = pts[tipIdx].X;
+        var tipY = pts[tipIdx].Y;
+        var dx = tipX - pts[anchorIdx].X;
+        var dy = tipY - pts[anchorIdx].Y;
         var len = Math.Sqrt(dx * dx + dy * dy);
-        if (len < 0.5) return; // degenerate — tangent undefined, skip head
-        var ux = dx / len; var uy = dy / len;
-
-        // Same head-size relation as ArrowShape so a freehand-arrow visually matches a regular
-        // arrow at equivalent stroke weight.
-        var headSize = Math.Max(8, f.StrokeWidth * 4);
-        var leftX = endX - ux * headSize - uy * (headSize / 2);
-        var leftY = endY - uy * headSize + ux * (headSize / 2);
-        var rightX = endX - ux * headSize + uy * (headSize / 2);
-        var rightY = endY - uy * headSize - ux * (headSize / 2);
-
-        // Trace ">" anchored at the end-point: line back to the left wing, jump to the
-        // end-point, line out to the right wing. The first jump is "non-stroked" so we don't
-        // draw a visible line back along the body — the segment is still part of the figure
-        // for path continuity but skips the pen.
-        fig.Segments.Add(new LineSegment(new Point(leftX, leftY), true));
-        fig.Segments.Add(new LineSegment(new Point(endX, endY), true));
-        fig.Segments.Add(new LineSegment(new Point(rightX, rightY), true));
+        if (len < 0.5) return null;
+        return MakeTipCap(tipX, tipY, dx / len, dy / len, strokeWidth, style, fill);
     }
 
     /// <summary>Moving-average denoising. Each output point is the mean of its window-sized
@@ -4423,11 +4781,10 @@ public partial class EditorWindow : FluentWindow
         var rotatable = sels.Count == 1 && sels[0] is RectangleShape or EllipseShape or TextShape or ImageShape;
         SelRotationSection.Visibility = rotatable ? Visibility.Visible : Visibility.Collapsed;
 
-        // Freehand-specific: smooth + end-arrow toggles. Visible when a single FreehandShape
-        // is selected OR when the Freehand tool itself is active (so the user can pre-toggle
-        // before drawing — same UX the text-style section uses). The checkboxes reflect the
-        // selected shape's flags when a shape is picked, otherwise the persisted defaults so
-        // the user immediately sees their last-session choice.
+        // Freehand-specific: smooth + cap toggles + tip-style. Visible when a single
+        // FreehandShape is selected OR when the Freehand tool itself is active (so the user can
+        // pre-toggle before drawing — same UX the text-style section uses). Controls reflect
+        // the selected shape when present, otherwise the persisted defaults.
         var singleFreehand = sels.Count == 1 ? sels[0] as FreehandShape : null;
         var showFreehandSection = singleFreehand is not null || _vm.CurrentTool == EditorTool.Freehand;
         SelFreehandSection.Visibility = showFreehandSection ? Visibility.Visible : Visibility.Collapsed;
@@ -4437,12 +4794,41 @@ public partial class EditorWindow : FluentWindow
             if (singleFreehand is not null)
             {
                 SelFreehandSmoothCheck.IsChecked = singleFreehand.Smooth;
-                SelFreehandEndArrowCheck.IsChecked = singleFreehand.EndArrow;
+                SelFreehandStartCapCheck.IsChecked = singleFreehand.StartCap;
+                SelFreehandEndCapCheck.IsChecked = singleFreehand.EndCap;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, singleFreehand.TipStyle);
             }
             else
             {
                 SelFreehandSmoothCheck.IsChecked = _vm.FreehandSmoothDefault;
-                SelFreehandEndArrowCheck.IsChecked = _vm.FreehandEndArrowDefault;
+                SelFreehandStartCapCheck.IsChecked = _vm.FreehandStartCapDefault;
+                SelFreehandEndCapCheck.IsChecked = _vm.FreehandEndCapDefault;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, _vm.LineTipStyleDefault);
+            }
+            _suppressLiveUpdates = false;
+        }
+
+        // Line/Arrow-specific: cap toggles + tip-style. Mirrors the Freehand pattern. Visible
+        // when a single LineShape is selected OR when the Line/Arrow tool is active.
+        var singleLine = sels.Count == 1 ? sels[0] as LineShape : null;
+        var showLineSection = singleLine is not null || _vm.CurrentTool == EditorTool.Line || _vm.CurrentTool == EditorTool.Arrow;
+        SelLineSection.Visibility = showLineSection ? Visibility.Visible : Visibility.Collapsed;
+        if (showLineSection)
+        {
+            _suppressLiveUpdates = true;
+            if (singleLine is not null)
+            {
+                SelLineStartCapCheck.IsChecked = singleLine.StartCap;
+                SelLineEndCapCheck.IsChecked = singleLine.EndCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, singleLine.TipStyle);
+            }
+            else
+            {
+                var startCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowStartCapDefault : _vm.LineStartCapDefault;
+                var endCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowEndCapDefault : _vm.LineEndCapDefault;
+                SelLineStartCapCheck.IsChecked = startCap;
+                SelLineEndCapCheck.IsChecked = endCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, _vm.LineTipStyleDefault);
             }
             _suppressLiveUpdates = false;
         }

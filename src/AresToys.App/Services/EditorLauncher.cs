@@ -249,7 +249,13 @@ public sealed class EditorLauncher
             vm.CurrentTool = defaults.Tool;
             vm.CurrentTextStyle = defaults.TextStyle;
             vm.FreehandSmoothDefault = defaults.FreehandSmooth;
-            vm.FreehandEndArrowDefault = defaults.FreehandEndArrow;
+            vm.FreehandStartCapDefault = defaults.FreehandStartCap;
+            vm.FreehandEndCapDefault = defaults.FreehandEndCap;
+            vm.LineStartCapDefault = defaults.LineStartCap;
+            vm.LineEndCapDefault = defaults.LineEndCap;
+            vm.ArrowStartCapDefault = defaults.ArrowStartCap;
+            vm.ArrowEndCapDefault = defaults.ArrowEndCap;
+            vm.LineTipStyleDefault = defaults.LineTipStyle;
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -270,7 +276,11 @@ public sealed class EditorLauncher
                 // EditAsync.
                 var snap = new EditorDefaults(vm.OutlineColor, vm.FillColor, vm.StrokeWidth,
                     vm.CurrentTool, vm.CurrentTextStyle,
-                    vm.FreehandSmoothDefault, vm.FreehandEndArrowDefault);
+                    vm.FreehandSmoothDefault,
+                    vm.FreehandStartCapDefault, vm.FreehandEndCapDefault,
+                    vm.LineStartCapDefault, vm.LineEndCapDefault,
+                    vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
+                    vm.LineTipStyleDefault);
                 byte[]? png = null;
                 if (window.Saved)
                 {
@@ -387,7 +397,13 @@ public sealed class EditorLauncher
             vm.CurrentTool = resolvedTool;
             vm.CurrentTextStyle = defaults.TextStyle;
             vm.FreehandSmoothDefault = defaults.FreehandSmooth;
-            vm.FreehandEndArrowDefault = defaults.FreehandEndArrow;
+            vm.FreehandStartCapDefault = defaults.FreehandStartCap;
+            vm.FreehandEndCapDefault = defaults.FreehandEndCap;
+            vm.LineStartCapDefault = defaults.LineStartCap;
+            vm.LineEndCapDefault = defaults.LineEndCap;
+            vm.ArrowStartCapDefault = defaults.ArrowStartCap;
+            vm.ArrowEndCapDefault = defaults.ArrowEndCap;
+            vm.LineTipStyleDefault = defaults.LineTipStyle;
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -406,7 +422,11 @@ public sealed class EditorLauncher
                 // Snapshot whatever the user left selected, BEFORE the window unloads — reading
                 // CurrentTool / *Color from a pool thread later would race the WPF binding system.
                 var snap = new EditorDefaults(vm.OutlineColor, vm.FillColor, vm.StrokeWidth, vm.CurrentTool, vm.CurrentTextStyle,
-                    vm.FreehandSmoothDefault, vm.FreehandEndArrowDefault);
+                    vm.FreehandSmoothDefault,
+                    vm.FreehandStartCapDefault, vm.FreehandEndCapDefault,
+                    vm.LineStartCapDefault, vm.LineEndCapDefault,
+                    vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
+                    vm.LineTipStyleDefault);
                 byte[]? png = null;
                 int w = 0, h = 0;
                 if (window.Saved)
@@ -519,9 +539,15 @@ public sealed class EditorLauncher
             ["SpotlightBlur"]           = Loc("Editor_SpotlightBlur"),
             ["EdgeBlur"]                = Loc("Editor_EdgeBlur"),
             ["SmoothStroke"]            = Loc("Editor_SmoothStroke"),
-            ["EndArrow"]                = Loc("Editor_EndArrow"),
+            ["StartCap"]                = Loc("Editor_StartCap"),
+            ["EndCap"]                  = Loc("Editor_EndCap"),
+            ["TipStyle"]                = Loc("Editor_TipStyle"),
+            ["TipStyleShareXCurve"]     = Loc("Editor_TipStyle_ShareXCurve"),
+            ["TipStyleFilledTriangle"]  = Loc("Editor_TipStyle_FilledTriangle"),
             ["TooltipSmoothStroke"]     = Loc("Editor_TooltipSmoothStroke"),
-            ["TooltipEndArrow"]         = Loc("Editor_TooltipEndArrow"),
+            ["TooltipStartCap"]         = Loc("Editor_TooltipStartCap"),
+            ["TooltipEndCap"]           = Loc("Editor_TooltipEndCap"),
+            ["TooltipTipStyle"]         = Loc("Editor_TooltipTipStyle"),
             ["ApplyToSelected"]         = Loc("Editor_ApplyToSelected"),
             ["TooltipApplyToSelected"]  = Loc("Editor_TooltipApplyToSelected"),
             ["SetAsDefault"]            = Loc("Editor_SetAsDefault"),

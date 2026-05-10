@@ -753,9 +753,15 @@
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Sfocatura riflettore (px)</value></data>
   <data name="Editor_EdgeBlur" xml:space="preserve"><value>Sfocatura bordi (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Tratto fluido</value></data>
-  <data name="Editor_EndArrow" xml:space="preserve"><value>Punta freccia</value></data>
+  <data name="Editor_StartCap" xml:space="preserve"><value>Punta inizio</value></data>
+  <data name="Editor_EndCap" xml:space="preserve"><value>Punta fine</value></data>
+  <data name="Editor_TipStyle" xml:space="preserve"><value>Stile punta</value></data>
+  <data name="Editor_TipStyle_ShareXCurve" xml:space="preserve"><value>Curva ShareX</value></data>
+  <data name="Editor_TipStyle_FilledTriangle" xml:space="preserve"><value>Triangolo pieno</value></data>
   <data name="Editor_TooltipSmoothStroke" xml:space="preserve"><value>Applica il taglio degli angoli Chaikin + il rendering Catmull-Rom per rimuovere il tremolio della mano da questo tratto.</value></data>
-  <data name="Editor_TooltipEndArrow" xml:space="preserve"><value>Termina il tratto con una punta di freccia tangente all'ultimo segmento (mano libera stile ShareX).</value></data>
+  <data name="Editor_TooltipStartCap" xml:space="preserve"><value>Aggiunge una punta a freccia all'inizio della linea / tratto a mano libera, orientata lungo la tangente a quell'estremità.</value></data>
+  <data name="Editor_TooltipEndCap" xml:space="preserve"><value>Aggiunge una punta a freccia alla fine della linea / tratto a mano libera, orientata lungo la tangente a quell'estremità.</value></data>
+  <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Stile geometrico della punta — curva ShareX (V con base concava, si integra con il tratto) o triangolo pieno solido.</value></data>
   <data name="Editor_ApplyToSelected" xml:space="preserve"><value>Applica a selezione</value></data>
   <data name="Editor_TooltipApplyToSelected" xml:space="preserve"><value>Applica i contorno / riempimento / spessore predefiniti qui sopra alla selezione</value></data>
   <data name="Editor_SetAsDefault" xml:space="preserve"><value>Imposta come predefinito</value></data>

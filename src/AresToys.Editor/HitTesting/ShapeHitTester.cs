@@ -20,7 +20,6 @@ public static class ShapeHitTester
     {
         RectangleShape r => HitRect(r, UnrotateAroundCenter(px, py, r.X + r.Width / 2, r.Y + r.Height / 2, r.Rotation)),
         EllipseShape e => HitEllipse(e, UnrotateAroundCenter(px, py, e.X + e.Width / 2, e.Y + e.Height / 2, e.Rotation)),
-        ArrowShape a => HitArrowOrLineRotated(a.FromX, a.FromY, a.ControlPoint.X, a.ControlPoint.Y, a.ToX, a.ToY, a.StrokeWidth, a.Rotation, a.Midpoint, px, py),
         LineShape l => HitArrowOrLineRotated(l.FromX, l.FromY, l.ControlPoint.X, l.ControlPoint.Y, l.ToX, l.ToY, l.StrokeWidth, l.Rotation, l.Midpoint, px, py),
         FreehandShape f => HitFreehandRotated(f, px, py),
         TextShape t => HitTextRotated(t, px, py),

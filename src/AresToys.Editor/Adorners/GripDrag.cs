@@ -50,17 +50,6 @@ public static class GripDrag
             GripKind.Bend => l with { ControlOffsetX = px - (l.FromX + l.ToX) / 2, ControlOffsetY = py - (l.FromY + l.ToY) / 2 },
             _ => null
         },
-        ArrowShape a => grip switch
-        {
-            GripKind.From => SnapEndpoint(a.ToX, a.ToY, px, py, shiftHeld) is var (fx, fy)
-                ? a with { FromX = fx, FromY = fy }
-                : null,
-            GripKind.To => SnapEndpoint(a.FromX, a.FromY, px, py, shiftHeld) is var (tx, ty)
-                ? a with { ToX = tx, ToY = ty }
-                : null,
-            GripKind.Bend => a with { ControlOffsetX = px - (a.FromX + a.ToX) / 2, ControlOffsetY = py - (a.FromY + a.ToY) / 2 },
-            _ => null
-        },
         TextShape t => ResizeRect(new RectShim(t.X, t.Y, t.Width, t.Height), grip, px, py, shiftHeld) is { } textBox
             ? t with { X = textBox.X, Y = textBox.Y, Width = textBox.W, Height = textBox.H }
             : null,

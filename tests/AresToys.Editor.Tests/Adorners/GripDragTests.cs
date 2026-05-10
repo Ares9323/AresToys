@@ -63,14 +63,18 @@ public class GripDragTests
     [Fact]
     public void Arrow_To_grip_with_Shift_snaps_to_45_multiples()
     {
-        var a = new ArrowShape(0, 0, 100, 0, ShapeColor.Red, 2);
+        // Arrow and Line now share the unified LineShape; the EndCap=true gives the "arrow"
+        // intent. Same shift-snap logic applies regardless of cap state.
+        var a = new LineShape(0, 0, 100, 0, ShapeColor.Red, 2, EndCap: true);
         // Drag To near (10, 10) — ~45° angle. With shift, length is preserved magnitude-wise.
-        var moved = (ArrowShape)GripDrag.Transform(a, GripKind.To, 10, 10, shiftHeld: true)!;
+        var moved = (LineShape)GripDrag.Transform(a, GripKind.To, 10, 10, shiftHeld: true)!;
         Assert.Equal(0, moved.FromX);
         Assert.Equal(0, moved.FromY);
         // 45° from origin with length sqrt(200) ≈ 14.14, so cos(45)*len ≈ 10, sin(45)*len ≈ 10.
         Assert.Equal(10, moved.ToX, precision: 4);
         Assert.Equal(10, moved.ToY, precision: 4);
+        // EndCap survives the grip transform.
+        Assert.True(moved.EndCap);
     }
 
     [Fact]

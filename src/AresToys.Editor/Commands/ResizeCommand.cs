@@ -69,9 +69,8 @@ public sealed class ResizeCommand : IEditorCommand
     {
         RectangleShape r => r with { X = r.X * sx, Y = r.Y * sy, Width = r.Width * sx, Height = r.Height * sy, StrokeWidth = r.StrokeWidth * AvgScale(sx, sy) },
         EllipseShape e => e with { X = e.X * sx, Y = e.Y * sy, Width = e.Width * sx, Height = e.Height * sy, StrokeWidth = e.StrokeWidth * AvgScale(sx, sy) },
-        // Scale the bend offset alongside the endpoints so a curved arrow keeps the same visual
-        // curvature relative to its segment after a resize.
-        ArrowShape a => a with { FromX = a.FromX * sx, FromY = a.FromY * sy, ToX = a.ToX * sx, ToY = a.ToY * sy, ControlOffsetX = a.ControlOffsetX * sx, ControlOffsetY = a.ControlOffsetY * sy, StrokeWidth = a.StrokeWidth * AvgScale(sx, sy) },
+        // Scale the bend offset alongside the endpoints so a curved line/arrow keeps the same
+        // visual curvature relative to its segment after a resize.
         LineShape l => l with { FromX = l.FromX * sx, FromY = l.FromY * sy, ToX = l.ToX * sx, ToY = l.ToY * sy, ControlOffsetX = l.ControlOffsetX * sx, ControlOffsetY = l.ControlOffsetY * sy, StrokeWidth = l.StrokeWidth * AvgScale(sx, sy) },
         FreehandShape f => f with { Points = f.Points.Select(p => (p.X * sx, p.Y * sy)).ToList(), StrokeWidth = f.StrokeWidth * AvgScale(sx, sy) },
         // Canvas-resize scales the text frame's box dimensions AND the font so the visible
