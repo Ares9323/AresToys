@@ -90,7 +90,7 @@
                         <ColumnDefinition Width="*" />     <!-- tools -->
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="TitleBarText" Grid.Column="0" Text="AresToys - Editor"
-                               Foreground="#FFF" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="13"
                                VerticalAlignment="Center" Margin="0,0,16,0" />
                     <ScrollViewer Grid.Column="1"
                                   HorizontalScrollBarVisibility="Auto"
@@ -249,7 +249,7 @@
                                Click="OnSaveClicked"
                                ToolTip="Confirm / copy to clipboard (also adds to history; original kept for safety)">
                         <TextBlock Text="&#xf0c5;" FontFamily="{DynamicResource IconFont}"
-                                   FontSize="14" Foreground="White"
+                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </ui:Button>
                     <ui:Button x:Name="SaveAsButton"
@@ -257,7 +257,7 @@
                                Click="OnSaveAsClicked"
                                ToolTip="Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.">
                         <TextBlock Text="&#xf0c7;" FontFamily="{DynamicResource IconFont}"
-                                   FontSize="14" Foreground="White"
+                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </ui:Button>
                     <ui:Button x:Name="CancelButton" Appearance="Danger"
@@ -265,7 +265,7 @@
                                Click="OnCancelClicked"
                                ToolTip="Discard edits and close (original stays in history)">
                         <TextBlock Text="&#xf00d;" FontFamily="{DynamicResource IconFont}"
-                                   FontSize="14" Foreground="White"
+                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </ui:Button>
                 </UniformGrid>
@@ -275,9 +275,9 @@
                      pending crop rectangles. Hosts the global "Apply all crops" action so the
                      user has a discoverable button beyond the keyboard shortcut (Enter). -->
                 <StackPanel x:Name="CropPropertiesSection" Visibility="Collapsed" Margin="0,0,0,12">
-                    <TextBlock Text="Crop properties" Foreground="White" FontSize="14"
+                    <TextBlock Text="Crop properties" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14"
                                FontWeight="SemiBold" Margin="0,0,0,8" />
-                    <TextBlock x:Name="CropCountLabel" Foreground="#AAA" FontSize="12"
+                    <TextBlock x:Name="CropCountLabel" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
                                Margin="0,0,0,8" />
                     <ui:Button x:Name="ApplyCropsButton" Appearance="Primary"
                                HorizontalAlignment="Stretch"
@@ -285,9 +285,9 @@
                                ToolTip="Apply all pending crop rectangles as a composite (Enter, or double-click inside a rect)">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xf00c;" FontFamily="{DynamicResource IconFont}"
-                                       FontSize="13" Foreground="White" Margin="0,0,8,0"
+                                       FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,8,0"
                                        VerticalAlignment="Center" />
-                            <TextBlock Text="Apply all crops" Foreground="White"
+                            <TextBlock Text="Apply all crops" Foreground="{DynamicResource AccentForegroundBrush}"
                                        VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
@@ -299,7 +299,7 @@
                      stroke" controls are in one column with the live Properties below.
                      Outline + Fill render side-by-side as a 2-col grid; Stroke + value live
                      stacked underneath because the slider needs the full width. -->
-                <TextBlock x:Name="DefaultPropertiesTitle" Text="Default properties" Foreground="White" FontSize="14" FontWeight="SemiBold"
+                <TextBlock x:Name="DefaultPropertiesTitle" Text="Default properties" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
                            Margin="0,0,0,8" />
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
@@ -308,17 +308,17 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                        <TextBlock x:Name="OutlineLabel" Text="Outline" Foreground="#AAA" FontSize="11" Margin="0,0,0,4"
+                        <TextBlock x:Name="OutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
                                    HorizontalAlignment="Center" />
                         <views:ColorSwatchButton x:Name="OutlineSwatch" HorizontalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                        <TextBlock x:Name="FillLabel" Text="Fill" Foreground="#AAA" FontSize="11" Margin="0,0,0,4"
+                        <TextBlock x:Name="FillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
                                    HorizontalAlignment="Center" />
                         <views:ColorSwatchButton x:Name="FillSwatch" HorizontalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                        <TextBlock x:Name="TextLabel" Text="Text" Foreground="#AAA" FontSize="11" Margin="0,0,0,4"
+                        <TextBlock x:Name="TextLabel" Text="Text" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
                                    HorizontalAlignment="Center" />
                         <views:ColorSwatchButton x:Name="TextSwatch" HorizontalAlignment="Center" />
                     </StackPanel>
@@ -329,8 +329,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="StrokeLabel" Grid.Column="0" Text="Stroke" Foreground="#AAA" FontSize="11" />
-                        <TextBlock Grid.Column="1" Foreground="#AAA" FontSize="11"
+                        <TextBlock x:Name="StrokeLabel" Grid.Column="0" Text="Stroke" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                        <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
                                    Text="{Binding ElementName=StrokeSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
                     </Grid>
                     <Slider x:Name="StrokeSlider" Minimum="1" Maximum="20" Value="2"
@@ -350,11 +350,11 @@
 
                 <!-- Dynamic title — set from RefreshPropertyPanel based on selection or active tool. -->
                 <TextBlock x:Name="PanelTitleText" Text="Properties"
-                           Foreground="White" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
                            Margin="0,0,0,8" />
                 <TextBlock x:Name="NoSelectionText"
                            Text="Select a shape to edit its properties (V tool, then click)."
-                           Foreground="#888" TextWrapping="Wrap" />
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}" TextWrapping="Wrap" />
                 <StackPanel x:Name="SelectedShapeStack" Visibility="Collapsed">
 
                     <Grid x:Name="SelOutlineFillRow" Margin="0,0,0,12">
@@ -363,11 +363,11 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" x:Name="SelOutlineSection">
-                            <TextBlock x:Name="SelOutlineLabel" Text="Outline" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                            <TextBlock x:Name="SelOutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                             <views:ColorSwatchButton x:Name="SelOutlineSwatch" HorizontalAlignment="Left" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" x:Name="SelFillSection">
-                            <TextBlock x:Name="SelFillLabel" Text="Fill" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                            <TextBlock x:Name="SelFillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                             <views:ColorSwatchButton x:Name="SelFillSwatch" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Grid>
@@ -380,15 +380,15 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="SelStrokeLabel" Grid.Column="0" Text="Stroke" Foreground="#AAA" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="#AAA" FontSize="11"
+                            <TextBlock x:Name="SelStrokeLabel" Grid.Column="0" Text="Stroke" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
                                        Text="{Binding ElementName=SelStrokeSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
                         </Grid>
                         <Slider x:Name="SelStrokeSlider" Minimum="1" Maximum="20" />
                     </StackPanel>
 
                     <StackPanel x:Name="SelEffectSection" Visibility="Collapsed" Margin="0,0,0,12">
-                        <TextBlock x:Name="SelEffectLabel" Text="Effect" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelEffectLabel" Text="Effect" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -400,7 +400,7 @@
                                      VerticalAlignment="Center" TextAlignment="Right" />
                         </Grid>
                         <StackPanel x:Name="SelEffectSecondarySection" Visibility="Collapsed">
-                            <TextBlock x:Name="SelEffectSecondaryLabel" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                            <TextBlock x:Name="SelEffectSecondaryLabel" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -417,17 +417,17 @@
                     <StackPanel x:Name="SelFreehandSection" Visibility="Collapsed" Margin="0,0,0,12">
                         <CheckBox x:Name="SelFreehandSmoothCheck"
                                   Content="Smooth stroke"
-                                  Foreground="#DDD" FontSize="11"
+                                  Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
                                   Margin="0,0,0,4"
                                   ToolTip="Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke." />
                         <CheckBox x:Name="SelFreehandEndArrowCheck"
                                   Content="End arrow"
-                                  Foreground="#DDD" FontSize="11"
+                                  Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
                                   ToolTip="Cap the stroke with an arrow head tangent to the last segment (ShareX-style freehand arrow)." />
                     </StackPanel>
 
                     <StackPanel x:Name="SelRotationSection" Visibility="Collapsed" Margin="0,0,0,12">
-                        <TextBlock x:Name="SelRotationLabel" Text="Rotation" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelRotationLabel" Text="Rotation" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -444,7 +444,7 @@
                         <!-- Step counter size now rides on the Stroke slider above (Radius =
                              StrokeWidth * 2.5), so this section only carries font knobs — no
                              dedicated radius control. -->
-                        <TextBlock x:Name="SelStepFontLabel" Text="Font" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelStepFontLabel" Text="Font" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,8">
                             <TextBox x:Name="SelStepFontInput" Padding="4,3" />
                             <Popup x:Name="SelStepFontPopup"
@@ -463,16 +463,16 @@
                         </Grid>
 
                         <StackPanel Orientation="Horizontal">
-                            <CheckBox x:Name="SelStepBoldCheck" Content="Bold" Foreground="White" Margin="0,0,12,0" />
-                            <CheckBox x:Name="SelStepItalicCheck" Content="Italic" Foreground="White" />
+                            <CheckBox x:Name="SelStepBoldCheck" Content="Bold" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,0" />
+                            <CheckBox x:Name="SelStepItalicCheck" Content="Italic" Foreground="{DynamicResource AccentForegroundBrush}" />
                         </StackPanel>
                     </StackPanel>
 
                     <StackPanel x:Name="SelTextStyleSection" Visibility="Collapsed" Margin="0,0,0,12">
-                        <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <views:ColorSwatchButton x:Name="SelTextColorSwatch" HorizontalAlignment="Left" Margin="0,0,0,8" />
 
-                        <TextBlock x:Name="SelFontLabel" Text="Font" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelFontLabel" Text="Font" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,8">
                             <TextBox x:Name="SelFontInput" Padding="4,3" />
                             <Popup x:Name="SelFontPopup"
@@ -490,7 +490,7 @@
                             </Popup>
                         </Grid>
 
-                        <TextBlock x:Name="SelSizeLabel" Text="Size" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelSizeLabel" Text="Size" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -503,11 +503,11 @@
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <CheckBox x:Name="SelBoldCheck" Content="Bold" Foreground="White" Margin="0,0,12,0" />
-                            <CheckBox x:Name="SelItalicCheck" Content="Italic" Foreground="White" />
+                            <CheckBox x:Name="SelBoldCheck" Content="Bold" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,0" />
+                            <CheckBox x:Name="SelItalicCheck" Content="Italic" Foreground="{DynamicResource AccentForegroundBrush}" />
                         </StackPanel>
 
-                        <TextBlock x:Name="SelAlignmentLabel" Text="Alignment" Foreground="#AAA" FontSize="11" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SelAlignmentLabel" Text="Alignment" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <StackPanel Orientation="Horizontal">
                             <ToggleButton x:Name="SelAlignLeftBtn" Content="L" Width="32" Margin="0,0,4,0" Click="OnSelAlignLeftClicked" />
                             <ToggleButton x:Name="SelAlignCenterBtn" Content="C" Width="32" Margin="0,0,4,0" Click="OnSelAlignCenterClicked" />

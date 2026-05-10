@@ -215,6 +215,16 @@
                                  Color="{DynamicResource AccentBackgroundDarkColor}" />
                 <SolidColorBrush x:Key="AccentButtonBorderBrushPressed"
                                  Color="{DynamicResource AccentBackgroundColor}" />
+
+                <!-- Non-selected sidebar buttons (default Appearance) hover to the LIGHT accent
+                     so the user gets an "accent-tinted preview" of where they'd land instead
+                     of a flat surface-coloured hover. Scoped here so other ui:Buttons across
+                     the app (right-pane content, dialogs) keep their neutral hover.
+                     ButtonBackgroundPointerOver is the WPF-UI v4 default-Appearance hover key
+                     (verified in dark.baml). The Primary-Appearance hover lives on
+                     AccentButtonBackgroundPointerOver above and is untouched. -->
+                <SolidColorBrush x:Key="ButtonBackgroundPointerOver"
+                                 Color="{DynamicResource AccentBackgroundLightColor}" />
             </Border.Resources>
             <StackPanel>
                 <!-- Hotkeys is the most-edited section (every workflow lives here, every hotkey

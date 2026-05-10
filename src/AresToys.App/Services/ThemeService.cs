@@ -181,7 +181,9 @@ public sealed class ThemeService
         // accent reads too saturated against dark surfaces. Re-uses the same Lighten helper as
         // the WPF-UI Secondary/Tertiary derivation, so all "lighter accent" elements stay in
         // family no matter which accent the user picks.
-        var accentLighterBrush = new SolidColorBrush(Lighten(_bg, 0.30)); accentLighterBrush.Freeze();
+        var accentLighterColor = Lighten(_bg, 0.30);
+        var accentLighterBrush = new SolidColorBrush(accentLighterColor); accentLighterBrush.Freeze();
+        app.Resources["AccentBackgroundLightColor"] = accentLighterColor;
         app.Resources["AccentBackgroundLightBrush"] = accentLighterBrush;
 
         // Destructive-action accent — Delete buttons, trash icons, "this is irreversible" cues.
@@ -417,6 +419,19 @@ public sealed class ThemeService
         // a light surface. Routing them to fgDarkBrush gives a visible, theme-consistent edge.
         app.Resources["ControlStrongFillColorDefaultBrush"] = fgDarkBrush;
         app.Resources["ControlStrongStrokeColorDefaultBrush"] = fgDarkBrush;
+
+        // Slider track + tick + outer-thumb-ring → fgDarkBrush. WPF-UI v4 leaves these on
+        // near-white defaults (verified by string-extracting Wpf.Ui.dll for keys
+        // `SliderTrackFill`, `SliderTickBarFill`, `SliderOuterThumbBackground`), which read
+        // as "always white" against the editor / Trace / BgRemover panels regardless of the
+        // user's theme. Routing them to the dim foreground tone matches the rest of the
+        // secondary-text family while keeping the inner thumb fill on accent so the
+        // slider's identity colour still pops. Pointer-over of the track gets the same
+        // dim tone (no hover-darken) — the hover affordance lives on the thumb instead.
+        app.Resources["SliderTrackFill"] = fgDarkBrush;
+        app.Resources["SliderTrackFillPointerOver"] = fgDarkBrush;
+        app.Resources["SliderTickBarFill"] = fgDarkBrush;
+        app.Resources["SliderOuterThumbBackground"] = fgDarkBrush;
 
         // WPF-UI v4 declares BOTH naming conventions in resources/accent.baml — the legacy
         // SystemAccentColor* family AND the Fluent-v2 AccentFillColor* family. Different

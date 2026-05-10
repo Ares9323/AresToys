@@ -123,7 +123,7 @@ public static class ThemePresets
     public static readonly ThemePreset BurnMyEyes = new(
         Name: "Burn My Eyes",
         AccentForegroundLightHex: "#000000",
-        AccentForegroundDarkHex: "#232323",
+        AccentForegroundDarkHex: "#616161",
         AccentBackgroundLightHex: "#B7E5C7",
         AccentBackgroundDarkHex: "#6BA780",
         AccentDangerHex: "#ED5C52",

@@ -26,7 +26,7 @@
                 <ui:TitleBar.Header>
                     <Grid Margin="0,0,8,0" VerticalAlignment="Center">
                         <TextBlock Text="AresToys - Set hotkey"
-                                   Foreground="#FFF" FontWeight="SemiBold" FontSize="13"
+                                   Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="13"
                                    VerticalAlignment="Center" />
                     </Grid>
                 </ui:TitleBar.Header>

@@ -69,7 +69,7 @@
                         <ColumnDefinition Width="*" />       <!-- sliders (drag-mode only) -->
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{Markup:Loc Launcher_Title}"
-                               Foreground="#FFF" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="13"
                                VerticalAlignment="Center" Margin="0,0,16,0" />
                     <ui:TextBox Grid.Column="1" x:Name="SearchBox"
                                 PlaceholderText="{Markup:Loc Clipboard_SearchPlaceholder}"
