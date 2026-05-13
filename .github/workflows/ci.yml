@@ -3,13 +3,35 @@ name: CI
 on:
   push:
     branches: [master]
+    # Doc-only / metadata-only pushes don't need CI. The build + tests are agnostic to
+    # CHANGELOG / README / docs / LICENSE / .gitignore content, so excluding them here
+    # avoids burning runner minutes on prose edits (and the "publish 0.1.x" flow which
+    # only touches CHANGELOG.md goes through without a green-checkmark wait).
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [master]
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
 
 jobs:
   build-and-test:
     runs-on: windows-latest
     timeout-minutes: 15
+    # Manual opt-out for noisy WIP pushes: include [skip ci] anywhere in the commit
+    # message and the whole job is skipped. PRs always run regardless of the title so
+    # the safety net stays for anything review-worthy.
+    if: github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[skip ci]')
 
     steps:
       - name: Checkout
