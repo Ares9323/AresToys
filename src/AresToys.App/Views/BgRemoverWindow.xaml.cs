@@ -475,6 +475,11 @@ public sealed partial class BgRemoverWindow : Wpf.Ui.Controls.FluentWindow
         //   mouseInHost = layerX * newScale + newTx  →  newTx = mouseInHost - layerX * newScale
         ZoomTranslate.X = mouseInHost.X - layerX * newScale;
         ZoomTranslate.Y = mouseInHost.Y - layerY * newScale;
+        // Brush cursor sits outside the zoom layer, so its diameter has to be recomputed
+        // manually whenever zoom changes — otherwise the ring keeps its fit-scale size while
+        // the painted footprint grows / shrinks with zoom.
+        UpdateBrushCursor();
+        UpdateBrushCursorPosition(mouseInHost);
     }
 
     private void OnResetViewClicked(object sender, RoutedEventArgs e)
@@ -483,15 +488,19 @@ public sealed partial class BgRemoverWindow : Wpf.Ui.Controls.FluentWindow
         ZoomScale.ScaleY = 1;
         ZoomTranslate.X = 0;
         ZoomTranslate.Y = 0;
+        UpdateBrushCursor();
+        if (_lastMouseOnHost is { } p) UpdateBrushCursorPosition(p);
     }
 
     /// <summary>Show/hide + resize the brush cursor visualizer based on current brush mode +
     /// size + hardness + Alt modifier. Called on cursor enter, brush mode toggle, brush size
-    /// edit, and Alt key press/release. The ring sits in <see cref="BrushCursorHost"/> which
-    /// is OUTSIDE the zoom layer, so its display diameter is decoupled from zoom — at any
-    /// zoom level the ring keeps the same on-screen size (matching the brush footprint at
-    /// fit-to-window scale). The user explicitly wanted screen-size cursor; zooming in
-    /// shouldn't enlarge the ring and clutter the area being inspected.</summary>
+    /// edit, Alt key press/release, AND after a zoom change. The ring sits in
+    /// <see cref="BrushCursorHost"/> which is OUTSIDE the zoom layer (so we control its
+    /// thickness independently of the zoom transform), but its diameter is scaled to match
+    /// the brush's actual on-screen footprint = source-pixel radius × fit-scale × user-zoom.
+    /// Without the user-zoom factor the ring stayed sized for fit-to-window scale while the
+    /// painted footprint grew with zoom, so at any zoom &gt; 1 the visible brush no longer
+    /// matched the preview.</summary>
     private void UpdateBrushCursor()
     {
         if (_sourceBitmap is null
@@ -502,11 +511,14 @@ public sealed partial class BgRemoverWindow : Wpf.Ui.Controls.FluentWindow
         }
         // fit-to-window scale: how big a 1-source-pixel feature is on screen at zoom=1.
         // CutoutHost dimensions are post-layout but pre-zoom-transform — exactly what we want
-        // for the "fit" measurement.
-        var scale = Math.Min(
+        // for the "fit" measurement. ZoomScale.ScaleX then folds in the user's current zoom so
+        // the ring tracks the painted footprint (which is in the zoomed image layer).
+        var fitScale = Math.Min(
             CutoutHost.ActualWidth / _sourceBitmap.Width,
             CutoutHost.ActualHeight / _sourceBitmap.Height);
-        var displaySize = _vm.BrushSizePx * scale;
+        var zoom = ZoomScale.ScaleX;
+        if (zoom <= 0) zoom = 1.0;
+        var displaySize = _vm.BrushSizePx * fitScale * zoom;
         BrushCursor.Width = displaySize;
         BrushCursor.Height = displaySize;
         BrushCursor.Visibility = Visibility.Visible;

@@ -3,7 +3,7 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.7] — 2026-05-10
+## [0.1.7] — 2026-05-13
 
 Line and Arrow tools unified into a single primitive with per-end cap toggles
 (Start cap, End cap) and a pickable tip style — ShareX-style curved cap (default,
@@ -11,7 +11,8 @@ the V with concave base that integrates with the stroke) or solid filled triangl
 Same caps mechanism applied to Freehand. Toolbar keeps the two intent buttons (L
 for Line, A for Arrow) and their muscle memory: clicking Arrow seeds a fresh
 EndCap=true gesture, clicking Line seeds both off. Editor checkboxes now follow
-the AresToys accent theme instead of the WPF-UI default teal.
+the AresToys accent theme instead of the WPF-UI default teal. Three first-wave
+bug reports also fixed in this release — see the Bug fixes section below.
 
 ### Editor — Line, Arrow, Freehand caps
 - `ArrowShape` removed; `LineShape` is now the single primitive for line and
@@ -38,6 +39,30 @@ the AresToys accent theme instead of the WPF-UI default teal.
 - Properties-panel checkboxes (Smooth stroke, Start cap, End cap, Bold, Italic
   in step / text sections) now follow the AresToys accent theme. Previously
   picked up WPF-UI's hard-coded teal.
+
+### Bug fixes
+- Background removal: brush preview ring now scales with the zoom factor in
+  addition to the fit-to-window scale, so the on-screen ring keeps matching
+  the actual painted footprint when zoomed in or out. The ring also refreshes
+  immediately on Ctrl+Wheel zoom and on "Reset view" instead of waiting for
+  the next mouse-move.
+- Color picker: opening the eyedropper from a swatch inside the editor now
+  uses the same full-screen `ScreenColorPickerOverlay` magnifier the tray
+  sampler / wheel / trace tool / image-effects swatches show, instead of
+  silently switching the canvas to a crosshair cursor. The previous
+  hide-the-picker-and-sample-the-canvas dance also crashed the picker on the
+  next OK click because `.NET 10` resets `Window._showingAsDialog` when
+  `Show()` is called on a hidden `ShowDialog`'d window, so the eventual
+  `DialogResult = true` threw "DialogResult can be set only after Window is
+  created and shown as dialog". The overlay opens nested-modal on top of the
+  picker — the picker's own modal pump stays untouched.
+- Editor: the Copy (Confirm) button no longer produces a horizontally shifted
+  PNG with transparent pixels on one side. `CanvasPngExporter` was running
+  `UpdateLayout()` after its direct `Measure` / `Arrange` calls, which let the
+  hosting `ScrollViewer`'s pending layout work re-Arrange the canvas at a
+  parent-driven offset. Settling the layout queue before the direct calls
+  keeps the export consistent regardless of whether a modal dialog ran in
+  between (which is why Save-as appeared to "just work").
 
 
 

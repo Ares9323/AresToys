@@ -23,6 +23,7 @@ public sealed class EditorLauncher
     private readonly EditorDefaultsStore _defaultsStore;
     private readonly ISettingsStore _settings;
     private readonly IImageEncoder _encoder;
+    private readonly ScreenColorPickerService _screenSampler;
     private readonly ILogger<EditorLauncher> _logger;
 
     public EditorLauncher(
@@ -32,6 +33,7 @@ public sealed class EditorLauncher
         EditorDefaultsStore defaultsStore,
         ISettingsStore settings,
         IImageEncoder encoder,
+        ScreenColorPickerService screenSampler,
         ILogger<EditorLauncher> logger)
     {
         _services = services;
@@ -40,6 +42,7 @@ public sealed class EditorLauncher
         _defaultsStore = defaultsStore;
         _settings = settings;
         _encoder = encoder;
+        _screenSampler = screenSampler;
         _logger = logger;
 
         // Cross-assembly handoff: AresToys.Editor doesn't reference AresToys.App / ImageEffects,
@@ -56,6 +59,47 @@ public sealed class EditorLauncher
         // actually clicks the button — keeps editor open latency unchanged for users who
         // never use the feature.
         AresToys.Editor.Views.EditorWindow.RemoveBackgroundHandler = RemoveBackgroundAsync;
+    }
+
+    /// <summary>Wire the swatch eyedropper to the same ScreenColorPickerOverlay magnifier the
+    /// tray / wheel / trace tool / image-effects swatches all use. The picker stays modal and
+    /// visible underneath; the overlay opens nested-modal on top, the user picks a screen
+    /// pixel via the magnifier, the overlay closes, and we push the colour back into the
+    /// picker via the continuation. Avoids the Hide()/Show() dance on the picker which broke
+    /// <c>_showingAsDialog</c> on .NET 10 and crashed the subsequent OK click.
+    /// Re-applied on every editor open because <c>EditorWindow.OnClosing</c> nulls the
+    /// delegate as part of its cleanup.</summary>
+    private void InstallScreenSamplerHandler()
+    {
+        ColorSwatchButton.EyedropperHandler = continuation =>
+        {
+            var hex = _screenSampler.SampleAtCursor();
+            if (hex is not null && TryParseHex(hex, out var sampled))
+                continuation(sampled);
+            else
+                continuation(null);
+            return null;
+        };
+    }
+
+    /// <summary>Parse "#RRGGBB" (the form <see cref="ScreenColorPickerService"/> emits) into
+    /// a fully-opaque <see cref="AresToys.Editor.Model.ShapeColor"/>. Returns false on any
+    /// malformed input so the caller treats the sample as cancelled instead of writing a
+    /// garbage colour into the picker.</summary>
+    private static bool TryParseHex(string hex, out AresToys.Editor.Model.ShapeColor color)
+    {
+        color = AresToys.Editor.Model.ShapeColor.Black;
+        var s = hex.Trim().TrimStart('#');
+        if (s.Length != 6) return false;
+        try
+        {
+            var r = byte.Parse(s.AsSpan(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            var g = byte.Parse(s.AsSpan(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            var b = byte.Parse(s.AsSpan(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            color = new AresToys.Editor.Model.ShapeColor(255, r, g, b);
+            return true;
+        }
+        catch (FormatException) { return false; }
     }
 
     /// <summary>Open the BgRemoverWindow modeless on top of the editor, await its Closed
@@ -208,6 +252,7 @@ public sealed class EditorLauncher
         {
             _ = _recentsStore.PushAsync(c, CancellationToken.None);
         };
+        InstallScreenSamplerHandler();
 
         var defaults = await _defaultsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
@@ -351,6 +396,7 @@ public sealed class EditorLauncher
         var recents = await _recentsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         ColorSwatchButton.CurrentRecents = recents;
         ColorSwatchButton.OnColorPicked = c => _ = _recentsStore.PushAsync(c, CancellationToken.None);
+        InstallScreenSamplerHandler();
 
         var defaults = await _defaultsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         // Workflow override wins over the last-used persisted default. Bad / unknown enum

@@ -79,19 +79,21 @@ public partial class ColorSwatchButton : UserControl
             SelectedColor = c;
             OnColorPicked?.Invoke(c);
         };
-        // Eyedropper is the only flow that needs the picker out of the way temporarily —
-        // Hide() + Show() on a ShowDialog'd window keeps the modal loop alive (visibility
-        // is independent of the dialog state machine), so the same dance works whether the
-        // picker is modal or not.
+        // Eyedropper: just hand off to the host's handler with a continuation that pushes the
+        // sampled colour back into the picker via ApplySampledColor. We DON'T Hide/Show the
+        // picker — that pattern looked plausible (the modal pump is supposed to survive
+        // Visibility flips) but .NET 10's WPF resets the internal _showingAsDialog flag on the
+        // post-Hide Show(), so the next OK click crashes with "DialogResult can be set only
+        // after Window is created and shown as dialog". Instead we expect handlers to open a
+        // screen-level overlay (nested modal) on TOP of the picker, leaving the picker's
+        // modal pump untouched underneath.
         dlg.EyedropperRequested += (_, _) =>
         {
             var handler = EyedropperHandler;
             if (handler is null) return;
-            dlg.Hide();
             handler(c =>
             {
                 if (c is not null) dlg.ApplySampledColor(c);
-                dlg.Show();
             });
         };
         // ShowOwnerScopedDialog: modal w.r.t. its owner only — sibling editors / dialogs stay

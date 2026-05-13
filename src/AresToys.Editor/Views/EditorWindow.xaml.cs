@@ -256,11 +256,14 @@ public partial class EditorWindow : FluentWindow
             RefreshToolButtonHighlight();
             // Defer fit to after layout pass so ViewportWidth/Height is populated.
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () => FitZoomToViewport());
-            ColorSwatchButton.EyedropperHandler = continuation =>
-            {
-                EnterCanvasEyedropperMode(continuation);
-                return null;
-            };
+            // Eyedropper handler is wired by the host (AresToys.App.EditorLauncher) so the
+            // picker uses the same ScreenColorPickerOverlay magnifier the rest of the app
+            // shows. We don't install a canvas-sampling fallback here because canvas mode
+            // would need to hide the modal picker and re-show it after sampling — that
+            // pattern broke on .NET 10 (Show-after-Hide resets _showingAsDialog and the OK
+            // click crashed). EnterCanvasEyedropperMode + _eyedropperContinuation remain in
+            // the file as plumbing in case a future host wants a canvas-precise sampler
+            // that opens nested-modal (e.g. a canvas magnifier window) instead.
         };
         Closing += OnClosing;
     }

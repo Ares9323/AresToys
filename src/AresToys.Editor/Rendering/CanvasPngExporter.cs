@@ -34,10 +34,23 @@ public static class CanvasPngExporter
         root.LayoutTransform = Transform.Identity;
         try
         {
+            // Drain pending layout work BEFORE the direct Measure/Arrange. The earlier
+            // pattern (Measure → Arrange → UpdateLayout) had a subtle bug: if the layout
+            // queue had pending invalidations from this turn (e.g. adorner visibility flips
+            // we just did, focus change from the click that triggered the export), the
+            // trailing UpdateLayout propagated parent constraints back through the
+            // ScrollViewer that hosts us and OVERWROTE our direct Arrange — so the RTB
+            // captured the visual at its parent-arranged offset, producing a shifted image
+            // with a transparent strip on one side. Settling the queue first leaves nothing
+            // for UpdateLayout to undo, so the direct Arrange becomes the final state.
+            //
+            // The "Save as…" path didn't trigger this because its SaveFileDialog pumped the
+            // layout queue dry before we got here; the in-process Copy path had the queue
+            // dirty from the click handler that ran milliseconds earlier.
+            root.UpdateLayout();
             var dipSize = new Size(dipWidth, dipHeight);
             root.Measure(dipSize);
             root.Arrange(new Rect(dipSize));
-            root.UpdateLayout();
 
             var rtb = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
             rtb.Render(root);
