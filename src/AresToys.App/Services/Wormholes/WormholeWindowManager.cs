@@ -207,13 +207,6 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             PersistChange,
             _icons,
             _store.WormholesRootPath,
-            // "Move to →" submenu needs the list of other wormholes at click time — evaluating
-            // here lazily means new wormholes created during this window's lifetime show up
-            // without a respawn.
-            listOtherRecords: () => GetOtherRecords(record.Id),
-            // Cross-wormhole move runs end-to-end on the manager (decision matrix + persistence
-            // + refresh of both windows + confirm dialogs); the window just hands off the vm.
-            moveItemToWormhole: (vm, targetId, ct) => MoveItemAsync(record.Id, vm, targetId, ct),
             // Shared defaults service (icon size + opacity). The window reads it on every
             // EffectiveIconSize() / ApplyAppearance() call so the slider in Settings →
             // Wormholes propagates live via DefaultsChanged → RefreshAllLiveAppearance above.
@@ -452,110 +445,11 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         await SetAllRolledAsync(anyUnrolled, cancellationToken).ConfigureAwait(true);
     }
 
-    public IReadOnlyList<WormholeRecord> GetOtherRecords(Guid exceptId)
-    {
-        // Synchronous snapshot via the store's in-memory cache. LoadAllAsync is idempotent and
-        // backed by a SemaphoreSlim — calling .Result here is safe because the cache is normally
-        // already hydrated (the manager called LoadAllAsync at startup) and there's no UI thread
-        // dependency in the load path.
-        var records = _store.LoadAllAsync(CancellationToken.None).GetAwaiter().GetResult();
-        return records.Where(r => r.Id != exceptId).ToList();
-    }
-
-    public async Task<bool> MoveItemAsync(Guid sourceWormholeId, WormholeItemViewModel item, Guid targetWormholeId, CancellationToken cancellationToken)
-    {
-        if (sourceWormholeId == targetWormholeId) return false;
-        var records = await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true);
-        var source = records.FirstOrDefault(r => r.Id == sourceWormholeId);
-        var target = records.FirstOrDefault(r => r.Id == targetWormholeId);
-        if (source is null || target is null) return false;
-
-        return await MovePortalToPortalAsync(source, item, target, cancellationToken).ConfigureAwait(true);
-    }
-
-    private async Task<bool> MovePortalToPortalAsync(WormholeRecord source, WormholeItemViewModel vm, WormholeRecord target, CancellationToken ct)
-    {
-        if (source.Portal is null || target.Portal is null) return false;
-        var src = vm.AbsolutePath;
-        var exists = Directory.Exists(src) || File.Exists(src);
-        if (!exists)
-        {
-            ShowMoveError("The source file is no longer available.");
-            return false;
-        }
-        if (!Directory.Exists(target.Portal.SourcePath))
-        {
-            ShowMoveError($"The destination portal's source folder isn't currently available:\n{target.Portal.SourcePath}");
-            return false;
-        }
-
-        var name = Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        var dst = UniquePath(Path.Combine(target.Portal.SourcePath, name));
-
-        var srcRoot = Path.GetPathRoot(Path.GetFullPath(src));
-        var dstRoot = Path.GetPathRoot(Path.GetFullPath(dst));
-        var crossVolume = !string.Equals(srcRoot, dstRoot, StringComparison.OrdinalIgnoreCase);
-        if (crossVolume)
-        {
-            // Cross-volume File.Move on Windows degrades to copy+delete and can be slow for big
-            // payloads — give the user a chance to back out rather than freeze on the dispatcher.
-            var confirm = MessageBox.Show(OwnerForDialogs(),
-                $"This move spans different drives:\n\n  From: {src}\n  To:   {dst}\n\n" +
-                "Large files may take a while.",
-                "AresToys", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
-            if (confirm != MessageBoxResult.OK) return false;
-        }
-
-        try
-        {
-            if (Directory.Exists(src)) Directory.Move(src, dst);
-            else File.Move(src, dst);
-        }
-        catch (Exception ex) { ShowMoveError("Move failed: " + ex.Message); return false; }
-        // Both source and destination Portal FSWs catch the change on their next debounce tick.
-        return true;
-    }
-
-    /// <summary>Pick a non-colliding path inside the destination folder. Mirrors the " (2)",
-    /// " (3)" suffixing logic the chrome's drop handler uses so the user experience stays
-    /// uniform between drop and "Move to". Falls back to a guid suffix after 999 collisions.</summary>
-    private static string UniquePath(string candidate)
-    {
-        if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
-        var dir = Path.GetDirectoryName(candidate)!;
-        var stem = Path.GetFileNameWithoutExtension(candidate);
-        var ext = Path.GetExtension(candidate);
-        for (var n = 2; n < 1000; n++)
-        {
-            var next = Path.Combine(dir, $"{stem} ({n}){ext}");
-            if (!File.Exists(next) && !Directory.Exists(next)) return next;
-        }
-        return Path.Combine(dir, $"{stem}-{Guid.NewGuid():N}{ext}");
-    }
-
     private void RefreshLiveWindowItems(Guid id)
     {
         if (!_live.TryGetValue(id, out var window)) return;
         try { window.RebuildItems(); }
         catch (Exception ex) { _logger.LogWarning(ex, "Live items refresh failed for {Id}", id); }
-    }
-
-    /// <summary>Modal owner used by manager-side error / confirm dialogs. Matches the
-    /// <c>WormholeWindow.OwnerForDialogs</c> rule: never parent to a wormhole window (it lives
-    /// on the desktop layer / behind everything else once parenting is re-enabled). Falls back
-    /// to no owner if the AresToys main window doesn't have a created HWND.</summary>
-    private static Window? OwnerForDialogs()
-    {
-        var main = Application.Current?.MainWindow;
-        if (main is null) return null;
-        var helper = new System.Windows.Interop.WindowInteropHelper(main);
-        return helper.Handle != IntPtr.Zero ? main : null;
-    }
-
-    private static void ShowMoveError(string message)
-    {
-        MessageBox.Show(OwnerForDialogs(), message, "AresToys",
-            MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     public void RecenterAll()

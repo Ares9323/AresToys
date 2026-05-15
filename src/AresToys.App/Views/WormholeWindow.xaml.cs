@@ -29,18 +29,6 @@ public partial class WormholeWindow : Window
     private readonly Action _onPersist;
     private readonly IconService _icons;
     private readonly string _wormholesRoot;
-    // (Per-wormhole "private shortcuts directory" was the Data-kind back-store; dropped along
-    // with the Shortcuts/Folder distinction. Every wormhole is now a folder mirror.)
-    /// <summary>Callback supplied by <see cref="Services.Wormholes.WormholeWindowManager"/>
-    /// returning every persisted wormhole other than this one. Used to populate the per-item
-    /// "Move to →" submenu. Evaluated at menu-build time (not ctor) so newly created wormholes
-    /// appear in the submenu without having to recycle the window.</summary>
-    private readonly Func<IReadOnlyList<WormholeRecord>>? _listOtherRecords;
-    /// <summary>Cross-wormhole move executor — owned by the manager because it needs to touch
-    /// both the source and destination records (and the on-disk shortcuts / source folders) and
-    /// re-emit Changed events so both windows refresh in place. Null = the "Move to →" entry is
-    /// hidden (used during early wire-up / tests).</summary>
-    private readonly Func<WormholeItemViewModel, Guid, CancellationToken, Task<bool>>? _moveItemToWormhole;
     /// <summary>Shared defaults — icon size + opacity — read on every <see cref="EffectiveIconSize"/>
     /// + <see cref="ApplyAppearance"/> call. Null when the manager didn't wire one (older tests
     /// / direct construction); in that case we fall through to <see cref="DesktopIconSize"/>
@@ -55,16 +43,12 @@ public partial class WormholeWindow : Window
         Action onPersist,
         IconService icons,
         string wormholesRoot,
-        Func<IReadOnlyList<WormholeRecord>>? listOtherRecords = null,
-        Func<WormholeItemViewModel, Guid, CancellationToken, Task<bool>>? moveItemToWormhole = null,
         Services.Wormholes.WormholeDefaultsService? defaults = null)
     {
         _record = record;
         _onPersist = onPersist;
         _icons = icons;
         _wormholesRoot = wormholesRoot;
-        _listOtherRecords = listOtherRecords;
-        _moveItemToWormhole = moveItemToWormhole;
         _defaults = defaults;
         InitializeComponent();
         DataContext = record;
@@ -915,79 +899,27 @@ public partial class WormholeWindow : Window
     }
 
     // -----------------------------------------------------------------------------------------
-    // Per-item context menu — mirrors the hamburger pattern (built fresh on every right-click).
-    // Entries differ by Data vs Portal kind. Destructive entries (Remove, Rename for Portal,
-    // Move into a Portal target) all confirm before touching disk; non-destructive entries
-    // (Open, Open file location, Copy path) work even when the wormhole is locked because they
-    // don't mutate the wormhole or its source.
+    // Per-item context menu — always the Windows shell native menu (same one Explorer shows).
+    // The custom AresToys curated menu (Open / Open file location / Copy path / Move to /
+    // Rename / Delete) was removed in favour of the native one: Explorer's menu already covers
+    // every entry we had AND every third-party verb the user has installed (Open with…, Send
+    // to, 7-Zip, Git GUI, etc.), and an "Open file location" entry inside a window that *is*
+    // showing the folder content is redundant.
     // -----------------------------------------------------------------------------------------
 
     private void OnItemRightButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
         if (fe.DataContext is not WormholeItemViewModel vm) return;
-        BuildItemContextMenu(vm, fe).IsOpen = true;
+        var screen = PointToScreen(e.GetPosition(this));
+        AresToys.App.Services.Shell.ShellContextMenu.Show(vm.AbsolutePath, this, screen);
         e.Handled = true;
     }
 
-    private System.Windows.Controls.ContextMenu BuildItemContextMenu(WormholeItemViewModel vm, FrameworkElement target)
-    {
-        var menu = new System.Windows.Controls.ContextMenu { PlacementTarget = target };
-
-        var open = new System.Windows.Controls.MenuItem { Header = "Open" };
-        open.Click += (_, _) => OpenItem(vm);
-        menu.Items.Add(open);
-
-        var openLocation = new System.Windows.Controls.MenuItem { Header = "Open file location" };
-        openLocation.Click += (_, _) => OpenFileLocation(vm);
-        menu.Items.Add(openLocation);
-
-        var copyPath = new System.Windows.Controls.MenuItem { Header = "Copy path" };
-        copyPath.Click += (_, _) => CopyItemPath(vm);
-        menu.Items.Add(copyPath);
-
-        // Move to → <other wormhole>. Built only when the manager wired the callbacks AND
-        // there's at least one other wormhole to target. Empty submenu would look broken; we
-        // hide the entry instead so the menu height matches what the user can actually do.
-        if (_listOtherRecords is not null && _moveItemToWormhole is not null && !_record.IsLocked)
-        {
-            var others = _listOtherRecords().Where(r => r.Id != _record.Id).ToList();
-            if (others.Count > 0)
-            {
-                var moveTo = new System.Windows.Controls.MenuItem { Header = "Move to" };
-                foreach (var other in others)
-                {
-                    var captured = other;
-                    var entry = new System.Windows.Controls.MenuItem
-                    {
-                        Header = captured.Title,
-                    };
-                    entry.Click += async (_, _) => await PerformMoveAsync(vm, captured).ConfigureAwait(true);
-                    moveTo.Items.Add(entry);
-                }
-                menu.Items.Add(moveTo);
-            }
-        }
-
-        menu.Items.Add(new System.Windows.Controls.Separator());
-
-        // Rename / Remove are destructive: hidden entirely when locked rather than disabled so
-        // the menu height tracks usable surface (consistent with the chrome hamburger which
-        // hides "Delete wormhole" while locked).
-        if (!_record.IsLocked)
-        {
-            var rename = new System.Windows.Controls.MenuItem { Header = "Rename label…" };
-            rename.Click += (_, _) => RenameItem(vm);
-            menu.Items.Add(rename);
-
-            var remove = new System.Windows.Controls.MenuItem { Header = "Delete from disk…" };
-            remove.Click += async (_, _) => await RemoveItemAsync(vm).ConfigureAwait(true);
-            menu.Items.Add(remove);
-        }
-
-        return menu;
-    }
-
+    /// <summary>Launch the item via shell verb — the default verb (Open) for the file type.
+    /// Wired to the double-click handler on each tile; never called from the right-click flow
+    /// any more (which goes straight to the shell context menu and lets the user pick Open
+    /// themselves).</summary>
     private void OpenItem(WormholeItemViewModel vm)
     {
         try
@@ -999,212 +931,6 @@ public partial class WormholeWindow : Window
             MessageBox.Show(OwnerForDialogs(),"Couldn't open the item:\n" + ex.Message,
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-    }
-
-    private void OpenFileLocation(WormholeItemViewModel vm)
-    {
-        // Both Data (.lnk inside our Shortcuts\) and Portal (real file) want Explorer opened
-        // with the entry pre-selected. /select,<path> is the documented gesture; Explorer
-        // refuses paths with embedded quotes so we wrap the whole arg in quotes and trust the
-        // file system not to contain literal quotes (Windows file naming forbids them).
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = $"/select,\"{vm.AbsolutePath}\"",
-                UseShellExecute = false,
-            });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(OwnerForDialogs(),"Couldn't open the file location:\n" + ex.Message,
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private void CopyItemPath(WormholeItemViewModel vm)
-    {
-        try
-        {
-            System.Windows.Clipboard.SetText(vm.AbsolutePath);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(OwnerForDialogs(),"Couldn't copy the path:\n" + ex.Message,
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private void RenameItem(WormholeItemViewModel vm)
-    {
-        var initial = vm.DisplayName;
-        var next = PromptForString(OwnerForDialogs(), "AresToys — Rename", "Rename this file on disk to:", initial);
-        if (next is null) return;             // user cancelled
-        next = next.Trim();
-        if (string.IsNullOrEmpty(next) || string.Equals(next, initial, StringComparison.Ordinal)) return;
-
-        // Bail on any invalid filename char so File.Move doesn't surface the cryptic IOException.
-        if (next.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            MessageBox.Show(OwnerForDialogs(),"That name contains characters Windows doesn't allow in filenames.",
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        // Preserve the extension if the user didn't include one — typical case is "rename
-        // Report.pdf to Q3 Report" expecting the .pdf to stick.
-        var sourcePath = vm.AbsolutePath;
-        var sourceExt = Path.GetExtension(sourcePath);
-        if (string.IsNullOrEmpty(Path.GetExtension(next)) && !string.IsNullOrEmpty(sourceExt))
-            next += sourceExt;
-        var dir = Path.GetDirectoryName(sourcePath);
-        if (string.IsNullOrEmpty(dir)) return;
-        var destPath = Path.Combine(dir, next);
-        if (File.Exists(destPath) || Directory.Exists(destPath))
-        {
-            MessageBox.Show(OwnerForDialogs(),"Another file with that name already exists in the folder.",
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        var confirm = MessageBox.Show(OwnerForDialogs(),
-            $"Rename on disk:\n\n  {sourcePath}\n→ {destPath}",
-            "AresToys", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
-        if (confirm != MessageBoxResult.OK) return;
-        try
-        {
-            if (Directory.Exists(sourcePath)) Directory.Move(sourcePath, destPath);
-            else File.Move(sourcePath, destPath);
-            // FSW emits the rename → RefreshPortalItems picks up the new name in ~300 ms.
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(OwnerForDialogs(),"Rename failed:\n" + ex.Message,
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private async Task RemoveItemAsync(WormholeItemViewModel vm)
-    {
-        // Real file on disk → Recycle Bin (FOF_ALLOWUNDO) so the user can recover via Explorer.
-        // Confirm dialog spells out which file is going.
-        var confirm = MessageBox.Show(OwnerForDialogs(),
-            $"Send this file to the Recycle Bin?\n\n{vm.AbsolutePath}",
-            "AresToys", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
-        if (confirm != MessageBoxResult.OK) return;
-        if (!SendToRecycleBin(vm.AbsolutePath))
-        {
-            MessageBox.Show(OwnerForDialogs(),"Couldn't move the file to the Recycle Bin.",
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        await Task.CompletedTask;
-    }
-
-    private async Task PerformMoveAsync(WormholeItemViewModel vm, WormholeRecord target)
-    {
-        if (_moveItemToWormhole is null) return;
-        try
-        {
-            // Manager owns the cross-wormhole move flow end-to-end (decision matrix per spec §7,
-            // confirm dialogs for destructive cases, refresh of both live windows). Return value
-            // is purely "succeeded?"; user-visible error / cancel toasts are already shown by the
-            // manager.
-            await _moveItemToWormhole(vm, target.Id, CancellationToken.None).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(OwnerForDialogs(),"Move failed:\n" + ex.Message,
-                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    // -----------------------------------------------------------------------------------------
-    // SHFileOperation P/Invoke — sends a single file/folder path to the Recycle Bin. We use
-    // this instead of File.Delete so users can recover from a mis-click via Explorer; SHFile-
-    // Operation is the only documented way to put items into the bin without a heavyweight
-    // dependency like Microsoft.VisualBasic. Wide-string variant; pFrom is double-null-
-    // terminated as the API requires.
-    // -----------------------------------------------------------------------------------------
-
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode, Pack = 1)]
-    private struct SHFILEOPSTRUCT
-    {
-        public IntPtr hwnd;
-        public uint wFunc;
-        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] public string pFrom;
-        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] public string? pTo;
-        public ushort fFlags;
-        public int fAnyOperationsAborted;
-        public IntPtr hNameMappings;
-        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] public string? lpszProgressTitle;
-    }
-    private const uint FO_DELETE = 0x0003;
-    private const ushort FOF_ALLOWUNDO = 0x0040;
-    private const ushort FOF_NOCONFIRMATION = 0x0010;
-    private const ushort FOF_WANTNUKEWARNING = 0x4000;
-
-    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
-
-    private static bool SendToRecycleBin(string path)
-    {
-        var op = new SHFILEOPSTRUCT
-        {
-            wFunc = FO_DELETE,
-            pFrom = path + '\0' + '\0',
-            fFlags = (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_WANTNUKEWARNING),
-        };
-        return SHFileOperation(ref op) == 0 && op.fAnyOperationsAborted == 0;
-    }
-
-    /// <summary>Modal single-line input prompt — owned by AresToys' MainWindow (not the wormhole
-    /// itself, since wormhole windows go to the desktop layer / behind everything else once
-    /// DesktopLayerHost re-enables). Returns the entered string on OK, or null on Cancel /
-    /// dialog close. Built programmatically rather than as a separate XAML file because it's a
-    /// single-shot reused only by this code path (Rename label).</summary>
-    private static string? PromptForString(Window? owner, string title, string prompt, string initialValue)
-    {
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 400, SizeToContent = SizeToContent.Height,
-            ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false,
-            WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
-            Owner = owner,
-        };
-        var grid = new System.Windows.Controls.Grid { Margin = new Thickness(14) };
-        grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
-        grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
-        grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
-
-        var label = new System.Windows.Controls.TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap };
-        System.Windows.Controls.Grid.SetRow(label, 0);
-        grid.Children.Add(label);
-
-        var input = new System.Windows.Controls.TextBox { Text = initialValue ?? string.Empty };
-        System.Windows.Controls.Grid.SetRow(input, 1);
-        grid.Children.Add(input);
-
-        var buttons = new System.Windows.Controls.StackPanel
-        {
-            Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 14, 0, 0),
-        };
-        var ok = new System.Windows.Controls.Button { Content = "OK", Width = 90, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-        var cancel = new System.Windows.Controls.Button { Content = "Cancel", Width = 90, IsCancel = true };
-        string? result = null;
-        ok.Click += (_, _) => { result = input.Text; dialog.DialogResult = true; };
-        // IsCancel handles closing automatically; no Click handler needed for Cancel.
-        buttons.Children.Add(ok);
-        buttons.Children.Add(cancel);
-        System.Windows.Controls.Grid.SetRow(buttons, 2);
-        grid.Children.Add(buttons);
-
-        dialog.Content = grid;
-        input.Loaded += (_, _) => { input.Focus(); input.SelectAll(); };
-
-        return dialog.ShowDialog() == true ? result : null;
     }
 
     // -----------------------------------------------------------------------------------------

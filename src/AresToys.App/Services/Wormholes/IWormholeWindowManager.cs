@@ -53,11 +53,6 @@ public interface IWormholeWindowManager
     /// UI dispatcher thread.</summary>
     event EventHandler<Guid>? RecordChanged;
 
-    /// <summary>Snapshot of every persisted wormhole record other than <paramref name="exceptId"/>.
-    /// Used by the per-item context menu in a live <c>WormholeWindow</c> to populate the
-    /// "Move to →" submenu without each window having to hold a back-reference to the store.</summary>
-    IReadOnlyList<WormholeRecord> GetOtherRecords(Guid exceptId);
-
     /// <summary>Flip <see cref="WormholeRecord.IsHidden"/> on every persisted record. Hidden
     /// wormholes have their live window closed (record stays); un-hidden wormholes get a fresh
     /// window spawned. Used by the workflow "Hide all / Show all" tasks and by the future
@@ -84,20 +79,4 @@ public interface IWormholeWindowManager
     /// <summary>Smart-toggle: if ANY wormhole is uncollapsed, collapse all; otherwise uncollapse
     /// all.</summary>
     Task ToggleAllRolledAsync(CancellationToken cancellationToken);
-
-    /// <summary>Move a single item from <paramref name="sourceWormholeId"/> to the wormhole
-    /// identified by <paramref name="targetWormholeId"/>. Implements the spec §7 decision table:
-    /// <list type="bullet">
-    ///   <item><b>Data → Data</b>: move the <c>.lnk</c> between <c>Shortcuts\{id}\</c> folders,
-    ///         update both records.</item>
-    ///   <item><b>Data → Portal</b>: resolve the <c>.lnk</c> target, move the real file into the
-    ///         Portal's source folder (user confirm).</item>
-    ///   <item><b>Portal → Data</b>: create a <c>.lnk</c> in the target's Shortcuts folder
-    ///         pointing at the source file; source file is untouched.</item>
-    ///   <item><b>Portal → Portal</b>: move the real file between the two source folders
-    ///         (confirm dialog when crossing volumes).</item>
-    /// </list>
-    /// Returns true on success, false on user-cancel or aborted operation (error MessageBox is
-    /// surfaced inside this method).</summary>
-    Task<bool> MoveItemAsync(Guid sourceWormholeId, WormholeItemViewModel item, Guid targetWormholeId, CancellationToken cancellationToken);
 }
