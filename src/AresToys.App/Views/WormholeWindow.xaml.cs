@@ -385,6 +385,15 @@ public partial class WormholeWindow : Window
 
     private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e)
     {
+        // Middle-click anywhere on the header → open the source folder in Explorer. Available
+        // even when the wormhole is locked (read-only gesture, doesn't move/resize the window)
+        // and ignores click count so a quick Browser-style middle-click works on the first try.
+        if (e.ChangedButton == MouseButton.Middle && e.ButtonState == MouseButtonState.Pressed)
+        {
+            OpenSourceFolder();
+            e.Handled = true;
+            return;
+        }
         if (_record.IsLocked) return;
         if (e.ClickCount == 2) { ToggleRoll(); return; }
         if (e.LeftButton == MouseButtonState.Pressed)
@@ -394,7 +403,25 @@ public partial class WormholeWindow : Window
         }
     }
 
-    private void OnHeaderMouseUp(object sender, MouseButtonEventArgs e) { /* reserved */ }
+    /// <summary>Launch Explorer on the wormhole's source folder. Mirrors the Wormhole row's
+    /// OpenFolder command in the settings tab — duplicated rather than reaching across to the
+    /// VM because this window has its own _record snapshot and there's no row VM bound to it.
+    /// Silent no-op when the path is empty (broken/unlinked wormhole) or Explorer launch fails;
+    /// the user already sees the folder-missing chrome in that case.</summary>
+    private void OpenSourceFolder()
+    {
+        var folder = _record.Portal?.SourcePath;
+        if (string.IsNullOrWhiteSpace(folder)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+        }
+        catch
+        {
+            // Explorer failed (folder missing / drive offline / ACL); the visible error chrome
+            // on the wormhole already advertises the broken state, no need to nag with a dialog.
+        }
+    }
 
     private void OnContentAreaMouseDown(object sender, MouseButtonEventArgs e)
     {

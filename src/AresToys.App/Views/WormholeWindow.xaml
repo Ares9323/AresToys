@@ -55,8 +55,7 @@
                  Background=Transparent now — the visual fill lives on HeaderBackdrop above. -->
             <Border Grid.Row="0" Height="32"
                     Background="Transparent"
-                    MouseLeftButtonDown="OnHeaderMouseDown"
-                    MouseLeftButtonUp="OnHeaderMouseUp">
+                    MouseDown="OnHeaderMouseDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <!-- 0=chevron, 1=title (stretches), 2=lock, 3=hamburger -->
