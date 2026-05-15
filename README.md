@@ -128,6 +128,14 @@ Headline gaps against the upstream feature set:
 - **Bundled OAuth client IDs aren't shipped** in the public source. Maintainers create `src/AresToys.Uploaders/Secrets.Local.cs` with their own credentials (gitignored). End users of a public release get zero-friction sign-in; users building from source themselves will see "isn't configured in this build" until they either drop in their own keys or paste credentials in the Configure dialog.
 - **No CLI / scripting interface** — everything runs through hotkeys + workflows.
 
+## Future ideas
+
+Tracked but not on a release timeline — small / niche / scoped-out polish that would land if the headline backlog frees up, or if user feedback bumps any of them in priority. Open an issue if one of these blocks your workflow.
+
+- **Clipboard tags** ([#4](https://github.com/Ares9323/AresToys/issues/4)) — orthogonal many-to-many filtering dimension on top of the existing Categories (one item = one category) and Labels (custom title). Schema migration with a `item_tags(item_id, tag_name)` join table, FTS index extension, per-row tag chips, autocomplete context-menu, AND/OR filter strip in the Clipboard window. Likely pinned-items-only to keep the footprint reasonable.
+- **Per-wormhole opacity slider** in the wormhole chrome hamburger menu — today opacity is configurable in Settings → Wormholes as an app-wide default + a per-record override exists in the data model but has no UI surface. Hamburger menu would expose an inline 30 – 100 % slider that writes straight to the record so the user can dial each wormhole independently without reaching the Settings panel.
+- **Per-wormhole accent / theme override** — let each wormhole carry its own accent colour so a user can colour-code wormholes by project (red for git scratch, blue for design refs, green for daily notes…). Hamburger menu entry → opens the same `ColorPickerWindow` the Theme tab uses; new field on `WormholeRecord` that overrides `AccentBackgroundBrush` for that window's chrome only, fallback to the global theme when null.
+
 ## Tech stack
 
 - .NET 10, C# (Windows-only)

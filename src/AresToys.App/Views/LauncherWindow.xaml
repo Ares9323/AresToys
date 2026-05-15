@@ -23,16 +23,24 @@
              clicked cell's view-model via the PlacementTarget binding so each invocation
              carries the right cell's payload. The five entries match the conventional file-
              manager actions on a slot: jump to its source on disk, edit, copy/paste between
-             slots (own clipboard, doesn't touch the OS clipboard), wipe. -->
+             slots (own clipboard, doesn't touch the OS clipboard), wipe.
+             Empty cells (HasPath=false) hide the entries that have nothing to operate on
+             (Open location / Edit / Copy / Delete) plus the surrounding separators — only
+             Paste stays available, since it's the one action that works on an empty slot
+             (drop a copied cell into the empty spot). -->
         <ContextMenu x:Key="LauncherCellMenu"
                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-            <MenuItem Header="{Markup:Loc Launcher_MenuOpenLocation}" Click="OnMenuOpenLocation" />
-            <MenuItem Header="{Markup:Loc Launcher_MenuEdit}"         Click="OnMenuEdit" />
-            <Separator />
-            <MenuItem Header="{Markup:Loc Launcher_MenuCopy}"          Click="OnMenuCopy" />
+            <MenuItem Header="{Markup:Loc Launcher_MenuOpenLocation}" Click="OnMenuOpenLocation"
+                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+            <MenuItem Header="{Markup:Loc Launcher_MenuEdit}"         Click="OnMenuEdit"
+                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+            <Separator Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+            <MenuItem Header="{Markup:Loc Launcher_MenuCopy}"          Click="OnMenuCopy"
+                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
             <MenuItem Header="{Markup:Loc Launcher_MenuPaste}"         Click="OnMenuPaste" />
-            <Separator />
-            <MenuItem Header="{Markup:Loc Launcher_MenuDelete}"        Click="OnMenuDelete" />
+            <Separator Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+            <MenuItem Header="{Markup:Loc Launcher_MenuDelete}"        Click="OnMenuDelete"
+                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
         </ContextMenu>
     </ui:FluentWindow.Resources>
     <!-- Accent-tinted 2px frame around the whole window content (titlebar + body), matching

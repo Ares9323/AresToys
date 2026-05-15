@@ -1045,6 +1045,196 @@ public partial class WormholeWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>Keyboard shortcuts on the items list: Del / Shift+Del recycle or permanently
+    /// delete the selected files; Ctrl+C / Ctrl+X copy or cut them onto the Windows clipboard
+    /// in Explorer-compatible CF_HDROP format with a "Preferred DropEffect" hint; Ctrl+V pastes
+    /// a previously copied/cut file selection into the wormhole's source folder via SHFile-
+    /// Operation (which surfaces the standard shell prompts for name collisions). Locked
+    /// wormholes refuse the mutating gestures (Cut / Paste / Delete) but still allow Copy.</summary>
+    private void OnItemsHostPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var ctrl  = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift)   == ModifierKeys.Shift;
+
+        if (e.Key == Key.Delete)
+        {
+            if (_record.IsLocked) return;
+            var paths = SelectedItemPaths();
+            if (paths.Length == 0) return;
+            // Shift+Del = permanent (no recycle bin). FOF_WANTNUKEWARNING surfaces the
+            // standard shell "permanently delete?" prompt. Without Shift, FOF_ALLOWUNDO
+            // sends to the recycle bin silently — same gesture Explorer uses, so muscle
+            // memory works.
+            SendPathsToRecycleBin(paths, permanent: shift);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.C)
+        {
+            var paths = SelectedItemPaths();
+            if (paths.Length == 0) return;
+            SetClipboardFiles(paths, cut: false);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.X)
+        {
+            if (_record.IsLocked) return;
+            var paths = SelectedItemPaths();
+            if (paths.Length == 0) return;
+            SetClipboardFiles(paths, cut: true);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.V)
+        {
+            if (_record.IsLocked) return;
+            PasteFromClipboard();
+            e.Handled = true;
+            return;
+        }
+    }
+
+    /// <summary>Snapshot of the selected items' absolute paths, defensively filtered to
+    /// non-empty strings. Multiple call sites (Del / Copy / Cut handlers) — extracted to keep
+    /// each branch a one-liner.</summary>
+    private string[] SelectedItemPaths() => ItemsHost.SelectedItems
+        .OfType<WormholeItemViewModel>()
+        .Select(vm => vm.AbsolutePath)
+        .Where(p => !string.IsNullOrEmpty(p))
+        .ToArray();
+
+    /// <summary>Push a list of filesystem paths onto the Windows clipboard in the standard
+    /// CF_HDROP format Explorer also writes. The <c>Preferred DropEffect</c> shell-clipboard
+    /// format is a 4-byte LE DWORD: <c>2</c> = Move (Cut), <c>5</c> = Copy. Setting it lets
+    /// the user paste into Explorer / any other app that honours the convention; the receiving
+    /// side reads the same bytes to know whether to move or copy. Without it Explorer defaults
+    /// to Copy regardless of how we got the items onto the clipboard.</summary>
+    private static void SetClipboardFiles(string[] paths, bool cut)
+    {
+        var data = new System.Windows.DataObject();
+        var sc = new System.Collections.Specialized.StringCollection();
+        foreach (var p in paths) sc.Add(p);
+        data.SetFileDropList(sc);
+
+        // DROPEFFECT_COPY = 1, DROPEFFECT_MOVE = 2 (Win32 OLE convention; the older Explorer
+        // shell wrote 5 for Copy = COPY|LINK but every modern reader accepts the plain 1).
+        var effect = new byte[] { (byte)(cut ? 2 : 1), 0, 0, 0 };
+        var ms = new MemoryStream(effect);
+        data.SetData("Preferred DropEffect", ms);
+
+        System.Windows.Clipboard.SetDataObject(data, copy: true);
+    }
+
+    /// <summary>Read the clipboard for a CF_HDROP payload + Preferred DropEffect hint, then
+    /// run a shell move-or-copy into the wormhole's source folder. SHFileOperation handles
+    /// the conflict-rename prompt + progress UI automatically, mirroring what Explorer does
+    /// when pasting in a folder. On a successful Cut paste we clear the clipboard to match
+    /// Explorer's behaviour (the cut source disappears from the clipboard after the move).</summary>
+    private void PasteFromClipboard()
+    {
+        if (_record.Portal?.SourcePath is not { } dest) return;
+        if (!Directory.Exists(dest)) return;
+        if (!System.Windows.Clipboard.ContainsFileDropList()) return;
+
+        var fileList = System.Windows.Clipboard.GetFileDropList();
+        if (fileList.Count == 0) return;
+        var paths = new string[fileList.Count];
+        for (var i = 0; i < fileList.Count; i++) paths[i] = fileList[i]!;
+
+        // Sniff the Preferred DropEffect hint to distinguish Cut from Copy. Default to Copy if
+        // the source didn't write the hint (some apps put a CF_HDROP without it).
+        var isCut = false;
+        try
+        {
+            var data = System.Windows.Clipboard.GetDataObject();
+            if (data?.GetData("Preferred DropEffect") is MemoryStream ms)
+            {
+                var bytes = new byte[4];
+                _ = ms.Read(bytes, 0, 4);
+                // DROPEFFECT_MOVE = 2; treat anything else as Copy.
+                isCut = bytes[0] == 2;
+            }
+        }
+        catch { /* clipboard race — ignore, fall back to Copy */ }
+
+        ShellCopyOrMove(paths, dest, move: isCut);
+
+        if (isCut)
+        {
+            // Explorer clears the clipboard after a Cut+Paste so a stray Ctrl+V can't move
+            // the same files twice. Mirror that behaviour.
+            try { System.Windows.Clipboard.Clear(); } catch { }
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // SHFileOperation P/Invoke — used by the keyboard shortcuts (Del / Ctrl+V) to recycle,
+    // permanently delete, copy, and move files with the same shell prompts + progress UI
+    // Explorer surfaces.
+    // -----------------------------------------------------------------------------------------
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode, Pack = 1)]
+    private struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] public string pFrom;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] public string? pTo;
+        public ushort fFlags;
+        public int fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] public string? lpszProgressTitle;
+    }
+    private const uint FO_MOVE   = 0x0001;
+    private const uint FO_COPY   = 0x0002;
+    private const uint FO_DELETE = 0x0003;
+    private const ushort FOF_ALLOWUNDO        = 0x0040;
+    private const ushort FOF_NOCONFIRMATION   = 0x0010;
+    private const ushort FOF_WANTNUKEWARNING  = 0x4000;
+    private const ushort FOF_MULTIDESTFILES   = 0x0001;
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+
+    /// <summary>Send one or more paths to the Recycle Bin (or permanently delete when
+    /// <paramref name="permanent"/> is true). pFrom needs a double-null terminator and per-path
+    /// NUL separators — that's the wide-string convention SHFileOperation expects.</summary>
+    private static void SendPathsToRecycleBin(string[] paths, bool permanent)
+    {
+        if (paths.Length == 0) return;
+        var pFrom = string.Join('\0', paths) + "\0\0";
+        var flags = permanent
+            ? (ushort)FOF_WANTNUKEWARNING                       // user gets the shell's permanent-delete prompt
+            : (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION);     // silent recycle, recoverable
+        var op = new SHFILEOPSTRUCT { wFunc = FO_DELETE, pFrom = pFrom, fFlags = flags };
+        // Return is non-zero on shell-side error / user-cancel — irrelevant here, the shell
+        // already surfaced whatever message it wanted to. Discard explicitly to silence the
+        // CA1806 analyzer.
+        _ = SHFileOperation(ref op);
+    }
+
+    /// <summary>Move-or-copy a batch of paths into a destination directory. The shell's
+    /// own progress + conflict UI takes over from here — no custom AresToys dialog needed,
+    /// the experience matches what the user gets in Explorer.</summary>
+    private static void ShellCopyOrMove(string[] paths, string destFolder, bool move)
+    {
+        if (paths.Length == 0) return;
+        var pFrom = string.Join('\0', paths) + "\0\0";
+        var pTo   = destFolder + "\0\0";
+        var op = new SHFILEOPSTRUCT
+        {
+            wFunc = move ? FO_MOVE : FO_COPY,
+            pFrom = pFrom,
+            pTo   = pTo,
+            fFlags = FOF_ALLOWUNDO,
+        };
+        _ = SHFileOperation(ref op);
+    }
+
     /// <summary>Launch the item via shell verb — the default verb (Open) for the file type.
     /// Wired to the double-click handler on each tile; never called from the right-click flow
     /// any more (which goes straight to the shell context menu and lets the user pick Open

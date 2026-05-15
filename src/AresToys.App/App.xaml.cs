@@ -544,25 +544,45 @@ public partial class App : Application
         tray.Attach(window);
 
         // Self-update: subscribe to UpdateAvailable for the toast, then fire one silent check on
-        // startup. Click on the toast launches the same flow as the Settings button — a simple
-        // confirm dialog that can either install + restart now or defer until next launch.
+        // startup IF the user hasn't opted out via Settings → "Look for updates at startup".
+        // Click on the toast launches the same flow as the Settings button — a simple confirm
+        // dialog that can either install + restart now or defer until next launch.
         // Routed through IToastNotifier (= WindowsToastNotifier) so the prompt lands in the
         // Windows Notification Center alongside every other app notification (capture, color
         // picked, recording status, etc.) and persists past dismissal — the previous tray
         // balloon disappeared after a few seconds and was easy to miss.
+        //
+        // "Automatically install updates when available" (default OFF) short-circuits the toast
+        // path: when ON and an update lands, we download + apply + restart immediately. The
+        // toast still fires for users who haven't opted in.
         var updater = _host.Services.GetRequiredService<AresToys.Updater.UpdaterService>();
+        var settingsStoreForUpdate = _host.Services.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+        var rawCheckUpdates = await settingsStoreForUpdate.GetAsync("app.updates.check_at_startup", CancellationToken.None).ConfigureAwait(true);
+        var checkUpdatesAtStartup = !string.Equals(rawCheckUpdates, "false", StringComparison.OrdinalIgnoreCase);
+        var rawAutoInstall = await settingsStoreForUpdate.GetAsync("app.updates.auto_install", CancellationToken.None).ConfigureAwait(true);
+        var autoInstall = string.Equals(rawAutoInstall, "true", StringComparison.OrdinalIgnoreCase);
         updater.UpdateAvailable += (_, args) =>
         {
             Dispatcher.Invoke(() =>
             {
+                if (autoInstall)
+                {
+                    // User chose unattended updates — apply + restart without a prompt. The
+                    // download / apply / restart sequence exits the process so we don't return.
+                    _ = updater.DownloadAndRestartAsync(args.Info, CancellationToken.None);
+                    return;
+                }
                 notifier.Show(
                     "AresToys update available",
                     $"Version {args.Version} is ready. Click to install.",
                     onClick: () => _ = PromptInstallUpdateAsync(updater, args.Info));
             });
         };
-        // Fire-and-forget — silent check, errors logged inside the service.
-        _ = Task.Run(() => updater.CheckSilentlyAsync(CancellationToken.None));
+        if (checkUpdatesAtStartup)
+        {
+            // Fire-and-forget — silent check, errors logged inside the service.
+            _ = Task.Run(() => updater.CheckSilentlyAsync(CancellationToken.None));
+        }
 
         guard.AnotherInstanceStarted += (_, message) =>
         {

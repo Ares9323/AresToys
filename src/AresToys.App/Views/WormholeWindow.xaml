@@ -193,6 +193,7 @@
                              BorderThickness="0"
                              Padding="0"
                              SelectionMode="Extended"
+                             PreviewKeyDown="OnItemsHostPreviewKeyDown"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              HorizontalContentAlignment="Stretch">

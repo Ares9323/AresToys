@@ -159,8 +159,8 @@
 
   <!-- Launcher window. -->
   <data name="Launcher_Title" xml:space="preserve"><value>AresToys - Launcher</value></data>
-  <data name="Launcher_DragMode" xml:space="preserve"><value>📥 Drag mode</value></data>
-  <data name="Launcher_DragModeOn" xml:space="preserve"><value>✓ Drag mode (on)</value></data>
+  <data name="Launcher_DragMode" xml:space="preserve"><value>Dock window</value></data>
+  <data name="Launcher_DragModeOn" xml:space="preserve"><value>Undock window</value></data>
   <data name="Launcher_DragModeBanner" xml:space="preserve"><value>🎯 Drag-and-drop mode — drop files / folders / shortcuts onto cells to map them. Esc or click toggle to exit.</value></data>
   <data name="Launcher_MenuOpenLocation" xml:space="preserve"><value>Open file location</value></data>
   <data name="Launcher_MenuEdit" xml:space="preserve"><value>Edit…</value></data>
@@ -584,8 +584,8 @@
   <data name="Clipboard_FilterTextBullet1" xml:space="preserve"><value>• Plain text (everything you copy as text)</value></data>
   <data name="Clipboard_FilterTextBullet2" xml:space="preserve"><value>• HTML (browsers' Copy link / Copy image address)</value></data>
   <data name="Clipboard_FilterTextBullet3" xml:space="preserve"><value>• RTF (formatted text from Word / Outlook / etc.)</value></data>
-  <data name="Clipboard_PinnedMode" xml:space="preserve"><value>📌 Pinned mode</value></data>
-  <data name="Clipboard_PinnedOn" xml:space="preserve"><value>✓ Pinned (on)</value></data>
+  <data name="Clipboard_PinnedMode" xml:space="preserve"><value>Dock window</value></data>
+  <data name="Clipboard_PinnedOn" xml:space="preserve"><value>Undock window</value></data>
   <data name="Clipboard_FooterHint" xml:space="preserve"><value>↑↓ navigate · 1-9 focus · Enter paste · Ctrl+1-9 quick paste · ←→ switch category · Ctrl+F search · Ctrl+P pin · Ctrl+Shift+Del clear all · Esc close</value></data>
   <data name="Clipboard_DefaultCategory" xml:space="preserve"><value>Clipboard</value></data>
 

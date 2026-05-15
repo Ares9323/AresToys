@@ -10,6 +10,8 @@ namespace AresToys.App.ViewModels;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private const string StartMinimizedKey = "app.start_minimized";
+    private const string CheckUpdatesAtStartupKey = "app.updates.check_at_startup";
+    private const string AutoInstallUpdatesKey = "app.updates.auto_install";
     private const string EditorStartMaximizedKey = "app.editor_start_maximized";
     private const string EditorAltClickNoMatchKey = "editor.alt_click_no_match";
     private const string ClipboardShowSnippetWithLabelKey = "clipboard.show_snippet_with_label";
@@ -113,6 +115,21 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _startMinimized;
 
+    /// <summary>Bound to "Look for updates at startup" (default ON). Persisted under
+    /// <see cref="CheckUpdatesAtStartupKey"/>; <see cref="App.OnStartup"/> reads it before
+    /// firing the silent <c>UpdaterService.CheckSilentlyAsync</c> call. Turning it off skips
+    /// the GitHub API roundtrip entirely — manual checks from the About tab keep working.</summary>
+    [ObservableProperty]
+    private bool _checkUpdatesAtStartup = true;
+
+    /// <summary>Bound to "Automatically install updates when available" (default OFF, safe).
+    /// Persisted under <see cref="AutoInstallUpdatesKey"/>. When ON, an available update from
+    /// the silent startup check downloads + applies + restarts without the toast prompt;
+    /// when OFF the existing toast appears so the user picks the timing. Gated behind the
+    /// startup check — if that's off, this flag has no effect.</summary>
+    [ObservableProperty]
+    private bool _autoInstallUpdates;
+
     /// <summary>Bound to the Settings-tab "Start editor maximized" checkbox. Persisted under
     /// <see cref="EditorStartMaximizedKey"/>. Honoured by <c>EditorLauncher.OpenAsync</c> (the
     /// non-pipeline open path: toast click, history → edit). Workflow tasks have their own
@@ -169,6 +186,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _modulesRestartRequired;
 
     private bool _suppressStartMinimizedPersist;
+    private bool _suppressCheckUpdatesAtStartupPersist;
+    private bool _suppressAutoInstallUpdatesPersist;
     private bool _suppressEditorStartMaximizedPersist;
     private bool _suppressEditorAltClickSelectAnyPersist;
     private bool _suppressClipboardShowSnippetWithLabelPersist;
@@ -182,6 +201,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         _suppressStartMinimizedPersist = true;
         try { StartMinimized = string.Equals(rawMin, "true", StringComparison.OrdinalIgnoreCase); }
         finally { _suppressStartMinimizedPersist = false; }
+
+        // "Look for updates at startup" defaults ON when the key is missing (fresh install,
+        // pre-0.1.11 upgrade) — matches the prior behaviour where the silent check always ran.
+        var rawCheckUpdates = await _settingsStore.GetAsync(CheckUpdatesAtStartupKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressCheckUpdatesAtStartupPersist = true;
+        try { CheckUpdatesAtStartup = !string.Equals(rawCheckUpdates, "false", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressCheckUpdatesAtStartupPersist = false; }
+
+        // "Auto-install updates" defaults OFF — opt-in only, since auto-install + restart is a
+        // surprise the user shouldn't get unless they explicitly asked for it.
+        var rawAutoInstall = await _settingsStore.GetAsync(AutoInstallUpdatesKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressAutoInstallUpdatesPersist = true;
+        try { AutoInstallUpdates = string.Equals(rawAutoInstall, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressAutoInstallUpdatesPersist = false; }
 
         var rawMax = await _settingsStore.GetAsync(EditorStartMaximizedKey, CancellationToken.None).ConfigureAwait(true);
         _suppressEditorStartMaximizedPersist = true;
@@ -220,6 +253,24 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         if (_suppressStartMinimizedPersist) return;
         _ = _settingsStore.SetAsync(StartMinimizedKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnCheckUpdatesAtStartupChanged(bool value)
+    {
+        if (_suppressCheckUpdatesAtStartupPersist) return;
+        _ = _settingsStore.SetAsync(CheckUpdatesAtStartupKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnAutoInstallUpdatesChanged(bool value)
+    {
+        if (_suppressAutoInstallUpdatesPersist) return;
+        _ = _settingsStore.SetAsync(AutoInstallUpdatesKey,
             value ? "true" : "false",
             sensitive: false,
             CancellationToken.None);

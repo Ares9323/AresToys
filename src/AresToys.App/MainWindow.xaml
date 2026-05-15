@@ -1918,8 +1918,19 @@
                             <CheckBox IsChecked="{Binding StartMinimized, Mode=TwoWay}"
                                       Content="{Markup:Loc Settings_StartMinimized}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
-                                      HorizontalAlignment="Left" Margin="0,0,0,12"
+                                      HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_StartMinimizedTooltip}" />
+                            <CheckBox IsChecked="{Binding CheckUpdatesAtStartup, Mode=TwoWay}"
+                                      Content="Look for updates at startup"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" Margin="0,0,0,8"
+                                      ToolTip="When on, AresToys queries GitHub Releases once on launch and shows a toast if a newer version is published. Manual checks from About → Check for updates keep working either way." />
+                            <CheckBox IsChecked="{Binding AutoInstallUpdates, Mode=TwoWay}"
+                                      Content="Automatically install updates when available"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" Margin="0,0,0,12"
+                                      IsEnabled="{Binding CheckUpdatesAtStartup}"
+                                      ToolTip="When on, an update found by the startup check is downloaded and applied immediately — AresToys restarts into the new version without prompting. Off (default) shows a toast and lets you pick the timing. Requires 'Look for updates at startup' to be on." />
 
                             <!-- In-card divider between the boolean toggles above and the tray
                                  click-routing matrix below. Same Surface3 thickness/opacity as

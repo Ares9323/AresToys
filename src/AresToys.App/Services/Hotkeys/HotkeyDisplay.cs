@@ -30,12 +30,14 @@ public static class HotkeyDisplay
         // ASCII letter / digit ranges produce sensible glyphs directly.
         if (vk >= 0x30 && vk <= 0x39) return ((char)vk).ToString();          // '0'-'9'
         if (vk >= 0x41 && vk <= 0x5A) return ((char)vk).ToString();          // 'A'-'Z'
+        if (vk >= 0x60 && vk <= 0x69) return $"Num {vk - 0x60}";              // VK_NUMPAD0..9
         if (vk >= 0x70 && vk <= 0x87) return $"F{vk - 0x6F}";                 // F1-F24
         return vk switch
         {
             0x08 => "Backspace",
             0x09 => "Tab",
             0x0D => "Enter",
+            0x14 => "CapsLock",
             0x1B => "Esc",
             0x20 => "Space",
             0x21 => "PageUp",
@@ -50,6 +52,17 @@ public static class HotkeyDisplay
             0x2D => "Insert",
             0x2E => "Delete",
             0x13 => "Pause",
+            // VK_APPS = the "menu" key between Ctrl-right and the right Win key on most
+            // keyboards (opens the active control's context menu — same as a right-click).
+            0x5D => "Menu",
+            // Numpad operator keys: VK_MULTIPLY..VK_DIVIDE = 0x6A..0x6F.
+            0x6A => "Num *",
+            0x6B => "Num +",
+            0x6C => "Num Separator",
+            0x6D => "Num -",
+            0x6E => "Num .",
+            0x6F => "Num /",
+            0x90 => "NumLock",
             0x91 => "ScrollLock",
             0xBA => ";",
             0xBB => "=",
@@ -62,6 +75,10 @@ public static class HotkeyDisplay
             0xDC => "\\",
             0xDD => "]",
             0xDE => "'",
+            // VK_OEM_102 — the "102nd key" on ISO / international keyboards (sits between
+            // Shift-left and Z on italian, german, etc.). On italian layout it's the `<` key;
+            // we label it generically since the same VK is used across many layouts.
+            0xE2 => "< / >",
             _ => $"VK 0x{vk:X2}",
         };
     }

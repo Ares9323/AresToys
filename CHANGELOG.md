@@ -3,6 +3,73 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.11] — Unreleased
+
+### Settings — Self-update preferences
+- New "Look for updates at startup" checkbox in Settings → App settings →
+  Windows integration (default ON). Persisted under `app.updates.check_at_startup`;
+  read by `App.OnStartup` to gate the silent `UpdaterService.CheckSilentlyAsync`
+  call fired on launch. Turning it off skips the GitHub API roundtrip entirely
+  — the manual "Check for updates" button in About stays available.
+- New "Automatically install updates when available" checkbox (default OFF).
+  Persisted under `app.updates.auto_install`. When ON and the silent check
+  surfaces a new release, the updater downloads + applies + restarts without
+  the toast prompt; when OFF (the safe default) the existing toast appears so
+  the user picks the timing themselves. Auto-install is gated behind the
+  startup check toggle — if the startup check is OFF, the auto-install flag
+  has no effect.
+
+### Clipboard & Launcher — "Dock window" terminology
+- The Clipboard window's `Pinned mode` toggle and the Launcher window's
+  `Drag mode` toggle both renamed to `Dock window` (when off) /
+  `Undock window` (when on). Same action — keep the window visible past Esc /
+  click-out, treat it as a docked surface rather than a transient popup — but
+  the label is now consistent between the two windows and reads as a verb the
+  user can act on instead of a state label. Italian: "Aggancia finestra" /
+  "Sgancia finestra".
+- Emoji prefixes (📌 / 📥 / ✓) dropped from the toggle labels — they were
+  visual noise on a one-word verb.
+
+### Wormhole — keyboard shortcuts on the items list
+- **Del** / **Shift+Del** on a multi-select recycles or permanently deletes the
+  selected files via `SHFileOperation` (the same call Explorer uses). Multi
+  selection joined with NUL separators feeds the API in one batch; Shift+Del
+  raises the shell's "permanently delete?" prompt to match Explorer's gesture.
+- **Ctrl+C** copies the selected paths onto the Windows clipboard in
+  CF_HDROP format with a `Preferred DropEffect` hint of `1` (Copy). Pasteable
+  into Explorer / any other shell-aware app the same way Explorer's own
+  Ctrl+C is.
+- **Ctrl+X** writes the same CF_HDROP payload with `Preferred DropEffect = 2`
+  (Move) so a downstream paste treats it as a cut. AresToys doesn't currently
+  render the "fading" cut visual Explorer shows on cut items — left as polish.
+- **Ctrl+V** reads the clipboard, sniffs the `Preferred DropEffect`, and
+  runs SHFileOperation `FO_COPY` or `FO_MOVE` into the wormhole's source
+  folder. The shell handles the conflict-rename prompt + the progress bar
+  automatically; on a successful Cut+Paste the clipboard is cleared, matching
+  Explorer's behaviour.
+- Locked wormholes refuse the mutating gestures (Cut / Paste / Delete) but
+  still allow Copy — read-only mode stays a one-way membrane.
+
+### Launcher — context menu on empty cells
+- Right-click on an empty launcher cell now hides the entries that have nothing
+  to operate on (Open file location, Edit, Copy, Delete) plus the surrounding
+  separators. Only Paste stays visible, since it's the one action that makes
+  sense on a blank slot (drop a previously-copied cell into the empty spot).
+  `BoolToVisibility` converter bound to `HasPath` on every relevant MenuItem.
+
+### Hotkey display — extended virtual-key map
+- The HotkeyDisplay used by the Settings → Hotkeys rebind chip + the
+  HotkeyCaptureWindow now names a bunch of keys that previously fell through
+  to the generic `VK 0xXX` hex fallback:
+  - `Num 0` … `Num 9` (VK_NUMPAD0..9, 0x60..0x69)
+  - `Num *` / `Num +` / `Num Separator` / `Num -` / `Num .` / `Num /`
+    (VK_MULTIPLY..VK_DIVIDE, 0x6A..0x6F)
+  - `NumLock` (0x90), `CapsLock` (0x14)
+  - `Menu` (VK_APPS = 0x5D, the context-menu key between Ctrl-right and the
+    Win-right key on most layouts)
+  - `< / >` (VK_OEM_102 = 0xE2, the ISO 102nd-key found between Shift-left
+    and Z on italian / german / french ISO layouts — absent on US ANSI)
+
 ## [0.1.10]
 
 Inner / outer border split, editor toolbar that survives narrow windows, and

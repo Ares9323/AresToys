@@ -151,8 +151,8 @@
   <data name="Clipboard_TooltipPinned" xml:space="preserve"><value>Attiva/disattiva modalità persistente — la finestra resta aperta dopo incolla / doppio click. Esc o Win+V chiudono comunque.</value></data>
 
   <data name="Launcher_Title" xml:space="preserve"><value>AresToys - Launcher</value></data>
-  <data name="Launcher_DragMode" xml:space="preserve"><value>📥 Modalità trascinamento</value></data>
-  <data name="Launcher_DragModeOn" xml:space="preserve"><value>✓ Modalità trascinamento attiva</value></data>
+  <data name="Launcher_DragMode" xml:space="preserve"><value>Aggancia finestra</value></data>
+  <data name="Launcher_DragModeOn" xml:space="preserve"><value>Sgancia finestra</value></data>
   <data name="Launcher_DragModeBanner" xml:space="preserve"><value>🎯 Modalità trascinamento — trascina file / cartelle / collegamenti sulle celle per associarli. Esc o clic sul toggle per uscire.</value></data>
   <data name="Launcher_MenuOpenLocation" xml:space="preserve"><value>Apri posizione file</value></data>
   <data name="Launcher_MenuEdit" xml:space="preserve"><value>Modifica…</value></data>
@@ -536,8 +536,8 @@
   <data name="Clipboard_FilterTextBullet1" xml:space="preserve"><value>• Testo semplice (tutto ciò che copi come testo)</value></data>
   <data name="Clipboard_FilterTextBullet2" xml:space="preserve"><value>• HTML (Copia link / Copia indirizzo immagine dei browser)</value></data>
   <data name="Clipboard_FilterTextBullet3" xml:space="preserve"><value>• RTF (testo formattato da Word / Outlook / ecc.)</value></data>
-  <data name="Clipboard_PinnedMode" xml:space="preserve"><value>📌 Modalità persistente</value></data>
-  <data name="Clipboard_PinnedOn" xml:space="preserve"><value>✓ Modalità persistente attiva</value></data>
+  <data name="Clipboard_PinnedMode" xml:space="preserve"><value>Aggancia finestra</value></data>
+  <data name="Clipboard_PinnedOn" xml:space="preserve"><value>Sgancia finestra</value></data>
   <data name="Clipboard_FooterHint" xml:space="preserve"><value>↑↓ naviga · 1-9 focus · Invio incolla · Ctrl+1-9 incolla rapido · ←→ cambia categoria · Ctrl+F cerca · Ctrl+P spilla · Ctrl+Maiusc+Canc pulisci tutto · Esc chiudi</value></data>
   <data name="Clipboard_DefaultCategory" xml:space="preserve"><value>Appunti</value></data>
 
