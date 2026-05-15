@@ -28,7 +28,7 @@
          the trace window doesn't read as a generic Win32 dialog. Same Border thickness +
          CornerRadius as ImageEffectsWindow. -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
@@ -136,7 +136,7 @@
                                     <Border Width="28" Height="28" Margin="0,0,6,0"
                                             CornerRadius="3"
                                             Background="{Binding Converter={StaticResource ColorToBrush}}"
-                                            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                            BorderBrush="{DynamicResource OuterBorderBrush}"
                                             BorderThickness="1"
                                             Cursor="Hand"
                                             ToolTip="Click: re-pick · Right-click: remove"
@@ -245,7 +245,7 @@
                                   VerticalAlignment="Center" />
                         <Border x:Name="IgnoreSwatch"
                                 Width="28" Height="28" CornerRadius="3" Margin="8,0,0,0"
-                                BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                BorderBrush="{DynamicResource OuterBorderBrush}"
                                 BorderThickness="1"
                                 Background="{StaticResource CheckerBrush}"
                                 Cursor="Hand"

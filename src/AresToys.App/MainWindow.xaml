@@ -204,7 +204,7 @@
          inside the frame — same role as the explicit borders on Launcher / Clipboard / Toast /
          HotkeyCapture windows, so all surfaces share the same "accent telaio" treatment. -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
     <!-- Outer wrapper Grid so the Border can hold both the main layout AND the resize thumb
          (Border accepts only one child, Grid happily stacks via z-order). -->
     <Grid>
@@ -239,7 +239,7 @@
         <Border Grid.Row="1" Grid.Column="0" Padding="8,12"
                 CornerRadius="0,0,0,6"
                 Background="{DynamicResource SidebarGradientBrush}"
-                BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="0,0,1,0">
+                BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="0,0,1,0">
             <Border.Resources>
                 <!-- Override the AccentButton* brush family inside this Border's resource scope
                      only — WPF-UI's Button Primary template resolves them via DynamicResource,
@@ -745,7 +745,7 @@
                                                     Visibility="{Binding IsDropTargetAbove, Converter={StaticResource BoolToVisibility}}" />
                                         </Border>
                                         <Border Grid.Row="1" Padding="10,8" Background="{DynamicResource Surface1Brush}"
-                                                BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" CornerRadius="4"
+                                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4"
                                                 Opacity="{Binding IsDragSource, Converter={StaticResource BoolToOpacity}}"
                                                 AllowDrop="True"
                                                 DragOver="OnStepRowDragOver"
@@ -909,7 +909,7 @@
                                                                     <Button Grid.Column="2"
                                                                             Width="32" Height="32" Padding="0"
                                                                             Background="{DynamicResource Surface3Brush}"
-                                                                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                                             Cursor="Hand" Margin="4,0,0,0"
                                                                             Command="{Binding BrowseFileCommand}"
                                                                             ToolTip="Pick a file…"
@@ -922,7 +922,7 @@
                                                                     <Button Grid.Column="3"
                                                                             Width="32" Height="32" Padding="0"
                                                                             Background="{DynamicResource Surface3Brush}"
-                                                                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                                             Cursor="Hand" Margin="4,0,0,0"
                                                                             Command="{Binding BrowseFolderCommand}"
                                                                             ToolTip="Pick a folder…"
@@ -1158,7 +1158,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.AccentForegroundPreview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnAccentFgSwatchClick" />
@@ -1179,7 +1179,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.AccentForegroundDarkPreview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnAccentForegroundDarkSwatchClick" />
@@ -1203,7 +1203,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.AccentBackgroundPreview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnAccentBgSwatchClick" />
@@ -1224,7 +1224,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.AccentBackgroundDarkPreview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnAccentDarkSwatchClick" />
@@ -1248,7 +1248,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.AccentDeletePreview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnAccentDeleteSwatchClick" />
@@ -1271,7 +1271,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.Surface1Preview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnSurface1SwatchClick" />
@@ -1289,7 +1289,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.Surface2Preview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnSurface2SwatchClick" />
@@ -1307,7 +1307,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
                             Background="{Binding Theme.Surface3Preview}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" Margin="0,0,8,0"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
                             Cursor="Hand"
                             ToolTip="{Markup:Loc Theme_TooltipSwatch}"
                             MouseLeftButtonDown="OnSurface3SwatchClick" />
@@ -1319,6 +1319,53 @@
 
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
                            Text="{Markup:Loc Theme_SurfacesHint}" />
+
+                <!-- Outer border: heavy frame around each window (the accent telaio of MainWindow,
+                     ClipboardWindow, LauncherWindow, every dialog) + any prominent surface edge
+                     the user reads as "this is the boundary of a card". Bound to consumers via
+                     {DynamicResource OuterBorderBrush}. -->
+                <TextBlock Text="Outer border" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
+                            Background="{Binding Theme.OuterBorderPreview}"
+                            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
+                            Cursor="Hand"
+                            ToolTip="{Markup:Loc Theme_TooltipSwatch}"
+                            MouseLeftButtonDown="OnOuterBorderSwatchClick" />
+                    <ui:TextBox Grid.Column="1"
+                                Text="{Binding Theme.OuterBorderHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="#4A4A4A"
+                                FontFamily="Consolas" />
+                </Grid>
+
+                <!-- Inner border: subtle 1 px lines used by colour-swatch frames, divider lines
+                     between sub-sections inside the same card, list-row separators in the
+                     clipboard view. Defaults to Surface3 so the line reads as a one-step-up
+                     surface edge rather than a hard accent. Bound via {DynamicResource InnerBorderBrush}. -->
+                <TextBlock Text="Inner border" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
+                            Background="{Binding Theme.InnerBorderPreview}"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
+                            Cursor="Hand"
+                            ToolTip="{Markup:Loc Theme_TooltipSwatch}"
+                            MouseLeftButtonDown="OnInnerBorderSwatchClick" />
+                    <ui:TextBox Grid.Column="1"
+                                Text="{Binding Theme.InnerBorderHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="#2D2D2D"
+                                FontFamily="Consolas" />
+                </Grid>
+
+                <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                           Text="Outer = window frames + card outlines. Inner = swatches, dividers, list separators." />
 
                 <!-- No sample / Apply button: clicking a swatch opens the picker, which previews
                      the new colour on its own OK button. The accent only commits app-wide when
@@ -1381,7 +1428,7 @@
                                         Click="OnPickCategoryIconClicked"
                                         Width="32" Height="32"
                                         Background="{DynamicResource Surface3Brush}"
-                                        BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                        BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                         Cursor="Hand" Padding="0"
                                         Margin="0,0,8,0"
                                         ToolTip="Click to pick an icon from the library.">
@@ -1425,7 +1472,7 @@
                                                 Click="OnPickRowIconClicked"
                                                 Width="32" Height="32"
                                                 Background="{DynamicResource Surface3Brush}"
-                                                BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                 Cursor="Hand" Padding="0"
                                                 IsEnabled="{Binding CanConfigure}"
                                                 Margin="0,0,8,0"
@@ -1468,7 +1515,7 @@
                                                     Click="OnCategoryStepperClicked"
                                                     Width="28" Height="32"
                                                     Background="{DynamicResource Surface3Brush}"
-                                                    BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
                                                     ToolTip="Decrease by 1." />
@@ -1483,7 +1530,7 @@
                                                     Click="OnCategoryStepperClicked"
                                                     Width="28" Height="32"
                                                     Background="{DynamicResource Surface3Brush}"
-                                                    BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
                                                     ToolTip="Increase by 1." />
@@ -1494,7 +1541,7 @@
                                                     Click="OnCategoryStepperClicked"
                                                     Width="28" Height="32"
                                                     Background="{DynamicResource Surface3Brush}"
-                                                    BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
                                                     ToolTip="Decrease by 1 minute." />
@@ -1509,7 +1556,7 @@
                                                     Click="OnCategoryStepperClicked"
                                                     Width="28" Height="32"
                                                     Background="{DynamicResource Surface3Brush}"
-                                                    BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
                                                     ToolTip="Increase by 1 minute." />
@@ -2049,7 +2096,7 @@
                           IsChecked="{Binding Debug.AutoScroll, Mode=TwoWay}"
                           Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,8,0,8"
                           ToolTip="{Markup:Loc Debug_AutoScrollTooltip}" />
-                <Border Grid.Row="2" Background="{DynamicResource Surface1Brush}" BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" CornerRadius="4">
+                <Border Grid.Row="2" Background="{DynamicResource Surface1Brush}" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4">
                     <ListBox x:Name="DebugLogList"
                              ItemsSource="{Binding Debug.Entries}"
                              Background="Transparent" BorderThickness="0"

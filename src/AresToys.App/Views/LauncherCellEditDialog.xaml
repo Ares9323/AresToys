@@ -23,7 +23,7 @@
     <!-- Same accent-tinted 2px frame + rounded corners as the other app dialogs (MainWindow,
          GradientEditorWindow, QrGeneratorWindow). FluentWindow's own chrome stays outside. -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- 0 titlebar -->

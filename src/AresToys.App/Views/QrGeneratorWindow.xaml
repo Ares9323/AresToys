@@ -25,7 +25,7 @@
 
     <Grid>
     <Border Background="{DynamicResource Surface2Brush}" CornerRadius="8"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -72,7 +72,7 @@
                 <StackPanel Grid.Column="1" Orientation="Vertical" Margin="16,0,0,0" Width="290">
                     <TextBlock Text="{Markup:Loc QrGenerator_Preview}" Style="{StaticResource SubduedHeader}" />
                     <Border Padding="8" Background="White" CornerRadius="4"
-                            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1">
+                            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1">
                         <Image x:Name="QrPreview" Width="260" Height="260" Stretch="Uniform" />
                     </Border>
 

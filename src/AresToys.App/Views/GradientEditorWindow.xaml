@@ -66,7 +66,7 @@
     </ui:FluentWindow.Resources>
 
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
@@ -125,7 +125,7 @@
                                              same affordance as the preset swatches. Cursor=Hand makes the
                                              interaction discoverable. -->
                                         <Border Grid.Column="0" Width="20" Height="20" CornerRadius="3"
-                                                BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1"
+                                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                 Background="{StaticResource CheckerBrush}"
                                                 Cursor="Hand"
                                                 ToolTip="{Markup:Loc GradientEditor_TooltipChangeColor}"
@@ -224,7 +224,7 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:GradientPresetItemViewModel}">
                                     <Border Width="40" Height="40" Margin="2" CornerRadius="4"
-                                            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                            BorderBrush="{DynamicResource InnerBorderBrush}"
                                             BorderThickness="1"
                                             ToolTip="{Binding Name}"
                                             Cursor="Hand">

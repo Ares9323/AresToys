@@ -7,7 +7,7 @@
                  xmlns:views="clr-namespace:AresToys.Editor.Views"
                  Title="AresToys - Editor"
                  Icon="pack://application:,,,/AresToys;component/Assets/icon.ico"
-                 Width="1200" Height="820"
+                 Width="1280" Height="820"
                  WindowStartupLocation="CenterScreen"
                  WindowBackdropType="None"
                  Background="{DynamicResource Surface2Brush}"
@@ -40,7 +40,7 @@
          look. WindowBackdropType=None means we paint the whole chrome ourselves; the Border
          here gives the window its identity (Surface2 fill, accent dark frame, rounded). -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -82,98 +82,102 @@
             </Style>
         </Grid.Resources>
 
-        <ui:TitleBar Grid.Row="0" Grid.ColumnSpan="2" Title="">
+        <!-- TitleBar with the title text + tool palette inline in the header. The ScrollViewer
+             gets its MaxWidth from OnTitleBarSizeChanged in code-behind (computed = window
+             ActualWidth - icon - title - caption buttons slot), so the toolbar can never push
+             under Min/Max/Close at any window size. When the natural button strip exceeds that
+             width, the wheel handler converts vertical wheel ticks into horizontal scroll
+             (~48 px per tick = one tool button); the OS scroll bar is hidden inside the title
+             chrome but the wheel still works. -->
+        <ui:TitleBar Grid.Row="0" Grid.ColumnSpan="2" Title="" SizeChanged="OnTitleBarSizeChanged">
             <ui:TitleBar.Icon>
                 <ui:ImageIcon Source="{StaticResource LocalAresToysLogo}" Margin="0,0,-12,0" />
             </ui:TitleBar.Icon>
             <ui:TitleBar.Header>
-                <!-- Title text + tool palette inline. Title slot left empty (Title="") because a
-                     wide Header would otherwise hide WPF-UI's own Title rendering — same
-                     workaround used in ClipboardWindow / LauncherWindow. ScrollViewer wraps the
-                     palette so a narrow window doesn't crop tools out. -->
-                <Grid Margin="0,0,8,0" VerticalAlignment="Center" HorizontalAlignment="Stretch">
+                <Grid VerticalAlignment="Center" HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />  <!-- title text -->
-                        <ColumnDefinition Width="*" />     <!-- tools -->
+                        <ColumnDefinition Width="Auto" />  <!-- tools (clipped by MaxWidth on the ScrollViewer) -->
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="TitleBarText" Grid.Column="0" Text="AresToys - Editor"
                                Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="13"
                                VerticalAlignment="Center" Margin="0,0,16,0" />
                     <ScrollViewer Grid.Column="1"
-                                  HorizontalScrollBarVisibility="Auto"
+                                  x:Name="ToolbarScroll"
+                                  HorizontalScrollBarVisibility="Hidden"
                                   VerticalScrollBarVisibility="Disabled"
+                                  PreviewMouseWheel="OnToolbarMouseWheel"
                                   Background="Transparent">
                         <StackPanel Orientation="Horizontal">
-                            <ui:Button x:Name="SelectToolBtn" Style="{StaticResource ToolBtn}" Click="OnSelectToolClicked" ToolTip="V Select">
-                                <Image Source="{StaticResource ToolIconSelect}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
+                <ui:Button x:Name="SelectToolBtn" Style="{StaticResource ToolBtn}" Click="OnSelectToolClicked" ToolTip="V Select">
+                    <Image Source="{StaticResource ToolIconSelect}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
 
-                            <Border Style="{StaticResource ToolGroupDivider}" />
-                            <ui:Button x:Name="RectangleToolBtn" Style="{StaticResource ToolBtn}" Click="OnRectangleToolClicked" ToolTip="R Rect">
-                                <Image Source="{StaticResource ToolIconRectangle}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="EllipseToolBtn" Style="{StaticResource ToolBtn}" Click="OnEllipseToolClicked" ToolTip="E Ellipse">
-                                <Image Source="{StaticResource ToolIconEllipse}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="LineToolBtn" Style="{StaticResource ToolBtn}" Click="OnLineToolClicked" ToolTip="L Line">
-                                <Image Source="{StaticResource ToolIconLine}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="ArrowToolBtn" Style="{StaticResource ToolBtn}" Click="OnArrowToolClicked" ToolTip="A Arrow">
-                                <Image Source="{StaticResource ToolIconArrow}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="FreehandToolBtn" Style="{StaticResource ToolBtn}" Click="OnFreehandToolClicked" ToolTip="F Free">
-                                <Image Source="{StaticResource ToolIconFreehand}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="RectangleToolBtn" Style="{StaticResource ToolBtn}" Click="OnRectangleToolClicked" ToolTip="R Rect">
+                    <Image Source="{StaticResource ToolIconRectangle}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="EllipseToolBtn" Style="{StaticResource ToolBtn}" Click="OnEllipseToolClicked" ToolTip="E Ellipse">
+                    <Image Source="{StaticResource ToolIconEllipse}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="LineToolBtn" Style="{StaticResource ToolBtn}" Click="OnLineToolClicked" ToolTip="L Line">
+                    <Image Source="{StaticResource ToolIconLine}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="ArrowToolBtn" Style="{StaticResource ToolBtn}" Click="OnArrowToolClicked" ToolTip="A Arrow">
+                    <Image Source="{StaticResource ToolIconArrow}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="FreehandToolBtn" Style="{StaticResource ToolBtn}" Click="OnFreehandToolClicked" ToolTip="F Free">
+                    <Image Source="{StaticResource ToolIconFreehand}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
 
-                            <Border Style="{StaticResource ToolGroupDivider}" />
-                            <ui:Button x:Name="TextToolBtn" Style="{StaticResource ToolBtn}" Click="OnTextToolClicked" ToolTip="T Text">
-                                <Image Source="{StaticResource ToolIconText}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="StepToolBtn" Style="{StaticResource ToolBtn}" Click="OnStepToolClicked" ToolTip="S Step">
-                                <Image Source="{StaticResource ToolIconStep}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="ImageBtn" Style="{StaticResource ToolBtn}" Click="OnImageClicked" ToolTip="I Image">
-                                <Image Source="{StaticResource ToolIconImage}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="TextToolBtn" Style="{StaticResource ToolBtn}" Click="OnTextToolClicked" ToolTip="T Text">
+                    <Image Source="{StaticResource ToolIconText}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="StepToolBtn" Style="{StaticResource ToolBtn}" Click="OnStepToolClicked" ToolTip="S Step">
+                    <Image Source="{StaticResource ToolIconStep}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="ImageBtn" Style="{StaticResource ToolBtn}" Click="OnImageClicked" ToolTip="I Image">
+                    <Image Source="{StaticResource ToolIconImage}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
 
-                            <Border Style="{StaticResource ToolGroupDivider}" />
-                            <ui:Button x:Name="BlurToolBtn" Style="{StaticResource ToolBtn}" Click="OnBlurToolClicked" ToolTip="B Blur">
-                                <Image Source="{StaticResource ToolIconBlur}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="PixelateToolBtn" Style="{StaticResource ToolBtn}" Click="OnPixelateToolClicked" ToolTip="X Pixel">
-                                <Image Source="{StaticResource ToolIconPixelate}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="SpotlightToolBtn" Style="{StaticResource ToolBtn}" Click="OnSpotlightToolClicked" ToolTip="O Spot">
-                                <Image Source="{StaticResource ToolIconSpotlight}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="SmartEraserToolBtn" Style="{StaticResource ToolBtn}" Click="OnSmartEraserToolClicked" ToolTip="K Erase — fills the rect with a bilinear gradient of the 4 corner colors">
-                                <Image Source="{StaticResource ToolIconErase}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="BlurToolBtn" Style="{StaticResource ToolBtn}" Click="OnBlurToolClicked" ToolTip="B Blur">
+                    <Image Source="{StaticResource ToolIconBlur}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="PixelateToolBtn" Style="{StaticResource ToolBtn}" Click="OnPixelateToolClicked" ToolTip="X Pixel">
+                    <Image Source="{StaticResource ToolIconPixelate}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="SpotlightToolBtn" Style="{StaticResource ToolBtn}" Click="OnSpotlightToolClicked" ToolTip="O Spot">
+                    <Image Source="{StaticResource ToolIconSpotlight}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="SmartEraserToolBtn" Style="{StaticResource ToolBtn}" Click="OnSmartEraserToolClicked" ToolTip="K Erase — fills the rect with a bilinear gradient of the 4 corner colors">
+                    <Image Source="{StaticResource ToolIconErase}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
 
-                            <Border Style="{StaticResource ToolGroupDivider}" />
-                            <ui:Button x:Name="CropToolBtn" Style="{StaticResource ToolBtn}" Click="OnCropToolClicked" ToolTip="C Crop">
-                                <Image Source="{StaticResource ToolIconCrop}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="ResizeBtn" Style="{StaticResource ToolBtn}" Click="OnResizeClicked" ToolTip="Resize…">
-                                <Image Source="{StaticResource ToolIconResize}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="EffectsBtn" Style="{StaticResource ToolBtn}" Click="OnEffectsClicked" ToolTip="Effects…">
-                                <Image Source="{StaticResource ToolIconEffects}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="TraceBtn" Style="{StaticResource ToolBtn}" Click="OnTraceClicked" ToolTip="Trace to SVG…">
-                                <Image Source="{StaticResource ToolIconTrace}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
-                            <ui:Button x:Name="MagicEraserBtn" Style="{StaticResource ToolBtn}" Click="OnMagicEraserClicked" ToolTip="Remove background…">
-                                <Image Source="{StaticResource ToolIconMagicEraser}" Style="{StaticResource ToolIcon}" />
-                            </ui:Button>
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="CropToolBtn" Style="{StaticResource ToolBtn}" Click="OnCropToolClicked" ToolTip="C Crop">
+                    <Image Source="{StaticResource ToolIconCrop}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="ResizeBtn" Style="{StaticResource ToolBtn}" Click="OnResizeClicked" ToolTip="Resize…">
+                    <Image Source="{StaticResource ToolIconResize}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="EffectsBtn" Style="{StaticResource ToolBtn}" Click="OnEffectsClicked" ToolTip="Effects…">
+                    <Image Source="{StaticResource ToolIconEffects}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="TraceBtn" Style="{StaticResource ToolBtn}" Click="OnTraceClicked" ToolTip="Trace to SVG…">
+                    <Image Source="{StaticResource ToolIconTrace}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="MagicEraserBtn" Style="{StaticResource ToolBtn}" Click="OnMagicEraserClicked" ToolTip="Remove background…">
+                    <Image Source="{StaticResource ToolIconMagicEraser}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </ui:TitleBar.Header>
         </ui:TitleBar>
 
-        <!-- Tool palette merged into the titlebar above; this Row is now a 0-height
-             placeholder so existing Grid.Row indexes don't have to shift. -->
+        <!-- Row 1 placeholder (zero height): the tool palette lives inside the TitleBar above. -->
         <Border Grid.Row="1" Grid.ColumnSpan="2" Height="0" />
 
         <!-- Canvas -->
@@ -207,7 +211,7 @@
         <Border Grid.Row="2" Grid.Column="1"
                 Width="240" Padding="12"
                 Background="{DynamicResource Surface1Brush}"
-                BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1,0,0,0"
+                BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1,0,0,0"
                 CornerRadius="0,0,6,0">
         <DockPanel LastChildFill="True">
 
@@ -217,7 +221,7 @@
                  history action, visually distinguished from the neutral Redo. -->
             <Border DockPanel.Dock="Bottom"
                     Margin="0,12,0,0" Padding="0,10,0,0"
-                    BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="0,1,0,0">
+                    BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="0,1,0,0">
                 <StackPanel>
                     <UniformGrid Columns="4" Rows="1" Margin="0,0,0,6">
                         <ui:Button Content="−" Margin="0,0,2,0" HorizontalAlignment="Stretch" Click="OnZoomOutClicked" />
@@ -240,46 +244,49 @@
                 </StackPanel>
             </Border>
 
+            <!-- Action triplet pinned at the top of the property column via DockPanel.Dock=Top
+                 so Confirm / Save as / Discard stay visible regardless of how much the property
+                 surface below scrolls. Previously these lived inside the ScrollViewer and a tall
+                 properties section would push them off-screen — surprising for the user since
+                 these are the primary commit/cancel commands of the whole editor session.
+                 Icon-only since the new "Save" semantics is "copy to clipboard" rather than
+                 "save to disk" — the icons make the distinction clear at a glance, tooltips
+                 explain the action. Cancel uses Danger appearance so the destructive choice
+                 is visually distinct from the two confirms. -->
+            <UniformGrid DockPanel.Dock="Top" Columns="3" Rows="1" Margin="0,0,0,8" Height="36">
+                <!-- Glyphs: FontAwesome 7 Free Solid (already embedded as IconFont in App.xaml).
+                     DynamicResource because the resource lives in the host assembly, not
+                     AresToys.Editor. f0c5 = copy, f0c7 = floppy-disk, f00d = xmark — codepoints
+                     stable across FA versions. -->
+                <ui:Button x:Name="SaveButton" Appearance="Primary"
+                           Margin="0,0,2,0" HorizontalAlignment="Stretch"
+                           Click="OnSaveClicked"
+                           ToolTip="Confirm / copy to clipboard (also adds to history; original kept for safety)">
+                    <TextBlock Text="&#xf0c5;" FontFamily="{DynamicResource IconFont}"
+                               FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </ui:Button>
+                <ui:Button x:Name="SaveAsButton"
+                           Margin="2,0,2,0" HorizontalAlignment="Stretch"
+                           Click="OnSaveAsClicked"
+                           ToolTip="Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.">
+                    <TextBlock Text="&#xf0c7;" FontFamily="{DynamicResource IconFont}"
+                               FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </ui:Button>
+                <ui:Button x:Name="CancelButton" Appearance="Danger"
+                           Margin="2,0,0,0" HorizontalAlignment="Stretch"
+                           Click="OnCancelClicked"
+                           ToolTip="Discard edits and close (original stays in history)">
+                    <TextBlock Text="&#xf00d;" FontFamily="{DynamicResource IconFont}"
+                               FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </ui:Button>
+            </UniformGrid>
+            <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
+
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="PropertyPanel">
-                <!-- Action triplet: Confirm/Copy (push edited bytes back to history + Windows
-                     clipboard) / Save as… (one-shot file export) / Cancel (discard). Now
-                     icon-only since the new "Save" semantics is "copy to clipboard" rather
-                     than "save to disk" — the icons make the distinction clear at a glance,
-                     and the tooltips explain the action. Cancel uses Danger appearance so
-                     the destructive choice is visually distinct from the two confirms. -->
-                <UniformGrid Columns="3" Rows="1" Margin="0,0,0,8" Height="36">
-                    <!-- Glyphs: FontAwesome 7 Free Solid (already embedded as IconFont in
-                         App.xaml). DynamicResource because the resource lives in the host
-                         assembly, not AresToys.Editor. f0c5 = copy, f0c7 = floppy-disk,
-                         f00d = xmark — codepoints stable across FA versions. -->
-                    <ui:Button x:Name="SaveButton" Appearance="Primary"
-                               Margin="0,0,2,0" HorizontalAlignment="Stretch"
-                               Click="OnSaveClicked"
-                               ToolTip="Confirm / copy to clipboard (also adds to history; original kept for safety)">
-                        <TextBlock Text="&#xf0c5;" FontFamily="{DynamicResource IconFont}"
-                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </ui:Button>
-                    <ui:Button x:Name="SaveAsButton"
-                               Margin="2,0,2,0" HorizontalAlignment="Stretch"
-                               Click="OnSaveAsClicked"
-                               ToolTip="Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.">
-                        <TextBlock Text="&#xf0c7;" FontFamily="{DynamicResource IconFont}"
-                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </ui:Button>
-                    <ui:Button x:Name="CancelButton" Appearance="Danger"
-                               Margin="2,0,0,0" HorizontalAlignment="Stretch"
-                               Click="OnCancelClicked"
-                               ToolTip="Discard edits and close (original stays in history)">
-                        <TextBlock Text="&#xf00d;" FontFamily="{DynamicResource IconFont}"
-                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </ui:Button>
-                </UniformGrid>
-                <Border Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
-
                 <!-- Crop properties — visible only when the Crop tool is active and there are
                      pending crop rectangles. Hosts the global "Apply all crops" action so the
                      user has a discoverable button beyond the keyboard shortcut (Enter). -->

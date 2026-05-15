@@ -76,7 +76,7 @@
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Bd" CornerRadius="14"
                                 Background="{DynamicResource Surface3Brush}"
-                                BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}"
                                 BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
@@ -131,7 +131,7 @@
     <!-- Accent-tinted frame around the whole window (matches the MainWindow / Launcher /
          Clipboard treatment so the editor doesn't read as a generic Win32 dialog). -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
@@ -394,7 +394,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <!-- Color swatch (default, or paired Color when toggle is off). -->
                                                 <Border Grid.Column="0" Width="32" Height="32" CornerRadius="3"
-                                                        BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                                        BorderBrush="{DynamicResource InnerBorderBrush}"
                                                         BorderThickness="1"
                                                         Background="{StaticResource CheckerBrush}"
                                                         Cursor="Hand"
@@ -407,7 +407,7 @@
                                                 <!-- Paired Gradient swatch — same slot, only when the toggle is on. Reads from
                                                      PairedGradient.GradientBrush so the direction is reflected in the preview. -->
                                                 <Border Grid.Column="0" Width="32" Height="32" CornerRadius="3"
-                                                        BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                                        BorderBrush="{DynamicResource InnerBorderBrush}"
                                                         BorderThickness="1"
                                                         Background="{StaticResource CheckerBrush}"
                                                         Cursor="Hand"
@@ -575,7 +575,7 @@
                                             <Border Grid.Row="1" Margin="0,4,0,0"
                                                     Width="32" Height="32" CornerRadius="3"
                                                     HorizontalAlignment="Left"
-                                                    BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+                                                    BorderBrush="{DynamicResource InnerBorderBrush}"
                                                     BorderThickness="1"
                                                     Background="{StaticResource CheckerBrush}"
                                                     Cursor="Hand"

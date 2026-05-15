@@ -43,8 +43,23 @@ public sealed class CaptureCoordinator
         _logger = logger;
     }
 
+    private static DateTime _lastRegionOverlayOpenAt = DateTime.MinValue;
+    private static readonly TimeSpan RegionOverlayCooldown = TimeSpan.FromMilliseconds(400);
+
     public async Task CaptureRegionAsync(CancellationToken cancellationToken)
     {
+        // Cooldown guard mirroring CaptureRegionTask: the OS hotkey hook can deliver the
+        // same keypress twice on a cold app, which used to open a duplicate overlay on top
+        // of the first one. 400 ms absorbs the spurious repeat without blocking deliberate
+        // retaps (no real user fires a second region pick that fast).
+        var now = DateTime.UtcNow;
+        if (now - _lastRegionOverlayOpenAt < RegionOverlayCooldown)
+        {
+            _logger.LogInformation("Capture region: suppressing repeat trigger ({Elapsed} ms since last open)",
+                (int)(now - _lastRegionOverlayOpenAt).TotalMilliseconds);
+            return;
+        }
+        _lastRegionOverlayOpenAt = now;
         _logger.LogInformation("Capture region: opening overlay");
         // Take the screen snapshot RIGHT NOW — before any dispatcher hop, before constructing
         // the overlay window — so transient UI (open dropdowns, hover popups) stays visible

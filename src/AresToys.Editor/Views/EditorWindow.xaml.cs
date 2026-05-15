@@ -160,6 +160,11 @@ public partial class EditorWindow : FluentWindow
                 CommitInlineTextEdit();
                 RefreshToolButtonHighlight();
                 RefreshPropertyPanel();
+                // Auto-scroll the toolbar so the just-activated tool button is visible. Covers
+                // keyboard shortcuts (R / A / T / …) just as well as mouse clicks — both flow
+                // through CurrentTool here. Looks up the matching button by tool enum so we
+                // don't have to thread the scroll call through every individual click handler.
+                ScrollToolIntoView(GetToolButton(_vm.CurrentTool));
                 // Crop magnifier is tool-specific — switching to anything else means we need to
                 // pull it off the canvas, otherwise it sticks at its last position forever.
                 if (_vm.CurrentTool != EditorTool.Crop) HideCropMagnifier();
@@ -1006,6 +1011,76 @@ public partial class EditorWindow : FluentWindow
     private void OnZoomOutClicked(object sender, RoutedEventArgs e) => SetZoom(_zoom / 1.25);
     private void OnZoomResetClicked(object sender, RoutedEventArgs e) => SetZoom(1.0);
 
+    /// <summary>Map vertical wheel ticks on the titlebar tool palette to horizontal scroll so
+    /// a narrow editor window stays usable: the user can wheel-scroll through every tool
+    /// without crowding into the caption buttons. Without this, the wheel did nothing inside
+    /// the ScrollViewer because there was no vertical content to scroll.</summary>
+    private void OnToolbarMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.ScrollViewer sv) return;
+        // Negative delta = scroll towards larger offsets (wheel down → scroll right). 48 px
+        // per tick is roughly one tool button + its margin, so each click of the wheel moves
+        // exactly one tool into view.
+        sv.ScrollToHorizontalOffset(sv.HorizontalOffset - (e.Delta / 120.0 * 48.0));
+        e.Handled = true;
+    }
+
+    /// <summary>Constrain the toolbar ScrollViewer's MaxWidth so it never grows past the
+    /// titlebar real estate left after the icon + title text + caption buttons (Min/Max/Close)
+    /// have taken their fixed slots. Without this the ScrollViewer's natural width is its
+    /// content width and a long tool palette pushes the caption buttons off-screen on a narrow
+    /// window. Numbers are wpf-ui v4 defaults: ~32 px icon, ~120 px title, ~138 px caption strip
+    /// (46 × 3), plus a 24 px safety margin = 314 px reserved. Anything narrower than that and
+    /// the toolbar collapses to its MinWidth (single button) instead of overflowing.</summary>
+    private void OnTitleBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        const double reservedChrome = 314;
+        if (ToolbarScroll is null) return;
+        var available = e.NewSize.Width - reservedChrome;
+        ToolbarScroll.MaxWidth = available > 0 ? available : 0;
+    }
+
+    /// <summary>Bring the just-selected tool into view inside the toolbar ScrollViewer. Called
+    /// after every tool switch (mouse click OR keyboard shortcut like R / A / T / …) so the
+    /// active tool can never sit behind the scrollbar when the toolbar is overflowing. Uses
+    /// the WPF FrameworkElement.BringIntoView() which the parent ScrollViewer hooks to scroll
+    /// horizontally just enough to make the element visible — same gesture Explorer / Visual
+    /// Studio use when you Tab through controls in a wide form.</summary>
+    /// <summary>Map an EditorTool enum to the corresponding toolbar button. Used by the
+    /// auto-scroll-into-view path so a tool change (whether via keyboard shortcut, sidebar
+    /// click, or programmatic switch) can tell the ScrollViewer which button to surface.
+    /// Returns null for tools that don't have a dedicated toolbar entry (currently none —
+    /// every drawing tool has its own button — but the null fallback keeps the caller honest
+    /// if a future tool ships without one).</summary>
+    private FrameworkElement? GetToolButton(EditorTool tool) => tool switch
+    {
+        EditorTool.Select       => SelectToolBtn,
+        EditorTool.Rectangle    => RectangleToolBtn,
+        EditorTool.Ellipse      => EllipseToolBtn,
+        EditorTool.Line         => LineToolBtn,
+        EditorTool.Arrow        => ArrowToolBtn,
+        EditorTool.Freehand     => FreehandToolBtn,
+        EditorTool.Text         => TextToolBtn,
+        EditorTool.StepCounter  => StepToolBtn,
+        EditorTool.Blur         => BlurToolBtn,
+        EditorTool.Pixelate     => PixelateToolBtn,
+        EditorTool.Spotlight    => SpotlightToolBtn,
+        EditorTool.SmartEraser  => SmartEraserToolBtn,
+        EditorTool.Crop         => CropToolBtn,
+        _ => null,
+    };
+
+    private void ScrollToolIntoView(FrameworkElement? toolButton)
+    {
+        if (toolButton is null) return;
+        // Defer to next layout pass: when ScrollToolIntoView fires from a KeyDown handler the
+        // ScrollViewer hasn't yet realised the recent layout if a tool just changed visibility.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+        {
+            try { toolButton.BringIntoView(); } catch { /* stale element during teardown */ }
+        }));
+    }
+
     private void OnCanvasMouseWheel(object sender, MouseWheelEventArgs e)
     {
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
@@ -1242,6 +1317,10 @@ public partial class EditorWindow : FluentWindow
 
         const double sideChromeBudget = 300;
         const double topChromeBudget = 120;
+        // Conservative floor: 800x600 keeps the editor usable on the smallest sensible laptop
+        // resolutions (HD = 1366x768 still has room around a 1280x768 window). The toolbar
+        // scrolls horizontally with the wheel when narrow, so we don't need to enforce a
+        // wider minimum to keep all tools reachable.
         const double minWindowWidth = 800;
         const double minWindowHeight = 600;
 

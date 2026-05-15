@@ -49,7 +49,7 @@
                              Loaded="OnPasswordBoxLoaded"
                              Background="{DynamicResource Surface3Brush}"
                              Foreground="White"
-                             BorderBrush="{DynamicResource Surface3Brush}"
+                             BorderBrush="{DynamicResource OuterBorderBrush}"
                              BorderThickness="1"
                              Padding="8,6"
                              FontFamily="Consolas" />

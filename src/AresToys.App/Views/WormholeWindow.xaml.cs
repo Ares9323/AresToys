@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 using AresToys.App.Services.Launcher;
 using AresToys.App.Services.Wormholes;
 
@@ -38,6 +41,17 @@ public partial class WormholeWindow : Window
     private bool _isClosingFromManager;
     private bool _portalItemCapReached;
 
+    /// <summary>Live filter applied on top of <see cref="_items"/> via the default CollectionView.
+    /// Empty / whitespace → no filter (every item passes). Refreshed on debounce-tick after the
+    /// user finishes typing in <c>SearchBox</c>. Match is a case-insensitive substring against
+    /// <see cref="WormholeItemViewModel.DisplayName"/>.</summary>
+    private string _searchFilter = string.Empty;
+
+    /// <summary>Debounce timer for the search box: a TextChanged tick resets this timer, and on
+    /// fire (after Interval ms of quiet) we refresh the CollectionView. Keeps re-filter cost
+    /// off the typing path so even a folder with thousands of items doesn't lag the box.</summary>
+    private readonly DispatcherTimer _searchDebounce;
+
     public WormholeWindow(
         WormholeRecord record,
         Action onPersist,
@@ -53,6 +67,18 @@ public partial class WormholeWindow : Window
         InitializeComponent();
         DataContext = record;
         ItemsHost.ItemsSource = _items;
+
+        // Wire the default CollectionView's predicate so SearchBox filters the visible tiles
+        // without rebuilding the ObservableCollection. WPF's GetDefaultView returns the same
+        // view ItemsHost is already iterating, so calling Refresh() after a filter change is
+        // all that's needed for the WrapPanel to redraw.
+        var view = CollectionViewSource.GetDefaultView(_items);
+        if (view is not null) view.Filter = MatchesSearchFilter;
+
+        // 250 ms is the sweet spot for incremental search: short enough that the result feels
+        // live, long enough to skip the refilter on every keystroke for fast typists.
+        _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _searchDebounce.Tick += OnSearchDebounceTick;
 
         Left = record.Geometry.X;
         Top = record.Geometry.Y;
@@ -385,6 +411,109 @@ public partial class WormholeWindow : Window
             try { DragMove(); }
             catch (InvalidOperationException) { }
         }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Header search box
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>Click on the magnifying-glass icon → expand the inline search field over the
+    /// same header slot. Width of the search column is bumped from Auto (28 px button) to a
+    /// fixed pixel so the title column still gets the remaining stretch space and doesn't
+    /// crunch the wormhole title.</summary>
+    private void OnSearchIconClicked(object sender, RoutedEventArgs e)
+    {
+        OpenSearchBox(takeFocus: true);
+    }
+
+    private void OpenSearchBox(bool takeFocus)
+    {
+        SearchIconButton.Visibility = Visibility.Collapsed;
+        SearchBox.Visibility = Visibility.Visible;
+        // Pin the column to a comfortable width so the textbox actually has somewhere to go;
+        // Auto would collapse to the textbox's MinWidth (~24 px) and feel cramped.
+        SearchSlotColumn.Width = new GridLength(160);
+        if (takeFocus)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        }
+    }
+
+    /// <summary>Collapse the search field back into the icon button. Clears the filter as well
+    /// so the wormhole returns to showing every item; if the user wanted to keep the filter
+    /// active they would leave the textbox visible (LostFocus with non-empty text doesn't
+    /// trigger this path).</summary>
+    private void CloseSearchBox()
+    {
+        SearchBox.Text = string.Empty;
+        _searchFilter = string.Empty;
+        _searchDebounce.Stop();
+        ApplySearchFilter();
+        SearchBox.Visibility = Visibility.Collapsed;
+        SearchIconButton.Visibility = Visibility.Visible;
+        SearchSlotColumn.Width = GridLength.Auto;
+    }
+
+    private void OnSearchTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        // Restart the debounce timer on every keystroke — only when the user stops typing for
+        // the full interval do we actually re-filter. Stop+Start is the canonical "reset"
+        // pattern for DispatcherTimer.
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
+
+    private void OnSearchDebounceTick(object? sender, EventArgs e)
+    {
+        _searchDebounce.Stop();
+        _searchFilter = SearchBox.Text?.Trim() ?? string.Empty;
+        ApplySearchFilter();
+    }
+
+    private void OnSearchKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            CloseSearchBox();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            // Commit the current text immediately (skip the debounce) and drop keyboard focus
+            // so a subsequent Esc / click anywhere goes to the canvas / header. Don't collapse
+            // the textbox — the user may want to refine the filter further.
+            _searchDebounce.Stop();
+            _searchFilter = SearchBox.Text?.Trim() ?? string.Empty;
+            ApplySearchFilter();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnSearchLostFocus(object sender, RoutedEventArgs e)
+    {
+        // Lost focus + empty text → snap back to icon mode. Non-empty text leaves the textbox
+        // visible so the user can see (and edit / clear) the active filter without re-opening
+        // the search box.
+        if (string.IsNullOrEmpty(SearchBox.Text)) CloseSearchBox();
+    }
+
+    private void ApplySearchFilter()
+    {
+        var view = CollectionViewSource.GetDefaultView(_items);
+        view?.Refresh();
+    }
+
+    /// <summary>Predicate plugged into the default CollectionView. Empty filter passes
+    /// everything (the typical case). Otherwise: case-insensitive substring match against
+    /// DisplayName so a user typing "rep" sees "Report.docx", "ReplaceMe.txt", "rep-notes",
+    /// etc.</summary>
+    private bool MatchesSearchFilter(object item)
+    {
+        if (string.IsNullOrEmpty(_searchFilter)) return true;
+        return item is WormholeItemViewModel vm
+            && vm.DisplayName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Launch Explorer on the wormhole's source folder. Mirrors the Wormhole row's

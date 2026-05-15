@@ -30,6 +30,8 @@ public sealed class ThemeService
     private const string Surface1Key = "theme.surface_1";
     private const string Surface2Key = "theme.surface_2";
     private const string Surface3Key = "theme.surface_3";
+    private const string OuterBorderKey = "theme.outer_border";
+    private const string InnerBorderKey = "theme.inner_border";
     public static readonly Color DefaultBackground = (Color)ColorConverter.ConvertFromString("#6BA780")!;
     public static readonly Color DefaultForeground = Colors.White;
     /// <summary>Default for the dim subtext colour — captions, age labels, kind/source rows in
@@ -55,6 +57,19 @@ public sealed class ThemeService
     public static readonly Color DefaultSurface1 = (Color)ColorConverter.ConvertFromString("#1A1A1A")!;
     public static readonly Color DefaultSurface2 = (Color)ColorConverter.ConvertFromString("#1F1F1F")!;
     public static readonly Color DefaultSurface3 = (Color)ColorConverter.ConvertFromString("#2D2D2D")!;
+    /// <summary>Default for the heavy "outer" border colour — the chrome wrapping each window
+    /// (FluentWindow accent telaio), plus any other prominent frame the user reads as the edge
+    /// of a surface. Sits between Surface3 (the elevated panel background, #2D2D2D) and the
+    /// dim-text foreground (#878787) so a border on a Surface3 card reads as a definite
+    /// separator. Tunable from Settings → Theme.</summary>
+    public static readonly Color DefaultOuterBorder = (Color)ColorConverter.ConvertFromString("#4A4A4A")!;
+
+    /// <summary>Default for the subtle "inner" border colour — small swatch frames, divider
+    /// lines between cards inside a panel, list-item separators in the clipboard view, anywhere
+    /// the chrome should hint at a boundary without claiming attention from the outer frame.
+    /// Default is the same as Surface3 (#2D2D2D) so an inner border on a Surface1 / Surface2
+    /// background reads as a one-step-up surface edge rather than a hard line.</summary>
+    public static readonly Color DefaultInnerBorder = (Color)ColorConverter.ConvertFromString("#2D2D2D")!;
 
     private readonly ISettingsStore _settings;
 
@@ -66,6 +81,8 @@ public sealed class ThemeService
     private Color _surface1 = DefaultSurface1;
     private Color _surface2 = DefaultSurface2;
     private Color _surface3 = DefaultSurface3;
+    private Color _outerBorder = DefaultOuterBorder;
+    private Color _innerBorder = DefaultInnerBorder;
 
     public ThemeService(ISettingsStore settings) => _settings = settings;
 
@@ -77,6 +94,8 @@ public sealed class ThemeService
     public Color Surface1 => _surface1;
     public Color Surface2 => _surface2;
     public Color Surface3 => _surface3;
+    public Color OuterBorder => _outerBorder;
+    public Color InnerBorder => _innerBorder;
 
     /// <summary>Fires after either color changes (via <see cref="SetAsync"/> or
     /// <see cref="LoadAsync"/>). The Theme view-model uses this to re-sync its hex inputs when the
@@ -94,6 +113,8 @@ public sealed class ThemeService
         var s1Raw     = await _settings.GetAsync(Surface1Key, ct).ConfigureAwait(false);
         var s2Raw     = await _settings.GetAsync(Surface2Key, ct).ConfigureAwait(false);
         var s3Raw     = await _settings.GetAsync(Surface3Key, ct).ConfigureAwait(false);
+        var outerBorderRaw = await _settings.GetAsync(OuterBorderKey, ct).ConfigureAwait(false);
+        var innerBorderRaw = await _settings.GetAsync(InnerBorderKey, ct).ConfigureAwait(false);
         _bg       = TryParseHex(bgRaw)     ?? DefaultBackground;
         _fg       = TryParseHex(fgRaw)     ?? DefaultForeground;
         _dark     = TryParseHex(darkRaw)   ?? DefaultAccentDark;
@@ -102,12 +123,15 @@ public sealed class ThemeService
         _surface1 = TryParseHex(s1Raw)     ?? DefaultSurface1;
         _surface2 = TryParseHex(s2Raw)     ?? DefaultSurface2;
         _surface3 = TryParseHex(s3Raw)     ?? DefaultSurface3;
+        _outerBorder = TryParseHex(outerBorderRaw) ?? DefaultOuterBorder;
+        _innerBorder = TryParseHex(innerBorderRaw) ?? DefaultInnerBorder;
         Apply();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task SetAsync(Color background, Color foreground, Color dark, Color foregroundDark,
-        Color delete, Color surface1, Color surface2, Color surface3, CancellationToken ct = default)
+        Color delete, Color surface1, Color surface2, Color surface3,
+        Color outerBorder, Color innerBorder, CancellationToken ct = default)
     {
         _bg = background;
         _fg = foreground;
@@ -117,21 +141,26 @@ public sealed class ThemeService
         _surface1 = surface1;
         _surface2 = surface2;
         _surface3 = surface3;
+        _outerBorder = outerBorder;
+        _innerBorder = innerBorder;
         Apply();
-        await _settings.SetAsync(BgKey,       ToHex(background),     sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(FgKey,       ToHex(foreground),     sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(DarkKey,     ToHex(dark),           sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(FgDarkKey,   ToHex(foregroundDark), sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(DeleteKey,   ToHex(delete),         sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(Surface1Key, ToHex(surface1),       sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(Surface2Key, ToHex(surface2),       sensitive: false, ct).ConfigureAwait(false);
-        await _settings.SetAsync(Surface3Key, ToHex(surface3),       sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(BgKey,           ToHex(background),     sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(FgKey,           ToHex(foreground),     sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(DarkKey,         ToHex(dark),           sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(FgDarkKey,       ToHex(foregroundDark), sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(DeleteKey,       ToHex(delete),         sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(Surface1Key,     ToHex(surface1),       sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(Surface2Key,     ToHex(surface2),       sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(Surface3Key,     ToHex(surface3),       sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(OuterBorderKey,  ToHex(outerBorder),    sensitive: false, ct).ConfigureAwait(false);
+        await _settings.SetAsync(InnerBorderKey,  ToHex(innerBorder),    sensitive: false, ct).ConfigureAwait(false);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public Task ResetAsync(CancellationToken ct = default) =>
         SetAsync(DefaultBackground, DefaultForeground, DefaultAccentDark, DefaultAccentForegroundDark,
-            DefaultAccentDelete, DefaultSurface1, DefaultSurface2, DefaultSurface3, ct);
+            DefaultAccentDelete, DefaultSurface1, DefaultSurface2, DefaultSurface3,
+            DefaultOuterBorder, DefaultInnerBorder, ct);
 
     /// <summary>Pushes the current colors into Application.Resources and the WPF-UI accent
     /// manager. Called on Load and on every Set; safe to call from any thread (marshals to the UI
@@ -217,12 +246,24 @@ public sealed class ThemeService
         var surface1Brush = new SolidColorBrush(_surface1); surface1Brush.Freeze();
         var surface2Brush = new SolidColorBrush(_surface2); surface2Brush.Freeze();
         var surface3Brush = new SolidColorBrush(_surface3); surface3Brush.Freeze();
+        var outerBorderBrush = new SolidColorBrush(_outerBorder); outerBorderBrush.Freeze();
+        var innerBorderBrush = new SolidColorBrush(_innerBorder); innerBorderBrush.Freeze();
         app.Resources["Surface1Color"] = _surface1;
         app.Resources["Surface2Color"] = _surface2;
         app.Resources["Surface3Color"] = _surface3;
         app.Resources["Surface1Brush"] = surface1Brush;
         app.Resources["Surface2Brush"] = surface2Brush;
         app.Resources["Surface3Brush"] = surface3Brush;
+        // Two-tier app-wide border palette:
+        //   - OuterBorderBrush: the heavy frame around each window (accent telaio) + any
+        //     prominent surface edge the user reads as "this is the boundary of a card".
+        //   - InnerBorderBrush: the subtle 1 px lines that delimit swatches, dividers between
+        //     panels inside the same card, list-row separators. Defaults match Surface3 so the
+        //     line reads as a one-step-up tone rather than a hard accent.
+        app.Resources["OuterBorderColor"] = _outerBorder;
+        app.Resources["OuterBorderBrush"] = outerBorderBrush;
+        app.Resources["InnerBorderColor"] = _innerBorder;
+        app.Resources["InnerBorderBrush"] = innerBorderBrush;
 
         // Vertical gradient Surface1 (bottom) → Surface2 (top) — built imperatively because
         // DynamicResource on GradientStop.Color is broken in WPF: the parent LinearGradientBrush

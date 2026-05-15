@@ -16,7 +16,7 @@
         </Style>
         <Style x:Key="PanelStyle" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentForegroundDarkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InnerBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="8" />
@@ -24,7 +24,7 @@
     </ui:FluentWindow.Resources>
 
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>

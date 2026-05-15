@@ -16,7 +16,7 @@
     <Border x:Name="OuterFrame"
             CornerRadius="6"
             Background="Transparent"
-            BorderBrush="{DynamicResource AccentBackgroundBrush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="1"
             MouseDown="OnContentAreaMouseDown"
             DragEnter="OnDragEnter"
@@ -51,16 +51,18 @@
                         CornerRadius="6,6,0,0"
                         IsHitTestVisible="False" />
 
-            <!-- Header chrome. Layout: [chevron] [title] [spacer] [lock] [hamburger].
+            <!-- Header chrome. Layout: [chevron] [title] [search] [lock] [hamburger].
                  Background=Transparent now — the visual fill lives on HeaderBackdrop above. -->
             <Border Grid.Row="0" Height="32"
                     Background="Transparent"
                     MouseDown="OnHeaderMouseDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <!-- 0=chevron, 1=title (stretches), 2=lock, 3=hamburger -->
+                        <!-- 0=chevron, 1=title (stretches), 2=search-slot (icon collapsed →
+                             ~28 px; textbox expanded → ~160 px), 3=lock, 4=hamburger -->
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="SearchSlotColumn" Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -101,8 +103,47 @@
                              KeyDown="OnTitleEditorKeyDown"
                              LostFocus="OnTitleEditorLostFocus" />
 
+                    <!-- Search slot: a Grid that hosts both the icon-mode Button and the
+                         active TextBox in the same cell, toggling Visibility. When the user
+                         clicks the magnifying-glass the icon collapses and a TextBox expands
+                         to ~160 px (handled in code-behind by re-sizing SearchSlotColumn).
+                         Esc / blur-with-empty-text snaps back to icon-mode; a non-empty filter
+                         keeps the textbox visible so the user sees the active filter and can
+                         clear it. -->
+                    <Grid Grid.Column="2" x:Name="SearchSlot" Margin="0,2">
+                        <Button x:Name="SearchIconButton"
+                                Width="28" Height="28"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="OnSearchIconClicked"
+                                ToolTip="Filter items in this wormhole">
+                            <!-- FontAwesome Free Solid "magnifying-glass" glyph ( in the
+                                 codepoint, also reachable via the canonical name in FA 7+). The
+                                 IconFont resource is defined at App.xaml so the same font drops
+                                 in regardless of which window we're inside. -->
+                            <TextBlock Text="&#xf002;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource AccentForegroundBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                        <TextBox x:Name="SearchBox"
+                                 Visibility="Collapsed"
+                                 VerticalAlignment="Center"
+                                 Margin="0,2,4,2"
+                                 Padding="6,2"
+                                 FontSize="11"
+                                 Background="{DynamicResource Surface3Brush}"
+                                 Foreground="{DynamicResource AccentForegroundBrush}"
+                                 BorderThickness="0"
+                                 TextChanged="OnSearchTextChanged"
+                                 KeyDown="OnSearchKeyDown"
+                                 LostFocus="OnSearchLostFocus" />
+                    </Grid>
+
                     <Button x:Name="LockButton"
-                            Grid.Column="2"
+                            Grid.Column="3"
                             Width="28" Height="28"
                             Margin="0,2"
                             Padding="0"
@@ -118,7 +159,7 @@
                     </Button>
 
                     <Button x:Name="HamburgerButton"
-                            Grid.Column="3"
+                            Grid.Column="4"
                             Width="28" Height="28"
                             Margin="0,2,4,2"
                             Padding="0"

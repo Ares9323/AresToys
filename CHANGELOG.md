@@ -3,7 +3,273 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.9] — Unreleased
+## [0.1.10]
+
+Inner / outer border split, editor toolbar that survives narrow windows, and
+Wormhole inline search. The Wormhole feature shipped in 0.1.9 has its right-
+click menu replaced by the native Windows shell menu (with dark theming via
+the undocumented uxtheme ordinals 133/135/136) — every third-party verb the
+user has installed (7-Zip, Send to, Open with…, Properties, …) is reachable
+in a single right-click instead of the curated 6-entry menu.
+
+### Theme — Outer / Inner border palette
+- The single `BorderBrush` key introduced in 0.1.9 splits into
+  `OuterBorderBrush` (window-frame accent telaio, sidebar separator,
+  prominent surface edges) and `InnerBorderBrush` (1 px swatch frames,
+  divider lines between sub-sections in the same card, list-row separators
+  in clipboard / wormhole / launcher panels). Defaults: outer `#4A4A4A`,
+  inner `#2D2D2D` (matches Surface3 so an inner edge reads as a one-step-up
+  tone, never a hard accent line).
+- Both colours are tunable from Settings → App theme. Every preset gets an
+  outer + inner hex pair tuned to the preset's accent family.
+- 50+ usage sites moved to the new keys: launcher F-row / tab strip /
+  QWERTY cells (inner), wormhole window telaio (outer), bg-remover sub
+  cards (inner), clipboard history + preview panes (inner), 8 theme tab
+  swatch borders (inner), gradient editor stops + presets (inner), icon
+  picker cells (inner).
+
+### Editor — toolbar in the titlebar
+- Tool palette stays inline in the titlebar header but the ScrollViewer
+  now has its `MaxWidth` recomputed on every `SizeChanged` (`titleBar
+  ActualWidth - 314 px` of reserved chrome for icon + title + caption
+  buttons). Min/Max/Close stay reachable at any window width — no more
+  hidden caption buttons on narrow editors.
+- Vertical wheel ticks inside the toolbar map to horizontal scroll
+  (~48 px per tick = exactly one tool button). The OS scroll bar is hidden
+  in the title chrome but the wheel still works.
+- Selecting a tool (mouse click OR keyboard shortcut R / A / T / V / …)
+  brings the matching button into view via `BringIntoView`, so the active
+  tool can never sit behind the overflow.
+- Save / Save as / Cancel are now pinned at the top of the property
+  column via `DockPanel.Dock=Top` — a tall properties section can't push
+  the primary commit/cancel controls off-screen any more.
+
+### Wormhole — inline search
+- New magnifying-glass button in the wormhole header expands into an
+  inline TextBox; typing filters the visible icons case-insensitively
+  against `DisplayName`. 250 ms debounce on every keystroke so the
+  ItemsControl re-filter doesn't lag on folders with thousands of items.
+- Esc collapses the search and restores the full grid; Enter commits +
+  drops focus while keeping the textbox visible so the user sees the
+  active filter and can clear it.
+- Filter pipes through `CollectionViewSource.GetDefaultView(_items)` with
+  a `Filter` predicate — re-using the same view the ListBox iterates so a
+  refresh costs one `view.Refresh()` call instead of rebuilding the
+  ObservableCollection.
+
+### Wormhole — Windows shell context menu
+- Right-click on an item shows the native Windows shell context menu (the
+  same menu Explorer would show), with full support for third-party verbs:
+  Open with…, Send to, 7-Zip, Properties, Git GUI, Pin to Quick Access,
+  every shell extension the user has installed. Wired via
+  `IContextMenu` + `IContextMenu2` / `IContextMenu3` so the owner-drawn
+  submenus (Send to, Open with) actually render — the WM_INITMENUPOPUP /
+  WM_DRAWITEM / WM_MEASUREITEM / WM_MENUCHAR messages are forwarded
+  through an HwndSource hook to the COM object.
+- Dark-themed menu chrome on Windows 10 1903+ via the undocumented
+  uxtheme ordinals `SetPreferredAppMode(2)` + `AllowDarkModeForWindow` +
+  `FlushMenuThemes` (same trick Notepad / Calculator use). Older Windows
+  silently falls back to the system default (light) menu.
+- Removes the curated 6-entry menu (Open / Open file location / Copy
+  path / Move to / Rename / Delete) since every entry exists in the
+  native menu and a few more (Cut, copy path, properties, third-party).
+  -270 lines of UI plumbing trimmed.
+
+### Capture region — double-fire cooldown
+- 400 ms cooldown between consecutive region-overlay opens absorbs the
+  cold-start "double trigger" the OS keyboard hook sometimes delivers on
+  the very first hotkey press after launch. Without this the first
+  Win+Shift+S used to open the overlay twice — the second on top of the
+  first, showing a phantom "all desktop" selection the user had to Esc
+  through. Mirror guard in `CaptureCoordinator.CaptureRegionAsync` for
+  the tray-driven path.
+
+### Wormhole geometry — drag-to-scrub
+- (Promoted from 0.1.9 polish.) X / Y / W / H cells in the Settings →
+  Wormholes grid now act like Unreal / Blender drag fields: press the
+  left button and drag horizontally to scrub the integer value (1 px of
+  drag = 1 unit). A plain click still focuses the cell for keyboard
+  editing — the scrub only kicks in past a 4 px movement threshold so
+  the gestures don't collide. Hover shows the SizeWE cursor as a
+  discoverability cue. Live binding so the wormhole window moves /
+  resizes frame-by-frame, not on LostFocus.
+
+### Bug fixes
+- Localised month name (`%mon` token in the sub-folder pattern) now
+  honours the app UI culture instead of always emitting English. Italian
+  user typing `%mon` gets `Maggio`, not `May`. Numeric tokens stay on
+  `InvariantCulture` so paths remain portable.
+
+## [0.1.9] — 2026-05-15
+
+The Wormholes feature lands. Stardock-Fences-style floating windows that
+mirror a real filesystem folder: drop a folder onto the desktop, get a
+draggable / lockable / collapsible grid of icons that stays in sync with the
+folder via FileSystemWatcher. Persistent JSON store, multi-window, all-sides
+resize, Ctrl+Wheel zoom per-wormhole, opacity + tile padding settings,
+Explorer right-click "Create Wormhole" verb, error state + relink dialog
+when the source folder goes offline. Triggered as a workflow step (Hide all
+/ Show all / Lock / Unlock / Collapse / Uncollapse / Toggle / Create) so the
+existing pipeline + hotkey machinery drives every batch operation.
+
+Beyond Wormholes: editor opens at native 1:1 with DPI awareness, sub-folder
+pattern now reaches SVG saves + screen recordings (was screenshot-only),
+Trace-to-SVG picks from the same preset list as the standalone trace window,
+50+ hardcoded greys throughout the app moved onto themed brushes, and the
+workflow editor gets per-uploader Upload entries + 3 discrete Copy-text
+variants (URL / file path / SVG path).
+
+### Wormholes
+- New floating-window subsystem: `WormholeWindow` (transparent FluentWindow,
+  custom chrome with chevron + lock + hamburger menu + close, all-sides
+  resize via WM_NCHITTEST hook, DragMove on header, double-click rolls to
+  header-only height), `WormholeWindowManager` (singleton DI service that
+  owns the live windows, persists geometry on every drag/resize/lock,
+  enforces multi-monitor work-area clamps), `WormholeStoreJson`
+  (atomic-rename JSON store at `%LOCALAPPDATA%\AresToys\wormholes.json`),
+  `FolderWatcher` (FileSystemWatcher per portal, debounced refresh of the
+  ListBox).
+- Icons come from `IconService.ExtractIconAtSize` using `SHGetImageList` +
+  `ImageList_GetIcon` (no IImageList COM marshalling) with overlay
+  composition (`INDEXTOOVERLAYMASK`) so .lnk shortcuts get the corner arrow
+  the rest of Explorer shows. Icon size is per-wormhole (Ctrl+Wheel zoom
+  saves into the record) with a global default in Settings.
+- Text wraps to 2 lines in a Grid (row 0 Auto = icon, row 1 * = label
+  TextWrapping=Wrap with explicit Width=TileWidth) so the WrapPanel layout
+  doesn't shrink-wrap and break wrap measurement.
+- Per-wormhole tile padding setting → controls density (0 = Portals-style
+  dense, 32 = airy). Per-wormhole opacity (30 - 100 %) sets `OuterFrame.
+  Opacity`; the `BodyBackdrop` + `HeaderBackdrop` carry the opacity so
+  icons stay full-strength.
+- 3-phase batch operations for "Hide all" / "Show all" / "Lock all" / etc:
+  mutate the in-memory records, run a tight per-record UI spawn / close
+  loop, then a single `FlushAsync` to persist — the old per-record
+  SaveAsync+ReconcileAsync ran serially through a SemaphoreSlim and made
+  "Show all" appear as a gradual cascade.
+- New workflow tasks: `arestoys.wormholes.hide-all`, `show-all`, `lock-all`,
+  `unlock-all`, `collapse-all`, `uncollapse-all`, `toggle-hide`,
+  `toggle-lock`, `toggle-collapse`, `create-wormhole`. Bound to user
+  hotkeys via the existing pipeline-trigger machinery.
+- Explorer integration:
+  - **Folder right-click "Create Wormhole"** — `HKCU\Software\Classes\
+    Directory\shell\` registration. Single-instance pipe IPC forwards the
+    folder path to the running AresToys when applicable, else cold-start
+    via `--create-wormhole` CLI flag.
+  - **Background-click verb** opens the NewWormhole dialog instead of
+    auto-creating, so the user can pick a different folder than the one
+    they right-clicked on.
+- Error state: wormhole window with missing source folder paints a
+  warning chrome and surfaces a "Relink…" button (`OpenFolderDialog`) so
+  the user can repoint to the moved folder without recreating the
+  wormhole + losing geometry.
+- Module gate in `app.modules.wormholes` (defaults OFF) so the feature is
+  opt-in until 0.1.10's polish lands; no startup cost when disabled.
+- Wormhole types unified into a single "folder portal" — the
+  Data/Shortcuts variant introduced in early prototypes is gone entirely
+  (the user requested it: a Shortcuts wormhole was just a Folder portal
+  pointing at a hidden internal folder full of .lnk files, so the second
+  type was redundant). Persisted records without a `Portal` block are
+  migrated transparently.
+- Drag-to-scrub on X / Y / W / H in the Settings → Wormholes grid: press
+  the left button and drag horizontally to scrub the value Unreal /
+  Blender style. A plain click still focuses for keyboard editing.
+
+### Editor
+- **Open editor — always 1:1**, regardless of fullscreen mode. The
+  workflow task's `fullscreen` flag now only controls window size
+  (maximise on active monitor vs. fit-to-image), the canvas zoom is
+  fixed at native pixel density. DPI-aware: `_zoom = 1 / dpiScaleX`
+  so one image pixel maps to one physical screen pixel on
+  125 % / 150 % / 200 % displays.
+- Non-fullscreen `Open editor` pre-sizes the window to the captured
+  image dimensions + chrome budget (~300 px wide + ~120 px tall, clamped
+  to the work area + a 800 × 600 floor) so a small screenshot opens in
+  a tight window instead of the legacy fixed 1200 × 820.
+- Recording coordinator now writes `.mp4` + `.gif` into the same folder
+  + sub-folder pattern as screenshots (was hardcoded to `%USERPROFILE%
+  \Pictures\AresToys`). SaveSvgTask too: when a Save-as-Image step ran
+  first, the `.svg` sits next to the `.png`; otherwise the sub-folder
+  pattern is resolved fresh from `capture.subfolder_pattern`.
+
+### Workflow editor — UX
+- **Sticky header**: Back / workflow name / hotkey / "Pipeline steps"
+  caption stay pinned at the top while the steps list scrolls — long
+  pipelines with 8 + steps no longer hide the rebind chip and the save
+  button.
+- **Hotkey chip** aligned vertically to the workflow-name TextBox height
+  (Style template gained `VerticalAlignment="Center"`).
+- **"Copy text to clipboard" split into 3 discrete catalog entries** with
+  distinct `LocalizationKey` per row so the catalog picker shows the
+  three variants by their actual purpose: Copy URL to clipboard, Copy
+  file path to clipboard, Copy SVG path to clipboard. All three route to
+  the same `arestoys.copy-text-to-clipboard` task with different bag-key
+  templates (`{bag.upload_urls}` / `{bag.local_path}` /
+  `{bag.svg_local_path}`).
+- **Per-uploader Upload entries**: each uploader gets its own catalog row
+  with `LocalizationKey="arestoys_upload_to_<id>"` so the picker shows
+  "Upload to Imgur", "Upload to Catbox", … instead of N rows labelled
+  identically "Upload".
+- New Wormholes category in Hotkeys & Workflows tab; templates for
+  3 toggle workflows (Hide / Lock / Collapse all) + Create Wormhole.
+
+### Capture
+- New `arestoys.save-svg` task (Save as SVG): pairs with Trace-to-SVG to
+  drop the `.svg` into the same folder as the raster Save-as-Image. Bag
+  key `svg_local_path` so a downstream Copy-text step can `{bag.
+  svg_local_path}` into the clipboard.
+- `arestoys.save-to-file` renamed `Save as Image file` in the catalog to
+  pair visually with Save as SVG.
+- `arestoys.trace-to-svg` task takes a preset string (from `TracePresets.
+  Stock` + user-saved `TracePresetStore`) instead of the old `colors`
+  int — matches the picker in the standalone Trace window. Legacy
+  `colors` field kept readable for back-compat.
+- Region capture default workflow gets `Win+Shift+S` baked into the
+  preset; Multi-region capture preset added with `autoConfirm=false`
+  and no default hotkey.
+- Sub-folder pattern field in Capture Settings: token chips (Year /
+  Month / MonthName / Day / Hour / …) replace the wall-of-text token
+  reference; clicking a chip inserts the token at the caret without
+  stealing focus from the TextBox.
+- Sub-folder pattern field validates / sanitises input on keystroke +
+  paste: invalid file-name chars (`<>:"/\\|?*` + `Path.GetInvalidFile
+  NameChars()`) blocked on typing, stripped on paste.
+- **`%mon`** (full month name) extracted into a shared
+  `DatePatternExpander.Expand(pattern, now)` helper consumed by
+  `SaveToFileTask`, `SaveSvgTask`, and `RecordingCoordinator` — three
+  copy-pasted implementations collapsed into one. Token order now matters
+  (longest-first) so `%mon` doesn't get eaten by the `%mo` replace and
+  emit `05n` instead of `May`.
+
+### Theme — colour audit
+- ~50 hardcoded greys / borders across the app moved to themed
+  DynamicResource bindings. Targets:
+  - `MainWindow.xaml`: `#666` / `#777` / `#888` / `#999` / `#AAA` →
+    `AccentForegroundDarkBrush`; `#DDD` → `AccentForegroundBrush`;
+    `#333` / `#444` → `Surface3Brush`; `#0F0F0F` → `Surface1Brush`.
+  - 8 dialog windows (`PinSourceChooser`, `SxcuImport`, `TabTitle`,
+    `WindowPicker`, `UploaderConfig`, `QrCode`, `IconPicker`,
+    `ResizeDialog`): `Background="#1E1E1E"` / `#252525` →
+    `Surface2Brush`; `BorderBrush="#3A3A3A"` / `#444` /
+    `#555` → `Surface3Brush`.
+  - `EditorWindow.xaml`: canvas backdrop `#1A1A1A` → `Surface1Brush`;
+    3 sidebar dividers `#333` → `Surface3Brush`.
+  - `ToastWindow.xaml` + `PinnedImageWindow.xaml`: text greys onto
+    `AccentForegroundBrush`.
+- Excluded by design (need to read against arbitrary colours): the colour
+  picker primitives (`ColorChannelSlider`, `ColorSquareControl`,
+  `ColorWheelControl`, `ColorSwatchButton`), `RegionOverlay` and
+  `RecordingOverlay` semaphore colours (red REC, green Confirm, blue
+  region selection).
+
+### Capture region — quality of life
+- "Copy to clipboard" task split into 3 discrete entries in the workflow
+  catalog (URL / file path / SVG path) — see the Workflow editor section
+  above.
+- Subfolder pattern fix: `SaveSvgTask` + `RecordingCoordinator` were
+  hardcoded to `%USERPROFILE%\Pictures\AresToys`, ignoring the user's
+  `capture.subfolder_pattern`. Both now resolve the same way
+  `SaveToFileTask` does (`capture.folder` + `capture.subfolder_pattern`
+  + token expansion via the shared `DatePatternExpander`).
 
 ### Release flow + tooling
 - New `tools/release.ps1` + `release.bat` shim drive the whole tag-and-push

@@ -20,7 +20,9 @@ public sealed record ThemePreset(
     string AccentDangerHex,
     string Surface1Hex,
     string Surface2Hex,
-    string Surface3Hex)
+    string Surface3Hex,
+    string OuterBorderHex,
+    string InnerBorderHex)
 {
     /// <summary>Localised name used in the Theme tab ComboBox. Falls back to <see cref="Name"/>
     /// when the preset isn't in the localiser map (e.g. a user-added preset). Looked up live so
@@ -41,7 +43,9 @@ public static class ThemePresets
         AccentDangerHex: string.Empty,
         Surface1Hex: string.Empty,
         Surface2Hex: string.Empty,
-        Surface3Hex: string.Empty);
+        Surface3Hex: string.Empty,
+        OuterBorderHex: string.Empty,
+        InnerBorderHex: string.Empty);
 
     public static readonly ThemePreset Default = new(
         Name: "AresToys default",
@@ -52,7 +56,9 @@ public static class ThemePresets
         AccentDangerHex: "#8F2720",
         Surface1Hex: "#1A1A1A",
         Surface2Hex: "#1F1F1F",
-        Surface3Hex: "#2D2D2D");
+        Surface3Hex: "#2D2D2D",
+        OuterBorderHex: "#4A4A4A",
+        InnerBorderHex: "#2D2D2D");
 
     public static readonly ThemePreset WizardBlue = new(
         Name: "Wizard blue",
@@ -63,7 +69,9 @@ public static class ThemePresets
         AccentDangerHex: "#A04040",
         Surface1Hex: "#111820",
         Surface2Hex: "#17212B",
-        Surface3Hex: "#1E2C39");
+        Surface3Hex: "#1E2C39",
+        OuterBorderHex: "#3F4D5E",
+        InnerBorderHex: "#1E2C39");
 
     public static readonly ThemePreset SorcererPurple = new(
         Name: "Sorcerer Purple",
@@ -74,7 +82,9 @@ public static class ThemePresets
         AccentDangerHex: "#993355",
         Surface1Hex: "#20111F",
         Surface2Hex: "#2B172B",
-        Surface3Hex: "#391E39");
+        Surface3Hex: "#391E39",
+        OuterBorderHex: "#5E3F5E",
+        InnerBorderHex: "#391E39");
 
     public static readonly ThemePreset DruidGreen = new(
         Name: "Druid Green",
@@ -85,7 +95,9 @@ public static class ThemePresets
         AccentDangerHex: "#8F2720",
         Surface1Hex: "#132011",
         Surface2Hex: "#1B2B17",
-        Surface3Hex: "#23391E");
+        Surface3Hex: "#23391E",
+        OuterBorderHex: "#3F5E3F",
+        InnerBorderHex: "#23391E");
 
     public static readonly ThemePreset WarlockRed = new(
         Name: "Warlock Red",
@@ -96,7 +108,9 @@ public static class ThemePresets
         AccentDangerHex: "#A02727",
         Surface1Hex: "#201111",
         Surface2Hex: "#2B1717",
-        Surface3Hex: "#391E1E");
+        Surface3Hex: "#391E1E",
+        OuterBorderHex: "#5E3F3F",
+        InnerBorderHex: "#391E1E");
 
     public static readonly ThemePreset ClericGold = new(
         Name: "Cleric Gold",
@@ -107,7 +121,9 @@ public static class ThemePresets
         AccentDangerHex: "#952A2A",
         Surface1Hex: "#201D11",
         Surface2Hex: "#2B2417",
-        Surface3Hex: "#39301E");
+        Surface3Hex: "#39301E",
+        OuterBorderHex: "#5E523F",
+        InnerBorderHex: "#39301E");
 
     public static readonly ThemePreset BardRouge = new(
         Name: "Bard Rouge",
@@ -118,7 +134,9 @@ public static class ThemePresets
         AccentDangerHex: "#952A4A",
         Surface1Hex: "#3F2239",
         Surface2Hex: "#4B2747",
-        Surface3Hex: "#61325D");
+        Surface3Hex: "#61325D",
+        OuterBorderHex: "#754467",
+        InnerBorderHex: "#61325D");
 
     public static readonly ThemePreset BurnMyEyes = new(
         Name: "Burn My Eyes",
@@ -129,7 +147,9 @@ public static class ThemePresets
         AccentDangerHex: "#ED5C52",
         Surface1Hex: "#C9C9C9",
         Surface2Hex: "#E4E4E4",
-        Surface3Hex: "#FFFFFF");
+        Surface3Hex: "#FFFFFF",
+        OuterBorderHex: "#9A9A9A",
+        InnerBorderHex: "#C9C9C9");
 
     public static readonly IReadOnlyList<ThemePreset> All = [Custom, Default, BardRouge, ClericGold, DruidGreen, SorcererPurple, WarlockRed, WizardBlue, BurnMyEyes];
 

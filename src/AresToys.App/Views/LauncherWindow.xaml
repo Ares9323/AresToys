@@ -39,7 +39,7 @@
          MainWindow / ImageEffectsWindow / GradientEditorWindow / QrGeneratorWindow. FluentWindow's
          own chrome stays outside this Border, so the accent line reads as an inner "telaio". -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- 0 titlebar -->
@@ -136,7 +136,7 @@
                     <DataTemplate>
                         <Border Margin="3" CornerRadius="6"
                                 Background="{DynamicResource AccentBackgroundDarkBrush}"
-                                BorderBrush="{DynamicResource AccentBackgroundDarkBorderBrush}" BorderThickness="1"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                 MouseLeftButtonDown="OnCellClick"
                                 PreviewMouseLeftButtonDown="OnCellPreviewMouseDown"
                                 PreviewMouseMove="OnCellPreviewMouseMove"
@@ -191,7 +191,7 @@
                              snapshotted Application.Current.Resources at materialise time and
                              didn't notify on theme change. -->
                         <Border Margin="3,0" CornerRadius="6,6,0,0"
-                                BorderBrush="{DynamicResource AccentBackgroundDarkBorderBrush}" BorderThickness="1,1,1,0"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1,1,1,0"
                                 MouseLeftButtonDown="OnTabClick"
                                 MouseRightButtonDown="OnTabRightClick"
                                 Cursor="Hand"
@@ -230,6 +230,7 @@
                  anywhere in the strip, not necessarily the first slot). -->
             <Border Grid.Row="3" Grid.RowSpan="3"
                     Background="{DynamicResource AccentBackgroundBrush}"
+                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                     CornerRadius="6"
                     Margin="-3,0,-3,-3" />
 
@@ -243,7 +244,7 @@
                     <DataTemplate>
                         <Border Margin="3" CornerRadius="6"
                                 Background="{DynamicResource AccentBackgroundDarkBrush}"
-                                BorderBrush="{DynamicResource AccentBackgroundDarkBorderBrush}" BorderThickness="1"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                 MouseLeftButtonDown="OnCellClick"
                                 PreviewMouseLeftButtonDown="OnCellPreviewMouseDown"
                                 PreviewMouseMove="OnCellPreviewMouseMove"
@@ -295,7 +296,7 @@
                     <DataTemplate>
                         <Border Margin="3" CornerRadius="6"
                                 Background="{DynamicResource AccentBackgroundDarkBrush}"
-                                BorderBrush="{DynamicResource AccentBackgroundDarkBorderBrush}" BorderThickness="1"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                 MouseLeftButtonDown="OnCellClick"
                                 PreviewMouseLeftButtonDown="OnCellPreviewMouseDown"
                                 PreviewMouseMove="OnCellPreviewMouseMove"
@@ -347,7 +348,7 @@
                     <DataTemplate>
                         <Border Margin="3" CornerRadius="6"
                                 Background="{DynamicResource AccentBackgroundDarkBrush}"
-                                BorderBrush="{DynamicResource AccentBackgroundDarkBorderBrush}" BorderThickness="1"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                 MouseLeftButtonDown="OnCellClick"
                                 PreviewMouseLeftButtonDown="OnCellPreviewMouseDown"
                                 PreviewMouseMove="OnCellPreviewMouseMove"

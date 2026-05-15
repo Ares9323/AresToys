@@ -17,7 +17,7 @@
          opaque chrome behind clips the rounding back to a square). Same trick the Launcher /
          Clipboard / HotkeyCapture windows use to share the same "soft card" look. -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
             CornerRadius="8">
         <Grid Margin="20">
             <Grid.RowDefinitions>
@@ -61,7 +61,7 @@
                         <DataTemplate DataType="{x:Type vm:IconCatalogEntry}">
                             <Button Width="56" Height="56" Margin="2"
                                     Background="{DynamicResource Surface3Brush}"
-                                    BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1"
+                                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                     Cursor="Hand"
                                     Tag="{Binding Glyph}"
                                     ToolTip="{Binding Name}"

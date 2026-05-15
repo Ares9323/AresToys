@@ -6,7 +6,7 @@
 
 > Modern productivity suite for Windows — unifies CopyQ (clipboard), ShareX (capture + upload), and MaxLauncher (keyboard launcher) into one app, plus tools none of them ship.
 
-**Status:** Alpha, actively shipped. Latest release: **v0.1.8** (2026-05-13); v0.1.9 in flight. Velopack-driven installer + portable + delta updates flow through GitHub Releases on every tagged version.
+**Status:** Alpha, actively shipped. Latest release: **v0.1.9** (2026-05-15); v0.1.10 in flight. Velopack-driven installer + portable + delta updates flow through GitHub Releases on every tagged version.
 
 ---
 
@@ -18,6 +18,7 @@ The core idea: **everything you copy or capture is part of the same searchable h
 
 On top of feature parity with the upstreams, AresToys adds tools none of them ship:
 
+- **Wormholes** (Stardock Fences / Portals-style desktop folders) — floating, draggable, lockable windows that live-mirror a real filesystem folder. Right-click any folder in Explorer → "Create Wormhole" turns it into a desktop grid that stays in sync via FileSystemWatcher; Ctrl+Wheel zooms tile size per-wormhole; collapse to header-only, hide, lock independently, or in batch via hotkey-bound workflow tasks (Hide all / Show all / Lock all / Toggle / Create…). Native Windows shell context menu on every item (dark-themed on Windows 10 1903+) means every third-party verb the user has installed — 7-Zip, Send to, Open with…, Properties — works out of the box, no curated allow-list to maintain.
 - **AI background removal** ("Magic eraser") — local U2NetP saliency model via ONNX Runtime with DirectML acceleration, brush-based touch-up (Add / Remove with hardness control), feather + edge offset post-processing. No upload, no API key, runs offline on any DX12 GPU.
 - **Raster-to-SVG tracer** — Illustrator-style trace panel with 12 stock presets, live WebView2 SVG preview, full parameter dock (paths / corners / noise / smoothing / pre-blur / overlap radius), and a manual palette picker that lets you sample colours directly from the source image with the on-screen eyedropper — related tones (e.g. white + light grey) collapse into the nearest pick instead of getting an arbitrary auto-quantized palette.
 - **QR codes** — generator with live preview, multiline editor, error-correction picker, PNG / SVG export; decoder via region select; right-click any clipboard text item to pre-fill the generator. Each generated QR enters the unified history like any other capture.
@@ -102,6 +103,12 @@ Plus a declarative `.sxcu` engine that loads ShareX-compatible JSON uploader fil
 - All capture / clipboard / upload flows run as composable pipelines (named "workflows"). Steps are user-editable in Settings → Hotkeys & workflows: add / remove / reorder / disable.
 - Hotkey rebinder via low-level keyboard hook (handles Win+V, Win+Shift+S etc. that `RegisterHotKey` can't bind).
 - Built-in profiles: region capture, screen recording, color picker/sampler, pin to screen, manual upload, upload clipboard text, open clipboard, open launcher.
+
+**Wormholes**
+- Per-wormhole record persisted as JSON at `%LOCALAPPDATA%\AresToys\wormholes.json` (atomic-rename writes via `FileStream.Replace`). Position, size, lock state, hidden state, rolled state, icon-size override, opacity override, tile padding override all round-trip without losing geometry across restarts.
+- All-sides resize (WM_NCHITTEST + custom grip regions), DragMove on the header, double-click rolls to header-only height (≈ 48 px), single-instance pipe IPC forwards the Explorer "Create Wormhole" verb to the running AresToys (cold-start via `--create-wormhole` CLI flag when applicable).
+- Inline search: the magnifying-glass button in the header expands into a 250 ms-debounced TextBox that filters the visible icons against `DisplayName`. Esc clears + collapses; Enter commits + drops focus while keeping the textbox visible.
+- Workflow tasks: `Hide all wormholes`, `Show all`, `Lock / Unlock all`, `Collapse / Uncollapse all`, smart toggle variants, `Create wormhole`. Bound to user hotkeys via the existing pipeline-trigger machinery.
 
 **Other**
 - Categories (CopyQ-style) with Move / Copy / Delete and per-category clear

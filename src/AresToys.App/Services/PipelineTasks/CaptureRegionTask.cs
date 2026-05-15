@@ -19,6 +19,19 @@ public sealed class CaptureRegionTask : IPipelineTask
 {
     public const string TaskId = "arestoys.capture-region";
 
+    /// <summary>Cooldown between consecutive region-overlay opens. Filters out the
+    /// "first-press double-fire" we see on a cold app: the OS hotkey hook can deliver the
+    /// keydown event twice when the AresToys hotkey loop is initialising on the very first
+    /// press after launch, which would otherwise spawn the overlay twice (the first instance
+    /// covers the desktop with a phantom selection that the user has to Esc through).
+    /// 400 ms is short enough that a deliberate double-tap from the user can't realistically
+    /// hit it — nobody actually triggers a second region pick in under half a second.</summary>
+    private static readonly TimeSpan OverlayCooldown = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>UTC timestamp of the most recent overlay open. Static so the cooldown is
+    /// process-wide (every workflow pipeline shares the same hardware hotkey hook source).</summary>
+    private static DateTime _lastOverlayOpenAt = DateTime.MinValue;
+
     private readonly ICaptureSource _captureSource;
     private readonly CaptureImageOutputService _outputEncoder;
     private readonly ILogger<CaptureRegionTask> _logger;
@@ -46,6 +59,19 @@ public sealed class CaptureRegionTask : IPipelineTask
             _logger.LogDebug("CaptureRegionTask: payload already in bag; skipping overlay");
             return;
         }
+
+        // Cooldown guard against the cold-start double-fire (see OverlayCooldown remarks).
+        // When two trigger events arrive within the cooldown we abort the second pipeline run
+        // instead of opening a duplicate overlay on top of the first one.
+        var now = DateTime.UtcNow;
+        if (now - _lastOverlayOpenAt < OverlayCooldown)
+        {
+            _logger.LogInformation("CaptureRegionTask: suppressing repeat trigger ({Elapsed} ms since last open, cooldown {Cooldown} ms)",
+                (int)(now - _lastOverlayOpenAt).TotalMilliseconds, (int)OverlayCooldown.TotalMilliseconds);
+            context.Abort("region overlay cooldown");
+            return;
+        }
+        _lastOverlayOpenAt = now;
 
         // Per-workflow opt-in: when set, the overlay closes on the first valid mouse-up
         // (drag rect or snap-to-window click) without waiting for Enter — single-shot

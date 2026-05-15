@@ -80,7 +80,7 @@
     </ui:FluentWindow.Resources>
 
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- titlebar -->
@@ -144,7 +144,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Width="22" Height="22" Margin="1"
-                                    BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1"
+                                    BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
                                     Background="{Binding Brush}"
                                     Cursor="Hand"
                                     MouseLeftButtonDown="OnPaletteSwatchClick"
@@ -177,7 +177,7 @@
                     <ColumnDefinition Width="*" />    <!-- sRGB centred -->
                     <ColumnDefinition Width="Auto" /> <!-- Eyedropper -->
                 </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Height="32" BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1"
+                <Border Grid.Column="0" Height="32" BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
                         Background="{StaticResource CheckerBrush}">
                     <Border>
                         <Border.Background>
@@ -185,7 +185,7 @@
                         </Border.Background>
                     </Border>
                 </Border>
-                <Border Grid.Column="1" Height="32" BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1"
+                <Border Grid.Column="1" Height="32" BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
                         Background="{StaticResource CheckerBrush}">
                     <Border>
                         <Border.Background>

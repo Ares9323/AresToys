@@ -13,7 +13,7 @@
         Background="{DynamicResource Surface2Brush}"
         Foreground="{DynamicResource AccentForegroundBrush}">
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- titlebar -->
@@ -43,7 +43,7 @@
                            FontSize="14" FontWeight="SemiBold" />
                 <Border Grid.Row="1" Margin="0,12" Padding="12"
                         Background="{DynamicResource Surface3Brush}"
-                        BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="1" CornerRadius="4">
+                        BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4">
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock x:Name="ComboPreview" Text="(waiting for keys…)"
                                    FontFamily="Consolas" FontSize="14"

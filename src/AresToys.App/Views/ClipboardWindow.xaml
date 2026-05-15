@@ -54,7 +54,7 @@
          MainWindow / ImageEffectsWindow / GradientEditorWindow / QrGeneratorWindow. FluentWindow's
          own chrome stays outside this Border, so the accent line reads as an inner "telaio". -->
     <Border Background="{DynamicResource Surface2Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}" BorderThickness="2" CornerRadius="8">
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- 0 titlebar -->
@@ -276,7 +276,7 @@
 
                     <Border Grid.Column="0"
                             Background="{DynamicResource Surface1Brush}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" CornerRadius="4"
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4"
                             Padding="6">
                             <ListBox x:Name="HistoryList"
                                      Background="Transparent"
@@ -423,7 +423,7 @@
                                                         Width="56" Height="56"
                                                         Margin="0,0,10,0"
                                                         Background="{DynamicResource Surface1Brush}"
-                                                        BorderBrush="#444" BorderThickness="1"
+                                                        BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                         Visibility="{Binding HasThumbnail, Converter={StaticResource BoolToVisibility}}">
                                                     <Image Source="{Binding Thumbnail, Converter={StaticResource BytesToImage}}"
                                                            Stretch="Uniform" />
@@ -556,7 +556,7 @@
                     <Border Grid.Column="2"
                             x:Name="PreviewPane"
                             Background="{DynamicResource Surface1Brush}"
-                            BorderBrush="{DynamicResource Surface3Brush}" BorderThickness="1" CornerRadius="4">
+                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />

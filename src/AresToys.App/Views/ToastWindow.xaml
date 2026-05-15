@@ -12,7 +12,7 @@
         ResizeMode="NoResize">
     <Border x:Name="Root"
             Background="{DynamicResource Surface3Brush}"
-            BorderBrush="{DynamicResource AccentForegroundDarkBrush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="1"
             CornerRadius="6"
             Margin="8"
