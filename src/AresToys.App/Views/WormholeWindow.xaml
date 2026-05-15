@@ -215,29 +215,39 @@
                                         Height="{Binding TileHeight}"
                                         MouseLeftButtonDown="OnItemMouseDown"
                                         MouseRightButtonUp="OnItemRightButtonUp">
-                                    <!-- HorizontalAlignment=Stretch on the StackPanel forces it
-                                         to fill the parent Border's Width (TileWidth). With
-                                         Center the panel was shrink-wrapping to its widest
-                                         child (= the Image), giving TextWrapping=Wrap a too-
-                                         narrow constraint and stripping the label to a
-                                         single-line ellipsis. The Image keeps its own
-                                         HorizontalAlignment=Center so it stays centered inside
-                                         the now-wider stack. -->
-                                    <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Top">
-                                        <Image Source="{Binding Icon}"
+                                    <!-- Grid (not StackPanel) for the icon+label split: row 0 sizes
+                                         to icon content, row 1 takes the remainder. The TextBlock
+                                         carries BOTH Width AND MaxWidth bound to TileWidth — Width
+                                         forces the measure pass to use that constraint for the
+                                         wrap calculation, MaxWidth backstops it if anything
+                                         further up tries to shrink-wrap. Belt and suspenders
+                                         because the simpler StackPanel + Width approach hasn't
+                                         been wrapping in practice on the user's setup. -->
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Image Grid.Row="0"
+                                               Source="{Binding Icon}"
                                                Width="{Binding IconSizePx}"
                                                Height="{Binding IconSizePx}"
                                                HorizontalAlignment="Center"
                                                Margin="{Binding IconMargin}"
                                                RenderOptions.BitmapScalingMode="HighQuality" />
-                                        <TextBlock Text="{Binding DisplayName}"
+                                        <TextBlock Grid.Row="1"
+                                                   Text="{Binding DisplayName}"
+                                                   Width="{Binding TileWidth}"
+                                                   MaxWidth="{Binding TileWidth}"
                                                    Foreground="{DynamicResource AccentForegroundBrush}"
                                                    FontSize="11"
                                                    TextAlignment="Center"
                                                    TextWrapping="Wrap"
-                                                   MaxHeight="28"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Top"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,2,0,2" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

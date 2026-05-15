@@ -74,71 +74,57 @@ public sealed class WormholeCreateTask : IPipelineTask
         }).Task.ConfigureAwait(false);
     }
 
-    /// <summary>Walk Shell.Application.Windows() to find the foreground Explorer's folder:
-    /// either the single selected folder, or — when nothing is selected — the folder currently
-    /// being viewed. Returns null when: no Explorer in foreground, multiple items selected,
-    /// the selected item isn't a folder, or any COM call throws. The caller treats null as
-    /// "open the dialog instead".
-    ///
-    /// We trust <c>Directory.Exists(item.Path)</c> rather than <c>item.IsFolder</c> alone:
-    /// some shell namespace extensions (Quick Access pinned entries, OneDrive, mapped network
-    /// drives) report IsFolder inconsistently across Windows versions, and a disk-level check
-    /// is the ground truth we actually care about for creating a wormhole.</summary>
+    /// <summary>Walk every open Explorer window and pick a folder to mirror. Two-pass:
+    /// <list type="number">
+    ///   <item>Try the foreground Explorer first — most natural ("the window I was looking at").</item>
+    ///   <item>If foreground isn't Explorer (hotkey was pressed while another app had focus,
+    ///         or the foreground briefly shifted around hotkey dispatch), fall back to ANY
+    ///         Explorer window with a usable folder. If exactly one such window exists, use
+    ///         it; if multiple disagree on what folder to pick, bail to the dialog rather
+    ///         than guess wrong.</item>
+    /// </list>
+    /// For each candidate window: a single selected folder wins; otherwise the
+    /// currently-viewed folder. Folder validity is confirmed via <c>Directory.Exists</c> —
+    /// <c>item.IsFolder</c> from the shell COM surface lies on some namespace extensions.</summary>
     private string? ResolveExplorerSelectedFolder()
     {
         var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero) return null;
-
         try
         {
             var shellType = Type.GetTypeFromProgID("Shell.Application");
             if (shellType is null) return null;
             dynamic? shell = Activator.CreateInstance(shellType);
             if (shell is null) return null;
-
             dynamic windows = shell.Windows();
+
+            // Pass-1 result: the foreground Explorer's pick. Pass-2 collector: every other
+            // Explorer's pick + an ambiguity flag for when they disagree.
+            string? fromForeground = null;
+            string? fromAny = null;
+            bool ambiguous = false;
+
             foreach (dynamic window in windows)
             {
+                var pick = TryGetFolderPathFromWindow(window);
+                if (pick is null) continue;
+
                 IntPtr hwnd;
                 try { hwnd = new IntPtr((int)window.HWND); }
-                catch { continue; }
-                if (hwnd != foreground) continue;
+                catch { hwnd = IntPtr.Zero; }
 
-                dynamic? document;
-                try { document = window.Document; }
-                catch { continue; }
-
-                // Selection branch — preferred when present. Count + first-item capture in a
-                // single pass; bail on multi-select.
-                dynamic? items = null;
-                try { items = document.SelectedItems(); } catch { items = null; }
-
-                if (items is not null)
+                if (hwnd != IntPtr.Zero && hwnd == foreground)
                 {
-                    int count = 0;
-                    string? selectedPath = null;
-                    foreach (dynamic item in items)
-                    {
-                        count++;
-                        if (count > 1) return null; // multi-select bails to dialog
-                        try { selectedPath = item.Path as string; } catch { }
-                    }
-                    if (count == 1 && !string.IsNullOrEmpty(selectedPath) && Directory.Exists(selectedPath))
-                        return selectedPath;
-                    if (count >= 1) return null; // selection present but not a folder → dialog
+                    fromForeground = pick;
+                    break; // foreground match always wins, no need to keep scanning
                 }
 
-                // Nothing selected → fall back to the currently-displayed folder. Matches user
-                // mental model: "I'm inside the folder I want, just make a wormhole for it".
-                try
-                {
-                    string? currentPath = document.Folder.Self.Path as string;
-                    if (!string.IsNullOrEmpty(currentPath) && Directory.Exists(currentPath))
-                        return currentPath;
-                }
-                catch { /* shell folder without a filesystem path (Quick Access, etc.) */ }
-                return null;
+                if (fromAny is null) fromAny = pick;
+                else if (!string.Equals(fromAny, pick, StringComparison.OrdinalIgnoreCase))
+                    ambiguous = true;
             }
+
+            if (fromForeground is not null) return fromForeground;
+            if (fromAny is not null && !ambiguous) return fromAny;
             return null;
         }
         catch (Exception ex)
@@ -146,6 +132,48 @@ public sealed class WormholeCreateTask : IPipelineTask
             _logger.LogDebug(ex, "WormholeCreateTask: Shell.Application introspection failed");
             return null;
         }
+    }
+
+    /// <summary>Resolve a folder path from a single Shell window. Selected folder (single
+    /// item, no multi-select) wins; falls back to the currently-displayed folder when nothing
+    /// is selected. Returns null on any non-folder selection / multi-select / COM hiccup —
+    /// caller treats null as "this window doesn't have a usable pick".</summary>
+    private static string? TryGetFolderPathFromWindow(dynamic window)
+    {
+        dynamic? document;
+        try { document = window.Document; }
+        catch { return null; }
+
+        dynamic? items = null;
+        try { items = document.SelectedItems(); } catch { items = null; }
+
+        if (items is not null)
+        {
+            int count = 0;
+            string? selectedPath = null;
+            foreach (dynamic item in items)
+            {
+                count++;
+                if (count > 1) return null; // multi-select disqualifies this window
+                try { selectedPath = item.Path as string; } catch { }
+            }
+            if (count == 1)
+            {
+                if (!string.IsNullOrEmpty(selectedPath) && Directory.Exists(selectedPath))
+                    return selectedPath;
+                return null; // single item selected but not a folder → don't fall through to "current folder"
+            }
+        }
+
+        // No selection → currently-viewed folder.
+        try
+        {
+            string? currentPath = document.Folder.Self.Path as string;
+            if (!string.IsNullOrEmpty(currentPath) && Directory.Exists(currentPath))
+                return currentPath;
+        }
+        catch { /* shell folder without a filesystem path (Quick Access, This PC, etc.) */ }
+        return null;
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]

@@ -722,7 +722,7 @@
   <data name="WorkflowAction_arestoys_copy_color_bgra" xml:space="preserve"><value>Copy color as BGRA</value></data>
   <data name="WorkflowAction_arestoys_open_editor_before_upload" xml:space="preserve"><value>Open editor</value></data>
   <data name="WorkflowAction_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Apply image effects preset</value></data>
-  <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Save to file</value></data>
+  <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Save as Image file</value></data>
   <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Add to clipboard history</value></data>
   <data name="WorkflowAction_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Paste history item</value></data>

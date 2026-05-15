@@ -328,6 +328,78 @@ public partial class MainWindow : FluentWindow
         catch { /* same — failure is not user-visible */ }
     }
 
+    /// <summary>Block keystrokes that produce filesystem-illegal characters in a folder
+    /// path. Combines Windows' invalid-filename-char list with the path separators (\, /)
+    /// and the colon — none of those make sense inside a sub-folder pattern token. Multi-
+    /// character text input (IME composition, drag-drop) goes through here too, so we check
+    /// every char in the pending Text. The <c>%</c> needed for tokens IS allowed (not on the
+    /// invalid list).</summary>
+    private void OnSubFolderPatternPreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Text)) return;
+        if (e.Text.AsSpan().IndexOfAny(InvalidPathChars()) >= 0) e.Handled = true;
+    }
+
+    /// <summary>Sanitize text on paste (Ctrl+V / right-click Paste). Strip invalid chars
+    /// rather than reject outright — pasting "foo:bar/baz" should land as "foobarbaz" so the
+    /// user gets at least the salvageable parts (consistent with Explorer's rename dialog).</summary>
+    private void OnSubFolderPatternPasting(object sender, System.Windows.DataObjectPastingEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox tb) return;
+        if (!e.SourceDataObject.GetDataPresent(System.Windows.DataFormats.UnicodeText)) return;
+        var raw = e.SourceDataObject.GetData(System.Windows.DataFormats.UnicodeText) as string ?? string.Empty;
+        var bad = InvalidPathChars();
+        var clean = new System.Text.StringBuilder(raw.Length);
+        foreach (var c in raw)
+            if (Array.IndexOf(bad, c) < 0) clean.Append(c);
+        if (clean.Length == raw.Length) return; // nothing to clean — let the paste through
+        e.CancelCommand();                       // suppress the original paste
+        var caret = tb.SelectionStart;
+        var text = tb.Text ?? string.Empty;
+        var selected = tb.SelectionLength;
+        if (selected > 0) text = text.Remove(caret, selected);
+        tb.Text = text.Insert(caret, clean.ToString());
+        tb.SelectionStart = caret + clean.Length;
+        tb.SelectionLength = 0;
+    }
+
+    /// <summary>Filesystem-illegal chars for a single path segment. <c>Path.GetInvalidFileNameChars</c>
+    /// covers the Windows-reserved set (&lt;&gt;:"/\|?* + control chars); <c>:</c> is already in
+    /// there for filenames but we re-include path separators just in case the .NET runtime
+    /// changes the list. Static cached so each keystroke / paste doesn't re-allocate.</summary>
+    private static char[] _invalidPathChars = BuildInvalidPathChars();
+    private static char[] InvalidPathChars() => _invalidPathChars;
+    private static char[] BuildInvalidPathChars()
+    {
+        var fileSet = System.IO.Path.GetInvalidFileNameChars();
+        var combined = new System.Collections.Generic.HashSet<char>(fileSet);
+        combined.Add('\\');
+        combined.Add('/');
+        combined.Add(':');
+        return combined.ToArray();
+    }
+
+    /// <summary>Token chip click on the Capture-Settings sub-folder pattern editor: insert
+    /// the chip's <c>Tag</c> string (e.g. <c>%y</c>) at the textbox's caret position and
+    /// move the caret to right after the inserted token. Each chip has Focusable=False so
+    /// the click doesn't move focus off the textbox; if focus had drifted elsewhere we
+    /// re-Focus the textbox here so subsequent typing lands in the right field.</summary>
+    private void OnPatternTokenClick(object sender, RoutedEventArgs e)
+    {
+        // Sender is ui:Button (Wpf.Ui.Controls.Button) which derives from
+        // System.Windows.Controls.Primitives.ButtonBase, NOT from System.Windows.Controls.Button.
+        // Casting to Button missed the chips entirely and the handler returned silently —
+        // ButtonBase covers both vanilla Button and any wpf-ui themed variant.
+        if (sender is not System.Windows.Controls.Primitives.ButtonBase btn || btn.Tag is not string token) return;
+        if (SubFolderPatternBox is null) return;
+        var caret = SubFolderPatternBox.SelectionStart;
+        var text = SubFolderPatternBox.Text ?? string.Empty;
+        SubFolderPatternBox.Text = text.Insert(caret, token);
+        SubFolderPatternBox.SelectionStart = caret + token.Length;
+        SubFolderPatternBox.SelectionLength = 0;
+        SubFolderPatternBox.Focus();
+    }
+
     /// <summary>Builds the "+ Add step" categorized context menu on demand. Doing this in
     /// code-behind keeps the XAML clean and avoids the WPF HierarchicalDataTemplate gotchas
     /// around binding Command on dynamically-templated leaf MenuItems.</summary>

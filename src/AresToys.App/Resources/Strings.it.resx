@@ -663,7 +663,7 @@
   <data name="WorkflowAction_arestoys_copy_color_bgra" xml:space="preserve"><value>Copia colore come BGRA</value></data>
   <data name="WorkflowAction_arestoys_open_editor_before_upload" xml:space="preserve"><value>Apri editor</value></data>
   <data name="WorkflowAction_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Applica preset effetti immagine</value></data>
-  <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Salva su file</value></data>
+  <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Salva come immagine</value></data>
   <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Aggiungi alla cronologia appunti</value></data>
   <data name="WorkflowAction_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Incolla elemento dalla cronologia</value></data>

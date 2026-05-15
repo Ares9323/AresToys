@@ -27,7 +27,7 @@ public sealed class SaveToFileTask : IPipelineTask
     }
 
     public string Id => TaskId;
-    public string DisplayName => "Save to file";
+    public string DisplayName => "Save as Image file";
     public PipelineTaskKind Kind => PipelineTaskKind.PostCapture;
 
     public async Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
@@ -93,7 +93,7 @@ public sealed class SaveToFileTask : IPipelineTask
             ?? await _settings.GetAsync(SubFolderPatternSettingKey, cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(subPatternRaw))
         {
-            var sub = ExpandPatternTokens(Environment.ExpandEnvironmentVariables(subPatternRaw), DateTime.Now);
+            var sub = DatePatternExpander.Expand(Environment.ExpandEnvironmentVariables(subPatternRaw), DateTime.Now);
             folder = Path.Combine(folder, sub);
         }
         Directory.CreateDirectory(folder);
@@ -135,18 +135,6 @@ public sealed class SaveToFileTask : IPipelineTask
     /// <summary>ShareX-style date / metadata tokens for the sub-folder pattern. Tokens use the
     /// same prefix style as ShareX (<c>%y</c>, <c>%mo</c>, <c>%d</c>, <c>%h</c>, <c>%mi</c>,
     /// <c>%s</c>, <c>%yy</c>, <c>%pm</c>) so users migrating from ShareX recognise them.</summary>
-    private static string ExpandPatternTokens(string pattern, DateTime now) => pattern
-        .Replace("%yyyy", now.ToString("yyyy", CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%yy",   now.ToString("yy",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%y",    now.ToString("yyyy", CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%mo",   now.ToString("MM",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%mon",  now.ToString("MMMM", CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%d",    now.ToString("dd",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%h",    now.ToString("HH",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%mi",   now.ToString("mm",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%s",    now.ToString("ss",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
-        .Replace("%pm",   now.ToString("tt",   CultureInfo.InvariantCulture), StringComparison.Ordinal);
-
     private static string SanitizeForFilename(string title)
     {
         var invalid = Path.GetInvalidFileNameChars();

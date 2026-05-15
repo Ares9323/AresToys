@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using AresToys.App.Views;
 using AresToys.Capture.Recording;
 using AresToys.Core.Domain;
+using AresToys.Pipeline.Tasks;
 using AresToys.Storage.Items;
 using MessageBox = System.Windows.MessageBox;
 using MessageBoxButton = System.Windows.MessageBoxButton;
@@ -17,14 +18,16 @@ namespace AresToys.App.Services.Recording;
 public sealed class RecordingCoordinator
 {
     private const int FpsDefault = 30;
-    private static readonly string OutputFolder =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "AresToys");
+    private const string DefaultFolder = "%USERPROFILE%\\Pictures\\AresToys";
+    private const string FolderSettingKey = "capture.folder";
+    private const string SubFolderPatternSettingKey = "capture.subfolder_pattern";
 
     private readonly ScreenRecordingService _recorder;
     private readonly FfmpegLocator _locator;
     private readonly FfmpegDownloader _downloader;
     private readonly IItemStore _items;
     private readonly IToastNotifier _notifier;
+    private readonly AresToys.Storage.Settings.ISettingsStore _settings;
     private readonly ILogger<RecordingCoordinator> _logger;
     private RecordingOverlayWindow? _overlay;
     private RecordingFormat _activeFormat;
@@ -36,6 +39,7 @@ public sealed class RecordingCoordinator
         FfmpegDownloader downloader,
         IItemStore items,
         IToastNotifier notifier,
+        AresToys.Storage.Settings.ISettingsStore settings,
         ILogger<RecordingCoordinator> logger)
     {
         _recorder = recorder;
@@ -43,7 +47,25 @@ public sealed class RecordingCoordinator
         _downloader = downloader;
         _items = items;
         _notifier = notifier;
+        _settings = settings;
         _logger = logger;
+    }
+
+    /// <summary>Resolve capture folder + subfolder pattern from settings, mirroring
+    /// SaveToFileTask. Recordings now land in the same folder as screenshots (typically
+    /// inside the user's chosen %y\%mo subfolder) instead of the legacy hardcoded
+    /// Pictures\AresToys root.</summary>
+    private async Task<string> ResolveCaptureFolderAsync(CancellationToken ct)
+    {
+        var folderTemplate = await _settings.GetAsync(FolderSettingKey, ct).ConfigureAwait(false) ?? DefaultFolder;
+        var folder = Environment.ExpandEnvironmentVariables(folderTemplate);
+        var subPatternRaw = await _settings.GetAsync(SubFolderPatternSettingKey, ct).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(subPatternRaw))
+        {
+            var sub = DatePatternExpander.Expand(Environment.ExpandEnvironmentVariables(subPatternRaw), DateTime.Now);
+            folder = Path.Combine(folder, sub);
+        }
+        return folder;
     }
 
     /// <summary>Strip filesystem-unsafe chars from a window title and limit length so filenames stay
@@ -93,11 +115,15 @@ public sealed class RecordingCoordinator
         }).Task.ConfigureAwait(false);
         if (region is null) return;
 
-        Directory.CreateDirectory(OutputFolder);
+        // Same folder + subfolder-pattern resolution as SaveToFileTask, so screen recordings
+        // land alongside screenshots (typically the same %y\%mo subfolder) instead of in the
+        // legacy hardcoded Pictures\AresToys root.
+        var folder = await ResolveCaptureFolderAsync(cancellationToken).ConfigureAwait(false);
+        Directory.CreateDirectory(folder);
         var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
         var ext = format == RecordingFormat.Mp4 ? "mp4" : "gif";
         var titleSlug = SanitizeForFilename(region.WindowTitle);
-        var outPath = Path.Combine(OutputFolder,
+        var outPath = Path.Combine(folder,
             string.IsNullOrEmpty(titleSlug) ? $"arestoys-rec-{stamp}.{ext}" : $"arestoys-rec-{titleSlug}-{stamp}.{ext}");
 
         var options = new RecordingOptions(

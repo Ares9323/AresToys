@@ -252,6 +252,7 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, UploadClipboardTextTask>();
                 services.AddSingleton<IPipelineTask, NotifyToastTask>();
                 services.AddSingleton<IPipelineTask, TraceToSvgTask>();
+                services.AddSingleton<IPipelineTask, SaveSvgTask>();
                 services.AddSingleton<IPipelineTask, RemoveBackgroundTask>();
                 services.AddSingleton<IPipelineTask, OpenEditorBeforeUploadTask>();
                 services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
@@ -490,6 +491,25 @@ public partial class App : Application
         // Settings → Capture). Explicit format = re-encode through IImageEncoder before write.
         AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["image_formats"] = () =>
             new[] { string.Empty, "PNG", "JPEG", "BMP", "GIF" };
+
+        // Trace-preset dropdown for Trace to SVG's "preset" config. Concatenates the stock
+        // presets (TracePresets.Stock — verbatim Illustrator Image Trace defaults) with any
+        // user-saved custom presets from the standalone trace window. Lookup at task runtime
+        // is case-insensitive against the same two sources, so a saved preset name resolves
+        // identically to its stock counterpart if names collide (custom wins on rebuild order).
+        var tracePresetStore = _host.Services.GetRequiredService<AresToys.App.Services.TracePresetStore>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["trace_presets"] = () =>
+        {
+            var names = new List<string>(AresToys.AI.TracePresets.Stock.Count + 8);
+            foreach (var p in AresToys.AI.TracePresets.Stock) names.Add(p.Name);
+            try
+            {
+                var custom = tracePresetStore.GetAllAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+                foreach (var p in custom) names.Add(p.Name);
+            }
+            catch { /* settings-store hiccup → just stock list */ }
+            return names;
+        };
 
         // Default-tool dropdown for "Open editor". Empty entry = "use last-used" (whatever the
         // user last left selected in EditorDefaultsStore); explicit value preselects that tool

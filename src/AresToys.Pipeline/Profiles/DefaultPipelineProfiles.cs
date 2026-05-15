@@ -8,6 +8,7 @@ public static class DefaultPipelineProfiles
     // Profile / workflow ids
     public const string OnClipboardId       = "on-clipboard";
     public const string RegionCaptureId     = "region-capture";
+    public const string MultiRegionCaptureId = "multi-region-capture";
     public const string ActiveWindowCaptureId = "active-window-capture";
     public const string ActiveMonitorCaptureId = "active-monitor-capture";
     public const string WebpageCaptureId       = "webpage-capture";
@@ -80,6 +81,7 @@ public static class DefaultPipelineProfiles
     public static readonly IReadOnlyDictionary<string, string> CategoriesById = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         [RegionCaptureId]         = "Capture",
+        [MultiRegionCaptureId]    = "Capture",
         [ActiveWindowCaptureId]   = "Capture",
         [ActiveMonitorCaptureId]  = "Capture",
         [WebpageCaptureId]        = "Capture",
@@ -121,23 +123,49 @@ public static class DefaultPipelineProfiles
             ],
             IsBuiltIn: true),
 
+        // Region capture — single-shot. Auto-confirm ON so the first mouse-up commits the rect
+        // (no Enter required). Editor opens after capture for quick annotation. Save + history +
+        // clipboard + toast ON; upload + URL-copy OFF by default so the user only enables the
+        // share leg when they actually want a public URL. Win+Shift+S keeps the muscle-memory
+        // shortcut every Windows user already has on their finger.
         new PipelineProfile(
             Id: RegionCaptureId,
             DisplayName: "Region capture",
             Trigger: "hotkey:region",
             Steps:
             [
-                new PipelineStep(CaptureRegionTaskId, Id: "capture-region"),
-                new PipelineStep(OpenEditorBeforeUploadTaskId, Enabled: false, Id: "open-editor"),
+                new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":true}"), Id: "capture-region"),
+                new PipelineStep(OpenEditorBeforeUploadTaskId, Id: "open-editor"),
                 new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
                 new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
                 new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Id: "upload"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Enabled: false, Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
+                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Enabled: false, Id: "copy-url"),
                 new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
             ],
             Hotkey: new HotkeyBinding(Win | Shift, 0x53),  // Win+Shift+S
+            IsBuiltIn: true),
+
+        // Multi-region capture — same shape as Region capture but auto-confirm OFF (the overlay
+        // stays open, user drags multiple rects, presses Enter to commit) and Toast ON so the
+        // user sees confirmation when the (potentially long) selection workflow finishes.
+        new PipelineProfile(
+            Id: MultiRegionCaptureId,
+            DisplayName: "Multi-region capture",
+            Trigger: "hotkey:multi-region",
+            Steps:
+            [
+                new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":false}"), Id: "capture-region"),
+                new PipelineStep(OpenEditorBeforeUploadTaskId, Id: "open-editor"),
+                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
+                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
+                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Enabled: false, Id: "upload"),
+                new PipelineStep(UpdateItemUrlTask.TaskId),
+                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Enabled: false, Id: "copy-url"),
+                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
+            ],
             IsBuiltIn: true),
 
         new PipelineProfile(

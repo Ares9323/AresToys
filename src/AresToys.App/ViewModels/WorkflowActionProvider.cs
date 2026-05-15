@@ -34,7 +34,12 @@ public sealed class WorkflowActionProvider
                 DisplayName: $"Upload to {uploader.DisplayName}",
                 Description: $"Upload the current bytes via the {uploader.DisplayName} uploader. Other uploaders aren't run.",
                 Category: "Upload",
-                DefaultConfigJson: configJson));
+                DefaultConfigJson: configJson,
+                // LocalizationKey unique-per-uploader so the localizer's resx lookup misses
+                // (we don't ship per-uploader translations) and falls back to DisplayName above.
+                // Without this every variant would share the catch-all WorkflowAction_arestoys_upload
+                // key (= "Upload") and the picker showed N copies of just "Upload".
+                LocalizationKey: "arestoys_upload_to_" + uploader.Id.Replace('.', '_').Replace('-', '_')));
         }
         return Task.FromResult<IReadOnlyList<WorkflowActionDescriptor>>(list);
     }

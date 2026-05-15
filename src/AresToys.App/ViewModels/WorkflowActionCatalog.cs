@@ -253,10 +253,12 @@ public static class WorkflowActionCatalog
 
         new("arestoys.trace-to-svg",
             "Trace to SVG",
-            "Convert the captured raster to an SVG vector via potrace. Best on icons / logos / line art with a small palette; photos produce a posterised stylization. Result is stashed in the pipeline bag under 'svg_output' for downstream Save-SVG / Copy-SVG steps. 'Colors' picks the palette size: 2 = monochrome silhouette (cleanest), 3-16 = per-colour layers stacked into one SVG.",
+            "Convert the captured raster to an SVG vector via potrace. Result lands in the pipeline bag under 'svg_output' for downstream Save-SVG / Copy-SVG steps. The 'Preset' dropdown lists the same stock presets as the standalone trace window ([Default], High Fidelity Photo, 3 Colors, Black and White Logo, Sketched Art, Silhouettes, Line Art, Technical Drawing, …) plus any custom presets you've saved there.",
             "Editor",
-            StringParameters: [new StringParameter("colors", "Color count", "2",
-                Placeholder: "2", IsEditable: true)]),
+            DefaultConfigJson: "{\"preset\":\"[Default]\"}",
+            StringParameters: [new StringParameter("preset", "Preset", "[Default]",
+                Placeholder: "[Default]", OptionsKey: "trace_presets",
+                IsEditable: false)]),
 
         new("arestoys.remove-background",
             "Remove background",
@@ -264,12 +266,17 @@ public static class WorkflowActionCatalog
             "Editor"),
 
         new("arestoys.save-to-file",
-            "Save to file",
-            "Write the current bytes to disk under the configured capture folder (Settings → Capture). 'Format' is optional: leave empty to keep whatever's already in the bag (the global capture format), or pick one to force a re-encode for this step.",
+            "Save as Image file",
+            "Write the current raster bytes to disk under the configured capture folder (Settings → Capture). 'Format' is optional: leave empty to keep whatever's already in the bag (the global capture format), or pick one to force a re-encode for this step.",
             "I/O",
             StringParameters: [new StringParameter("format", "Format", string.Empty,
                 Placeholder: "(use bag format)", OptionsKey: "image_formats",
                 IsEditable: false)]),
+
+        new("arestoys.save-svg",
+            "Save as SVG",
+            "Pair with Trace to SVG: writes the SVG string from the bag's 'svg_output' to disk as a .svg file in the capture folder. Reuses the raster's filename stem when Save-as-Image ran first, so {name}.png and {name}.svg sit side-by-side. Silent no-op when no SVG is in the bag (workflow without Trace-to-SVG).",
+            "I/O"),
 
         new("arestoys.add-to-history",
             "Add to clipboard history",
@@ -309,11 +316,37 @@ public static class WorkflowActionCatalog
             DefaultConfigJson: "{\"ms\":250}",
             IntParameter: new IntParameter(Key: "ms", Label: "Milliseconds", DefaultValue: 250, Min: 0, Max: 60000)),
 
+        // Three discrete rows for the most common destinations, all backed by the same
+        // CopyTextToClipboardTask but pre-configured with a fixed template each. Disambiguation
+        // in LookupForStep is via the "template" key in DefaultConfigJson — so a step that has
+        // template="{bag.upload_urls}" reads back as "Copy URL", template="{bag.local_path}"
+        // as "Copy file path", etc. No editable template field on these rows: power users who
+        // want a custom format can drop in the workflow JSON directly (rare).
+        // LocalizationKey is unique-per-variant so the resx lookup misses (we don't ship per-
+        // variant translations of these labels) and the localizer falls back to DisplayName
+        // above. Without this, all three rows would resolve to the catch-all
+        // WorkflowAction_arestoys_copy_text_to_clipboard = "Copy text to clipboard" and the
+        // picker showed three identical entries.
         new("arestoys.copy-text-to-clipboard",
-            "Copy URL to Windows clipboard",
-            "Replace the Windows clipboard content with the upload URL(s) returned by the upload step. Like 'Copy image to Windows clipboard', this writes to the OS clipboard (Ctrl+V target), not to AresToys's history.",
+            "Copy URL to clipboard",
+            "Put the upload URL(s) on the OS clipboard (Ctrl+V target) — the standard 'capture → upload → paste link' tail. Joined by newline when multiple uploaders ran. Empty if no upload step preceded.",
             "Clipboard",
-            DefaultConfigJson: "{\"template\":\"{bag.upload_urls}\"}"),
+            DefaultConfigJson: "{\"template\":\"{bag.upload_urls}\"}",
+            LocalizationKey: "arestoys_copy_text_url"),
+
+        new("arestoys.copy-text-to-clipboard",
+            "Copy file path to clipboard",
+            "Put the absolute path of the saved file on the OS clipboard. Requires a preceding 'Save as Image file' step (which sets bag.local_path). Useful for pasting the screenshot path into Discord / Slack / file dialogs.",
+            "Clipboard",
+            DefaultConfigJson: "{\"template\":\"{bag.local_path}\"}",
+            LocalizationKey: "arestoys_copy_text_local_path"),
+
+        new("arestoys.copy-text-to-clipboard",
+            "Copy SVG path to clipboard",
+            "Put the absolute path of the saved .svg on the OS clipboard. Requires a preceding 'Save as SVG' step (which sets bag.svg_local_path).",
+            "Clipboard",
+            DefaultConfigJson: "{\"template\":\"{bag.svg_local_path}\"}",
+            LocalizationKey: "arestoys_copy_text_svg_path"),
 
         new("arestoys.upload",
             "Upload to selected image uploaders",
@@ -506,7 +539,7 @@ public static class WorkflowActionCatalog
         var matches = catalog.Where(a => a.TaskId == step.TaskId).ToList();
         if (matches.Count == 0) return null;
         if (matches.Count == 1) return matches[0];
-        foreach (var key in new[] { "uploader", "category", "format", "key", "op" })
+        foreach (var key in new[] { "uploader", "category", "format", "key", "op", "template" })
         {
             var stepValue = (string?)step.Config?[key];
             if (string.IsNullOrEmpty(stepValue)) continue;

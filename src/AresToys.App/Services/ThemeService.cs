@@ -483,6 +483,37 @@ public sealed class ThemeService
         app.Resources["ToggleSwitchFillOnPointerOver"] = lighterBrush;
         app.Resources["ToggleSwitchFillOnDisabled"] = darkerBrush;
 
+        // CheckBox checked state — same pattern that the Uploaders DataTemplate uses locally
+        // (verified by string-extracting Wpf.Ui.dll): dark accent for the fill, the lighter
+        // accent foreground for both the border and the tick glyph. Promoted to a global
+        // override so every <CheckBox> in the app picks up the "uploaders look" without each
+        // page having to repeat the four-key dictionary. Stroke* keys are NOT what wpf-ui v4
+        // binds to — border is CheckBoxCheckBorderBrush and the tick is CheckBoxCheckGlyphForeground.
+        app.Resources["CheckBoxCheckBackgroundFillChecked"] = darkBrush;
+        app.Resources["CheckBoxCheckBackgroundFillCheckedPointerOver"] = darkBrush;
+        app.Resources["CheckBoxCheckBackgroundFillCheckedPressed"] = darkBrush;
+        app.Resources["CheckBoxCheckBorderBrush"] = fgBrush;
+        app.Resources["CheckBoxCheckBorderBrushChecked"] = fgBrush;
+        app.Resources["CheckBoxCheckBorderBrushCheckedPointerOver"] = fgBrush;
+        app.Resources["CheckBoxCheckBorderBrushCheckedPressed"] = fgBrush;
+        app.Resources["CheckBoxCheckGlyphForeground"] = fgBrush;
+        app.Resources["CheckBoxCheckGlyphForegroundChecked"] = fgBrush;
+        app.Resources["CheckBoxCheckGlyphForegroundCheckedPointerOver"] = fgBrush;
+        app.Resources["CheckBoxCheckGlyphForegroundCheckedPressed"] = fgBrush;
+
+        // Slider thumb + filled track — same rationale as CheckBox: the thumb is an accent dot
+        // that needs to read clearly against the surface, and the lighter accent vanishes
+        // against Surface3 backgrounds. Cover the standard / hover / pressed / disabled set
+        // because wpf-ui's slider template flips between these on interaction.
+        app.Resources["SliderThumbBackground"] = darkBrush;
+        app.Resources["SliderThumbBackgroundPointerOver"] = darkBrush;
+        app.Resources["SliderThumbBackgroundPressed"] = darkBrush;
+        app.Resources["SliderThumbBackgroundDisabled"] = darkerBrush;
+        app.Resources["SliderTrackValueFill"] = darkBrush;
+        app.Resources["SliderTrackValueFillPointerOver"] = darkBrush;
+        app.Resources["SliderTrackValueFillPressed"] = darkBrush;
+        app.Resources["SliderTrackValueFillDisabled"] = darkerBrush;
+
         // NavigationView selected item background — sidebar selection in MainWindow.
         app.Resources["NavigationViewItemBackgroundSelected"] = bgBrush;
         app.Resources["NavigationViewItemBackgroundSelectedLeftFluent"] = bgBrush;

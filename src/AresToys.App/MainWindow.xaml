@@ -53,7 +53,9 @@
                                 CornerRadius="3">
                             <TextBlock Text="{TemplateBinding Content}"
                                        FontFamily="Consolas" FontSize="12"
-                                       Foreground="{TemplateBinding Foreground}" />
+                                       Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -104,6 +106,53 @@
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Label" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Pattern-token chip: same Accent BG Dark fill as the app's checked tickboxes so the
+             chip strip reads as part of the same family. 4px corner radius matches wpf-ui's
+             checkbox box and the rest of the rounded surfaces (Surface3 cards, hotkey card
+             borders). Custom Border-based template — wpf-ui's stock ui:Button template draws a
+             square fill behind its content even when the outer chrome is rounded, so a pure
+             setter-only style left the chips visibly square. Hover lifts to the foreground-dark
+             tone (slightly brighter than the resting accent-dark); pressed dims slightly. -->
+        <Style x:Key="PatternTokenChipStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource AccentBackgroundDarkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBackgroundDarkBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundLightBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="4">
+                            <TextBlock Text="{TemplateBinding Content}"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentForegroundDarkBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentForegroundDarkBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -292,19 +341,10 @@
                          only the ItemsSource changes. -->
                     <DataTemplate x:Key="UploaderRowTemplate" DataType="{x:Type vm:UploaderSelectionItemViewModel}">
                         <Grid Margin="0,2">
-                            <!-- Local override of WPF-UI v4's checkbox brush keys (verified by
-                                 string-extracting Wpf.Ui.dll): scoped to this DataTemplate so the
-                                 uploader checkboxes pick up the ambient "Accent Background Dark"
-                                 tone for the fill and "Foreground Light" for the border + glyph
-                                 instead of the bright primary accent. Lookup walks up the visual
-                                 tree, so the keys defined here win inside this row only — Settings
-                                 / About checkboxes elsewhere keep the standard accent. -->
-                            <Grid.Resources>
-                                <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource AccentBackgroundDarkColor}" />
-                                <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource AccentBackgroundDarkColor}" />
-                                <SolidColorBrush x:Key="CheckBoxCheckBorderBrush" Color="{DynamicResource AccentForegroundColor}" />
-                                <SolidColorBrush x:Key="CheckBoxCheckGlyphForeground" Color="{DynamicResource AccentForegroundColor}" />
-                            </Grid.Resources>
+                            <!-- The "uploaders checkbox look" (Accent BG Dark fill, accent-foreground
+                                 border + glyph) is now applied globally by ThemeService — every
+                                 CheckBox in the app picks it up via DynamicResource. The local
+                                 override that used to live here was redundant after the promotion. -->
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -660,11 +700,16 @@
                                 <TextBlock Text="{Markup:Loc Hotkeys_Hotkey}" FontWeight="SemiBold" Margin="0,0,0,4" />
                                 <!-- DataContext nailed to the EditingWorkflowHotkey VM so the chip
                                      style's IsAssigned DataTrigger resolves against the right object
-                                     (otherwise it'd look up IsAssigned on the root VM and never fire). -->
+                                     (otherwise it'd look up IsAssigned on the root VM and never fire).
+                                     MinHeight matches the wpf-ui TextBox height (Padding=10,8 +
+                                     FontSize=13 → ~36 px) so the chip lines up with the Workflow-
+                                     name field sitting next to it instead of looking shorter. -->
                                 <Button DataContext="{Binding Hotkeys.EditingWorkflowHotkey}"
                                         Style="{StaticResource HotkeyChipButtonStyle}"
                                         HorizontalAlignment="Left"
                                         VerticalAlignment="Bottom"
+                                        MinHeight="36"
+                                        Padding="14,0"
                                         Content="{Binding BindingDisplay}"
                                         Command="{Binding RebindCommand}"
                                         ToolTip="Click to assign / change / clear the hotkey" />
@@ -951,11 +996,36 @@
                 </Grid>
 
                 <TextBlock Text="{Markup:Loc Capture_SubFolderPattern}" FontWeight="SemiBold" Margin="0,4,0,4" />
-                <ui:TextBox Text="{Binding Capture.SubFolderPattern, UpdateSourceTrigger=PropertyChanged}"
+                <ui:TextBox x:Name="SubFolderPatternBox"
+                            Text="{Binding Capture.SubFolderPattern, UpdateSourceTrigger=PropertyChanged}"
                             PlaceholderText="{Markup:Loc Capture_SubFolderPlaceholder}"
-                            Margin="0,0,0,4" />
-                <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16"
-                           Text="{Markup:Loc Capture_SubFolderHint}" />
+                            PreviewTextInput="OnSubFolderPatternPreviewTextInput"
+                            DataObject.Pasting="OnSubFolderPatternPasting"
+                            Margin="0,0,0,6" />
+                <!-- Token chips: clicking inserts the Tag's token text at the caret position
+                     in SubFolderPatternBox without stealing focus (Focusable=False keeps the
+                     textbox active). ui:Button so the chips inherit the app's wpf-ui theme
+                     (rounded accent corners, hover highlight) instead of looking like plain
+                     Win32 grey rectangles. Inline shared style under WrapPanel.Resources sets
+                     uniform padding/margin/size; Click is wired per-chip below for clarity. -->
+                <WrapPanel Margin="0,0,0,16">
+                    <WrapPanel.Resources>
+                        <!-- Implicit style: every Button in this WrapPanel inherits the chip
+                             template (accent fill, 4px corners, light foreground). Vanilla
+                             Button, not ui:Button — the template is fully custom so wpf-ui's
+                             stock chrome would just add weight without contributing visuals. -->
+                        <Style TargetType="Button" BasedOn="{StaticResource PatternTokenChipStyle}" />
+                    </WrapPanel.Resources>
+                    <Button Content="Year"      Tag="%y"   Click="OnPatternTokenClick" ToolTip="4-digit year — 2026" />
+                    <Button Content="ShortYear" Tag="%yy"  Click="OnPatternTokenClick" ToolTip="2-digit year — 26" />
+                    <Button Content="Month"     Tag="%mo"  Click="OnPatternTokenClick" ToolTip="Month number — 01-12" />
+                    <Button Content="MonthName" Tag="%mon" Click="OnPatternTokenClick" ToolTip="Full month name — March" />
+                    <Button Content="Day"       Tag="%d"   Click="OnPatternTokenClick" ToolTip="Day of month — 01-31" />
+                    <Button Content="Hour"      Tag="%h"   Click="OnPatternTokenClick" ToolTip="Hour 24h — 00-23" />
+                    <Button Content="Minute"    Tag="%mi"  Click="OnPatternTokenClick" ToolTip="Minute — 00-59" />
+                    <Button Content="Second"    Tag="%s"   Click="OnPatternTokenClick" ToolTip="Second — 00-59" />
+                    <Button Content="AM/PM"     Tag="%pm"  Click="OnPatternTokenClick" ToolTip="AM or PM" />
+                </WrapPanel>
 
                 <TextBlock Text="{Markup:Loc Capture_DelaySeconds}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <ui:NumberBox Value="{Binding Capture.DelaySeconds, Mode=TwoWay}"
