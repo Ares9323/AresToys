@@ -458,10 +458,21 @@ public sealed class EditorLauncher
             {
                 // Active monitor = the one currently under the cursor. Falls back to the primary
                 // when the cursor sits in a multi-monitor gap (rare). EnableFullscreen positions
-                // + maximises the editor and flips its initial fit pass to "fit-to-viewport".
+                // + maximises the editor; the canvas opens at 1:1 inside (initial-fit was changed
+                // to always 1:1 — fullscreen no longer implies upscale-to-fit).
                 var monitor = AresToys.Capture.MonitorEnumeration.GetMonitorUnderCursor();
                 if (monitor is not null)
                     window.EnableFullscreen(monitor.X, monitor.Y, monitor.Width, monitor.Height);
+            }
+            else
+            {
+                // Non-fullscreen pipeline open: pre-size the window so the canvas hosts the image
+                // at 1:1 without scrolling when it fits in the work area. Read width/height from
+                // the PNG header without realising the full bitmap (BitmapDecoder lazily decodes
+                // metadata only when frames aren't accessed). Tiny corruption guard around it —
+                // a malformed PNG just falls back to the XAML defaults (1200×820).
+                if (TryReadImagePixelSize(sourcePngBytes, out var imgW, out var imgH))
+                    window.SizeToImage(imgW, imgH);
             }
             window.Closed += (_, _) =>
             {
@@ -630,6 +641,34 @@ public sealed class EditorLauncher
             ["Shape_Spotlight"]         = Loc("Editor_Shape_Spotlight"),
             ["Shape_SmartEraser"]       = Loc("Editor_Shape_SmartEraser"),
         };
+    }
+
+    /// <summary>Read just the pixel dimensions out of a PNG/JPEG/etc. byte buffer without
+    /// allocating the full decoded bitmap. WPF's <see cref="System.Windows.Media.Imaging.BitmapDecoder"/>
+    /// reads metadata eagerly but only realises pixels on access; touching <c>PixelWidth</c>/
+    /// <c>PixelHeight</c> on the first frame is enough. Returns false on any malformed input
+    /// so the caller can fall through to its default sizing.</summary>
+    private static bool TryReadImagePixelSize(byte[] bytes, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        try
+        {
+            using var ms = new System.IO.MemoryStream(bytes);
+            var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
+                ms,
+                System.Windows.Media.Imaging.BitmapCreateOptions.None,
+                System.Windows.Media.Imaging.BitmapCacheOption.None);
+            if (decoder.Frames.Count == 0) return false;
+            var frame = decoder.Frames[0];
+            width = frame.PixelWidth;
+            height = frame.PixelHeight;
+            return width > 0 && height > 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>Find the source bitmap inside the editor's <c>CanvasHost</c> Grid and return its

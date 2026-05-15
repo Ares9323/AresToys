@@ -23,10 +23,6 @@ public partial class EditorWindow : FluentWindow
     private double _minZoom = 0.1;
     private const double MaxZoom = 8.0;
     private bool _initialFitDone;
-    /// <summary>True after <see cref="EnableFullscreen"/> is called by the launcher. Switches
-    /// the initial fit pass to "always fit to viewport" — including upscale beyond 100% — so a
-    /// small image fills the screen instead of sitting tiny in the middle of a maximised window.</summary>
-    private bool _fitToScreenMode;
 
     // Marquee state (Select tool, drag on empty area).
     private bool _isMarqueeing;
@@ -1187,34 +1183,27 @@ public partial class EditorWindow : FluentWindow
         });
     }
 
-    /// <summary>On first open, zoom out so the entire screenshot fits in the viewport. Capped at 100%
-    /// (we never zoom IN if the image already fits). The fit factor becomes the new zoom-out floor —
-    /// the user can keep zooming in but not past the initial fit.</summary>
+    /// <summary>Initial-zoom pass run once after the first layout. Product decision: "always
+    /// open at 1:1 — one image pixel covers one physical device pixel — regardless of fullscreen
+    /// mode". WPF's coordinate system is in DIPs (device-independent pixels, 1 DIP = 1 px at
+    /// 96 DPI), so on a 125% / 150% display setting <c>_zoom = 1.0</c> would actually upscale
+    /// the image by the DPI factor. We compensate by using <c>1 / dpiScale</c> as the initial
+    /// zoom so the canvas paints at native pixel density.
+    ///
+    /// Bigger-than-viewport images surface the ScrollViewer's bars; smaller images sit centred
+    /// with empty canvas around them. The non-fullscreen path pairs this with
+    /// <see cref="SizeToImage"/> on the launcher side, which pre-sizes the window so common
+    /// screenshots fit without scrolling.</summary>
     private void FitZoomToViewport()
     {
         if (_initialFitDone) return;
-        if (SourceImage.Source is not BitmapSource src) return;
-        var vw = CanvasScrollViewer.ViewportWidth;
-        var vh = CanvasScrollViewer.ViewportHeight;
-        if (vw <= 0 || vh <= 0) return;
-
-        const double margin = 16;
-        var fit = Math.Min((vw - margin) / src.PixelWidth, (vh - margin) / src.PixelHeight);
-        // Keep the initial-floor min-zoom (0.1 from the field initialiser). The previous impl
-        // raised _minZoom to `fit` for big images, which capped zoom-out at the auto-fit level
-        // and felt like a bug. Now the auto-fit only chooses the *initial* zoom; the user can
-        // still zoom out further with the slider / Ctrl+wheel.
-        if (_fitToScreenMode)
-        {
-            // Fullscreen launch: always fit the image inside the viewport, including upscale.
-            SetZoom(fit);
-        }
-        else if (fit < 1.0)
-        {
-            // Default behaviour: only fit when the image is bigger than the viewport — never
-            // zoom IN automatically.
-            SetZoom(fit);
-        }
+        if (SourceImage.Source is not BitmapSource) return;
+        // VisualTreeHelper.GetDpi works post-Show (HwndSource exists by the time the layout
+        // pass triggers this). DpiScaleX == DpiScaleY in 99% of monitors; we use X as the
+        // canonical scalar — the canvas can't render with anisotropic zoom anyway.
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        var initialZoom = dpi.DpiScaleX > 0 ? 1.0 / dpi.DpiScaleX : 1.0;
+        SetZoom(initialZoom);
         _initialFitDone = true;
     }
 
@@ -1231,6 +1220,57 @@ public partial class EditorWindow : FluentWindow
     /// work area and the borderless WindowChrome bleeds 7-8 px past every edge. We hook
     /// WM_GETMINMAXINFO via SourceInitialized and clamp ptMaxPosition / ptMaxSize / ptMaxTrackSize
     /// to the active monitor's work area. Standard WPF borderless-maximised pattern.</summary>
+    /// <summary>Pre-size the window so the image sits at 1:1 inside the canvas viewport without
+    /// scrolling, when feasible. Pairs with the always-1:1 initial zoom: workflow opens of small
+    /// screenshots end up with a tight window matching the capture, big screenshots get clamped
+    /// to the work area (and the user sees scrollbars). Skipped when the launcher requested
+    /// fullscreen — that path takes precedence and maximises into the active monitor.
+    ///
+    /// DPI handling: image pixels are physical pixels but Width/Height are DIPs. On a 150%
+    /// display, an 1920×1080 capture is only 1280×720 DIPs wide, so we divide by dpiScale before
+    /// adding the chrome overhead. Same conversion that <see cref="FitZoomToViewport"/> applies
+    /// to <c>_zoom</c> — both halves need to agree or the canvas ends up scrolling on a high-DPI
+    /// machine even when we tried to fit it.
+    ///
+    /// The chrome budget below is the static overhead of EditorWindow.xaml: side panel
+    /// (Width=240 + 12 padding both sides + scrollbar gutter) ≈ 280px wide; titlebar +
+    /// toolbar row + a status strip ≈ 110px tall. Approximate values are fine — the goal is
+    /// to fit the canvas reasonably, not pixel-perfect.</summary>
+    public void SizeToImage(int imageWidth, int imageHeight)
+    {
+        if (imageWidth <= 0 || imageHeight <= 0) return;
+
+        const double sideChromeBudget = 300;
+        const double topChromeBudget = 120;
+        const double minWindowWidth = 800;
+        const double minWindowHeight = 600;
+
+        // Pre-Show: VisualTreeHelper.GetDpi(this) requires an HwndSource which doesn't exist
+        // yet, so we use the system-wide DPI via Win32 GetDpiForSystem (Win10 1607+, always
+        // present on the supported targets). 96 DPI = 1.0× scaling; anything higher means
+        // image pixels squeeze into fewer DIPs, so divide.
+        var dpiScale = GetDpiForSystem() / 96.0;
+        if (dpiScale <= 0) dpiScale = 1.0;
+        var imgWidthDips = imageWidth / dpiScale;
+        var imgHeightDips = imageHeight / dpiScale;
+
+        var work = System.Windows.SystemParameters.WorkArea;
+        var targetW = Math.Clamp(imgWidthDips + sideChromeBudget, minWindowWidth, work.Width);
+        var targetH = Math.Clamp(imgHeightDips + topChromeBudget, minWindowHeight, work.Height);
+
+        Width = targetW;
+        Height = targetH;
+        // Re-centre on the work area: the XAML defaults to CenterScreen, but that snapshots the
+        // position at Show-time using the original 1200×820 — a wider/taller window would land
+        // shifted up-left. Recompute now that we know the final size.
+        Left = work.Left + (work.Width - targetW) / 2;
+        Top = work.Top + (work.Height - targetH) / 2;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForSystem();
+
     public void EnableFullscreen(double x, double y, double width, double height)
     {
         WindowStartupLocation = WindowStartupLocation.Manual;
@@ -1251,7 +1291,6 @@ public partial class EditorWindow : FluentWindow
             // this state change will be intercepted and clamped to the monitor work area.
             WindowState = WindowState.Maximized;
         };
-        _fitToScreenMode = true;
     }
 
     private const int WM_GETMINMAXINFO = 0x0024;
