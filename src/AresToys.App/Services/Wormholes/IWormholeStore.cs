@@ -28,6 +28,12 @@ public interface IWormholeStore
     /// for an id that doesn't exist (no-op).</summary>
     Task DeleteAsync(Guid wormholeId, CancellationToken cancellationToken);
 
+    /// <summary>Shift the record with id <paramref name="wormholeId"/> by <paramref name="delta"/>
+    /// positions in the persisted list (-1 = move up, +1 = move down). Clamps at list bounds —
+    /// trying to move the first record up or the last one down is a no-op. Flushes the file on
+    /// success. Returns the new index (or -1 if the id wasn't found).</summary>
+    Task<int> MoveAsync(Guid wormholeId, int delta, CancellationToken cancellationToken);
+
     /// <summary>Resolves the absolute path to <c>Shortcuts\{wormholeId}\</c>. Used by
     /// <c>DataDropPolicy</c> when materialising new <c>.lnk</c> files on drop. The folder is
     /// created on demand; safe to call before the wormhole has any items.</summary>

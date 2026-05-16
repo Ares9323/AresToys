@@ -60,6 +60,204 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Check for updates.
+        /// </summary>
+        public static string About_CheckForUpdates {
+            get {
+                return ResourceManager.GetString("About_CheckForUpdates", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Inspired by.
+        /// </summary>
+        public static string About_InspiredBy {
+            get {
+                return ResourceManager.GetString("About_InspiredBy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clipboard manager · screenshot &amp; share tool.
+        /// </summary>
+        public static string About_Tagline {
+            get {
+                return ResourceManager.GetString("About_Tagline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Version .
+        /// </summary>
+        public static string About_Version {
+            get {
+                return ResourceManager.GetString("About_Version", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply.
+        /// </summary>
+        public static string BgRemover_Apply {
+            get {
+                return ResourceManager.GetString("BgRemover_Apply", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add.
+        /// </summary>
+        public static string BgRemover_BrushAdd {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushAdd", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hardness.
+        /// </summary>
+        public static string BgRemover_BrushHardness {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushHardness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Brush:.
+        /// </summary>
+        public static string BgRemover_BrushLabel {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Off.
+        /// </summary>
+        public static string BgRemover_BrushOff {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushOff", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove.
+        /// </summary>
+        public static string BgRemover_BrushRemove {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushRemove", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reset brush.
+        /// </summary>
+        public static string BgRemover_BrushReset {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushReset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Size.
+        /// </summary>
+        public static string BgRemover_BrushSize {
+            get {
+                return ResourceManager.GetString("BgRemover_BrushSize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to BG opacity.
+        /// </summary>
+        public static string BgRemover_ParamBackgroundOpacity {
+            get {
+                return ResourceManager.GetString("BgRemover_ParamBackgroundOpacity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edge offset.
+        /// </summary>
+        public static string BgRemover_ParamEdgeOffset {
+            get {
+                return ResourceManager.GetString("BgRemover_ParamEdgeOffset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Feather.
+        /// </summary>
+        public static string BgRemover_ParamFeather {
+            get {
+                return ResourceManager.GetString("BgRemover_ParamFeather", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Threshold.
+        /// </summary>
+        public static string BgRemover_ParamThreshold {
+            get {
+                return ResourceManager.GetString("BgRemover_ParamThreshold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reset view.
+        /// </summary>
+        public static string BgRemover_ResetView {
+            get {
+                return ResourceManager.GetString("BgRemover_ResetView", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Source image could not be decoded..
+        /// </summary>
+        public static string BgRemover_StatusDecodeFailed {
+            get {
+                return ResourceManager.GetString("BgRemover_StatusDecodeFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Background-removal model unavailable. Cancel and retry, or close to keep the original image..
+        /// </summary>
+        public static string BgRemover_StatusModelUnavailable {
+            get {
+                return ResourceManager.GetString("BgRemover_StatusModelUnavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ready. Adjust sliders or paint with the brush to refine the cut-out..
+        /// </summary>
+        public static string BgRemover_StatusReady {
+            get {
+                return ResourceManager.GetString("BgRemover_StatusReady", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Running AI….
+        /// </summary>
+        public static string BgRemover_StatusRunning {
+            get {
+                return ResourceManager.GetString("BgRemover_StatusRunning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys - Remove background.
+        /// </summary>
+        public static string BgRemover_WindowTitle {
+            get {
+                return ResourceManager.GetString("BgRemover_WindowTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Auto-switch to JPEG when output exceeds threshold.
         /// </summary>
         public static string Capture_AutoJpeg {
@@ -213,6 +411,132 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Clear all.
+        /// </summary>
+        public static string Clipboard_ClearAll {
+            get {
+                return ResourceManager.GetString("Clipboard_ClearAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clipboard.
+        /// </summary>
+        public static string Clipboard_DefaultCategory {
+            get {
+                return ResourceManager.GetString("Clipboard_DefaultCategory", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to hide all of these..
+        /// </summary>
+        public static string Clipboard_FilterClickToHide {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterClickToHide", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to • Images (PNG, JPEG, BMP, GIF, screenshots).
+        /// </summary>
+        public static string Clipboard_FilterImageBullet1 {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterImageBullet1", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to • File copies (Explorer Ctrl+C / drag-drop, .sxie etc.).
+        /// </summary>
+        public static string Clipboard_FilterImageBullet2 {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterImageBullet2", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to • Video / GIF recordings (.mp4, .gif).
+        /// </summary>
+        public static string Clipboard_FilterImageBullet3 {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterImageBullet3", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Image filter.
+        /// </summary>
+        public static string Clipboard_FilterImageTitle {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterImageTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When on, the list includes:.
+        /// </summary>
+        public static string Clipboard_FilterIncludes {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterIncludes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to • Plain text (everything you copy as text).
+        /// </summary>
+        public static string Clipboard_FilterTextBullet1 {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterTextBullet1", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to • HTML (browsers&apos; Copy link / Copy image address).
+        /// </summary>
+        public static string Clipboard_FilterTextBullet2 {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterTextBullet2", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to • RTF (formatted text from Word / Outlook / etc.).
+        /// </summary>
+        public static string Clipboard_FilterTextBullet3 {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterTextBullet3", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text filter.
+        /// </summary>
+        public static string Clipboard_FilterTextTitle {
+            get {
+                return ResourceManager.GetString("Clipboard_FilterTextTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ↑↓ navigate · 1-9 focus · Enter paste · Ctrl+1-9 quick paste · ←→ switch category · Ctrl+F search · Ctrl+P pin · Ctrl+Shift+Del clear all · Esc close.
+        /// </summary>
+        public static string Clipboard_FooterHint {
+            get {
+                return ResourceManager.GetString("Clipboard_FooterHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add a label….
+        /// </summary>
+        public static string Clipboard_LabelPlaceholder {
+            get {
+                return ResourceManager.GetString("Clipboard_LabelPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Copy to.
         /// </summary>
         public static string Clipboard_MenuCopyTo {
@@ -247,7 +571,7 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Clipboard_MenuPinUnpin", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Rename label (F2).
         /// </summary>
@@ -256,67 +580,22 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Clipboard_MenuRenameLabel", resourceCulture);
             }
         }
-
+        
         /// <summary>
-        ///   Looks up a localized string similar to Add a label….
+        ///   Looks up a localized string similar to Dock window.
         /// </summary>
-        public static string Clipboard_LabelPlaceholder {
+        public static string Clipboard_PinnedMode {
             get {
-                return ResourceManager.GetString("Clipboard_LabelPlaceholder", resourceCulture);
+                return ResourceManager.GetString("Clipboard_PinnedMode", resourceCulture);
             }
         }
-
+        
         /// <summary>
-        ///   Looks up a localized string similar to Move up in pinned order.
+        ///   Looks up a localized string similar to Undock window.
         /// </summary>
-        public static string Clipboard_TooltipMoveUp {
+        public static string Clipboard_PinnedOn {
             get {
-                return ResourceManager.GetString("Clipboard_TooltipMoveUp", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Move down in pinned order.
-        /// </summary>
-        public static string Clipboard_TooltipMoveDown {
-            get {
-                return ResourceManager.GetString("Clipboard_TooltipMoveDown", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Clipboard.
-        /// </summary>
-        public static string Settings_ClipboardSectionTitle {
-            get {
-                return ResourceManager.GetString("Settings_ClipboardSectionTitle", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Display options for the clipboard window..
-        /// </summary>
-        public static string Settings_ClipboardSectionHint {
-            get {
-                return ResourceManager.GetString("Settings_ClipboardSectionHint", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Show content snippet under label.
-        /// </summary>
-        public static string Settings_ClipboardShowSnippetWithLabel {
-            get {
-                return ResourceManager.GetString("Settings_ClipboardShowSnippetWithLabel", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to When an item has a label, also render a small preview of its content on a second line. Off by default — the label replaces the snippet entirely..
-        /// </summary>
-        public static string Settings_ClipboardShowSnippetWithLabelTooltip {
-            get {
-                return ResourceManager.GetString("Settings_ClipboardShowSnippetWithLabelTooltip", resourceCulture);
+                return ResourceManager.GetString("Clipboard_PinnedOn", resourceCulture);
             }
         }
         
@@ -357,6 +636,15 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Copy file path to clipboard.
+        /// </summary>
+        public static string Clipboard_TooltipCopyPath {
+            get {
+                return ResourceManager.GetString("Clipboard_TooltipCopyPath", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Delete (Del).
         /// </summary>
         public static string Clipboard_TooltipDelete {
@@ -371,6 +659,24 @@ namespace AresToys.App.Resources {
         public static string Clipboard_TooltipExtEditor {
             get {
                 return ResourceManager.GetString("Clipboard_TooltipExtEditor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move down in pinned order.
+        /// </summary>
+        public static string Clipboard_TooltipMoveDown {
+            get {
+                return ResourceManager.GetString("Clipboard_TooltipMoveDown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move up in pinned order.
+        /// </summary>
+        public static string Clipboard_TooltipMoveUp {
+            get {
+                return ResourceManager.GetString("Clipboard_TooltipMoveUp", resourceCulture);
             }
         }
         
@@ -542,6 +848,114 @@ namespace AresToys.App.Resources {
         public static string ColorPicker_Title {
             get {
                 return ResourceManager.GetString("ColorPicker_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy every format on separate lines..
+        /// </summary>
+        public static string ColorPicker_TooltipCopyAll {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unreal FColor (B=…,G=…,R=…,A=…).
+        /// </summary>
+        public static string ColorPicker_TooltipCopyBgra {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyBgra", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to cmyk(C%, M%, Y%, K%).
+        /// </summary>
+        public static string ColorPicker_TooltipCopyCmyk {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyCmyk", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy decimal value.
+        /// </summary>
+        public static string ColorPicker_TooltipCopyDec {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyDec", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy hex value.
+        /// </summary>
+        public static string ColorPicker_TooltipCopyHex {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyHex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to hsb(H°, S%, B%).
+        /// </summary>
+        public static string ColorPicker_TooltipCopyHsb {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyHsb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unreal FLinearColor (R=…,G=…,B=…,A=…).
+        /// </summary>
+        public static string ColorPicker_TooltipCopyLinear {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyLinear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to rgb(R, G, B).
+        /// </summary>
+        public static string ColorPicker_TooltipCopyRgb {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipCopyRgb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sample a pixel from anywhere on screen.
+        /// </summary>
+        public static string ColorPicker_TooltipSampler {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipSampler", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SV square at fixed Hue — every pixel a distinct colour, all of S×V on a single drag..
+        /// </summary>
+        public static string ColorPicker_TooltipSquare {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipSquare", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply sRGB gamma to the preview swatches / sliders / wheel. Disable to see colors interpreted as linear (closer to how renderers like Unreal treat texture pixels)..
+        /// </summary>
+        public static string ColorPicker_TooltipSrgb {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipSrgb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to HSV wheel — Hue around the rim, Saturation centre→edge. V on the slider..
+        /// </summary>
+        public static string ColorPicker_TooltipWheel {
+            get {
+                return ResourceManager.GetString("ColorPicker_TooltipWheel", resourceCulture);
             }
         }
         
@@ -789,6 +1203,1752 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to ShareX-compatible declarative uploaders. Each .sxcu file becomes its own destination — toggle them on/off in the category tabs after a restart..
+        /// </summary>
+        public static string CustomUploaders_Blurb {
+            get {
+                return ResourceManager.GetString("CustomUploaders_Blurb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show &apos;Upload with AresToys&apos; in the Explorer right-click menu.
+        /// </summary>
+        public static string CustomUploaders_ExplorerVerb {
+            get {
+                return ResourceManager.GetString("CustomUploaders_ExplorerVerb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Adds an &apos;Upload with AresToys&apos; entry to the right-click menu on every file. On Windows 11 you&apos;ll find it under &apos;Show more options&apos;. The entry is always visible — clicking it forwards the file to a running AresToys, or starts one in tray-only mode if not running..
+        /// </summary>
+        public static string CustomUploaders_ExplorerVerbHint {
+            get {
+                return ResourceManager.GetString("CustomUploaders_ExplorerVerbHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No custom uploaders loaded yet..
+        /// </summary>
+        public static string CustomUploaders_NoneYet {
+            get {
+                return ResourceManager.GetString("CustomUploaders_NoneYet", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run workflow:.
+        /// </summary>
+        public static string CustomUploaders_RunWorkflow {
+            get {
+                return ResourceManager.GetString("CustomUploaders_RunWorkflow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set AresToys as the default app for .sxcu files.
+        /// </summary>
+        public static string CustomUploaders_SxcuAssociation {
+            get {
+                return ResourceManager.GetString("CustomUploaders_SxcuAssociation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When on, double-clicking a .sxcu file in Explorer opens AresToys and prompts you to install it. Per-user only — doesn&apos;t touch system-wide settings or need admin rights..
+        /// </summary>
+        public static string CustomUploaders_SxcuAssociationHint {
+            get {
+                return ResourceManager.GetString("CustomUploaders_SxcuAssociationHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto-scroll to latest.
+        /// </summary>
+        public static string Debug_AutoScroll {
+            get {
+                return ResourceManager.GetString("Debug_AutoScroll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Locks the view to the most recent entry. Uncheck while scrolling up to read older lines..
+        /// </summary>
+        public static string Debug_AutoScrollTooltip {
+            get {
+                return ResourceManager.GetString("Debug_AutoScrollTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear.
+        /// </summary>
+        public static string Debug_Clear {
+            get {
+                return ResourceManager.GetString("Debug_Clear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Drop every entry in the buffer.
+        /// </summary>
+        public static string Debug_ClearTooltip {
+            get {
+                return ResourceManager.GetString("Debug_ClearTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy all.
+        /// </summary>
+        public static string Debug_CopyAll {
+            get {
+                return ResourceManager.GetString("Debug_CopyAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy the visible log to the clipboard for pasting into a bug report.
+        /// </summary>
+        public static string Debug_CopyAllTooltip {
+            get {
+                return ResourceManager.GetString("Debug_CopyAllTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Alignment.
+        /// </summary>
+        public static string Editor_Alignment {
+            get {
+                return ResourceManager.GetString("Editor_Alignment", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply to selected.
+        /// </summary>
+        public static string Editor_ApplyToSelected {
+            get {
+                return ResourceManager.GetString("Editor_ApplyToSelected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Blur radius (px).
+        /// </summary>
+        public static string Editor_BlurRadius {
+            get {
+                return ResourceManager.GetString("Editor_BlurRadius", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bold.
+        /// </summary>
+        public static string Editor_Bold {
+            get {
+                return ResourceManager.GetString("Editor_Bold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Default properties.
+        /// </summary>
+        public static string Editor_DefaultProperties {
+            get {
+                return ResourceManager.GetString("Editor_DefaultProperties", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edge blur (px).
+        /// </summary>
+        public static string Editor_EdgeBlur {
+            get {
+                return ResourceManager.GetString("Editor_EdgeBlur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Effect.
+        /// </summary>
+        public static string Editor_Effect {
+            get {
+                return ResourceManager.GetString("Editor_Effect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to End cap.
+        /// </summary>
+        public static string Editor_EndCap {
+            get {
+                return ResourceManager.GetString("Editor_EndCap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fill.
+        /// </summary>
+        public static string Editor_Fill {
+            get {
+                return ResourceManager.GetString("Editor_Fill", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Font.
+        /// </summary>
+        public static string Editor_Font {
+            get {
+                return ResourceManager.GetString("Editor_Font", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Italic.
+        /// </summary>
+        public static string Editor_Italic {
+            get {
+                return ResourceManager.GetString("Editor_Italic", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select a shape to edit its properties (V tool, then click)..
+        /// </summary>
+        public static string Editor_NoSelection {
+            get {
+                return ResourceManager.GetString("Editor_NoSelection", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Outline.
+        /// </summary>
+        public static string Editor_Outline {
+            get {
+                return ResourceManager.GetString("Editor_Outline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pixel block size.
+        /// </summary>
+        public static string Editor_PixelBlockSize {
+            get {
+                return ResourceManager.GetString("Editor_PixelBlockSize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Properties.
+        /// </summary>
+        public static string Editor_Properties {
+            get {
+                return ResourceManager.GetString("Editor_Properties", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} Properties.
+        /// </summary>
+        public static string Editor_PropertiesTitleFormat {
+            get {
+                return ResourceManager.GetString("Editor_PropertiesTitleFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Redo.
+        /// </summary>
+        public static string Editor_Redo {
+            get {
+                return ResourceManager.GetString("Editor_Redo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rotation.
+        /// </summary>
+        public static string Editor_Rotation {
+            get {
+                return ResourceManager.GetString("Editor_Rotation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        public static string Editor_Save {
+            get {
+                return ResourceManager.GetString("Editor_Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save as….
+        /// </summary>
+        public static string Editor_SaveAs {
+            get {
+                return ResourceManager.GetString("Editor_SaveAs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set as default.
+        /// </summary>
+        public static string Editor_SetAsDefault {
+            get {
+                return ResourceManager.GetString("Editor_SetAsDefault", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Arrow.
+        /// </summary>
+        public static string Editor_Shape_Arrow {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Arrow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Blur.
+        /// </summary>
+        public static string Editor_Shape_Blur {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Blur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ellipse.
+        /// </summary>
+        public static string Editor_Shape_Ellipse {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Ellipse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Freehand.
+        /// </summary>
+        public static string Editor_Shape_Freehand {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Freehand", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Image.
+        /// </summary>
+        public static string Editor_Shape_Image {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Line.
+        /// </summary>
+        public static string Editor_Shape_Line {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Line", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pixelate.
+        /// </summary>
+        public static string Editor_Shape_Pixelate {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Pixelate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rectangle.
+        /// </summary>
+        public static string Editor_Shape_Rectangle {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Rectangle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Smart eraser.
+        /// </summary>
+        public static string Editor_Shape_SmartEraser {
+            get {
+                return ResourceManager.GetString("Editor_Shape_SmartEraser", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Spotlight.
+        /// </summary>
+        public static string Editor_Shape_Spotlight {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Spotlight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Step counter.
+        /// </summary>
+        public static string Editor_Shape_StepCounter {
+            get {
+                return ResourceManager.GetString("Editor_Shape_StepCounter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text.
+        /// </summary>
+        public static string Editor_Shape_Text {
+            get {
+                return ResourceManager.GetString("Editor_Shape_Text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shared Properties.
+        /// </summary>
+        public static string Editor_SharedProperties {
+            get {
+                return ResourceManager.GetString("Editor_SharedProperties", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Size.
+        /// </summary>
+        public static string Editor_Size {
+            get {
+                return ResourceManager.GetString("Editor_Size", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Smooth stroke.
+        /// </summary>
+        public static string Editor_SmoothStroke {
+            get {
+                return ResourceManager.GetString("Editor_SmoothStroke", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Spotlight blur (px).
+        /// </summary>
+        public static string Editor_SpotlightBlur {
+            get {
+                return ResourceManager.GetString("Editor_SpotlightBlur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Spotlight dim (%).
+        /// </summary>
+        public static string Editor_SpotlightDim {
+            get {
+                return ResourceManager.GetString("Editor_SpotlightDim", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start cap.
+        /// </summary>
+        public static string Editor_StartCap {
+            get {
+                return ResourceManager.GetString("Editor_StartCap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stroke.
+        /// </summary>
+        public static string Editor_Stroke {
+            get {
+                return ResourceManager.GetString("Editor_Stroke", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text.
+        /// </summary>
+        public static string Editor_Text {
+            get {
+                return ResourceManager.GetString("Editor_Text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text color.
+        /// </summary>
+        public static string Editor_TextColor {
+            get {
+                return ResourceManager.GetString("Editor_TextColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tip style.
+        /// </summary>
+        public static string Editor_TipStyle {
+            get {
+                return ResourceManager.GetString("Editor_TipStyle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Filled triangle.
+        /// </summary>
+        public static string Editor_TipStyle_FilledTriangle {
+            get {
+                return ResourceManager.GetString("Editor_TipStyle_FilledTriangle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ShareX curve.
+        /// </summary>
+        public static string Editor_TipStyle_ShareXCurve {
+            get {
+                return ResourceManager.GetString("Editor_TipStyle_ShareXCurve", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys - Editor.
+        /// </summary>
+        public static string Editor_TitleBar {
+            get {
+                return ResourceManager.GetString("Editor_TitleBar", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A Arrow.
+        /// </summary>
+        public static string Editor_Tool_Arrow {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Arrow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to B Blur.
+        /// </summary>
+        public static string Editor_Tool_Blur {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Blur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to C Crop.
+        /// </summary>
+        public static string Editor_Tool_Crop {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Crop", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to E Ellipse.
+        /// </summary>
+        public static string Editor_Tool_Ellipse {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Ellipse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to F Freehand.
+        /// </summary>
+        public static string Editor_Tool_Freehand {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Freehand", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to I Image.
+        /// </summary>
+        public static string Editor_Tool_Image {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to L Line.
+        /// </summary>
+        public static string Editor_Tool_Line {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Line", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove background….
+        /// </summary>
+        public static string Editor_Tool_MagicEraser {
+            get {
+                return ResourceManager.GetString("Editor_Tool_MagicEraser", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to X Pixelate.
+        /// </summary>
+        public static string Editor_Tool_Pixelate {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Pixelate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to R Rectangle.
+        /// </summary>
+        public static string Editor_Tool_Rectangle {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Rectangle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resize….
+        /// </summary>
+        public static string Editor_Tool_Resize {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Resize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to V Select.
+        /// </summary>
+        public static string Editor_Tool_Select {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Select", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to K Smart eraser — fills the rect with a bilinear gradient of the 4 corner colors.
+        /// </summary>
+        public static string Editor_Tool_SmartEraser {
+            get {
+                return ResourceManager.GetString("Editor_Tool_SmartEraser", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to O Spotlight.
+        /// </summary>
+        public static string Editor_Tool_Spotlight {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Spotlight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to S Step counter.
+        /// </summary>
+        public static string Editor_Tool_Step {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Step", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to T Text.
+        /// </summary>
+        public static string Editor_Tool_Text {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Trace to SVG….
+        /// </summary>
+        public static string Editor_Tool_Trace {
+            get {
+                return ResourceManager.GetString("Editor_Tool_Trace", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply the default outline / fill / stroke above to the selected shape(s).
+        /// </summary>
+        public static string Editor_TooltipApplyToSelected {
+            get {
+                return ResourceManager.GetString("Editor_TooltipApplyToSelected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Discard edits and close. The original stays in history; the Windows clipboard is not changed..
+        /// </summary>
+        public static string Editor_TooltipCancel {
+            get {
+                return ResourceManager.GetString("Editor_TooltipCancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add an arrowhead at the end of the line / freehand stroke, oriented along the tangent at that endpoint..
+        /// </summary>
+        public static string Editor_TooltipEndCap {
+            get {
+                return ResourceManager.GetString("Editor_TooltipEndCap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm / copy to clipboard. Adds the edited image as a new history item and pushes it to the Windows clipboard so you can paste it. The original is preserved..
+        /// </summary>
+        public static string Editor_TooltipSave {
+            get {
+                return ResourceManager.GetString("Editor_TooltipSave", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history..
+        /// </summary>
+        public static string Editor_TooltipSaveAs {
+            get {
+                return ResourceManager.GetString("Editor_TooltipSaveAs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use the selected shape&apos;s outline/fill/stroke as the toolbar&apos;s current values.
+        /// </summary>
+        public static string Editor_TooltipSetAsDefault {
+            get {
+                return ResourceManager.GetString("Editor_TooltipSetAsDefault", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke..
+        /// </summary>
+        public static string Editor_TooltipSmoothStroke {
+            get {
+                return ResourceManager.GetString("Editor_TooltipSmoothStroke", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add an arrowhead at the start of the line / freehand stroke, oriented along the tangent at that endpoint..
+        /// </summary>
+        public static string Editor_TooltipStartCap {
+            get {
+                return ResourceManager.GetString("Editor_TooltipStartCap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Visual style of the cap geometry — ShareX curve (V with concave base, integrates with stroke) or solid filled triangle..
+        /// </summary>
+        public static string Editor_TooltipTipStyle {
+            get {
+                return ResourceManager.GetString("Editor_TooltipTipStyle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Undo.
+        /// </summary>
+        public static string Editor_Undo {
+            get {
+                return ResourceManager.GetString("Editor_Undo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add noise.
+        /// </summary>
+        public static string Effect_add_noise {
+            get {
+                return ResourceManager.GetString("Effect_add_noise", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Alpha.
+        /// </summary>
+        public static string Effect_alpha {
+            get {
+                return ResourceManager.GetString("Effect_alpha", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto contrast.
+        /// </summary>
+        public static string Effect_auto_contrast {
+            get {
+                return ResourceManager.GetString("Effect_auto_contrast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto crop.
+        /// </summary>
+        public static string Effect_auto_crop {
+            get {
+                return ResourceManager.GetString("Effect_auto_crop", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Black &amp; White.
+        /// </summary>
+        public static string Effect_black_and_white {
+            get {
+                return ResourceManager.GetString("Effect_black_and_white", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Blur.
+        /// </summary>
+        public static string Effect_blur {
+            get {
+                return ResourceManager.GetString("Effect_blur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Brightness.
+        /// </summary>
+        public static string Effect_brightness {
+            get {
+                return ResourceManager.GetString("Effect_brightness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Canvas.
+        /// </summary>
+        public static string Effect_canvas {
+            get {
+                return ResourceManager.GetString("Effect_canvas", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Channel swap.
+        /// </summary>
+        public static string Effect_channel_swap {
+            get {
+                return ResourceManager.GetString("Effect_channel_swap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clarity.
+        /// </summary>
+        public static string Effect_clarity {
+            get {
+                return ResourceManager.GetString("Effect_clarity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color Balance.
+        /// </summary>
+        public static string Effect_color_balance {
+            get {
+                return ResourceManager.GetString("Effect_color_balance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color halftone.
+        /// </summary>
+        public static string Effect_color_halftone {
+            get {
+                return ResourceManager.GetString("Effect_color_halftone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color matrix.
+        /// </summary>
+        public static string Effect_color_matrix {
+            get {
+                return ResourceManager.GetString("Effect_color_matrix", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Colorize.
+        /// </summary>
+        public static string Effect_colorize {
+            get {
+                return ResourceManager.GetString("Effect_colorize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Contrast.
+        /// </summary>
+        public static string Effect_contrast {
+            get {
+                return ResourceManager.GetString("Effect_contrast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Crop.
+        /// </summary>
+        public static string Effect_crop {
+            get {
+                return ResourceManager.GetString("Effect_crop", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cross process.
+        /// </summary>
+        public static string Effect_cross_process {
+            get {
+                return ResourceManager.GetString("Effect_cross_process", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dehaze.
+        /// </summary>
+        public static string Effect_dehaze {
+            get {
+                return ResourceManager.GetString("Effect_dehaze", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Background.
+        /// </summary>
+        public static string Effect_draw_background {
+            get {
+                return ResourceManager.GetString("Effect_draw_background", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Border.
+        /// </summary>
+        public static string Effect_draw_border {
+            get {
+                return ResourceManager.GetString("Effect_draw_border", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Checkerboard.
+        /// </summary>
+        public static string Effect_draw_checkerboard {
+            get {
+                return ResourceManager.GetString("Effect_draw_checkerboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Image.
+        /// </summary>
+        public static string Effect_draw_image {
+            get {
+                return ResourceManager.GetString("Effect_draw_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Particles.
+        /// </summary>
+        public static string Effect_draw_particles {
+            get {
+                return ResourceManager.GetString("Effect_draw_particles", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text watermark.
+        /// </summary>
+        public static string Effect_draw_text {
+            get {
+                return ResourceManager.GetString("Effect_draw_text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text.
+        /// </summary>
+        public static string Effect_draw_text_ex {
+            get {
+                return ResourceManager.GetString("Effect_draw_text_ex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duotone.
+        /// </summary>
+        public static string Effect_duotone_gradient_map {
+            get {
+                return ResourceManager.GetString("Effect_duotone_gradient_map", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edge detect.
+        /// </summary>
+        public static string Effect_edge_detect {
+            get {
+                return ResourceManager.GetString("Effect_edge_detect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emboss.
+        /// </summary>
+        public static string Effect_emboss {
+            get {
+                return ResourceManager.GetString("Effect_emboss", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Exposure.
+        /// </summary>
+        public static string Effect_exposure {
+            get {
+                return ResourceManager.GetString("Effect_exposure", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Film emulation.
+        /// </summary>
+        public static string Effect_film_emulation {
+            get {
+                return ResourceManager.GetString("Effect_film_emulation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Flip horizontal.
+        /// </summary>
+        public static string Effect_flip_horizontal {
+            get {
+                return ResourceManager.GetString("Effect_flip_horizontal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Flip vertical.
+        /// </summary>
+        public static string Effect_flip_vertical {
+            get {
+                return ResourceManager.GetString("Effect_flip_vertical", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Gamma.
+        /// </summary>
+        public static string Effect_gamma {
+            get {
+                return ResourceManager.GetString("Effect_gamma", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Glow.
+        /// </summary>
+        public static string Effect_glow {
+            get {
+                return ResourceManager.GetString("Effect_glow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Gradient overlay.
+        /// </summary>
+        public static string Effect_gradient_overlay {
+            get {
+                return ResourceManager.GetString("Effect_gradient_overlay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Grayscale.
+        /// </summary>
+        public static string Effect_grayscale {
+            get {
+                return ResourceManager.GetString("Effect_grayscale", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hue.
+        /// </summary>
+        public static string Effect_hue {
+            get {
+                return ResourceManager.GetString("Effect_hue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invert.
+        /// </summary>
+        public static string Effect_invert {
+            get {
+                return ResourceManager.GetString("Effect_invert", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Levels.
+        /// </summary>
+        public static string Effect_levels {
+            get {
+                return ResourceManager.GetString("Effect_levels", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lomo.
+        /// </summary>
+        public static string Effect_lomo {
+            get {
+                return ResourceManager.GetString("Effect_lomo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Motion blur.
+        /// </summary>
+        public static string Effect_motion_blur {
+            get {
+                return ResourceManager.GetString("Effect_motion_blur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pixelate.
+        /// </summary>
+        public static string Effect_pixelate {
+            get {
+                return ResourceManager.GetString("Effect_pixelate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Polaroid.
+        /// </summary>
+        public static string Effect_polaroid {
+            get {
+                return ResourceManager.GetString("Effect_polaroid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Posterize.
+        /// </summary>
+        public static string Effect_posterize {
+            get {
+                return ResourceManager.GetString("Effect_posterize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Replace Color.
+        /// </summary>
+        public static string Effect_replace_color {
+            get {
+                return ResourceManager.GetString("Effect_replace_color", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resize.
+        /// </summary>
+        public static string Effect_resize {
+            get {
+                return ResourceManager.GetString("Effect_resize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rotate.
+        /// </summary>
+        public static string Effect_rotate {
+            get {
+                return ResourceManager.GetString("Effect_rotate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rotate 180°.
+        /// </summary>
+        public static string Effect_rotate_180 {
+            get {
+                return ResourceManager.GetString("Effect_rotate_180", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rotate 90° CCW.
+        /// </summary>
+        public static string Effect_rotate_90_ccw {
+            get {
+                return ResourceManager.GetString("Effect_rotate_90_ccw", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rotate 90° CW.
+        /// </summary>
+        public static string Effect_rotate_90_cw {
+            get {
+                return ResourceManager.GetString("Effect_rotate_90_cw", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rounded Corners.
+        /// </summary>
+        public static string Effect_rounded_corners {
+            get {
+                return ResourceManager.GetString("Effect_rounded_corners", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saturation.
+        /// </summary>
+        public static string Effect_saturation {
+            get {
+                return ResourceManager.GetString("Effect_saturation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sepia.
+        /// </summary>
+        public static string Effect_sepia {
+            get {
+                return ResourceManager.GetString("Effect_sepia", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shadow.
+        /// </summary>
+        public static string Effect_shadow {
+            get {
+                return ResourceManager.GetString("Effect_shadow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shadows / Highlights.
+        /// </summary>
+        public static string Effect_shadows_highlights {
+            get {
+                return ResourceManager.GetString("Effect_shadows_highlights", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sharpen.
+        /// </summary>
+        public static string Effect_sharpen {
+            get {
+                return ResourceManager.GetString("Effect_sharpen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skew.
+        /// </summary>
+        public static string Effect_skew {
+            get {
+                return ResourceManager.GetString("Effect_skew", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Solarize.
+        /// </summary>
+        public static string Effect_solarize {
+            get {
+                return ResourceManager.GetString("Effect_solarize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Split toning.
+        /// </summary>
+        public static string Effect_split_toning {
+            get {
+                return ResourceManager.GetString("Effect_split_toning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Temperature / Tint.
+        /// </summary>
+        public static string Effect_temperature_tint {
+            get {
+                return ResourceManager.GetString("Effect_temperature_tint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Threshold.
+        /// </summary>
+        public static string Effect_threshold {
+            get {
+                return ResourceManager.GetString("Effect_threshold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Torn edge.
+        /// </summary>
+        public static string Effect_torn_edge {
+            get {
+                return ResourceManager.GetString("Effect_torn_edge", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vibrance.
+        /// </summary>
+        public static string Effect_vibrance {
+            get {
+                return ResourceManager.GetString("Effect_vibrance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vignette.
+        /// </summary>
+        public static string Effect_vignette {
+            get {
+                return ResourceManager.GetString("Effect_vignette", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Adjustments.
+        /// </summary>
+        public static string EffectCategory_Adjustments {
+            get {
+                return ResourceManager.GetString("EffectCategory_Adjustments", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Drawings.
+        /// </summary>
+        public static string EffectCategory_Drawings {
+            get {
+                return ResourceManager.GetString("EffectCategory_Drawings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Filters.
+        /// </summary>
+        public static string EffectCategory_Filters {
+            get {
+                return ResourceManager.GetString("EffectCategory_Filters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Manipulations.
+        /// </summary>
+        public static string EffectCategory_Manipulations {
+            get {
+                return ResourceManager.GetString("EffectCategory_Manipulations", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Absolute size.
+        /// </summary>
+        public static string EnumValue_AbsoluteSize {
+            get {
+                return ResourceManager.GetString("EnumValue_AbsoluteSize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Backward diagonal.
+        /// </summary>
+        public static string EnumValue_BackwardDiagonal {
+            get {
+                return ResourceManager.GetString("EnumValue_BackwardDiagonal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom center.
+        /// </summary>
+        public static string EnumValue_BottomCenter {
+            get {
+                return ResourceManager.GetString("EnumValue_BottomCenter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom left.
+        /// </summary>
+        public static string EnumValue_BottomLeft {
+            get {
+                return ResourceManager.GetString("EnumValue_BottomLeft", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom right.
+        /// </summary>
+        public static string EnumValue_BottomRight {
+            get {
+                return ResourceManager.GetString("EnumValue_BottomRight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dash.
+        /// </summary>
+        public static string EnumValue_Dash {
+            get {
+                return ResourceManager.GetString("EnumValue_Dash", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dash-dot.
+        /// </summary>
+        public static string EnumValue_DashDot {
+            get {
+                return ResourceManager.GetString("EnumValue_DashDot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dash-dot-dot.
+        /// </summary>
+        public static string EnumValue_DashDotDot {
+            get {
+                return ResourceManager.GetString("EnumValue_DashDotDot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Don&apos;t resize.
+        /// </summary>
+        public static string EnumValue_DontResize {
+            get {
+                return ResourceManager.GetString("EnumValue_DontResize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dot.
+        /// </summary>
+        public static string EnumValue_Dot {
+            get {
+                return ResourceManager.GetString("EnumValue_Dot", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Forward diagonal.
+        /// </summary>
+        public static string EnumValue_ForwardDiagonal {
+            get {
+                return ResourceManager.GetString("EnumValue_ForwardDiagonal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Horizontal.
+        /// </summary>
+        public static string EnumValue_Horizontal {
+            get {
+                return ResourceManager.GetString("EnumValue_Horizontal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Inside.
+        /// </summary>
+        public static string EnumValue_Inside {
+            get {
+                return ResourceManager.GetString("EnumValue_Inside", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Middle center.
+        /// </summary>
+        public static string EnumValue_MiddleCenter {
+            get {
+                return ResourceManager.GetString("EnumValue_MiddleCenter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Middle left.
+        /// </summary>
+        public static string EnumValue_MiddleLeft {
+            get {
+                return ResourceManager.GetString("EnumValue_MiddleLeft", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Middle right.
+        /// </summary>
+        public static string EnumValue_MiddleRight {
+            get {
+                return ResourceManager.GetString("EnumValue_MiddleRight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Outside.
+        /// </summary>
+        public static string EnumValue_Outside {
+            get {
+                return ResourceManager.GetString("EnumValue_Outside", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Percentage of canvas.
+        /// </summary>
+        public static string EnumValue_PercentageOfCanvas {
+            get {
+                return ResourceManager.GetString("EnumValue_PercentageOfCanvas", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Percentage of watermark.
+        /// </summary>
+        public static string EnumValue_PercentageOfWatermark {
+            get {
+                return ResourceManager.GetString("EnumValue_PercentageOfWatermark", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Solid.
+        /// </summary>
+        public static string EnumValue_Solid {
+            get {
+                return ResourceManager.GetString("EnumValue_Solid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Source copy (overwrite).
+        /// </summary>
+        public static string EnumValue_SourceCopy {
+            get {
+                return ResourceManager.GetString("EnumValue_SourceCopy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Source over (alpha blend).
+        /// </summary>
+        public static string EnumValue_SourceOver {
+            get {
+                return ResourceManager.GetString("EnumValue_SourceOver", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Top center.
+        /// </summary>
+        public static string EnumValue_TopCenter {
+            get {
+                return ResourceManager.GetString("EnumValue_TopCenter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Top left.
+        /// </summary>
+        public static string EnumValue_TopLeft {
+            get {
+                return ResourceManager.GetString("EnumValue_TopLeft", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Top right.
+        /// </summary>
+        public static string EnumValue_TopRight {
+            get {
+                return ResourceManager.GetString("EnumValue_TopRight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vertical.
+        /// </summary>
+        public static string EnumValue_Vertical {
+            get {
+                return ResourceManager.GetString("EnumValue_Vertical", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Direction.
+        /// </summary>
+        public static string GradientEditor_Direction {
+            get {
+                return ResourceManager.GetString("GradientEditor_Direction", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Distribute.
+        /// </summary>
+        public static string GradientEditor_Distribute {
+            get {
+                return ResourceManager.GetString("GradientEditor_Distribute", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick color for selected stop….
+        /// </summary>
+        public static string GradientEditor_PickColor {
+            get {
+                return ResourceManager.GetString("GradientEditor_PickColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Presets.
+        /// </summary>
+        public static string GradientEditor_Presets {
+            get {
+                return ResourceManager.GetString("GradientEditor_Presets", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string GradientEditor_Preview {
+            get {
+                return ResourceManager.GetString("GradientEditor_Preview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reverse.
+        /// </summary>
+        public static string GradientEditor_Reverse {
+            get {
+                return ResourceManager.GetString("GradientEditor_Reverse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stops.
+        /// </summary>
+        public static string GradientEditor_Stops {
+            get {
+                return ResourceManager.GetString("GradientEditor_Stops", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Gradient editor.
+        /// </summary>
+        public static string GradientEditor_Title {
+            get {
+                return ResourceManager.GetString("GradientEditor_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys - Gradient editor.
+        /// </summary>
+        public static string GradientEditor_TitleFull {
+            get {
+                return ResourceManager.GetString("GradientEditor_TitleFull", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add stop.
+        /// </summary>
+        public static string GradientEditor_TooltipAddStop {
+            get {
+                return ResourceManager.GetString("GradientEditor_TooltipAddStop", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to change colour.
+        /// </summary>
+        public static string GradientEditor_TooltipChangeColor {
+            get {
+                return ResourceManager.GetString("GradientEditor_TooltipChangeColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Spread stops evenly across 0..100%.
+        /// </summary>
+        public static string GradientEditor_TooltipDistribute {
+            get {
+                return ResourceManager.GetString("GradientEditor_TooltipDistribute", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove selected stop.
+        /// </summary>
+        public static string GradientEditor_TooltipRemoveStop {
+            get {
+                return ResourceManager.GetString("GradientEditor_TooltipRemoveStop", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mirror stop locations 0↔100.
+        /// </summary>
+        public static string GradientEditor_TooltipReverse {
+            get {
+                return ResourceManager.GetString("GradientEditor_TooltipReverse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Clear binding.
         /// </summary>
         public static string HotkeyCapture_ClearBinding {
@@ -812,6 +2972,15 @@ namespace AresToys.App.Resources {
         public static string Hotkeys_AddCustomWorkflow {
             get {
                 return ResourceManager.GetString("Hotkeys_AddCustomWorkflow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to + Add step.
+        /// </summary>
+        public static string Hotkeys_AddStep {
+            get {
+                return ResourceManager.GetString("Hotkeys_AddStep", resourceCulture);
             }
         }
         
@@ -897,6 +3066,519 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Apply to editor.
+        /// </summary>
+        public static string ImageEffects_ApplyToEditor {
+            get {
+                return ResourceManager.GetString("ImageEffects_ApplyToEditor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Effects in preset.
+        /// </summary>
+        public static string ImageEffects_EffectsInPreset {
+            get {
+                return ResourceManager.GetString("ImageEffects_EffectsInPreset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export preset….
+        /// </summary>
+        public static string ImageEffects_ExportPreset {
+            get {
+                return ResourceManager.GetString("ImageEffects_ExportPreset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Live update.
+        /// </summary>
+        public static string ImageEffects_LiveUpdate {
+            get {
+                return ResourceManager.GetString("ImageEffects_LiveUpdate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Load image….
+        /// </summary>
+        public static string ImageEffects_LoadImage {
+            get {
+                return ResourceManager.GetString("ImageEffects_LoadImage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Override preset.
+        /// </summary>
+        public static string ImageEffects_OverridePreset {
+            get {
+                return ResourceManager.GetString("ImageEffects_OverridePreset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Presets.
+        /// </summary>
+        public static string ImageEffects_Presets {
+            get {
+                return ResourceManager.GetString("ImageEffects_Presets", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string ImageEffects_Preview {
+            get {
+                return ResourceManager.GetString("ImageEffects_Preview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Properties — (no selection).
+        /// </summary>
+        public static string ImageEffects_PropertiesEmpty {
+            get {
+                return ResourceManager.GetString("ImageEffects_PropertiesEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Properties — {0}.
+        /// </summary>
+        public static string ImageEffects_PropertiesHeader {
+            get {
+                return ResourceManager.GetString("ImageEffects_PropertiesHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reset sample.
+        /// </summary>
+        public static string ImageEffects_ResetSample {
+            get {
+                return ResourceManager.GetString("ImageEffects_ResetSample", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom.
+        /// </summary>
+        public static string ImageEffects_SideBottom {
+            get {
+                return ResourceManager.GetString("ImageEffects_SideBottom", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Left.
+        /// </summary>
+        public static string ImageEffects_SideLeft {
+            get {
+                return ResourceManager.GetString("ImageEffects_SideLeft", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Right.
+        /// </summary>
+        public static string ImageEffects_SideRight {
+            get {
+                return ResourceManager.GetString("ImageEffects_SideRight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sides.
+        /// </summary>
+        public static string ImageEffects_Sides {
+            get {
+                return ResourceManager.GetString("ImageEffects_Sides", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Top.
+        /// </summary>
+        public static string ImageEffects_SideTop {
+            get {
+                return ResourceManager.GetString("ImageEffects_SideTop", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t decode image..
+        /// </summary>
+        public static string ImageEffects_StatusDecodeFail {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusDecodeFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Exported &apos;{0}&apos; to {1}.
+        /// </summary>
+        public static string ImageEffects_StatusExported {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusExported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export failed: {0}.
+        /// </summary>
+        public static string ImageEffects_StatusExportFail {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusExportFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Imported {0} effect(s) from {1}.
+        /// </summary>
+        public static string ImageEffects_StatusImported {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusImported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import failed: {0}.
+        /// </summary>
+        public static string ImageEffects_StatusImportFail {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusImportFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Loaded {0} as preview source..
+        /// </summary>
+        public static string ImageEffects_StatusLoadedSample {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusLoadedSample", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to load presets: {0}.
+        /// </summary>
+        public static string ImageEffects_StatusLoadFail {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusLoadFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Load failed: {0}.
+        /// </summary>
+        public static string ImageEffects_StatusLoadFailSample {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusLoadFailSample", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preset &quot;{0}&quot; saved..
+        /// </summary>
+        public static string ImageEffects_StatusOverrideSaved {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusOverrideSaved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Renamed to &apos;{0}&apos;..
+        /// </summary>
+        public static string ImageEffects_StatusRenameOk {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusRenameOk", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rendered preview ({0}×{1}, {2} effect(s)).
+        /// </summary>
+        public static string ImageEffects_StatusRendered {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusRendered", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Render failed: {0}.
+        /// </summary>
+        public static string ImageEffects_StatusRenderFail {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusRenderFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sample image reset..
+        /// </summary>
+        public static string ImageEffects_StatusSampleReset {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusSampleReset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save failed: {0}.
+        /// </summary>
+        public static string ImageEffects_StatusSaveFail {
+            get {
+                return ResourceManager.GetString("ImageEffects_StatusSaveFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys - Image effects.
+        /// </summary>
+        public static string ImageEffects_Title {
+            get {
+                return ResourceManager.GetString("ImageEffects_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Append a new effect.
+        /// </summary>
+        public static string ImageEffects_TooltipAddEffect {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipAddEffect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Render the current preset against the editor&apos;s source image and send the result back as the new editor canvas (undoable)..
+        /// </summary>
+        public static string ImageEffects_TooltipApplyToEditor {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipApplyToEditor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bold.
+        /// </summary>
+        public static string ImageEffects_TooltipBold {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipBold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete preset.
+        /// </summary>
+        public static string ImageEffects_TooltipDeletePreset {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipDeletePreset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duplicate.
+        /// </summary>
+        public static string ImageEffects_TooltipDuplicate {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipDuplicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to edit gradient.
+        /// </summary>
+        public static string ImageEffects_TooltipEditGradient {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipEditGradient", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Get effects (opens browser).
+        /// </summary>
+        public static string ImageEffects_TooltipGetEffects {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipGetEffects", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import .sxie or .json preset.
+        /// </summary>
+        public static string ImageEffects_TooltipImport {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipImport", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Italic.
+        /// </summary>
+        public static string ImageEffects_TooltipItalic {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipItalic", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Re-render during slider drag (~30 fps) instead of waiting for the drag to settle..
+        /// </summary>
+        public static string ImageEffects_TooltipLiveUpdate {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipLiveUpdate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Replace the sample image.
+        /// </summary>
+        public static string ImageEffects_TooltipLoadImage {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipLoadImage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move down.
+        /// </summary>
+        public static string ImageEffects_TooltipMoveDown {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipMoveDown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move up — order matters: each effect runs on the output of the previous one..
+        /// </summary>
+        public static string ImageEffects_TooltipMoveUp {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipMoveUp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New preset.
+        /// </summary>
+        public static string ImageEffects_TooltipNewPreset {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipNewPreset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save the current slider / parameter changes back to the preset. By default editor-mode tweaks are one-shot — they affect this screenshot only without modifying the saved preset..
+        /// </summary>
+        public static string ImageEffects_TooltipOverridePreset {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipOverridePreset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to change colour.
+        /// </summary>
+        public static string ImageEffects_TooltipPickColor {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipPickColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick an image file….
+        /// </summary>
+        public static string ImageEffects_TooltipPickImage {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipPickImage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove all.
+        /// </summary>
+        public static string ImageEffects_TooltipRemoveAll {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipRemoveAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove selected effect.
+        /// </summary>
+        public static string ImageEffects_TooltipRemoveEffect {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipRemoveEffect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rename (F2).
+        /// </summary>
+        public static string ImageEffects_TooltipRename {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipRename", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When on, editing one side updates all four.
+        /// </summary>
+        public static string ImageEffects_TooltipUniform {
+            get {
+                return ResourceManager.GetString("ImageEffects_TooltipUniform", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Uniform.
+        /// </summary>
+        public static string ImageEffects_Uniform {
+            get {
+                return ResourceManager.GetString("ImageEffects_Uniform", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use gradient.
+        /// </summary>
+        public static string ImageEffects_UseGradient {
+            get {
+                return ResourceManager.GetString("ImageEffects_UseGradient", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dock window.
+        /// </summary>
+        public static string Launcher_DragMode {
+            get {
+                return ResourceManager.GetString("Launcher_DragMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 🎯 Drag-and-drop mode — drop files / folders / shortcuts onto cells to map them. Esc or click toggle to exit..
+        /// </summary>
+        public static string Launcher_DragModeBanner {
+            get {
+                return ResourceManager.GetString("Launcher_DragModeBanner", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Undock window.
+        /// </summary>
+        public static string Launcher_DragModeOn {
+            get {
+                return ResourceManager.GetString("Launcher_DragModeOn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to F1-F10 fire global · 1-9,0 / arrows switch tab · QWERTY fires tab cell · Esc closes · right-click to edit.
         /// </summary>
         public static string Launcher_HelpHint {
@@ -920,6 +3602,51 @@ namespace AresToys.App.Resources {
         public static string Launcher_LabelLabel {
             get {
                 return ResourceManager.GetString("Launcher_LabelLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy.
+        /// </summary>
+        public static string Launcher_MenuCopy {
+            get {
+                return ResourceManager.GetString("Launcher_MenuCopy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        public static string Launcher_MenuDelete {
+            get {
+                return ResourceManager.GetString("Launcher_MenuDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit….
+        /// </summary>
+        public static string Launcher_MenuEdit {
+            get {
+                return ResourceManager.GetString("Launcher_MenuEdit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open file location.
+        /// </summary>
+        public static string Launcher_MenuOpenLocation {
+            get {
+                return ResourceManager.GetString("Launcher_MenuOpenLocation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste.
+        /// </summary>
+        public static string Launcher_MenuPaste {
+            get {
+                return ResourceManager.GetString("Launcher_MenuPaste", resourceCulture);
             }
         }
         
@@ -960,6 +3687,843 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Advanced.
+        /// </summary>
+        public static string LauncherCellEdit_Advanced {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Advanced", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Window title / process name: substring match (case-insensitive). Either one being non-empty enables &quot;activate if already running&quot; mode — the cell focuses the existing window instead of starting a new instance. Leave both empty for the default &quot;always launch&quot; behaviour..
+        /// </summary>
+        public static string LauncherCellEdit_AdvancedHint {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_AdvancedHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Arguments.
+        /// </summary>
+        public static string LauncherCellEdit_Args {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Args", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (optional command-line arguments).
+        /// </summary>
+        public static string LauncherCellEdit_ArgsPlaceholder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_ArgsPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Browse….
+        /// </summary>
+        public static string LauncherCellEdit_Browse {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Browse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        public static string LauncherCellEdit_Cancel {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Cancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear.
+        /// </summary>
+        public static string LauncherCellEdit_Clear {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Clear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear the custom icon (revert to default shell icon)..
+        /// </summary>
+        public static string LauncherCellEdit_ClearIcon {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_ClearIcon", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Empty this cell — removes the mapping..
+        /// </summary>
+        public static string LauncherCellEdit_ClearTooltip {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_ClearTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Function key  {0}.
+        /// </summary>
+        public static string LauncherCellEdit_HeaderFunctionKey {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_HeaderFunctionKey", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tab {0}  ·  Cell  {1}.
+        /// </summary>
+        public static string LauncherCellEdit_HeaderTabCell {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_HeaderTabCell", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Icon.
+        /// </summary>
+        public static string LauncherCellEdit_Icon {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Icon", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Icon index inside a multi-icon container (.dll / .exe / .ico). 0 = first..
+        /// </summary>
+        public static string LauncherCellEdit_IconIndexTooltip {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_IconIndexTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (optional — custom .ico / .png / .jpg overriding the default shell icon).
+        /// </summary>
+        public static string LauncherCellEdit_IconPlaceholder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_IconPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Label.
+        /// </summary>
+        public static string LauncherCellEdit_Label {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (short name shown on the cell).
+        /// </summary>
+        public static string LauncherCellEdit_LabelPlaceholder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_LabelPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Target path.
+        /// </summary>
+        public static string LauncherCellEdit_Path {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Path", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to exe / file / folder / URL — anything the shell can open.
+        /// </summary>
+        public static string LauncherCellEdit_PathPlaceholder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_PathPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick a file….
+        /// </summary>
+        public static string LauncherCellEdit_PickFile {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_PickFile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick a folder….
+        /// </summary>
+        public static string LauncherCellEdit_PickFolder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_PickFolder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick icon….
+        /// </summary>
+        public static string LauncherCellEdit_PickIcon {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_PickIcon", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick from currently-open windows….
+        /// </summary>
+        public static string LauncherCellEdit_PickWindow {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_PickWindow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Process name (optional).
+        /// </summary>
+        public static string LauncherCellEdit_ProcessName {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_ProcessName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (if a process with this name is running, focus it — e.g. notepad).
+        /// </summary>
+        public static string LauncherCellEdit_ProcessNamePlaceholder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_ProcessNamePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run as administrator.
+        /// </summary>
+        public static string LauncherCellEdit_RunAsAdmin {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_RunAsAdmin", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launch with the &quot;runas&quot; verb so Windows prompts UAC for elevation. Use sparingly — admin processes can change system state..
+        /// </summary>
+        public static string LauncherCellEdit_RunAsAdminTooltip {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_RunAsAdminTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        public static string LauncherCellEdit_Save {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit launcher cell.
+        /// </summary>
+        public static string LauncherCellEdit_Title {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Window mode.
+        /// </summary>
+        public static string LauncherCellEdit_WindowMode {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hidden.
+        /// </summary>
+        public static string LauncherCellEdit_WindowModeHidden {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowModeHidden", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Maximized.
+        /// </summary>
+        public static string LauncherCellEdit_WindowModeMaximized {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowModeMaximized", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Minimized.
+        /// </summary>
+        public static string LauncherCellEdit_WindowModeMinimized {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowModeMinimized", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normal.
+        /// </summary>
+        public static string LauncherCellEdit_WindowModeNormal {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowModeNormal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How the launched window appears initially. Most GUI apps honour Maximized/Minimized; some ignore the hint. Hidden runs the process without showing a window — useful for headless tasks..
+        /// </summary>
+        public static string LauncherCellEdit_WindowModeTooltip {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowModeTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Window title (optional).
+        /// </summary>
+        public static string LauncherCellEdit_WindowTitle {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (if a window with this title is open, focus it instead of launching).
+        /// </summary>
+        public static string LauncherCellEdit_WindowTitlePlaceholder {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowTitlePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Amount.
+        /// </summary>
+        public static string Param_Amount {
+            get {
+                return ResourceManager.GetString("Param_Amount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Angle.
+        /// </summary>
+        public static string Param_Angle {
+            get {
+                return ResourceManager.GetString("Param_Angle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto hide if out of bounds.
+        /// </summary>
+        public static string Param_AutoHide {
+            get {
+                return ResourceManager.GetString("Param_AutoHide", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color.
+        /// </summary>
+        public static string Param_Color {
+            get {
+                return ResourceManager.GetString("Param_Color", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Compositing mode.
+        /// </summary>
+        public static string Param_CompositingMode {
+            get {
+                return ResourceManager.GetString("Param_CompositingMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Corner radius.
+        /// </summary>
+        public static string Param_CornerRadius {
+            get {
+                return ResourceManager.GetString("Param_CornerRadius", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dash style.
+        /// </summary>
+        public static string Param_DashStyle {
+            get {
+                return ResourceManager.GetString("Param_DashStyle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Height.
+        /// </summary>
+        public static string Param_Height {
+            get {
+                return ResourceManager.GetString("Param_Height", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Horizontal.
+        /// </summary>
+        public static string Param_Horizontal {
+            get {
+                return ResourceManager.GetString("Param_Horizontal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Offset X.
+        /// </summary>
+        public static string Param_OffsetX {
+            get {
+                return ResourceManager.GetString("Param_OffsetX", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Offset Y.
+        /// </summary>
+        public static string Param_OffsetY {
+            get {
+                return ResourceManager.GetString("Param_OffsetY", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Opacity.
+        /// </summary>
+        public static string Param_Opacity {
+            get {
+                return ResourceManager.GetString("Param_Opacity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Padding.
+        /// </summary>
+        public static string Param_Padding {
+            get {
+                return ResourceManager.GetString("Param_Padding", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Placement.
+        /// </summary>
+        public static string Param_Placement {
+            get {
+                return ResourceManager.GetString("Param_Placement", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Quality.
+        /// </summary>
+        public static string Param_Quality {
+            get {
+                return ResourceManager.GetString("Param_Quality", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Radius.
+        /// </summary>
+        public static string Param_Radius {
+            get {
+                return ResourceManager.GetString("Param_Radius", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rotate flip.
+        /// </summary>
+        public static string Param_RotateFlip {
+            get {
+                return ResourceManager.GetString("Param_RotateFlip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Size.
+        /// </summary>
+        public static string Param_Size {
+            get {
+                return ResourceManager.GetString("Param_Size", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Size mode.
+        /// </summary>
+        public static string Param_SizeMode {
+            get {
+                return ResourceManager.GetString("Param_SizeMode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Strength.
+        /// </summary>
+        public static string Param_Strength {
+            get {
+                return ResourceManager.GetString("Param_Strength", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Threshold.
+        /// </summary>
+        public static string Param_Threshold {
+            get {
+                return ResourceManager.GetString("Param_Threshold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type.
+        /// </summary>
+        public static string Param_Type {
+            get {
+                return ResourceManager.GetString("Param_Type", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vertical.
+        /// </summary>
+        public static string Param_Vertical {
+            get {
+                return ResourceManager.GetString("Param_Vertical", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Width.
+        /// </summary>
+        public static string Param_Width {
+            get {
+                return ResourceManager.GetString("Param_Width", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} characters.
+        /// </summary>
+        public static string QrGenerator_CharactersFormat {
+            get {
+                return ResourceManager.GetString("QrGenerator_CharactersFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Close.
+        /// </summary>
+        public static string QrGenerator_Close {
+            get {
+                return ResourceManager.GetString("QrGenerator_Close", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Content.
+        /// </summary>
+        public static string QrGenerator_Content {
+            get {
+                return ResourceManager.GetString("QrGenerator_Content", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy image.
+        /// </summary>
+        public static string QrGenerator_CopyImage {
+            get {
+                return ResourceManager.GetString("QrGenerator_CopyImage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to H — recovers ~30%.
+        /// </summary>
+        public static string QrGenerator_EccH {
+            get {
+                return ResourceManager.GetString("QrGenerator_EccH", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to L — recovers ~7%.
+        /// </summary>
+        public static string QrGenerator_EccL {
+            get {
+                return ResourceManager.GetString("QrGenerator_EccL", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to M — recovers ~15%.
+        /// </summary>
+        public static string QrGenerator_EccM {
+            get {
+                return ResourceManager.GetString("QrGenerator_EccM", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Q — recovers ~25%.
+        /// </summary>
+        public static string QrGenerator_EccQ {
+            get {
+                return ResourceManager.GetString("QrGenerator_EccQ", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Error correction.
+        /// </summary>
+        public static string QrGenerator_ErrorCorrection {
+            get {
+                return ResourceManager.GetString("QrGenerator_ErrorCorrection", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to PNG image|*.png|All files|*.*.
+        /// </summary>
+        public static string QrGenerator_FilterPng {
+            get {
+                return ResourceManager.GetString("QrGenerator_FilterPng", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SVG image|*.svg|All files|*.*.
+        /// </summary>
+        public static string QrGenerator_FilterSvg {
+            get {
+                return ResourceManager.GetString("QrGenerator_FilterSvg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Module size.
+        /// </summary>
+        public static string QrGenerator_ModuleSize {
+            get {
+                return ResourceManager.GetString("QrGenerator_ModuleSize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} px.
+        /// </summary>
+        public static string QrGenerator_PixelsFormat {
+            get {
+                return ResourceManager.GetString("QrGenerator_PixelsFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste a URL, text, vCard, Wi-Fi credentials, ….
+        /// </summary>
+        public static string QrGenerator_PlaceholderInput {
+            get {
+                return ResourceManager.GetString("QrGenerator_PlaceholderInput", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string QrGenerator_Preview {
+            get {
+                return ResourceManager.GetString("QrGenerator_Preview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save PNG….
+        /// </summary>
+        public static string QrGenerator_SavePng {
+            get {
+                return ResourceManager.GetString("QrGenerator_SavePng", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save QR as PNG.
+        /// </summary>
+        public static string QrGenerator_SavePngTitle {
+            get {
+                return ResourceManager.GetString("QrGenerator_SavePngTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save SVG….
+        /// </summary>
+        public static string QrGenerator_SaveSvg {
+            get {
+                return ResourceManager.GetString("QrGenerator_SaveSvg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save QR as SVG.
+        /// </summary>
+        public static string QrGenerator_SaveSvgTitle {
+            get {
+                return ResourceManager.GetString("QrGenerator_SaveSvgTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save to history.
+        /// </summary>
+        public static string QrGenerator_SaveToHistory {
+            get {
+                return ResourceManager.GetString("QrGenerator_SaveToHistory", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copied to clipboard..
+        /// </summary>
+        public static string QrGenerator_StatusCopied {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusCopied", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clipboard copy failed: {0}.
+        /// </summary>
+        public static string QrGenerator_StatusCopyFail {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusCopyFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t generate QR (text may be too long for this ECC level)..
+        /// </summary>
+        public static string QrGenerator_StatusFail {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save-to-history failed: {0}.
+        /// </summary>
+        public static string QrGenerator_StatusHistoryFail {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusHistoryFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Render failed — nothing copied..
+        /// </summary>
+        public static string QrGenerator_StatusRenderFailCopy {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusRenderFailCopy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Render failed — nothing saved..
+        /// </summary>
+        public static string QrGenerator_StatusRenderFailSave {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusRenderFailSave", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saved: {0}.
+        /// </summary>
+        public static string QrGenerator_StatusSaved {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusSaved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saved to history..
+        /// </summary>
+        public static string QrGenerator_StatusSavedHistory {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusSavedHistory", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save failed: {0}.
+        /// </summary>
+        public static string QrGenerator_StatusSaveFail {
+            get {
+                return ResourceManager.GetString("QrGenerator_StatusSaveFail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys - QR generator.
+        /// </summary>
+        public static string QrGenerator_Title {
+            get {
+                return ResourceManager.GetString("QrGenerator_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy the QR PNG to the Windows clipboard.
+        /// </summary>
+        public static string QrGenerator_TooltipCopyImage {
+            get {
+                return ResourceManager.GetString("QrGenerator_TooltipCopyImage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save the QR PNG to the screenshot folder + insert into the clipboard history (same flow as captures).
+        /// </summary>
+        public static string QrGenerator_TooltipSaveHistory {
+            get {
+                return ResourceManager.GetString("QrGenerator_TooltipSaveHistory", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save as scalable vector — keeps sharp at any size.
+        /// </summary>
+        public static string QrGenerator_TooltipSaveSvg {
+            get {
+                return ResourceManager.GetString("QrGenerator_TooltipSaveSvg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Export every non-sensitive AresToys setting (theme, hotkeys, launcher cells, workflow steps, capture defaults, plugin selection) to a single JSON file you can sync between machines. Sensitive values (OAuth tokens, credentials) are not included — they&apos;d be unusable on another box anyway..
         /// </summary>
         public static string Settings_BackupHint {
@@ -983,6 +4547,96 @@ namespace AresToys.App.Resources {
         public static string Settings_Blurb {
             get {
                 return ResourceManager.GetString("Settings_Blurb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Display options for the clipboard window..
+        /// </summary>
+        public static string Settings_ClipboardSectionHint {
+            get {
+                return ResourceManager.GetString("Settings_ClipboardSectionHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clipboard.
+        /// </summary>
+        public static string Settings_ClipboardSectionTitle {
+            get {
+                return ResourceManager.GetString("Settings_ClipboardSectionTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show content snippet under label.
+        /// </summary>
+        public static string Settings_ClipboardShowSnippetWithLabel {
+            get {
+                return ResourceManager.GetString("Settings_ClipboardShowSnippetWithLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When an item has a label, also render a small preview of its content on a second line. Off by default — the label replaces the snippet entirely..
+        /// </summary>
+        public static string Settings_ClipboardShowSnippetWithLabelTooltip {
+            get {
+                return ResourceManager.GetString("Settings_ClipboardShowSnippetWithLabelTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Alt+click selects any shape (not only same type).
+        /// </summary>
+        public static string Settings_EditorAltClickSelectAny {
+            get {
+                return ResourceManager.GetString("Settings_EditorAltClickSelectAny", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to While a placement tool is active (Rectangle, Arrow, Ellipse…) alt+click always tries to select an existing shape of the SAME type under the cursor. Alt+Shift+click toggles the hit shape into / out of the current selection set (multi-select). This option controls what happens when no same-type shape is found: ON = select any shape under the cursor (no placement); OFF (default) = fall through to a normal placement..
+        /// </summary>
+        public static string Settings_EditorAltClickSelectAnyTooltip {
+            get {
+                return ResourceManager.GetString("Settings_EditorAltClickSelectAnyTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Behaviour knobs for the image editor (shapes, selection, gestures)..
+        /// </summary>
+        public static string Settings_EditorSectionHint {
+            get {
+                return ResourceManager.GetString("Settings_EditorSectionHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Editor.
+        /// </summary>
+        public static string Settings_EditorSectionTitle {
+            get {
+                return ResourceManager.GetString("Settings_EditorSectionTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start editor maximized.
+        /// </summary>
+        public static string Settings_EditorStartMaximized {
+            get {
+                return ResourceManager.GetString("Settings_EditorStartMaximized", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open the editor maximized on the active monitor when launched outside a workflow (toast click, history). Workflow tasks have their own fullscreen toggle which overrides this..
+        /// </summary>
+        public static string Settings_EditorStartMaximizedTooltip {
+            get {
+                return ResourceManager.GetString("Settings_EditorStartMaximizedTooltip", resourceCulture);
             }
         }
         
@@ -1046,6 +4700,114 @@ namespace AresToys.App.Resources {
         public static string Settings_LanguageSystemDefault {
             get {
                 return ResourceManager.GetString("Settings_LanguageSystemDefault", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clipboard manager.
+        /// </summary>
+        public static string Settings_ModuleClipboard {
+            get {
+                return ResourceManager.GetString("Settings_ModuleClipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Captures every copy event, stores it in SQLite, and exposes the Win+V popup. Disabling stops all clipboard interception and database writes..
+        /// </summary>
+        public static string Settings_ModuleClipboardTooltip {
+            get {
+                return ResourceManager.GetString("Settings_ModuleClipboardTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launcher.
+        /// </summary>
+        public static string Settings_ModuleLauncher {
+            get {
+                return ResourceManager.GetString("Settings_ModuleLauncher", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keyboard-driven app launcher overlay (F1-F10 strip + numeric tabs × QWERTY cells). Disabling skips its hotkey, tray entry and icon-cache pre-warming..
+        /// </summary>
+        public static string Settings_ModuleLauncherTooltip {
+            get {
+                return ResourceManager.GetString("Settings_ModuleLauncherTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Disable subsystems you don&apos;t use. Disabled modules skip their startup pre-warm, background hooks, hotkeys and tray entries, so they cost nothing at runtime..
+        /// </summary>
+        public static string Settings_ModulesHint {
+            get {
+                return ResourceManager.GetString("Settings_ModulesHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Restart AresToys.
+        /// </summary>
+        public static string Settings_ModulesRestartButton {
+            get {
+                return ResourceManager.GetString("Settings_ModulesRestartButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Module gates run only at startup — restart to apply..
+        /// </summary>
+        public static string Settings_ModulesRestartHint {
+            get {
+                return ResourceManager.GetString("Settings_ModulesRestartHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Modules.
+        /// </summary>
+        public static string Settings_ModulesTitle {
+            get {
+                return ResourceManager.GetString("Settings_ModulesTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wormholes (desktop fences).
+        /// </summary>
+        public static string Settings_ModuleWormholes {
+            get {
+                return ResourceManager.GetString("Settings_ModuleWormholes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Transparent windows pinned to the desktop layer that mirror folders or hold curated shortcuts. Feature is in development — enable to opt into early builds..
+        /// </summary>
+        public static string Settings_ModuleWormholesTooltip {
+            get {
+                return ResourceManager.GetString("Settings_ModuleWormholesTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start minimized.
+        /// </summary>
+        public static string Settings_StartMinimized {
+            get {
+                return ResourceManager.GetString("Settings_StartMinimized", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skip the main window on launch and stay in the tray. Click the tray icon to open the Settings window when needed..
+        /// </summary>
+        public static string Settings_StartMinimizedTooltip {
+            get {
+                return ResourceManager.GetString("Settings_StartMinimizedTooltip", resourceCulture);
             }
         }
         
@@ -1140,6 +4902,24 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to How AresToys plugs into the OS: autostart, initial window state, and the tray icon&apos;s click routing..
+        /// </summary>
+        public static string Settings_WindowsIntegrationHint {
+            get {
+                return ResourceManager.GetString("Settings_WindowsIntegrationHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Windows integration.
+        /// </summary>
+        public static string Settings_WindowsIntegrationTitle {
+            get {
+                return ResourceManager.GetString("Settings_WindowsIntegrationTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to About.
         /// </summary>
         public static string Sidebar_About {
@@ -1212,11 +4992,29 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Wormholes Settings.
+        /// </summary>
+        public static string Sidebar_WormholesSettings {
+            get {
+                return ResourceManager.GetString("Sidebar_WormholesSettings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Accent Background Dark.
         /// </summary>
         public static string Theme_AccentBackgroundDark {
             get {
                 return ResourceManager.GetString("Theme_AccentBackgroundDark", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Used by the launcher overlay (cell backgrounds, inactive tab headers). Pick a low-luminance shade so the main accent reads on top of it..
+        /// </summary>
+        public static string Theme_AccentBackgroundDarkHint {
+            get {
+                return ResourceManager.GetString("Theme_AccentBackgroundDarkHint", resourceCulture);
             }
         }
         
@@ -1239,6 +5037,15 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Tints the trash / delete buttons across the app (clipboard toolbar, category remove, &apos;Clear all&apos;). Tweak it to a shade that contrasts cleanly with your accent colour..
+        /// </summary>
+        public static string Theme_AccentDangerHint {
+            get {
+                return ResourceManager.GetString("Theme_AccentDangerHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Two colors that flow everywhere AresToys uses an accent: primary buttons, toggle switches, the pinned-image border, drag-to-reorder indicators, and selected sidebar entries. Edit the hex values to see the changes apply live..
         /// </summary>
         public static string Theme_Blurb {
@@ -1257,11 +5064,29 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Subtext colour — captions, age / kind / source on clipboard rows, descriptions on this page. Tweak it to soften or sharpen secondary text across the whole app..
+        /// </summary>
+        public static string Theme_ForegroundDarkHint {
+            get {
+                return ResourceManager.GetString("Theme_ForegroundDarkHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Foreground Light.
         /// </summary>
         public static string Theme_ForegroundLight {
             get {
                 return ResourceManager.GetString("Theme_ForegroundLight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Text / icon colour drawn on top of the accent background — pick one with enough contrast (e.g. white on a dark accent, near-black on a light one)..
+        /// </summary>
+        public static string Theme_ForegroundLightHint {
+            get {
+                return ResourceManager.GetString("Theme_ForegroundLightHint", resourceCulture);
             }
         }
         
@@ -1307,6 +5132,15 @@ namespace AresToys.App.Resources {
         public static string Theme_SurfacesHint {
             get {
                 return ResourceManager.GetString("Theme_SurfacesHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Click to open the color picker.
+        /// </summary>
+        public static string Theme_TooltipSwatch {
+            get {
+                return ResourceManager.GetString("Theme_TooltipSwatch", resourceCulture);
             }
         }
         
@@ -1388,6 +5222,366 @@ namespace AresToys.App.Resources {
         public static string ThemePreset_WizardBlue {
             get {
                 return ResourceManager.GetString("ThemePreset_WizardBlue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy path to clipboard.
+        /// </summary>
+        public static string Toast_CopyPathToClipboard {
+            get {
+                return ResourceManager.GetString("Toast_CopyPathToClipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy URL.
+        /// </summary>
+        public static string Toast_CopyUrl {
+            get {
+                return ResourceManager.GetString("Toast_CopyUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open in editor.
+        /// </summary>
+        public static string Toast_OpenInEditor {
+            get {
+                return ResourceManager.GetString("Toast_OpenInEditor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open URL.
+        /// </summary>
+        public static string Toast_OpenUrl {
+            get {
+                return ResourceManager.GetString("Toast_OpenUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show in folder.
+        /// </summary>
+        public static string Toast_ShowInFolder {
+            get {
+                return ResourceManager.GetString("Toast_ShowInFolder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tracing failed — potrace.exe may be missing from the install. Check the log..
+        /// </summary>
+        public static string Trace_FailMessage {
+            get {
+                return ResourceManager.GetString("Trace_FailMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SVG image|*.svg|All files|*.*.
+        /// </summary>
+        public static string Trace_FilterSvg {
+            get {
+                return ResourceManager.GetString("Trace_FilterSvg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Info.
+        /// </summary>
+        public static string Trace_InfoLabel {
+            get {
+                return ResourceManager.GetString("Trace_InfoLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Abutting.
+        /// </summary>
+        public static string Trace_MethodAbutting {
+            get {
+                return ResourceManager.GetString("Trace_MethodAbutting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Overlapping.
+        /// </summary>
+        public static string Trace_MethodOverlapping {
+            get {
+                return ResourceManager.GetString("Trace_MethodOverlapping", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Black and White.
+        /// </summary>
+        public static string Trace_ModeBlackAndWhite {
+            get {
+                return ResourceManager.GetString("Trace_ModeBlackAndWhite", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color.
+        /// </summary>
+        public static string Trace_ModeColor {
+            get {
+                return ResourceManager.GetString("Trace_ModeColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Grayscale.
+        /// </summary>
+        public static string Trace_ModeGrayscale {
+            get {
+                return ResourceManager.GetString("Trace_ModeGrayscale", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mode:.
+        /// </summary>
+        public static string Trace_ModeLabel {
+            get {
+                return ResourceManager.GetString("Trace_ModeLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Palette:.
+        /// </summary>
+        public static string Trace_PaletteLabel {
+            get {
+                return ResourceManager.GetString("Trace_PaletteLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto Grouping.
+        /// </summary>
+        public static string Trace_ParamAutoGrouping {
+            get {
+                return ResourceManager.GetString("Trace_ParamAutoGrouping", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Colors.
+        /// </summary>
+        public static string Trace_ParamColors {
+            get {
+                return ResourceManager.GetString("Trace_ParamColors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Corners.
+        /// </summary>
+        public static string Trace_ParamCorners {
+            get {
+                return ResourceManager.GetString("Trace_ParamCorners", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ignore Color.
+        /// </summary>
+        public static string Trace_ParamIgnoreColor {
+            get {
+                return ResourceManager.GetString("Trace_ParamIgnoreColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Method.
+        /// </summary>
+        public static string Trace_ParamMethod {
+            get {
+                return ResourceManager.GetString("Trace_ParamMethod", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Noise.
+        /// </summary>
+        public static string Trace_ParamNoise {
+            get {
+                return ResourceManager.GetString("Trace_ParamNoise", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Overlap.
+        /// </summary>
+        public static string Trace_ParamOverlap {
+            get {
+                return ResourceManager.GetString("Trace_ParamOverlap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paths.
+        /// </summary>
+        public static string Trace_ParamPaths {
+            get {
+                return ResourceManager.GetString("Trace_ParamPaths", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sample colour from screen.
+        /// </summary>
+        public static string Trace_ParamPickFromScreen {
+            get {
+                return ResourceManager.GetString("Trace_ParamPickFromScreen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pick a colour….
+        /// </summary>
+        public static string Trace_ParamPickIgnore {
+            get {
+                return ResourceManager.GetString("Trace_ParamPickIgnore", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pre-blur.
+        /// </summary>
+        public static string Trace_ParamPreBlur {
+            get {
+                return ResourceManager.GetString("Trace_ParamPreBlur", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Smoothing.
+        /// </summary>
+        public static string Trace_ParamSmoothing {
+            get {
+                return ResourceManager.GetString("Trace_ParamSmoothing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Snap Curves To Lines.
+        /// </summary>
+        public static string Trace_ParamSnapCurves {
+            get {
+                return ResourceManager.GetString("Trace_ParamSnapCurves", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Threshold.
+        /// </summary>
+        public static string Trace_ParamThreshold {
+            get {
+                return ResourceManager.GetString("Trace_ParamThreshold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tolerance.
+        /// </summary>
+        public static string Trace_ParamTolerance {
+            get {
+                return ResourceManager.GetString("Trace_ParamTolerance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Transparency.
+        /// </summary>
+        public static string Trace_ParamTransparency {
+            get {
+                return ResourceManager.GetString("Trace_ParamTransparency", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        public static string Trace_PresetDelete {
+            get {
+                return ResourceManager.GetString("Trace_PresetDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preset:.
+        /// </summary>
+        public static string Trace_PresetLabel {
+            get {
+                return ResourceManager.GetString("Trace_PresetLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save preset….
+        /// </summary>
+        public static string Trace_PresetSave {
+            get {
+                return ResourceManager.GetString("Trace_PresetSave", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Realtime preview.
+        /// </summary>
+        public static string Trace_PreviewToggle {
+            get {
+                return ResourceManager.GetString("Trace_PreviewToggle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save as….
+        /// </summary>
+        public static string Trace_SaveButton {
+            get {
+                return ResourceManager.GetString("Trace_SaveButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save traced SVG.
+        /// </summary>
+        public static string Trace_SaveDialogTitle {
+            get {
+                return ResourceManager.GetString("Trace_SaveDialogTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Manual trace.
+        /// </summary>
+        public static string Trace_TraceNow {
+            get {
+                return ResourceManager.GetString("Trace_TraceNow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to View:.
+        /// </summary>
+        public static string Trace_ViewLabel {
+            get {
+                return ResourceManager.GetString("Trace_ViewLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Trace to SVG.
+        /// </summary>
+        public static string Trace_WindowTitle {
+            get {
+                return ResourceManager.GetString("Trace_WindowTitle", resourceCulture);
             }
         }
         
@@ -1491,6 +5685,15 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to New wormhole….
+        /// </summary>
+        public static string Tray_NewWormhole {
+            get {
+                return ResourceManager.GetString("Tray_NewWormhole", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Open clipboard.
         /// </summary>
         public static string Tray_OpenClipboard {
@@ -1534,40 +5737,22 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Tray_QrGenerator", resourceCulture);
             }
         }
-
-        /// <summary>
-        ///   Looks up a localized string similar to New wormhole….
-        /// </summary>
-        public static string Tray_NewWormhole {
-            get {
-                return ResourceManager.GetString("Tray_NewWormhole", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Bring all wormholes here.
-        /// </summary>
-        public static string Tray_RecenterWormholes {
-            get {
-                return ResourceManager.GetString("Tray_RecenterWormholes", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Wormholes.
-        /// </summary>
-        public static string Tray_Wormholes {
-            get {
-                return ResourceManager.GetString("Tray_Wormholes", resourceCulture);
-            }
-        }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Quit.
         /// </summary>
         public static string Tray_Quit {
             get {
                 return ResourceManager.GetString("Tray_Quit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bring all wormholes here.
+        /// </summary>
+        public static string Tray_RecenterWormholes {
+            get {
+                return ResourceManager.GetString("Tray_RecenterWormholes", resourceCulture);
             }
         }
         
@@ -1658,6 +5843,60 @@ namespace AresToys.App.Resources {
         public static string Tray_WebpageInstallRuntime {
             get {
                 return ResourceManager.GetString("Tray_WebpageInstallRuntime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Wormholes.
+        /// </summary>
+        public static string Tray_Wormholes {
+            get {
+                return ResourceManager.GetString("Tray_Wormholes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Check failed: {0}.
+        /// </summary>
+        public static string Update_StatusFailedFormat {
+            get {
+                return ResourceManager.GetString("Update_StatusFailedFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Version {0} available — opening confirmation….
+        /// </summary>
+        public static string Update_StatusFoundFormat {
+            get {
+                return ResourceManager.GetString("Update_StatusFoundFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You&apos;re on the latest version..
+        /// </summary>
+        public static string Update_StatusLatest {
+            get {
+                return ResourceManager.GetString("Update_StatusLatest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Updates only work from an installed copy (current build is dev / portable-extracted)..
+        /// </summary>
+        public static string Update_StatusNotInstalled {
+            get {
+                return ResourceManager.GetString("Update_StatusNotInstalled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown result..
+        /// </summary>
+        public static string Update_StatusUnknown {
+            get {
+                return ResourceManager.GetString("Update_StatusUnknown", resourceCulture);
             }
         }
         
@@ -1905,6 +6144,1221 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add to clipboard history.
+        /// </summary>
+        public static string WorkflowAction_arestoys_add_to_history {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_add_to_history", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply image effects preset.
+        /// </summary>
+        public static string WorkflowAction_arestoys_apply_image_effects_preset {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_apply_image_effects_preset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Active monitor capture.
+        /// </summary>
+        public static string WorkflowAction_arestoys_capture_active_monitor {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_capture_active_monitor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Active window capture.
+        /// </summary>
+        public static string WorkflowAction_arestoys_capture_active_window {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_capture_active_window", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Region capture.
+        /// </summary>
+        public static string WorkflowAction_arestoys_capture_region {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_capture_region", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Capture file selected in Explorer.
+        /// </summary>
+        public static string WorkflowAction_arestoys_capture_selected_explorer_file {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_capture_selected_explorer_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Webpage capture.
+        /// </summary>
+        public static string WorkflowAction_arestoys_capture_webpage {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_capture_webpage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color picker.
+        /// </summary>
+        public static string WorkflowAction_arestoys_color_picker {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_color_picker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color sampler.
+        /// </summary>
+        public static string WorkflowAction_arestoys_color_sampler {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_color_sampler", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as BGRA.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_bgra {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_bgra", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as CMYK.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_cmyk {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_cmyk", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as Decimal.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_decimal {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_decimal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as hex.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_hex {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_hex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as HSB.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_hsb {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_hsb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as Linear.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_linear {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_linear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as RGB.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_rgb {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_rgb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy color as RGBA.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_color_rgba {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_rgba", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy image to clipboard.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_image_to_clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_image_to_clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy QR to clipboard.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_qr_to_clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_qr_to_clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Copy text to clipboard.
+        /// </summary>
+        public static string WorkflowAction_arestoys_copy_text_to_clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_copy_text_to_clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delay.
+        /// </summary>
+        public static string WorkflowAction_arestoys_delay {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_delay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launch application.
+        /// </summary>
+        public static string WorkflowAction_arestoys_launch_app {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_launch_app", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show toast notification.
+        /// </summary>
+        public static string WorkflowAction_arestoys_notify_toast {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_notify_toast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open editor.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_editor_before_upload {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_editor_before_upload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open file.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_file {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open launcher (drag mode).
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_launcher_drag_mode {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_launcher_drag_mode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open launcher.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_launcher_menu {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_launcher_menu", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open clipboard popup.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_popup {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_popup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open screenshot folder.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_screenshot_folder {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_screenshot_folder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open settings.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_settings {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_settings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open URL in browser.
+        /// </summary>
+        public static string WorkflowAction_arestoys_open_url {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_open_url", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste history item.
+        /// </summary>
+        public static string WorkflowAction_arestoys_paste_history_item {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_paste_history_item", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pin to screen.
+        /// </summary>
+        public static string WorkflowAction_arestoys_pin_to_screen {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_pin_to_screen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Press key.
+        /// </summary>
+        public static string WorkflowAction_arestoys_press_key {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_press_key", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Press Enter.
+        /// </summary>
+        public static string WorkflowAction_arestoys_press_key_enter {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_press_key_enter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Press Tab.
+        /// </summary>
+        public static string WorkflowAction_arestoys_press_key_tab {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_press_key_tab", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Read QR from image.
+        /// </summary>
+        public static string WorkflowAction_arestoys_qr_read {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_qr_read", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Screen recording.
+        /// </summary>
+        public static string WorkflowAction_arestoys_record_screen {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_record_screen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start/stop screen recording (gif).
+        /// </summary>
+        public static string WorkflowAction_arestoys_record_screen_gif {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_record_screen_gif", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start/stop screen recording (mp4).
+        /// </summary>
+        public static string WorkflowAction_arestoys_record_screen_mp4 {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_record_screen_mp4", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run shell command.
+        /// </summary>
+        public static string WorkflowAction_arestoys_run_command {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_run_command", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save as….
+        /// </summary>
+        public static string WorkflowAction_arestoys_save_as {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_save_as", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save QR as image.
+        /// </summary>
+        public static string WorkflowAction_arestoys_save_qr_as_image {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_save_qr_as_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save QR as SVG.
+        /// </summary>
+        public static string WorkflowAction_arestoys_save_qr_as_svg {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_save_qr_as_svg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save as Image file.
+        /// </summary>
+        public static string WorkflowAction_arestoys_save_to_file {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_save_to_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show in Explorer.
+        /// </summary>
+        public static string WorkflowAction_arestoys_show_in_explorer {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_show_in_explorer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show QR code window.
+        /// </summary>
+        public static string WorkflowAction_arestoys_show_qr_code {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_show_qr_code", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle incognito.
+        /// </summary>
+        public static string WorkflowAction_arestoys_toggle_incognito {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_toggle_incognito", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Upload.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Read text from clipboard.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload_clipboard_text {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload_clipboard_text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Upload to file uploaders.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload_file {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Upload to image uploaders.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload_image {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Upload to text uploaders.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload_text {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload_text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shorten URL via shorteners.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload_url {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload_url", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Upload to video uploaders.
+        /// </summary>
+        public static string WorkflowAction_arestoys_upload_video {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_upload_video", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Capture.
+        /// </summary>
+        public static string WorkflowActionCategory_Capture {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Capture", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clipboard.
+        /// </summary>
+        public static string WorkflowActionCategory_Clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Color.
+        /// </summary>
+        public static string WorkflowActionCategory_Color {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Color", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Editor.
+        /// </summary>
+        public static string WorkflowActionCategory_Editor {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Editor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to File.
+        /// </summary>
+        public static string WorkflowActionCategory_File {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_File", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Flow.
+        /// </summary>
+        public static string WorkflowActionCategory_Flow {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Flow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to I/O.
+        /// </summary>
+        public static string WorkflowActionCategory_I_O {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_I_O", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launch.
+        /// </summary>
+        public static string WorkflowActionCategory_Launch {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Launch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launcher.
+        /// </summary>
+        public static string WorkflowActionCategory_Launcher {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Launcher", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Notify.
+        /// </summary>
+        public static string WorkflowActionCategory_Notify {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Notify", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pipeline.
+        /// </summary>
+        public static string WorkflowActionCategory_Pipeline {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Pipeline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to QR.
+        /// </summary>
+        public static string WorkflowActionCategory_QR {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_QR", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Recording.
+        /// </summary>
+        public static string WorkflowActionCategory_Recording {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Recording", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to System.
+        /// </summary>
+        public static string WorkflowActionCategory_System {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_System", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tools.
+        /// </summary>
+        public static string WorkflowActionCategory_Tools {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Tools", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Upload.
+        /// </summary>
+        public static string WorkflowActionCategory_Upload {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Upload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Index the item in AresToys&apos;s history so it shows up in Win+V..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_add_to_history {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_add_to_history", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run a saved chain of adjustments / filters on the image (border, watermark, vignette …). Configure presets in Settings → Image effects..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_apply_image_effects_preset {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_apply_image_effects_preset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Snapshot the monitor currently under the mouse cursor — useful as a hotkey on multi-monitor setups. On single-monitor it just captures the whole screen..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_capture_active_monitor {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_capture_active_monitor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Snapshot the currently-foreground window using DWM extended-frame-bounds (no resize-border padding). Honours the global capture delay; own-process windows are skipped..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_capture_active_window {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_capture_active_window", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show the region selection overlay and capture the chosen rectangle. Skipped automatically when a payload is already in the bag..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_capture_region {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_capture_region", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Read the file currently selected in the foreground Explorer window and stage its bytes as the workflow&apos;s payload. Aborts silently when nothing is selected..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_capture_selected_explorer_file {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_capture_selected_explorer_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Render a URL in a hidden WebView2 and grab a full-page PNG. Leave URL empty to be prompted at runtime; set it for fully-automated &apos;snapshot example.com&apos; workflows..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_capture_webpage {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_capture_webpage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open the dialog-style HSB/RGB/CMYK colour picker (wheel + numeric inputs). Pair with a Copy color as … step to write the result to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_color_picker {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_color_picker", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open the magnifier-style sampler at the cursor — picks a pixel from anywhere on screen. The sampled color is copied to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_color_sampler {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_color_sampler", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit (B=…,G=…,R=…,A=…) — Unreal Engine FColor stringification — to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_bgra {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_bgra", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit the bag colour as cmyk(C%, M%, Y%, K%) to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_cmyk {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_cmyk", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit the bag colour as the packed AARRGGBB integer to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_decimal {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_decimal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit the bag colour as RRGGBB (or RRGGBBAA with alpha). Toggles below choose whether to include alpha and whether to prefix with #..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_hex {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_hex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit the bag colour as hsb(H°, S%, B%) to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_hsb {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_hsb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit (R=…,G=…,B=…,A=…) — Unreal Engine FLinearColor stringification — to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_linear {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_linear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit the bag colour as rgb(R, G, B) to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_rgb {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_rgb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Emit the bag colour as rgba(R, G, B, A) with alpha 0–1 to the clipboard..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_color_rgba {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_color_rgba", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Place the bitmap on the Windows clipboard (Ctrl+V in any other app pastes it). Distinct from &apos;Add to clipboard history&apos;..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_image_to_clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_image_to_clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate a QR PNG and place it on the Windows clipboard. Paste-ready in any app that accepts images..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_qr_to_clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_qr_to_clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Replace the Windows clipboard content with the upload URL(s) returned by the upload step..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_copy_text_to_clipboard {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_copy_text_to_clipboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pause the workflow for the configured number of milliseconds. Useful between paste / press-key steps when the target window is slow to process keystrokes..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_delay {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_delay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_launch_app {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_launch_app", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Display a Windows toast confirming the operation. Click opens the URL when present..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_notify_toast {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_notify_toast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pause the pipeline and open the annotation editor on the captured bytes. On save, subsequent steps see the edited image..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_editor_before_upload {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_editor_before_upload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open a file or folder with its default OS-registered handler — same as double-clicking in Explorer..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_file {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show the launcher overlay already in drag-and-drop mode: drag files / folders / shortcuts onto cells to map them..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_launcher_drag_mode {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_launcher_drag_mode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show the launcher overlay — a 3×10 keyboard grid where every printable key fires a path / shortcut / shell target..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_launcher_menu {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_launcher_menu", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open the AresToys clipboard window (Win+V replacement). Pressing the same shortcut again while it&apos;s up dismisses it..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_popup {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_popup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open the configured capture folder (Settings → Capture) in Windows Explorer..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_screenshot_folder {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_screenshot_folder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show + activate the main AresToys Settings window..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_settings {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_settings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launch the default browser on the upload URL (or an explicit URL via config). Useful right after an Upload step..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_open_url {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_open_url", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto-paste the N-th most recent clipboard history item into the foreground window. 1 = most recent..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_paste_history_item {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_paste_history_item", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show the captured image in an always-on-top window. Drag to move, wheel to zoom, right-click or Esc to close..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_pin_to_screen {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_pin_to_screen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Send a single keystroke to the foreground window. Useful between paste steps when chaining clipboard items onto consecutive lines..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_press_key {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_press_key", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Send a single Enter keystroke to the foreground window. Useful as a separator between paste steps when chaining clipboard items onto consecutive lines..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_press_key_enter {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_press_key_enter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Send a single Tab keystroke to the foreground window — handy for moving between fields between paste steps..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_press_key_tab {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_press_key_tab", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Decode the first QR code found in the current image. Replaces the payload with the decoded UTF-8 text. Aborts the workflow when no QR is found..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_qr_read {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_qr_read", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle FFmpeg-driven screen recording. First invocation starts, second stops and produces the file..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_record_screen {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_record_screen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle FFmpeg-driven screen recording in animated GIF format. First invocation starts, second stops and produces the file..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_record_screen_gif {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_record_screen_gif", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle FFmpeg-driven screen recording in mp4 format. First invocation starts, second stops and produces the file..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_record_screen_mp4 {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_record_screen_mp4", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run a shell command line via cmd /c — supports PATH lookups, pipes, redirects, chained commands. Fire-and-forget..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_run_command {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_run_command", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open a Save File dialog so the user picks the destination + filename. The chosen path becomes the new local_path for subsequent steps..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_save_as {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_save_as", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate a QR PNG and write it to disk. Auto-saves to config.path when set, otherwise prompts with a Save dialog..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_save_qr_as_image {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_save_qr_as_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Same as Save QR as image but produces a scalable SVG document — sharp at any size, ideal for print or slides..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_save_qr_as_svg {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_save_qr_as_svg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Write the current bytes to disk under the configured capture folder (Settings → Capture). &apos;Format&apos; is optional: leave empty for the bag&apos;s current format..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_save_to_file {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_save_to_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open Windows Explorer with the just-saved file pre-selected. Requires a preceding Save to file step..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_show_in_explorer {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_show_in_explorer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate a QR code from the upload URL (or explicit text) and pop a small window. Handy for scanning the link on a phone..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_show_qr_code {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_show_qr_code", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Flip incognito on/off — when on, clipboard items aren&apos;t captured into history..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_toggle_incognito {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_toggle_incognito", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Persist the upload URL on the history item so the popup shows it..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_update_item_url {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_update_item_url", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every uploader the user has selected for the chosen category (Settings → Plugins)..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pull the current text from the system clipboard and stage it as the workflow&apos;s payload (UTF-8). Pair with an Upload step (text category) to publish..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload_clipboard_text {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_clipboard_text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every uploader the user has selected for the file category (Settings → Plugins → file)..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload_file {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_file", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every uploader the user has selected for the image category (Settings → Plugins → image)..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload_image {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every uploader the user has selected for the text category (Settings → Plugins → text)..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload_text {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every URL shortener the user has selected (Settings → Uploaders → URL). Input must be a valid absolute URL..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload_url {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_url", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Run every uploader the user has selected for the video category (Settings → Plugins → video)..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_upload_video {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_video", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep original in clipboard history.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preset.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto-confirm on first selection (skip multi-region).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Include alpha (RRGGBBAA).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_copy_color_hex_alpha {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_copy_color_hex_alpha", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Prefix with #.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_copy_color_hex_hash {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_copy_color_hex_hash", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Default tool.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_open_editor_before_upload_default_tool {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_open_editor_before_upload_default_tool", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open fullscreen on active monitor (fit to screen).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_open_editor_before_upload_fullscreen {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_open_editor_before_upload_fullscreen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Format.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_save_to_file_format {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_save_to_file_format", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Capture.
         /// </summary>
         public static string WorkflowCategory_Capture {
@@ -1946,6 +7400,96 @@ namespace AresToys.App.Resources {
         public static string WorkflowCategory_Upload {
             get {
                 return ResourceManager.GetString("WorkflowCategory_Upload", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Manage every wormhole you own. Toggle visibility, lock the geometry, open the underlying folder, or remove a wormhole entirely..
+        /// </summary>
+        public static string Wormholes_Blurb {
+            get {
+                return ResourceManager.GetString("Wormholes_Blurb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hidden.
+        /// </summary>
+        public static string Wormholes_ColHidden {
+            get {
+                return ResourceManager.GetString("Wormholes_ColHidden", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type.
+        /// </summary>
+        public static string Wormholes_ColKind {
+            get {
+                return ResourceManager.GetString("Wormholes_ColKind", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lock.
+        /// </summary>
+        public static string Wormholes_ColLock {
+            get {
+                return ResourceManager.GetString("Wormholes_ColLock", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Title.
+        /// </summary>
+        public static string Wormholes_ColTitle {
+            get {
+                return ResourceManager.GetString("Wormholes_ColTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete this wormhole (the source folder on disk is not touched).
+        /// </summary>
+        public static string Wormholes_DeleteTooltip {
+            get {
+                return ResourceManager.GetString("Wormholes_DeleteTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No wormholes yet. Click &quot;+ New wormhole&quot; or use the tray menu to create one..
+        /// </summary>
+        public static string Wormholes_EmptyState {
+            get {
+                return ResourceManager.GetString("Wormholes_EmptyState", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to + New wormhole.
+        /// </summary>
+        public static string Wormholes_NewButton {
+            get {
+                return ResourceManager.GetString("Wormholes_NewButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Open the underlying folder in Explorer.
+        /// </summary>
+        public static string Wormholes_OpenFolderTooltip {
+            get {
+                return ResourceManager.GetString("Wormholes_OpenFolderTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh.
+        /// </summary>
+        public static string Wormholes_RefreshButton {
+            get {
+                return ResourceManager.GetString("Wormholes_RefreshButton", resourceCulture);
             }
         }
     }

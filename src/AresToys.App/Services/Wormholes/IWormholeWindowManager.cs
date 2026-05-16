@@ -79,4 +79,22 @@ public interface IWormholeWindowManager
     /// <summary>Smart-toggle: if ANY wormhole is uncollapsed, collapse all; otherwise uncollapse
     /// all.</summary>
     Task ToggleAllRolledAsync(CancellationToken cancellationToken);
+
+    /// <summary>Called by a wormhole window when the user clicks/selects an item inside it
+    /// (without Ctrl/Shift) — clears the item selection on every OTHER live wormhole, so the
+    /// "selected" highlight is always single-wormhole. Mirrors Explorer's per-folder selection
+    /// model rather than the default WPF per-ListBox behaviour (which leaves stale selections
+    /// in sibling wormholes). Pass the calling window so we don't recursively clear it.</summary>
+    void NotifyItemSelectionTaken(System.Windows.Window source);
+
+    /// <summary>Called by a wormhole window when ANY mouse-down on its chrome (or item area)
+    /// happens — used to drive the "focused wormhole" highlight in the Settings panel. The
+    /// argument is the underlying record id; subscribers can ignore the value if they only
+    /// care about the fact a focus event fired. Fires on the UI dispatcher thread.</summary>
+    event EventHandler<Guid>? WormholeFocused;
+
+    /// <summary>Notify the manager that the user just interacted with this wormhole — fires
+    /// <see cref="WormholeFocused"/> with the matching record id so the Settings panel can
+    /// highlight the corresponding row. Idempotent: refiring with the same source is cheap.</summary>
+    void NotifyWormholeFocused(System.Windows.Window source);
 }

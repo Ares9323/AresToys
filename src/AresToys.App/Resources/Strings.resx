@@ -84,7 +84,6 @@
   <data name="Tray_NewWormhole" xml:space="preserve"><value>New wormhole…</value></data>
   <data name="Tray_RecenterWormholes" xml:space="preserve"><value>Bring all wormholes here</value></data>
   <data name="Tray_Wormholes" xml:space="preserve"><value>Wormholes</value></data>
-  <data name="Sidebar_Wormholes" xml:space="preserve"><value>Wormholes</value></data>
   <data name="Wormholes_Blurb" xml:space="preserve"><value>Manage every wormhole you own. Toggle visibility, lock the geometry, open the underlying folder, or remove a wormhole entirely.</value></data>
   <data name="Wormholes_NewButton" xml:space="preserve"><value>+ New wormhole</value></data>
   <data name="Wormholes_RefreshButton" xml:space="preserve"><value>Refresh</value></data>
@@ -113,6 +112,7 @@
   <data name="Sidebar_HotkeysWorkflows" xml:space="preserve"><value>Hotkeys &amp; Workflows</value></data>
   <data name="Sidebar_Uploaders" xml:space="preserve"><value>Uploaders</value></data>
   <data name="Sidebar_ClipboardCategories" xml:space="preserve"><value>Clipboard Categories</value></data>
+  <data name="Sidebar_WormholesSettings" xml:space="preserve"><value>Wormholes Settings</value></data>
   <data name="Sidebar_CaptureSettings" xml:space="preserve"><value>Capture Settings</value></data>
   <data name="Sidebar_AppSettings" xml:space="preserve"><value>App Settings</value></data>
   <data name="Sidebar_AppTheme" xml:space="preserve"><value>App Theme</value></data>

@@ -3,6 +3,120 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.15] — 2026-05-16
+
+Wormhole settings expanded with independent typography / opacity / overlap
+knobs, F2 inline rename on items, smarter label wrap, single-wormhole selection
+(Explorer-style), row reorder + focused-row highlight in the Settings panel,
+and the UI hydration fix that made the "Background opacity" field always show
+95 % on launch even when the persisted value was different.
+
+### Wormhole — F2 inline rename on items
+- `F2` on the selected tile pops a TextBox overlay positioned over the label
+  via `TranslatePoint(0,0, ContentGrid)`, pre-selects the basename only
+  (extension stays untouched, Explorer-style), `Enter` commits via
+  `File.Move` / `Directory.Move`, `Esc` cancels, `LostFocus` commits. The
+  hosting wormhole's `FolderWatcher` picks up the rename and refreshes the
+  tiles automatically — no manual reload path needed.
+- Single shared `ItemRenameEditor` TextBox lives inside `ContentGrid` as a
+  sibling of `ItemsHost`; positioning by `Margin` instead of bloating the
+  per-item `DataTemplate` with a per-tile TextBox.
+
+### Wormhole — smarter label wrap
+- `DisplayNameWrappable` (new) injects U+200B (zero-width space) only at
+  meaningful boundaries so the wrap engine prefers real word breaks: kept
+  whitespace + `.` / `_` / `-` / `/` / `\` natural breaks intact, ZWSP at
+  CamelCase boundaries (`lower→upper`) and letter↔digit transitions
+  (`Gen1Pokemon` → break at the digit), with an 8-char fallback so an
+  uninterrupted blob doesn't end up on a single line with ellipsis.
+- `DisplayName` itself is preserved verbatim — search filter, rename, and
+  clipboard still operate on the raw filename.
+
+### Wormhole — new appearance knobs
+- **Label font size (px)**, range 8–20 (default 12). Drives the TextBlock's
+  FontSize AND, via the heuristic `lineHeight = ceil(fontSize × 1.36)`, the
+  reserved label-area height in `TileHeight` — wider font automatically
+  gets a taller text area, no manual tuning per font.
+- **Label lines (max)**, range 1–3 (default 2). Binds `TextBlock.MaxHeight`
+  to `lineHeight × maxLines`; 1 = Explorer single-line + ellipsis, 3 =
+  generous multi-line wrap.
+- **Line spacing (overlap, px)**, range -32…+32 (default -4). Applied as a
+  CSS-style negative bottom `Margin` on the hosting `ListBoxItem` via the
+  `ItemContainerStyle` setter — negative pulls the next row's tile UP over
+  this tile's label area (visual overlap, no glyph clipping) without
+  changing the label area itself. Positive expands the row gap.
+- **Background opacity (%)**, range 1–100 (default 70, was 95). 1 % floor
+  because a fully alpha-0 header strip would lose its double-click → roll-up
+  gesture: alpha-0 pixels are click-through to whatever's below the wormhole.
+- **Border opacity (%)**, range 0–100 (default 100). Independent fade of the
+  `OuterFrame`'s 1 px accent ring + drop shadow. `ApplyAppearance` clones
+  the theme's `OuterBorderBrush` into a per-window `SolidColorBrush` with
+  the user's alpha (touching the shared resource would fade every wormhole
+  at once), and modulates the `DropShadowEffect.Opacity = 0.45 × borderOp`
+  so the shadow disappears with the ring instead of telegraphing the
+  invisible outline.
+
+### Wormhole — single-wormhole item selection
+- Clicking an item in wormhole A used to leave selection highlights in
+  wormhole B because each `ListBox` was per-control. Added
+  `IWormholeWindowManager.NotifyItemSelectionTaken(source)`: the manager
+  iterates `_live`, calls a new `WormholeWindow.ClearItemSelection()` on
+  every sibling, guarded by `_suppressSelectionBroadcast` so the chained
+  `SelectionChanged` events don't ping-pong back and re-broadcast.
+- Programmatic `UnselectAll` lands in `OnItemsHostSelectionChanged` with
+  empty `AddedItems` — those don't refire the broadcast, only user-driven
+  `AddedItems > 0` does.
+
+### Wormhole settings — reorder + focused-row highlight
+- `IWormholeStore.MoveAsync(id, delta, ct)` shifts a record by ±N positions
+  in the persisted JSON, clamps at list bounds, flushes atomically.
+  `WormholeRowViewModel.MoveUp/MoveDown` commands mirror the result on the
+  visible `ObservableCollection.Move` so the grid updates without a full
+  reload. UI: stacked ↑/↓ chevrons (14 px each, vertical `StackPanel`) in
+  a single 32 px column so the folder / trash icons sit at a fixed X.
+- `IWormholeWindowManager.WormholeFocused` event + `NotifyWormholeFocused`
+  fired from `OnHeaderMouseDown`, `OnContentAreaMouseDown`, and
+  `NotifyItemSelectionTaken` — covers chrome-click, content-area-click, and
+  item-click. `WormholesViewModel.SelectedWormholeId` listens and refreshes
+  every row's `IsSelected` flag; the row Border's Style trigger swaps its
+  Background to `AccentBackgroundDarkBrush` on selection.
+
+### Wormhole settings — UI hydration fix
+- `WormholesViewModel` is built eagerly during DI (`SettingsViewModel`
+  depends on it), BEFORE the async `WormholeDefaultsService.LoadAsync` runs
+  at `DispatcherPriority.Loaded`. The ctor's hydration therefore captured
+  fallback values (e.g. 95 % opacity), never refreshed — the live wormhole
+  windows correctly used the persisted 70 %, but the Settings panel
+  reported 95 %, looking like a mismatch.
+- Fix: `ReloadAsync` (already called on every tab activation) now
+  re-reads every default from the service and re-assigns the observables
+  with the persist-suppress flag set, so navigating to the panel always
+  shows what's actually on disk.
+
+### Wormhole settings — UI polish
+- Page heading + sidebar entry renamed `Wormholes` → `Wormhole settings`.
+- All numeric defaults migrated from `Slider` to `ui:NumberBox` (Default
+  icon size, Tile padding, Label font size, Label lines, Line spacing,
+  Background opacity, Border opacity) — easier to dial exact values vs.
+  scrubbing a slider.
+- "+ New wormhole" button + selected-row highlight use
+  `AccentBackgroundDarkBrush` (was the light variant which read as washed
+  out against the page surface).
+
+### Internals
+- `WormholeItemViewModel` ctor now takes `lineSpacingPx`, `labelFontSizePx`,
+  `labelMaxLines` (defaults 0, 11, 2 for backward compat). `TileHeight`
+  decomposed into `IconSize + 4 + TilePadding + 4 (textMargin) + LabelAreaHeight`
+  where `LabelAreaHeight = lineHeight × maxLines` — no more single magic
+  baseline constant.
+- `WormholeWindow` accepts a `IWormholeWindowManager? manager` ctor param;
+  the manager passes itself at spawn time so the window can call back into
+  the focus / selection-fan-out methods.
+- `WormholeWindowManager` subscribes the new `BorderOpacityChanged`,
+  `LabelFontSizeChanged`, `LabelMaxLinesChanged`, `LineSpacingChanged` events
+  on the defaults service → triggers a live `RefreshAllLiveIconSize` or
+  `RefreshAllLiveOpacity` pass without restart.
+
 ## [0.1.14] — 2026-05-15
 
 Fix: dragging a file or folder *out* of a wormhole now works as expected.
