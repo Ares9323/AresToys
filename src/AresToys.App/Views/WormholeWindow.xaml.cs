@@ -37,6 +37,10 @@ public partial class WormholeWindow : Window
     /// / direct construction); in that case we fall through to <see cref="DesktopIconSize"/>
     /// for icon size and the legacy 0.95 hardcoded opacity.</summary>
     private readonly Services.Wormholes.WormholeDefaultsService? _defaults;
+    /// <summary>Manager used to fan-out "I just got a selection — clear yours" events to sibling
+    /// wormholes. Null only on direct test construction; in normal app flow this is wired by
+    /// <see cref="Services.Wormholes.WormholeWindowManager"/> at spawn time.</summary>
+    private readonly Services.Wormholes.IWormholeWindowManager? _manager;
     private readonly ObservableCollection<WormholeItemViewModel> _items = new();
     private bool _isClosingFromManager;
     private bool _portalItemCapReached;
@@ -75,13 +79,15 @@ public partial class WormholeWindow : Window
         Action onPersist,
         IconService icons,
         string wormholesRoot,
-        Services.Wormholes.WormholeDefaultsService? defaults = null)
+        Services.Wormholes.WormholeDefaultsService? defaults = null,
+        Services.Wormholes.IWormholeWindowManager? manager = null)
     {
         _record = record;
         _onPersist = onPersist;
         _icons = icons;
         _wormholesRoot = wormholesRoot;
         _defaults = defaults;
+        _manager = manager;
         InitializeComponent();
         DataContext = record;
         ItemsHost.ItemsSource = _items;
@@ -233,6 +239,17 @@ public partial class WormholeWindow : Window
     /// in Settings → Wormholes.</summary>
     private int EffectiveTilePadding() => _defaults?.DefaultTilePaddingPx ?? 4;
 
+    /// <summary>App-wide line spacing (extra px between consecutive tile rows). No per-wormhole
+    /// override — same rationale as <see cref="EffectiveTilePadding"/>.</summary>
+    private int EffectiveLineSpacing() => _defaults?.DefaultLineSpacingPx ?? -4;
+
+    /// <summary>App-wide label font size for the text under each icon. Falls back to 11 px
+    /// (matches the previous hard-coded XAML default).</summary>
+    private int EffectiveLabelFontSize() => _defaults?.DefaultLabelFontSizePx ?? 12;
+
+    /// <summary>App-wide max label lines. Falls back to 2 (matches the previous wrap behaviour).</summary>
+    private int EffectiveLabelMaxLines() => _defaults?.DefaultLabelMaxLines ?? 2;
+
     /// <summary>Effective opacity: per-wormhole override wins, else the app-wide default
     /// (<see cref="Services.Wormholes.WormholeDefaultsService.DefaultOpacity"/>). Final fallback
     /// is the legacy 0.95 that the XAML used to hardcode — preserves visuals if the manager
@@ -240,18 +257,40 @@ public partial class WormholeWindow : Window
     private double EffectiveOpacity()
     {
         if (_record.Appearance.OpacityOverride is { } v) return v;
-        return _defaults?.DefaultOpacity ?? 0.95;
+        return _defaults?.DefaultOpacity ?? 0.70;
     }
+
+    /// <summary>Effective border opacity: app-wide default only for now (no per-wormhole
+    /// override slot — kept consistent with the existing knob layout). Falls back to 1.0
+    /// (legacy: fully opaque ring + shadow).</summary>
+    private double EffectiveBorderOpacity() => _defaults?.DefaultBorderOpacity ?? 1.0;
 
     /// <summary>Apply opacity to the two backdrop layers — body + header — leaving the
     /// content overlay (icon tiles, labels, chrome buttons) at full opacity. Setting Opacity
     /// on the root <c>OuterFrame</c> would cascade to every descendant including the icons,
-    /// which the user explicitly didn't want ("opacity solo allo sfondo e all'header").</summary>
+    /// which the user explicitly didn't want ("opacity solo allo sfondo e all'header").
+    ///
+    /// Border opacity is applied separately: we clone the theme's <c>OuterBorderBrush</c> into
+    /// a per-window <c>SolidColorBrush</c> with the user's chosen alpha so the ring fades
+    /// independently from the body. The drop shadow's effect opacity is multiplied by the same
+    /// factor (baseline 0.45 × border) so the shadow disappears together with the ring rather
+    /// than telegraphing the window's outline when the ring is invisible.</summary>
     private void ApplyAppearance()
     {
         var op = EffectiveOpacity();
         BodyBackdrop.Opacity = op;
         HeaderBackdrop.Opacity = op;
+
+        var borderOp = EffectiveBorderOpacity();
+        if (Application.Current?.Resources["OuterBorderBrush"] is System.Windows.Media.SolidColorBrush themed)
+        {
+            // Each wormhole gets its own brush — modifying the shared theme brush would fade
+            // every wormhole's ring at once and also affect any other UI that consumes the
+            // resource.
+            var local = new System.Windows.Media.SolidColorBrush(themed.Color) { Opacity = borderOp };
+            OuterFrame.BorderBrush = local;
+        }
+        if (OuterShadow is not null) OuterShadow.Opacity = 0.45 * borderOp;
     }
 
     /// <summary>Cheap path: only the opacity changed (Settings slider drag). Skips
@@ -330,6 +369,14 @@ public partial class WormholeWindow : Window
     private void OnLoadedHookGeometryPersist(object? sender, RoutedEventArgs e)
     {
         Loaded -= OnLoadedHookGeometryPersist;
+        // Re-apply opacity AFTER the window has been added to the visual tree and the first
+        // render pass has settled. AllowsTransparency=True + the DropShadowEffect on OuterFrame
+        // can produce a "low-opacity-looking" initial paint until the first activation/composition
+        // tick — observed as: wormhole opens visually more transparent than the configured 95 %,
+        // becomes properly opaque the moment the user clicks anywhere on it. Doing this on
+        // ContentRendered (after the first frame is shown) forces WPF to repaint the backdrops
+        // with the right alpha BEFORE the user has to click to wake it up.
+        Dispatcher.BeginInvoke(new Action(ApplyAppearance), System.Windows.Threading.DispatcherPriority.Render);
         LocationChanged += (_, _) =>
         {
             if (_isClosingFromManager) return;
@@ -394,7 +441,10 @@ public partial class WormholeWindow : Window
                     _portalItemCapReached = true;
                     break;
                 }
-                _items.Add(new WormholeItemViewModel(path, _icons, EffectiveIconSize(), EffectiveTilePadding()));
+                _items.Add(new WormholeItemViewModel(
+                    path, _icons,
+                    EffectiveIconSize(), EffectiveTilePadding(), EffectiveLineSpacing(),
+                    EffectiveLabelFontSize(), EffectiveLabelMaxLines()));
             }
             // Re-apply the "cut" tint on the freshly-built VMs — the previous instances were
             // dropped along with their IsCutMarked flag, but the path set is still live as
@@ -429,6 +479,7 @@ public partial class WormholeWindow : Window
 
     private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e)
     {
+        _manager?.NotifyWormholeFocused(this);
         // Middle-click anywhere on the header → open the source folder in Explorer. Available
         // even when the wormhole is locked (read-only gesture, doesn't move/resize the window)
         // and ignores click count so a quick Browser-style middle-click works on the first try.
@@ -572,6 +623,7 @@ public partial class WormholeWindow : Window
 
     private void OnContentAreaMouseDown(object sender, MouseButtonEventArgs e)
     {
+        _manager?.NotifyWormholeFocused(this);
         if (_record.IsLocked) return;
         if (e.ChangedButton != MouseButton.Left) return;
         if (e.OriginalSource is System.Windows.Controls.Button) return;
@@ -1425,6 +1477,35 @@ public partial class WormholeWindow : Window
     /// a previously copied/cut file selection into the wormhole's source folder via SHFile-
     /// Operation (which surfaces the standard shell prompts for name collisions). Locked
     /// wormholes refuse the mutating gestures (Cut / Paste / Delete) but still allow Copy.</summary>
+    /// <summary>Track whether the next <see cref="OnItemsHostSelectionChanged"/> fire was caused
+    /// by us programmatically clearing the selection (manager fanning out the "your sibling
+    /// took the selection" signal). Without this guard, every clear would recursively trigger
+    /// another fan-out → infinite loop / stack overflow.</summary>
+    private bool _suppressSelectionBroadcast;
+
+    /// <summary>Public hook used by the manager to clear this wormhole's item selection when a
+    /// sibling wormhole picks up a new selection. UnselectAll fires <see cref="OnItemsHostSelectionChanged"/>
+    /// internally, so we set the suppress flag first to keep the SelectionChanged handler from
+    /// rebroadcasting and bouncing the gesture around the live wormholes.</summary>
+    internal void ClearItemSelection()
+    {
+        if (ItemsHost.SelectedItems.Count == 0) return;
+        _suppressSelectionBroadcast = true;
+        try { ItemsHost.UnselectAll(); }
+        finally { _suppressSelectionBroadcast = false; }
+    }
+
+    /// <summary>Single-wormhole selection model — Explorer-style. Whenever this listbox picks up
+    /// new items (AddedItems &gt; 0), tell the manager to clear every sibling wormhole's selection
+    /// so the user only ever sees one wormhole's tiles highlighted at a time. Programmatic clears
+    /// land here too (AddedItems empty / RemovedItems populated), but they don't broadcast.</summary>
+    private void OnItemsHostSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_suppressSelectionBroadcast) return;
+        if (e.AddedItems.Count == 0) return;
+        _manager?.NotifyItemSelectionTaken(this);
+    }
+
     private void OnItemsHostPreviewKeyDown(object sender, KeyEventArgs e)
     {
         var ctrl  = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
@@ -1471,6 +1552,137 @@ public partial class WormholeWindow : Window
             e.Handled = true;
             return;
         }
+
+        if (e.Key == Key.F2)
+        {
+            if (_record.IsLocked) return;
+            var selected = ItemsHost.SelectedItems.OfType<WormholeItemViewModel>().ToList();
+            if (selected.Count != 1) return;
+            BeginItemRename(selected[0]);
+            e.Handled = true;
+            return;
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Inline rename of a single tile (F2)
+    //
+    // UX mirrors Explorer: F2 on the selected tile pops a TextBox over the label, the basename
+    // is selected (extension untouched, so backspace-then-type behaves like Explorer's "rename
+    // the name part"), Enter commits and Esc cancels. Commit performs File.Move / Directory.Move
+    // on the underlying path; the parent FolderWatcher's debounce picks up the rename and
+    // refreshes the tiles automatically. The overlay TextBox lives in ContentGrid as a sibling
+    // of ItemsHost so we can absolutely position it via Margin without inflating the per-item
+    // DataTemplate (one shared editor used by whichever tile is being renamed).
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>Tile whose label is currently being edited via <see cref="ItemRenameEditor"/>;
+    /// null when no rename is in flight. Captured at BeginItemRename time so Commit knows which
+    /// path to move even if the selection moves on (e.g. user clicks elsewhere → LostFocus
+    /// commits against the original tile, not the new selection).</summary>
+    private WormholeItemViewModel? _renamingItem;
+
+    private void BeginItemRename(WormholeItemViewModel vm)
+    {
+        // Force container realization for items that aren't in view yet — virtualization can
+        // hand us null for off-screen tiles, but ListBox.SelectedItem can't be off-screen in
+        // practice (the user just pressed F2 on a visible selection) so the second attempt
+        // after UpdateLayout is paranoia.
+        var container = ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) as System.Windows.Controls.ListBoxItem;
+        if (container is null)
+        {
+            ItemsHost.UpdateLayout();
+            container = ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) as System.Windows.Controls.ListBoxItem;
+            if (container is null) return;
+        }
+
+        // Position the editor over the label area of the tile. The label sits below the icon
+        // in the tile's Grid (row 1), starting at IconSizePx + iconMargin.Top inside the tile.
+        // TranslatePoint gives us the tile's top-left in ContentGrid coordinates; we add the
+        // label offset to land on the right line.
+        var topLeft = container.TranslatePoint(new Point(0, 0), ContentGrid);
+        var labelTopOffset = vm.IconSizePx + vm.IconMargin.Top + vm.IconMargin.Bottom;
+        ItemRenameEditor.Margin = new Thickness(topLeft.X, topLeft.Y + labelTopOffset, 0, 0);
+        ItemRenameEditor.Width = vm.TileWidth;
+
+        var fileName = Path.GetFileName(vm.AbsolutePath);
+        ItemRenameEditor.Text = fileName;
+        ItemRenameEditor.Visibility = Visibility.Visible;
+        _renamingItem = vm;
+
+        // Focus + selection must run after layout so the TextBox is fully realized; otherwise
+        // SelectAll/Select silently no-ops on a not-yet-arranged element.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            ItemRenameEditor.Focus();
+            Keyboard.Focus(ItemRenameEditor);
+            // Select the basename only (everything up to the last '.'). For .lnk / .url whose
+            // extensions were stripped from DisplayName we still operate on the real filename
+            // here, so the user sees the .lnk extension exposed during rename — matching
+            // Explorer behaviour with "Hide extensions for known file types" turned off.
+            var name = ItemRenameEditor.Text ?? string.Empty;
+            var ext = Path.GetExtension(name);
+            var baseLen = name.Length - ext.Length;
+            if (baseLen <= 0) baseLen = name.Length;
+            ItemRenameEditor.Select(0, baseLen);
+        }), DispatcherPriority.Loaded);
+    }
+
+    private void CommitItemRename()
+    {
+        var vm = _renamingItem;
+        if (vm is null) { EndItemRename(); return; }
+
+        var newName = (ItemRenameEditor.Text ?? string.Empty).Trim();
+        EndItemRename();
+
+        if (string.IsNullOrEmpty(newName)) return;
+        var oldName = Path.GetFileName(vm.AbsolutePath);
+        if (string.Equals(oldName, newName, StringComparison.Ordinal)) return;
+
+        if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            MessageBox.Show(this,
+                "The name contains characters that aren't allowed in filenames.",
+                "Rename", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dir = Path.GetDirectoryName(vm.AbsolutePath);
+        if (string.IsNullOrEmpty(dir)) return;
+        var newPath = Path.Combine(dir, newName);
+
+        try
+        {
+            if (Directory.Exists(vm.AbsolutePath))
+                Directory.Move(vm.AbsolutePath, newPath);
+            else
+                File.Move(vm.AbsolutePath, newPath);
+            // FolderWatcher in the manager will tick a Refresh; no manual refresh needed here.
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                $"Rename failed: {ex.Message}",
+                "Rename", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void EndItemRename()
+    {
+        ItemRenameEditor.Visibility = Visibility.Collapsed;
+        _renamingItem = null;
+    }
+
+    private void OnItemRenameEditorKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { CommitItemRename(); e.Handled = true; }
+        else if (e.Key == Key.Escape) { EndItemRename(); e.Handled = true; }
+    }
+
+    private void OnItemRenameEditorLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
     }
 
     /// <summary>Snapshot of the selected items' absolute paths, defensively filtered to

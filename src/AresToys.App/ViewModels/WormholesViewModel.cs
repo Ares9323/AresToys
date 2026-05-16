@@ -22,6 +22,12 @@ public sealed partial class WormholesViewModel : ObservableObject
 
     [ObservableProperty] private bool _isEmpty = true;
 
+    /// <summary>Id of the wormhole the user last interacted with (clicked / selected an item /
+    /// dragged). Drives the row-highlight in the Settings panel via <see cref="WormholeRowViewModel.IsSelected"/>.
+    /// Null on first run (no interaction yet). Fed by <see cref="IWormholeWindowManager.WormholeFocused"/>;
+    /// resets to null when a row is removed or on reload.</summary>
+    [ObservableProperty] private Guid? _selectedWormholeId;
+
     /// <summary>App-wide default icon-tile size. 0 means "use the user's Windows desktop icon
     /// size" (see <see cref="DesktopIconSize"/>). Bound to the numeric input in Settings →
     /// Wormholes; mutating the setter persists to <see cref="WormholeDefaultsService"/> which
@@ -31,11 +37,29 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// <summary>App-wide default opacity expressed as a percentage 30–100 (rendering in WPF
     /// uses 0.30–1.00). Bound to the slider in Settings → Wormholes; the underlying service
     /// holds the double form.</summary>
-    [ObservableProperty] private int _defaultOpacityPercent = 95;
+    [ObservableProperty] private int _defaultOpacityPercent = 70;
+
+    /// <summary>App-wide opacity for the OuterFrame's 1 px accent ring + the drop shadow.
+    /// Independent from <see cref="DefaultOpacityPercent"/> (which fades the body/header backdrops).</summary>
+    [ObservableProperty] private int _defaultBorderOpacityPercent = 100;
 
     /// <summary>App-wide default tile padding (extra pixels around the icon inside its tile).
     /// Smaller = denser grid; larger = airier. Bound to a slider in Settings → Wormholes.</summary>
     [ObservableProperty] private int _defaultTilePaddingPx = 4;
+
+    /// <summary>App-wide line spacing applied as a "negative-margin"–like effect: applied as the
+    /// tile's bottom Margin so adjacent tile rows OVERLAP (negative) or get extra gap (positive).
+    /// Does NOT change the text area / number of label lines (those live on <see cref="DefaultLabelFontSizePx"/>
+    /// and <see cref="DefaultLabelMaxLines"/>).</summary>
+    [ObservableProperty] private int _defaultLineSpacingPx = -4;
+
+    /// <summary>App-wide label font size (px). Drives the FontSize of the TextBlock under each
+    /// icon AND, via the line-height heuristic, the TileHeight reserved for the label area.</summary>
+    [ObservableProperty] private int _defaultLabelFontSizePx = 12;
+
+    /// <summary>Max number of wrapped lines a label may use before being ellipsized. 1 = 1-line
+    /// Explorer style, 2 = default (wrap up to 2 lines), 3 = generous wrap.</summary>
+    [ObservableProperty] private int _defaultLabelMaxLines = 2;
 
     public WormholesViewModel(IWormholeStore store, IWormholeWindowManager manager, WormholeDefaultsService defaults)
     {
@@ -47,12 +71,27 @@ public sealed partial class WormholesViewModel : ObservableObject
         _suppressDefaultsPersist = true;
         DefaultIconSizePx = _defaults.DefaultIconSizePx;
         DefaultOpacityPercent = (int)Math.Round(_defaults.DefaultOpacity * 100);
+        DefaultBorderOpacityPercent = (int)Math.Round(_defaults.DefaultBorderOpacity * 100);
         DefaultTilePaddingPx = _defaults.DefaultTilePaddingPx;
+        DefaultLineSpacingPx = _defaults.DefaultLineSpacingPx;
+        DefaultLabelFontSizePx = _defaults.DefaultLabelFontSizePx;
+        DefaultLabelMaxLines = _defaults.DefaultLabelMaxLines;
         _suppressDefaultsPersist = false;
         // Live grid refresh: when the manager persists a record (user drag/resize on the live
         // chrome, lock toggle from chrome, hamburger rename, etc.), the matching row updates
         // its displayed fields in place. The event fires on the UI dispatcher already.
         _manager.RecordChanged += OnManagerRecordChanged;
+        _manager.WormholeFocused += OnManagerWormholeFocused;
+    }
+
+    /// <summary>The manager fires this when the user clicks on a wormhole (chrome or item). We
+    /// propagate to <see cref="SelectedWormholeId"/> and refresh every row's
+    /// <see cref="WormholeRowViewModel.IsSelected"/> so exactly one row reads as selected.</summary>
+    private void OnManagerWormholeFocused(object? sender, Guid id)
+    {
+        if (SelectedWormholeId == id) return;
+        SelectedWormholeId = id;
+        foreach (var row in Rows) row.RefreshIsSelected();
     }
 
     partial void OnDefaultIconSizePxChanged(int value)
@@ -67,10 +106,34 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetDefaultOpacityAsync(value / 100.0, CancellationToken.None);
     }
 
+    partial void OnDefaultBorderOpacityPercentChanged(int value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetDefaultBorderOpacityAsync(value / 100.0, CancellationToken.None);
+    }
+
     partial void OnDefaultTilePaddingPxChanged(int value)
     {
         if (_suppressDefaultsPersist) return;
         _ = _defaults.SetDefaultTilePaddingAsync(value, CancellationToken.None);
+    }
+
+    partial void OnDefaultLineSpacingPxChanged(int value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetDefaultLineSpacingAsync(value, CancellationToken.None);
+    }
+
+    partial void OnDefaultLabelFontSizePxChanged(int value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetDefaultLabelFontSizeAsync(value, CancellationToken.None);
+    }
+
+    partial void OnDefaultLabelMaxLinesChanged(int value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetDefaultLabelMaxLinesAsync(value, CancellationToken.None);
     }
 
     private void OnManagerRecordChanged(object? sender, Guid id)
@@ -82,9 +145,28 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// <summary>Pull the latest snapshot from the store and rebuild the rows. Idempotent —
     /// safe to call on every tab activation. Doesn't subscribe to store change events for v1
     /// (drag-induced LocationChanged would otherwise spam the grid with rebuilds); the user
-    /// can re-click the sidebar entry to refresh after manipulating wormholes from chrome.</summary>
+    /// can re-click the sidebar entry to refresh after manipulating wormholes from chrome.
+    ///
+    /// Re-hydrates the default observables from <see cref="WormholeDefaultsService"/> too: this
+    /// VM is built eagerly during DI (because <see cref="SettingsViewModel"/> takes it as a ctor
+    /// dependency) BEFORE the async <c>LoadAsync</c> reads the persisted defaults from disk.
+    /// The ctor's hydration therefore captures fallback values (95 % opacity etc.); re-hydrating
+    /// here on every tab activation makes the panel always reflect what's actually on disk.</summary>
     public async Task ReloadAsync()
     {
+        _suppressDefaultsPersist = true;
+        try
+        {
+            DefaultIconSizePx       = _defaults.DefaultIconSizePx;
+            DefaultOpacityPercent       = (int)Math.Round(_defaults.DefaultOpacity * 100);
+            DefaultBorderOpacityPercent = (int)Math.Round(_defaults.DefaultBorderOpacity * 100);
+            DefaultTilePaddingPx        = _defaults.DefaultTilePaddingPx;
+            DefaultLineSpacingPx    = _defaults.DefaultLineSpacingPx;
+            DefaultLabelFontSizePx  = _defaults.DefaultLabelFontSizePx;
+            DefaultLabelMaxLines    = _defaults.DefaultLabelMaxLines;
+        }
+        finally { _suppressDefaultsPersist = false; }
+
         var records = await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true);
         Rows.Clear();
         foreach (var r in records)
@@ -98,6 +180,17 @@ public sealed partial class WormholesViewModel : ObservableObject
     {
         Rows.Remove(row);
         IsEmpty = Rows.Count == 0;
+    }
+
+    /// <summary>Mirror a successful <see cref="IWormholeStore.MoveAsync"/> result on the visible
+    /// <see cref="Rows"/> collection: yank the row and re-insert at <paramref name="newIndex"/>.
+    /// Called by <see cref="WormholeRowViewModel"/>'s MoveUp/MoveDown commands after the store
+    /// has already persisted the new order — keeps the grid responsive without a full Reload.</summary>
+    internal void MoveRow(WormholeRowViewModel row, int newIndex)
+    {
+        var oldIndex = Rows.IndexOf(row);
+        if (oldIndex < 0 || oldIndex == newIndex) return;
+        Rows.Move(oldIndex, newIndex);
     }
 
     [RelayCommand]

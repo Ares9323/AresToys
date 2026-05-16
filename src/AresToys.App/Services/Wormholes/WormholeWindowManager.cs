@@ -36,12 +36,49 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // (icons re-extracted via IShellItemImageFactory) the icon-size knob requires.
         // Opacity drag was reported as laggy — fanning out RebuildItems on every slider tick
         // was the culprit; only the backdrop opacity needs to refresh for that path.
-        _defaults.OpacityChanged     += (_, _) => RefreshAllLiveOpacity();
+        _defaults.OpacityChanged       += (_, _) => RefreshAllLiveOpacity();
+        _defaults.BorderOpacityChanged += (_, _) => RefreshAllLiveOpacity();
         _defaults.IconSizeChanged    += (_, _) => RefreshAllLiveIconSize();
         // TilePaddingChanged → rebuild items so the new TileWidth/TileHeight take effect. Icon
         // cache is keyed on (path,size) and size didn't change, so re-extract is a no-op cache
         // hit — much cheaper than the icon-size path.
         _defaults.TilePaddingChanged += (_, _) => RefreshAllLiveIconSize();
+        // LineSpacingChanged, LabelFontSizeChanged, LabelMaxLinesChanged all rebuild item VMs
+        // (no icon re-extraction — cached, since IconSize itself didn't change).
+        _defaults.LineSpacingChanged    += (_, _) => RefreshAllLiveIconSize();
+        _defaults.LabelFontSizeChanged  += (_, _) => RefreshAllLiveIconSize();
+        _defaults.LabelMaxLinesChanged  += (_, _) => RefreshAllLiveIconSize();
+    }
+
+    /// <summary>See <see cref="IWormholeWindowManager.NotifyItemSelectionTaken"/>. Iterates the
+    /// live windows and asks every one EXCEPT the source to clear its ListBox selection. Cheap
+    /// (UnselectAll is O(N) over visible items) and short-circuits on the common case of "only
+    /// one wormhole open" (no other windows to touch). Also fires <see cref="WormholeFocused"/>
+    /// because if the user just clicked an item, they've focused that wormhole.</summary>
+    public void NotifyItemSelectionTaken(System.Windows.Window source)
+    {
+        foreach (var (_, window) in _live)
+        {
+            if (ReferenceEquals(window, source)) continue;
+            try { window.ClearItemSelection(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "ClearItemSelection failed on sibling wormhole"); }
+        }
+        NotifyWormholeFocused(source);
+    }
+
+    public event EventHandler<Guid>? WormholeFocused;
+
+    /// <summary>See <see cref="IWormholeWindowManager.NotifyWormholeFocused"/>. Looks up the
+    /// record id for the calling window and fires <see cref="WormholeFocused"/>; subscribers
+    /// (Settings panel) use the id to highlight the matching row.</summary>
+    public void NotifyWormholeFocused(System.Windows.Window source)
+    {
+        foreach (var (id, window) in _live)
+        {
+            if (!ReferenceEquals(window, source)) continue;
+            WormholeFocused?.Invoke(this, id);
+            return;
+        }
     }
 
     private void RefreshAllLiveOpacity()
@@ -210,7 +247,10 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             // Shared defaults service (icon size + opacity). The window reads it on every
             // EffectiveIconSize() / ApplyAppearance() call so the slider in Settings →
             // Wormholes propagates live via DefaultsChanged → RefreshAllLiveAppearance above.
-            defaults: _defaults);
+            defaults: _defaults,
+            // Pass the manager so the window can notify it of item-selection events — the
+            // manager fans out a ClearItemSelection() to every sibling wormhole.
+            manager: this);
         window.DeleteRequested += async (_, id) =>
         {
             try { await DeleteAsync(id, CancellationToken.None).ConfigureAwait(true); }

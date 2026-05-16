@@ -95,6 +95,26 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
         finally { _gate.Release(); }
     }
 
+    public async Task<int> MoveAsync(Guid wormholeId, int delta, CancellationToken cancellationToken)
+    {
+        if (delta == 0) return -1;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnsureCacheLoadedNoLockAsync(cancellationToken).ConfigureAwait(false);
+            var idx = _cache!.FindIndex(r => r.Id == wormholeId);
+            if (idx < 0) return -1;
+            var newIdx = Math.Clamp(idx + delta, 0, _cache.Count - 1);
+            if (newIdx == idx) return idx;
+            var rec = _cache[idx];
+            _cache.RemoveAt(idx);
+            _cache.Insert(newIdx, rec);
+            await FlushNoLockAsync(cancellationToken).ConfigureAwait(false);
+            return newIdx;
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task DeleteAsync(Guid wormholeId, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);

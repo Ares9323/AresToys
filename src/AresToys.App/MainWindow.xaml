@@ -298,7 +298,7 @@
                            Appearance="{Binding IsCategoriesSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="{Markup:Loc Sidebar_Wormholes}"
+                           Content="{Markup:Loc Sidebar_WormholesSettings}"
                            Command="{Binding ShowWormholesCommand}"
                            Appearance="{Binding IsWormholesSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
@@ -1608,11 +1608,13 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_Wormholes}"
+                        <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_WormholesSettings}"
                                    FontSize="20" FontWeight="SemiBold" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <ui:Button Content="{Markup:Loc Wormholes_NewButton}"
-                                       Appearance="Primary" Padding="14,4" Margin="0,0,8,0"
+                                       Background="{DynamicResource AccentBackgroundDarkBrush}"
+                                       BorderBrush="{DynamicResource AccentBackgroundDarkBorderBrush}"
+                                       Padding="14,4" Margin="0,0,8,0"
                                        Command="{Binding Wormholes.NewWormholeCommand}" />
                             <ui:Button Content="{Markup:Loc Wormholes_RefreshButton}"
                                        Padding="14,4"
@@ -1635,18 +1637,20 @@
                                 <ColumnDefinition Width="50" />
                                 <ColumnDefinition Width="60" />
                                 <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="32" />
                                 <ColumnDefinition Width="40" />
                                 <ColumnDefinition Width="40" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Markup:Loc Wormholes_ColTitle}"   FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" />
-                            <TextBlock Grid.Column="1" Text="X"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text="Y"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="3" Text="W"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="4" Text="H"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="5" Text="{Markup:Loc Wormholes_ColLock}"    FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="6" Text="{Markup:Loc Wormholes_ColHidden}"  FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="7" Text="📁"     FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
-                            <TextBlock Grid.Column="8" Text="🗑"     FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="0"  Text="{Markup:Loc Wormholes_ColTitle}"   FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                            <TextBlock Grid.Column="1"  Text="X"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="2"  Text="Y"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="3"  Text="W"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="4"  Text="H"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="5"  Text="{Markup:Loc Wormholes_ColLock}"    FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="6"  Text="{Markup:Loc Wormholes_ColHidden}"  FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="7"  Text="↕"      FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="8"  Text="📁"     FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="9"  Text="🗑"     FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentForegroundDarkBrush}" HorizontalAlignment="Center" />
                         </Grid>
                     </Border>
 
@@ -1666,9 +1670,24 @@
                     <ItemsControl ItemsSource="{Binding Wormholes.Rows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4"
+                                <Border CornerRadius="4"
                                         Padding="12,8" Margin="0,0,0,4"
                                         ToolTip="{Binding Tooltip}">
+                                    <!-- Background switches between Surface1 (default) and the
+                                         accent fill when this row's wormhole is the focused one
+                                         (last clicked / item-selected on the desktop). Style+
+                                         DataTrigger pattern instead of a converter so it stays
+                                         in pure XAML and tracks the IsSelected INPC change. -->
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{DynamicResource Surface1Brush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource AccentBackgroundDarkBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1678,6 +1697,7 @@
                                             <ColumnDefinition Width="50" />
                                             <ColumnDefinition Width="60" />
                                             <ColumnDefinition Width="60" />
+                                            <ColumnDefinition Width="32" />
                                             <ColumnDefinition Width="40" />
                                             <ColumnDefinition Width="40" />
                                         </Grid.ColumnDefinitions>
@@ -1735,8 +1755,38 @@
                                         <CheckBox Grid.Column="6" IsChecked="{Binding IsHidden, Mode=TwoWay}"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
 
-                                        <ui:Button Grid.Column="7"
+                                        <!-- Reorder controls: stacked ↑/↓ inside a single column so
+                                             the row's right-side icons (folder, trash) sit at fixed
+                                             X regardless of how the chevrons render. The buttons are
+                                             ~14 px tall each → ~28 px total, fitting comfortably in
+                                             the row height; HorizontalAlignment=Center is explicit
+                                             on every action button so the icons line up vertically
+                                             with their header glyphs. -->
+                                        <StackPanel Grid.Column="7" Orientation="Vertical"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <ui:Button Width="24" Height="14" Padding="0" Margin="0,0,0,1"
+                                                       Background="Transparent" BorderThickness="0"
+                                                       Command="{Binding MoveUpCommand}"
+                                                       ToolTip="Move up">
+                                                <TextBlock Text="&#xE70E;"
+                                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource AccentForegroundBrush}" />
+                                            </ui:Button>
+                                            <ui:Button Width="24" Height="14" Padding="0"
+                                                       Background="Transparent" BorderThickness="0"
+                                                       Command="{Binding MoveDownCommand}"
+                                                       ToolTip="Move down">
+                                                <TextBlock Text="&#xE70D;"
+                                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource AccentForegroundBrush}" />
+                                            </ui:Button>
+                                        </StackPanel>
+
+                                        <ui:Button Grid.Column="8"
                                                    Width="28" Height="28" Padding="0"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                    Background="Transparent" BorderThickness="0"
                                                    Command="{Binding OpenFolderCommand}"
                                                    ToolTip="{Markup:Loc Wormholes_OpenFolderTooltip}">
@@ -1746,8 +1796,9 @@
                                                        Foreground="{DynamicResource AccentForegroundBrush}" />
                                         </ui:Button>
 
-                                        <ui:Button Grid.Column="8"
+                                        <ui:Button Grid.Column="9"
                                                    Width="28" Height="28" Padding="0"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                    Background="Transparent" BorderThickness="0"
                                                    Appearance="Danger"
                                                    Command="{Binding DeleteCommand}"
@@ -1797,48 +1848,106 @@
                                               Value="{Binding Wormholes.DefaultIconSizePx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </Grid>
 
-                            <!-- Tile padding: 0 = Portals-style dense pack, 32 = airy. Slider
-                                 because the user typically dials by feel rather than picking an
-                                 exact pixel count. -->
+                            <!-- Tile padding: 0 = Portals-style dense pack, 32 = airy. -->
                             <Grid Margin="0,0,0,12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="50" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Tile padding" />
-                                <Slider Grid.Column="1"
-                                        Minimum="0" Maximum="32" SmallChange="1" LargeChange="4"
-                                        IsSnapToTickEnabled="True" TickFrequency="1"
-                                        Value="{Binding Wormholes.DefaultTilePaddingPx, Mode=TwoWay}"
-                                        VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center"
-                                           HorizontalAlignment="Right"
-                                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
-                                           Text="{Binding Wormholes.DefaultTilePaddingPx, StringFormat={}{0}px}" />
+                                           Text="Tile padding (px)" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="0" Maximum="32" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              Value="{Binding Wormholes.DefaultTilePaddingPx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </Grid>
 
-                            <!-- Opacity slider 30–100 (anything below 30 makes the wormhole
-                                 hard to click). Bound as int percent; the service converts to
-                                 the 0.30–1.00 double form the WPF Opacity property wants. -->
+                            <!-- Label font size: pixels for the TextBlock under each icon. Drives
+                                 both the rendered glyphs AND the reserved label-area height (the
+                                 label-area height = LineHeight × LabelMaxLines). -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="Label font size (px)" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="8" Maximum="20" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              Value="{Binding Wormholes.DefaultLabelFontSizePx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <!-- Label max lines: 1, 2 or 3. Controls how many lines the wrapped
+                                 label can use before being ellipsized. Smaller = denser rows. -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="Label lines (max)" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="1" Maximum="3" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              Value="{Binding Wormholes.DefaultLabelMaxLines, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <!-- Line spacing: CSS-style negative-margin between tile rows. Negative
+                                 = next row's tile climbs OVER this tile's label area (visual overlap,
+                                 no text clipping); positive = extra gap. Does NOT change the number
+                                 of label lines — that's a separate setting above. -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="Line spacing (overlap, px)" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="-32" Maximum="32" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              Value="{Binding Wormholes.DefaultLineSpacingPx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <!-- Background opacity 1–100: fades the body + header backdrop. Minimum
+                                 1 % (not 0) because a fully-transparent header strip would lose
+                                 its double-click → roll-up gesture: clicks pass straight through
+                                 the alpha-0 pixels to whatever's below the wormhole. -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="Background opacity (%)" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="1" Maximum="100" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              Value="{Binding Wormholes.DefaultOpacityPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <!-- Border opacity 0–100: fades the OuterFrame's 1 px accent ring and
+                                 the drop shadow underneath, independent from the body. 0 = ring +
+                                 shadow disappear entirely (the OuterFrame's transparent Background
+                                 still receives mouse events, so dragging the chrome remains usable). -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="50" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Default opacity" />
-                                <Slider Grid.Column="1"
-                                        Minimum="30" Maximum="100" SmallChange="1" LargeChange="5"
-                                        IsSnapToTickEnabled="True" TickFrequency="1"
-                                        Value="{Binding Wormholes.DefaultOpacityPercent, Mode=TwoWay}"
-                                        VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center"
-                                           HorizontalAlignment="Right"
-                                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
-                                           Text="{Binding Wormholes.DefaultOpacityPercent, StringFormat={}{0}%}" />
+                                           Text="Border opacity (%)" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="0" Maximum="100" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              Value="{Binding Wormholes.DefaultBorderOpacityPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </Grid>
                         </StackPanel>
                     </Border>

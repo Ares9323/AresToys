@@ -25,11 +25,43 @@ public sealed partial class WormholeItemViewModel : ObservableObject
     /// (one knob is plenty; separate H/V would just be analysis paralysis).</summary>
     public int TilePaddingPx { get; }
 
-    /// <summary>Container tile dimensions derived from icon size + user padding. The +8
-    /// horizontal / +28 vertical baselines are the minimum needed for a 2-line label below
-    /// the icon (font 11 → ~14 px per line → 28 max-height).</summary>
+    /// <summary>Line spacing applied as a "CSS negative-margin"-style effect on the tile:
+    /// outputs as <see cref="TileMargin"/> bottom value. Negative pulls the next row's tile up,
+    /// causing visual overlap (icon-on-label) without altering the text area; positive expands
+    /// the gap. NEVER affects how many lines the label gets — that's <see cref="LabelMaxLines"/>.</summary>
+    public int LineSpacingPx { get; }
+
+    /// <summary>Pixel font size of the label TextBlock under the icon. Drives both the
+    /// rendered glyph height AND the reserved label-area height (see <see cref="TileHeight"/>).</summary>
+    public int LabelFontSizePx { get; }
+
+    /// <summary>Max wrapped lines the label can use before being ellipsized. Together with
+    /// <see cref="LabelFontSizePx"/> this sets the label area's height (and therefore TileHeight).</summary>
+    public int LabelMaxLines { get; }
+
+    /// <summary>Approximated line height for the chosen font size. Segoe UI's natural line
+    /// spacing is ~1.36 × the EM size; rounding up keeps the wrap from clipping a final pixel
+    /// off the last glyph. Public so XAML can bind <c>TextBlock.MaxHeight</c> to a multiple of it.</summary>
+    public double LabelLineHeight => Math.Ceiling(LabelFontSizePx * 1.36);
+
+    /// <summary>Reserved label area height — exactly enough for <see cref="LabelMaxLines"/>
+    /// of Segoe UI at <see cref="LabelFontSizePx"/>. Bound to <c>TextBlock.MaxHeight</c> in the
+    /// DataTemplate so WPF wraps to at most that many lines, then ellipsizes.</summary>
+    public double LabelAreaHeight => LabelLineHeight * LabelMaxLines;
+
+    /// <summary>Container tile dimensions. Horizontal: icon size plus a small horizontal
+    /// breathing room (+8 baseline) plus per-side TilePadding. Vertical: icon row
+    /// (IconSize + 4 + TilePaddingPx of IconMargin) + a 2-px gutter + label area
+    /// (LineHeight × MaxLines) + the TextBlock's 0,2,0,2 margin = 4 px total. <see cref="LineSpacingPx"/>
+    /// is INTENTIONALLY absent — it lives on <see cref="TileMargin"/> so it can overlap rows
+    /// without changing what's inside the tile.</summary>
     public double TileWidth => IconSizePx + 8 + 2 * TilePaddingPx;
-    public double TileHeight => IconSizePx + 28 + 2 * TilePaddingPx;
+    public double TileHeight => IconSizePx + 4 + TilePaddingPx + 4 /* text margin */ + LabelAreaHeight;
+
+    /// <summary>Margin applied to the hosting <c>ListBoxItem</c> via the ItemContainerStyle
+    /// setter. Negative bottom value = CSS-negative-margin effect (next row of tiles climbs up
+    /// over this tile's label without clipping its glyphs). Positive bottom = extra gap.</summary>
+    public System.Windows.Thickness TileMargin => new(0, 0, 0, LineSpacingPx);
 
     /// <summary>Vertical breathing room around the Image, bound to <c>Image.Margin</c>. The
     /// 2-px floor keeps the icon from touching the tile's top edge even when the user dials
@@ -37,7 +69,62 @@ public sealed partial class WormholeItemViewModel : ObservableObject
     public System.Windows.Thickness IconMargin => new(0, 2 + TilePaddingPx, 0, 2);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayNameWrappable))]
     private string _displayName = string.Empty;
+
+    /// <summary><see cref="DisplayName"/> con zero-width space (U+200B) iniettati ai SOLI
+    /// confini sensati, così WPF <c>TextWrapping="Wrap"</c> preferisca andare a capo fra parole
+    /// vere quando possibile e ripieghi su rotture interne solo per run davvero impossibili.
+    /// Strategia:
+    /// <list type="bullet">
+    ///   <item>Whitespace e separatori naturali ('.', '_', '-', '/', '\') sono già break
+    ///         opportunities Unicode: si lasciano intatti.</item>
+    ///   <item>Confine CamelCase (lower→upper, e.g. "FileName" → "File·Name") riceve uno ZWSP.</item>
+    ///   <item>Transizione lettera↔cifra (e.g. "Gen1Pokemon" → "Gen·1·Pokemon") riceve uno
+    ///         ZWSP — i numeri di versione/anno spesso fanno da appiglio visivo.</item>
+    ///   <item>Fallback anti-overflow: se sono passati ≥ 8 caratteri senza alcun break, si
+    ///         forza uno ZWSP. Evita che un blob ininterrotto tipo "veryveryverylongword"
+    ///         resti su una riga sola con ellipsis.</item>
+    /// </list>
+    /// <see cref="DisplayName"/> resta intatto per ricerca / rename / clipboard.</summary>
+    public string DisplayNameWrappable
+    {
+        get
+        {
+            var s = DisplayName;
+            if (string.IsNullOrEmpty(s) || s.Length < 2) return s;
+            const int FallbackRunLimit = 8;
+            var sb = new System.Text.StringBuilder(s.Length + 8);
+            var runWithoutBreak = 0;
+            for (var i = 0; i < s.Length; i++)
+            {
+                var c = s[i];
+                sb.Append(c);
+
+                if (char.IsWhiteSpace(c) || c == '.' || c == '_' || c == '-' || c == '/' || c == '\\')
+                {
+                    runWithoutBreak = 0;
+                    continue;
+                }
+                runWithoutBreak++;
+                if (i + 1 >= s.Length) continue;
+
+                var next = s[i + 1];
+                var camelBoundary = char.IsLower(c) && char.IsUpper(next);
+                var letterDigitBoundary =
+                    (char.IsLetter(c) && char.IsDigit(next)) ||
+                    (char.IsDigit(c) && char.IsLetter(next));
+                var fallback = runWithoutBreak >= FallbackRunLimit;
+
+                if (camelBoundary || letterDigitBoundary || fallback)
+                {
+                    sb.Append('​');
+                    runWithoutBreak = 0;
+                }
+            }
+            return sb.ToString();
+        }
+    }
 
     [ObservableProperty]
     private BitmapSource? _icon;
@@ -51,11 +138,21 @@ public sealed partial class WormholeItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isCutMarked;
 
-    public WormholeItemViewModel(string absolutePath, IconService icons, int iconSizePx, int tilePaddingPx)
+    public WormholeItemViewModel(
+        string absolutePath,
+        IconService icons,
+        int iconSizePx,
+        int tilePaddingPx,
+        int lineSpacingPx = 0,
+        int labelFontSizePx = 11,
+        int labelMaxLines = 2)
     {
         AbsolutePath = absolutePath;
         IconSizePx = iconSizePx;
         TilePaddingPx = tilePaddingPx;
+        LineSpacingPx = lineSpacingPx;
+        LabelFontSizePx = labelFontSizePx;
+        LabelMaxLines = labelMaxLines;
         DisplayName = ResolveDisplayName(absolutePath);
         Icon = icons.GetIconAtSize(absolutePath, iconSizePx);
     }

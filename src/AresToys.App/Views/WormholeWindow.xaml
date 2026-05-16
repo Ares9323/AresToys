@@ -23,7 +23,10 @@
             DragOver="OnDragOver"
             Drop="OnDrop">
         <Border.Effect>
-            <DropShadowEffect Color="Black" BlurRadius="12" ShadowDepth="0" Opacity="0.45" />
+            <!-- Opacity is set in code at ApplyAppearance time — the 0.45 here is just the
+                 design-time baseline so the editor preview looks right. ApplyAppearance multiplies
+                 it by the user's "Border opacity" setting. -->
+            <DropShadowEffect x:Name="OuterShadow" Color="Black" BlurRadius="12" ShadowDepth="0" Opacity="0.45" />
         </Border.Effect>
 
         <Grid>
@@ -181,7 +184,7 @@
                  hint about dropping files. The placeholder is hidden in code-behind whenever
                  there's at least one item, and reappears when the last one is removed. -->
             <Border x:Name="ContentArea" Grid.Row="1" Padding="6">
-                <Grid>
+                <Grid x:Name="ContentGrid">
                     <!-- ListBox instead of ItemsControl: gives us selection (single + Ctrl/Shift
                          multi-select like Explorer) AND keyboard navigation for free. We strip
                          the default chrome (border, padding) from ListBoxItem so the tile spacing
@@ -194,6 +197,7 @@
                              Padding="0"
                              SelectionMode="Extended"
                              PreviewKeyDown="OnItemsHostPreviewKeyDown"
+                             SelectionChanged="OnItemsHostSelectionChanged"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              HorizontalContentAlignment="Stretch">
@@ -205,7 +209,12 @@
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0" />
+                                <!-- Margin bound to the per-item TileMargin so LineSpacingPx
+                                     can pull the next row up (negative bottom) or push it down
+                                     (positive). Works because ListBoxItem DataContext is the
+                                     WormholeItemViewModel and ItemContainerStyle setters bind
+                                     against that data context. -->
+                                <Setter Property="Margin" Value="{Binding TileMargin}" />
                                 <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="BorderThickness" Value="0" />
                                 <Setter Property="Focusable" Value="True" />
@@ -285,11 +294,12 @@
                                                Margin="{Binding IconMargin}"
                                                RenderOptions.BitmapScalingMode="HighQuality" />
                                         <TextBlock Grid.Row="1"
-                                                   Text="{Binding DisplayName}"
+                                                   Text="{Binding DisplayNameWrappable}"
                                                    Width="{Binding TileWidth}"
                                                    MaxWidth="{Binding TileWidth}"
+                                                   MaxHeight="{Binding LabelAreaHeight}"
                                                    Foreground="{DynamicResource AccentForegroundBrush}"
-                                                   FontSize="11"
+                                                   FontSize="{Binding LabelFontSizePx}"
                                                    TextAlignment="Center"
                                                    TextWrapping="Wrap"
                                                    TextTrimming="CharacterEllipsis"
@@ -314,6 +324,26 @@
                          deleted, network share down). The "Pick a new folder…" button reuses
                          OnChangeFolder so the user can repoint the wormhole without going
                          through the hamburger menu. -->
+                    <!-- Inline item rename overlay. Sibling of ItemsHost so it can be absolutely
+                         positioned over the selected tile's label via Margin (computed in
+                         code-behind from the ListBoxItem's TransformToVisual). Hidden by default;
+                         F2 on a selected item populates Text with the raw filename and shows it.
+                         Enter commits via File.Move / Directory.Move (FileSystemWatcher then
+                         refreshes the wormhole); Esc / focus-loss-with-empty closes without
+                         renaming; focus-loss-with-text commits. -->
+                    <TextBox x:Name="ItemRenameEditor"
+                             Visibility="Collapsed"
+                             HorizontalAlignment="Left"
+                             VerticalAlignment="Top"
+                             FontSize="11"
+                             Padding="2,1"
+                             Background="{DynamicResource Surface2Brush}"
+                             Foreground="{DynamicResource AccentForegroundBrush}"
+                             BorderBrush="{DynamicResource AccentBackgroundBrush}"
+                             BorderThickness="1"
+                             KeyDown="OnItemRenameEditorKeyDown"
+                             LostFocus="OnItemRenameEditorLostFocus" />
+
                     <StackPanel x:Name="SourceMissingPanel"
                                 HorizontalAlignment="Center" VerticalAlignment="Center"
                                 Margin="16" Visibility="Collapsed">

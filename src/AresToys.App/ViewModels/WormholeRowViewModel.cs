@@ -23,6 +23,22 @@ public sealed partial class WormholeRowViewModel : ObservableObject
     [ObservableProperty] private string _title = string.Empty;
     [ObservableProperty] private bool _isLocked;
     [ObservableProperty] private bool _isHidden;
+
+    /// <summary>True when this row's wormhole is the one the user last interacted with on the
+    /// desktop. Drives the row's "highlighted" surface in the Settings panel — bound to a
+    /// DataTrigger that swaps the row Border's Background. Updated by
+    /// <see cref="RefreshIsSelected"/>, which the owner calls after every
+    /// <see cref="IWormholeWindowManager.WormholeFocused"/> event.</summary>
+    [ObservableProperty] private bool _isSelected;
+
+    /// <summary>Re-read the selected state from the owner's
+    /// <see cref="WormholesViewModel.SelectedWormholeId"/>. Cheap — guarded against no-op writes
+    /// so the DataTrigger doesn't churn.</summary>
+    public void RefreshIsSelected()
+    {
+        var selected = _owner.SelectedWormholeId == Record.Id;
+        if (IsSelected != selected) IsSelected = selected;
+    }
     // Geometry fields are strings (not doubles) so the WPF TextBox bindings can hold partial /
     // intermediate user input without immediately reverting. Commit happens on LostFocus (the
     // default UpdateSourceTrigger), the partial-method setter parses + applies via the manager.
@@ -155,6 +171,23 @@ public sealed partial class WormholeRowViewModel : ObservableObject
             MessageBox.Show("Couldn't open the folder:\n" + ex.Message,
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    [RelayCommand]
+    private async Task MoveUpAsync() => await MoveAsync(-1).ConfigureAwait(true);
+
+    [RelayCommand]
+    private async Task MoveDownAsync() => await MoveAsync(+1).ConfigureAwait(true);
+
+    /// <summary>Push the record up (delta=-1) or down (delta=+1) in the persisted list, then
+    /// mirror the change in <see cref="WormholesViewModel.Rows"/> so the panel reflects the new
+    /// order without a full <see cref="WormholesViewModel.ReloadAsync"/>. Re-ordering only
+    /// affects display order — the live windows on the desktop don't move.</summary>
+    private async Task MoveAsync(int delta)
+    {
+        var newIdx = await _store.MoveAsync(Record.Id, delta, CancellationToken.None).ConfigureAwait(true);
+        if (newIdx < 0) return;
+        _owner.MoveRow(this, newIdx);
     }
 
     [RelayCommand]
