@@ -103,6 +103,27 @@ and the UI hydration fix that made the "Background opacity" field always show
   `AccentBackgroundDarkBrush` (was the light variant which read as washed
   out against the page surface).
 
+### Autostart — Task Scheduler path (no more 10-second Run-key delay)
+- Windows applies a ~10 s `StartupDelayInMSec` to every entry under
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which is where the
+  old `AutostartService` registered the app. Result: AresToys came up after
+  most other startup apps even though the user wanted it ready immediately.
+- `AutostartService` now drives autostart through Task Scheduler instead:
+  registers a `LogonTrigger` task named `AresToysAutostart` via
+  `schtasks.exe /Create /XML` with `<Priority>4</Priority>` (Above Normal,
+  bumps process priority above default Run-key apps), `LogonType=InteractiveToken`
+  + `RunLevel=LeastPrivilege` (no UAC), `DisallowStartIfOnBatteries=false`
+  (laptop users staying unplugged still get AresToys at logon), and
+  `MultipleInstancesPolicy=IgnoreNew` to play nice with our existing
+  single-instance pipe IPC.
+- Migration: every `SetEnabled` call also removes the legacy
+  `HKCU\…\Run\AresToys` value so the two paths can never fire in parallel
+  after an upgrade.
+- Trade-off: the entry no longer appears under Task Manager → Startup apps
+  (that view only enumerates Run-key + Startup-folder entries). It lives in
+  Task Scheduler → Task Scheduler Library → `AresToysAutostart`; the toggle
+  in Settings remains the single source of truth.
+
 ### Icon extraction — tiny-icon fix for `.url` and some `.lnk` files
 - Some shortcuts (especially `.url` web shortcuts whose `IconFile` points to a
   small favicon, plus a handful of `.lnk` targets) rendered as a 16-px glyph
