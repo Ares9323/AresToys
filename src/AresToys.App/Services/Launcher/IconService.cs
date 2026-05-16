@@ -38,7 +38,15 @@ public sealed class IconService
             if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
         }
 
+        // Try IShellItemImageFactory FIRST: it's the only path that actually upscales a small
+        // source icon (e.g. a 16×16 favicon embedded in a .url) to the requested pixel size.
+        // The imagelist path below preserves the icon's NATIVE pixel size inside a fixed-size
+        // imagelist slot with transparent padding — so a .url whose IconFile is a 16-px favicon
+        // comes back as a 16-px glyph in the top-left of an otherwise empty 48-px bitmap, which
+        // WPF then renders as a tiny icon floating in the corner of the tile. SIIGBF_RESIZETOFIT
+        // makes the shell actually scale.
         var bmp = LoadFromImageFile(expanded)
+                  ?? ExtractViaShellItemImageFactory(expanded, sizePx)
                   ?? ExtractIconAtSize(expanded, sizePx)
                   ?? ExtractIcon(expanded);
         lock (_lock)
@@ -183,6 +191,51 @@ public sealed class IconService
         finally
         {
             DestroyIcon(info.hIcon);   // SHGetFileInfo gives ownership; we always release it
+        }
+    }
+
+    /// <summary>Modern shell-icon path via <see cref="IShellItemImageFactory"/>::GetImage. Unlike
+    /// the imagelist route below this one ACTUALLY scales the source icon to the requested pixel
+    /// size: a tiny embedded favicon in a <c>.url</c> file gets upscaled to fill the tile instead
+    /// of sitting as a 16-px glyph in the corner of a 48-px transparent canvas (which is exactly
+    /// the bug this method fixes). The composited link-arrow overlay still comes through because
+    /// IShellItemImageFactory uses Explorer's full icon pipeline. Returns null on COM failure so
+    /// the caller can fall through to the legacy paths.</summary>
+    private static BitmapSource? ExtractViaShellItemImageFactory(string path, int sizePx)
+    {
+        var iid = new Guid("BCC18B79-BA16-442F-80C4-8A59C30C463B"); // IID_IShellItemImageFactory
+        if (SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out var ppv) != 0 || ppv == IntPtr.Zero)
+            return null;
+
+        IShellItemImageFactory? factory = null;
+        IntPtr hbitmap = IntPtr.Zero;
+        try
+        {
+            factory = (IShellItemImageFactory)Marshal.GetObjectForIUnknown(ppv);
+            var size = new SIZE { cx = sizePx, cy = sizePx };
+            // SIIGBF.ResizeToFit (=0) + IconOnly — IconOnly skips the thumbnail path so we don't
+            // accidentally get a content preview for image / video / pdf files (we want the file
+            // type icon for tiles). ResizeToFit is the documented "scale the source to fit" flag.
+            var hr = factory.GetImage(size, SIIGBF.ResizeToFit | SIIGBF.IconOnly, out hbitmap);
+            if (hr != 0 || hbitmap == IntPtr.Zero) return null;
+
+            var src = Imaging.CreateBitmapSourceFromHBitmap(
+                hbitmap,
+                IntPtr.Zero,
+                System.Windows.Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+            src.Freeze();
+            return src;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (hbitmap != IntPtr.Zero) DeleteObject(hbitmap);
+            if (factory is not null) Marshal.ReleaseComObject(factory);
+            Marshal.Release(ppv);
         }
     }
 

@@ -103,6 +103,23 @@ and the UI hydration fix that made the "Background opacity" field always show
   `AccentBackgroundDarkBrush` (was the light variant which read as washed
   out against the page surface).
 
+### Icon extraction — tiny-icon fix for `.url` and some `.lnk` files
+- Some shortcuts (especially `.url` web shortcuts whose `IconFile` points to a
+  small favicon, plus a handful of `.lnk` targets) rendered as a 16-px glyph
+  floating in the top-left of an otherwise empty 48-px tile slot. Root cause:
+  `IconService.ExtractIconAtSize` resolved icons via `SHGetImageList` +
+  `ImageList_GetIcon`, which preserves the source icon's NATIVE pixel size
+  inside the fixed-size imagelist slot — small favicons stay small with
+  transparent padding around them, and WPF rendered the bitmap at its true
+  dimensions inside the tile.
+- New `ExtractViaShellItemImageFactory(path, sizePx)` path tried first:
+  `IShellItemImageFactory::GetImage` with `SIIGBF_RESIZETOFIT | SIIGBF_IconOnly`
+  is the only shell API that actually upscales the source icon to the
+  requested pixel size (same call Explorer uses for "Large / Extra Large
+  icons" views). `IconOnly` keeps the file-type icon for media files instead
+  of returning a content thumbnail. The imagelist path remains as a fallback
+  for shells where the modern API fails.
+
 ### Internals
 - `WormholeItemViewModel` ctor now takes `lineSpacingPx`, `labelFontSizePx`,
   `labelMaxLines` (defaults 0, 11, 2 for backward compat). `TileHeight`
