@@ -227,7 +227,9 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
                 onRemove:         item            => _ = OnRemoveAsync(item),
                 onParameterChanged: (item, value) => _ = OnParameterChangedAsync(item, value),
                 onBoolParameterChanged: (item, key, value) => _ = OnBoolParameterChangedAsync(item, key, value),
-                onStringParameterChanged: (item, key, value) => _ = OnStringParameterChangedAsync(item, key, value)));
+                onStringParameterChanged: (item, key, value) => _ = OnStringParameterChangedAsync(item, key, value),
+                inputs: descriptor?.Inputs,
+                outputs: descriptor?.Outputs));
         }
         UpdateMoveFlags();
         // If we filled in any missing default values into step.Config above, flush the change
