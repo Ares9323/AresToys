@@ -135,7 +135,7 @@ public sealed class ExternalTextEditorService : IDisposable
             catch (IOException) { return; } // editor still has it open — next event re-tries
 
             var bytes = Encoding.UTF8.GetBytes(text);
-            await _items.UpdatePayloadAsync(itemId, bytes, bytes.LongLength, CancellationToken.None).ConfigureAwait(false);
+            await _items.UpdatePayloadAsync(itemId, bytes, bytes.LongLength, newKind: null, CancellationToken.None).ConfigureAwait(false);
             _logger.LogInformation("ExternalTextEditor: synced {Bytes} bytes back to item {Id}", bytes.Length, itemId);
         }
         catch (Exception ex)

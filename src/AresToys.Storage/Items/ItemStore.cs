@@ -300,16 +300,22 @@ public sealed class ItemStore : IItemStore
         return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, CancellationToken cancellationToken)
+    public async Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, ItemKind? newKind, CancellationToken cancellationToken)
     {
         var conn = _database.GetOpenConnection();
         var encoded = _serializer.Encode(newPayload);
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "UPDATE items SET payload = $payload, payload_size = $size WHERE id = $id;";
+        // Compose the SET clause inline so a kind change rides on the same UPDATE — half the
+        // wire cost vs two separate roundtrips, and we get a single Updated broadcast at the
+        // end instead of two stuttered ones.
+        cmd.CommandText = newKind is null
+            ? "UPDATE items SET payload = $payload, payload_size = $size WHERE id = $id;"
+            : "UPDATE items SET payload = $payload, payload_size = $size, kind = $kind WHERE id = $id;";
         cmd.Parameters.AddWithValue("$payload", encoded);
         cmd.Parameters.AddWithValue("$size", newPayloadSize);
         cmd.Parameters.AddWithValue("$id", id);
+        if (newKind is { } k) cmd.Parameters.AddWithValue("$kind", (int)k);
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;

@@ -12,7 +12,13 @@ public interface IItemStore
     Task<bool> SoftDeleteAsync(long id, CancellationToken cancellationToken);
     Task<bool> RestoreAsync(long id, CancellationToken cancellationToken);
     Task<int> HardDeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken);
-    Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, CancellationToken cancellationToken);
+    /// <summary>Replace the payload of an existing item, optionally flipping its
+    /// <see cref="ItemKind"/> at the same time. <paramref name="newKind"/> = null leaves the
+    /// kind as-is (typical external-editor save-back where bytes change but the format doesn't).
+    /// Non-null flips it (e.g. "Convert HTML → plain text" turns an <c>Html</c> item into a
+    /// <c>Text</c> item so the popup renders + pastes it as plain text afterwards). Single SQL
+    /// roundtrip; raises one <see cref="ItemsChangeKind.Updated"/> broadcast.</summary>
+    Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, ItemKind? newKind, CancellationToken cancellationToken);
 
     /// <summary>Soft-delete every non-pinned item. When <paramref name="category"/> is non-null
     /// the wipe is scoped to that single category bucket; otherwise it spans all categories.

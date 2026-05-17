@@ -45,13 +45,48 @@ internal static class ClipboardCleaning
         var fragEnd = html.IndexOf("<!--EndFragment-->", StringComparison.OrdinalIgnoreCase);
         if (fragEnd >= 0) html = html[..fragEnd];
 
+        // Drop entire <style>…</style> + <script>…</script> + <head>…</head> blocks WITH their
+        // body — the generic tag-strip below would only remove the open/close tags and leak the
+        // CSS/JS source code into the output. Qt / KDE apps + Outlook + some browsers ship a
+        // <style>p, li { white-space: pre-wrap; }</style> preamble on every HTML clipboard
+        // payload that without this would paste through verbatim above the actual text. Same
+        // pattern handles inline <script> bodies and any stray <head> metadata.
+        // [\s\S]*? matches across newlines (HTML content is multi-line by nature) without
+        // requiring RegexOptions.Singleline; the lazy quantifier prevents matches from spanning
+        // adjacent <style> blocks on the same page.
+        html = Regex.Replace(html, @"<style\b[^>]*>[\s\S]*?</style\s*>", string.Empty, RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<script\b[^>]*>[\s\S]*?</script\s*>", string.Empty, RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<head\b[^>]*>[\s\S]*?</head\s*>", string.Empty, RegexOptions.IgnoreCase);
+        // HTML comments — anywhere in the residual body. StartFragment / EndFragment markers
+        // were already consumed above; this catches everything else (author notes, conditional
+        // IE comments, etc.) that the tag-strip pass would otherwise leave behind as text.
+        html = Regex.Replace(html, @"<!--[\s\S]*?-->", string.Empty);
+
+        // Process <pre>…</pre> blocks specially BEFORE the global block-tag → newline pass.
+        // Qt rich text + Outlook + some IDEs emit <br> inside <pre> as "soft wrap" (visual
+        // wrap-around at the editor's column width — not a logical line break). The global
+        // <br> → \n rule below would shred ASCII art that originally fit on one line. Inside
+        // a <pre> block we KEEP whatever real \n was already there, but DROP any <br> (treat
+        // them as soft wrap), and strip inner inline tags. The cleaned inner content replaces
+        // the whole block; the outer </pre> wouldn't add a newline anymore (the match consumes
+        // it) so we tack one on explicitly to separate from following content.
+        html = Regex.Replace(html, @"<pre\b[^>]*>([\s\S]*?)</pre\s*>", m =>
+        {
+            var inner = m.Groups[1].Value;
+            inner = Regex.Replace(inner, @"<br\s*/?>", string.Empty, RegexOptions.IgnoreCase);
+            inner = Regex.Replace(inner, "<[^>]+>", string.Empty);
+            return inner + "\n";
+        }, RegexOptions.IgnoreCase);
+
         // Block-level tags get converted to newlines BEFORE the generic tag-strip so the
         // resulting plaintext keeps line structure. Without this, copying an ASCII-art block
         // from a web page (or any paragraph-heavy snippet) collapses to a single line because
         // the previous strip-then-whitespace-collapse step erased every \n.
         // Order matters: <br> first, then closing block tags, then opening block tags. We
         // insert one '\n' for closing tags and leave the rest in place — the strip pass below
-        // removes the tag itself, leaving the newline as a real plaintext break.
+        // removes the tag itself, leaving the newline as a real plaintext break. The <pre>
+        // entry stays in the closing-block list as a defensive no-op — by this point every
+        // <pre>…</pre> pair has already been consumed by the dedicated pass above.
         html = Regex.Replace(html, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
         html = Regex.Replace(html, @"</(p|div|tr|li|h[1-6]|pre|blockquote|article|section|header|footer|nav|aside|table|thead|tbody|tfoot|ul|ol|dl|dt|dd|figure|figcaption)\s*>", "\n", RegexOptions.IgnoreCase);
 

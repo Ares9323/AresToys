@@ -878,6 +878,19 @@
                                        Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
+                            <!-- Convert to plain text (HTML / RTF rows only). Strips the markup
+                                 in-place — payload + Kind flip to Text so the next paste hits
+                                 Ctrl+V'able plain text. Confirmation MessageBox up front because
+                                 the operation is irreversible (no "restore formatting"). Segoe
+                                 Fluent "ClearFormatting" glyph (E75H, font codepoint for the
+                                 paragraph-with-eraser icon). -->
+                            <ui:Button Width="32" Height="32" Padding="0" Style="{StaticResource ToolbarIconBtn}"
+                                       Margin="0,0,0,4"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipConvertToPlainText}"
+                                       Command="{Binding ConvertToPlainTextCommand}"
+                                       Visibility="{Binding IsRichTextSelected, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="&#xEDE3;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
+                            </ui:Button>
                             <ui:Button Width="32" Height="32" Padding="0" Style="{StaticResource ToolbarIconBtn}"
                                        Margin="0,0,0,4"
                                        ToolTip="{Markup:Loc Clipboard_TooltipShowExplorer}"

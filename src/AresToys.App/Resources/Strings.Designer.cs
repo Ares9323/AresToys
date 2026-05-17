@@ -661,6 +661,33 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Clipboard_TooltipExtEditor", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Convert to plain text (strip HTML / RTF formatting in-place).
+        /// </summary>
+        public static string Clipboard_TooltipConvertToPlainText {
+            get {
+                return ResourceManager.GetString("Clipboard_TooltipConvertToPlainText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Convert to plain text.
+        /// </summary>
+        public static string Clipboard_ConvertToPlainTextConfirmTitle {
+            get {
+                return ResourceManager.GetString("Clipboard_ConvertToPlainTextConfirmTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Replace this {0} entry with its plain-text version?...
+        /// </summary>
+        public static string Clipboard_ConvertToPlainTextConfirmBody {
+            get {
+                return ResourceManager.GetString("Clipboard_ConvertToPlainTextConfirmBody", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Move down in pinned order.

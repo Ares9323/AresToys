@@ -150,6 +150,9 @@
   <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Generate QR code…</value></data>
   <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Open in image editor</value></data>
   <data name="Clipboard_TooltipExtEditor" xml:space="preserve"><value>Edit text in external editor (VSCode / Notepad / …)</value></data>
+  <data name="Clipboard_TooltipConvertToPlainText" xml:space="preserve"><value>Convert to plain text (strip HTML / RTF formatting in-place)</value></data>
+  <data name="Clipboard_ConvertToPlainTextConfirmTitle" xml:space="preserve"><value>Convert to plain text</value></data>
+  <data name="Clipboard_ConvertToPlainTextConfirmBody" xml:space="preserve"><value>Replace this entry with its plain-text version? The original HTML / RTF formatting will be permanently removed — this can't be undone.</value></data>
   <data name="Clipboard_TooltipShowExplorer" xml:space="preserve"><value>Show in explorer</value></data>
   <data name="Clipboard_TooltipOpenUrl" xml:space="preserve"><value>Open URL in browser</value></data>
   <data name="Clipboard_TooltipCaptureWebpage" xml:space="preserve"><value>Capture webpage (full-page screenshot of the URL)</value></data>

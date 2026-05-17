@@ -184,7 +184,7 @@ public class ItemStoreTests
         var id = await store.AddAsync(TextItem("original"), CancellationToken.None);
 
         var newBytes = System.Text.Encoding.UTF8.GetBytes("rewritten");
-        Assert.True(await store.UpdatePayloadAsync(id, newBytes, newBytes.LongLength, CancellationToken.None));
+        Assert.True(await store.UpdatePayloadAsync(id, newBytes, newBytes.LongLength, newKind: null, CancellationToken.None));
 
         var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
         Assert.Equal("rewritten", System.Text.Encoding.UTF8.GetString(loaded.Payload.Span));
@@ -197,7 +197,7 @@ public class ItemStoreTests
         await using var fx = await new TempDatabaseFixture().InitializeAsync();
         var store = CreateStore(fx);
 
-        Assert.False(await store.UpdatePayloadAsync(99999, new byte[] { 0x01 }, 1, CancellationToken.None));
+        Assert.False(await store.UpdatePayloadAsync(99999, new byte[] { 0x01 }, 1, newKind: null, CancellationToken.None));
     }
 
     [Fact]

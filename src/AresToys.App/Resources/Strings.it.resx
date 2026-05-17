@@ -143,6 +143,9 @@
   <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Genera codice QR…</value></data>
   <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Apri nell'editor immagini</value></data>
   <data name="Clipboard_TooltipExtEditor" xml:space="preserve"><value>Modifica testo in editor esterno (VSCode / Notepad / …)</value></data>
+  <data name="Clipboard_TooltipConvertToPlainText" xml:space="preserve"><value>Converti in testo semplice (rimuove formattazione HTML / RTF in-place)</value></data>
+  <data name="Clipboard_ConvertToPlainTextConfirmTitle" xml:space="preserve"><value>Converti in testo semplice</value></data>
+  <data name="Clipboard_ConvertToPlainTextConfirmBody" xml:space="preserve"><value>Sostituire questa voce con la sua versione in testo semplice? La formattazione HTML / RTF originale verrà rimossa definitivamente — l'operazione non può essere annullata.</value></data>
   <data name="Clipboard_TooltipShowExplorer" xml:space="preserve"><value>Mostra in Esplora risorse</value></data>
   <data name="Clipboard_TooltipOpenUrl" xml:space="preserve"><value>Apri URL nel browser</value></data>
   <data name="Clipboard_TooltipCaptureWebpage" xml:space="preserve"><value>Cattura pagina web (screenshot integrale dell'URL)</value></data>

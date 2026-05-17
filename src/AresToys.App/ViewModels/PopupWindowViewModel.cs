@@ -424,6 +424,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         PasteSelectedCommand.NotifyCanExecuteChanged();
         OpenInEditorCommand.NotifyCanExecuteChanged();
         OpenInExternalEditorCommand.NotifyCanExecuteChanged();
+        ConvertToPlainTextCommand.NotifyCanExecuteChanged();
         OpenInExplorerCommand.NotifyCanExecuteChanged();
         CopyPathToClipboardCommand.NotifyCanExecuteChanged();
         OpenInBrowserCommand.NotifyCanExecuteChanged();
@@ -438,6 +439,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasFileOnDisk));
         OnPropertyChanged(nameof(IsUrlSelected));
         OnPropertyChanged(nameof(IsTextSelected));
+        OnPropertyChanged(nameof(IsRichTextSelected));
         OnPropertyChanged(nameof(CanCaptureWebpage));
     }
 
@@ -451,6 +453,12 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// is hidden.</summary>
     public bool IsTextSelected =>
         SelectedRow?.Kind is ItemKind.Text or ItemKind.Html or ItemKind.Rtf;
+
+    /// <summary>True only on Html / Rtf items — gates the "Convert to plain text" toolbar
+    /// button. Plain Text rows are already plain so the action would be a no-op; non-text
+    /// kinds have nothing to strip down to.</summary>
+    public bool IsRichTextSelected =>
+        SelectedRow?.Kind is ItemKind.Html or ItemKind.Rtf;
 
     /// <summary>True when the selected item has a real file currently on disk (BlobRef
     /// populated by a SaveToFile pipeline step AND the file still exists). Gates the "Show in
@@ -706,6 +714,43 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         var editor = _services.GetService<ExternalTextEditorService>();
         if (editor is null) return;
         await editor.EditAsync(SelectedRow.Id, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    /// <summary>In-place strip of HTML / RTF formatting on the selected row — the payload is
+    /// replaced with the decoded plain text bytes AND the row's Kind flips to Text, so the
+    /// next paste hits the foreground app as plain text (Ctrl+V into Notepad / VSCode /
+    /// terminal works straight through). User confirms via MessageBox first because the
+    /// operation is irreversible (the original HTML/RTF markup is gone — there's no
+    /// "restore formatting" once committed).</summary>
+    [RelayCommand(CanExecute = nameof(IsRichTextSelected))]
+    private async Task ConvertToPlainTextAsync()
+    {
+        if (SelectedRow is null) return;
+        var row = SelectedRow;
+        if (row.Kind is not (ItemKind.Html or ItemKind.Rtf)) return;
+
+        var result = MessageBox.Show(
+            AresToys.App.Resources.Strings.Clipboard_ConvertToPlainTextConfirmBody,
+            AresToys.App.Resources.Strings.Clipboard_ConvertToPlainTextConfirmTitle,
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        if (result != MessageBoxResult.OK) return;
+
+        var record = await _items.GetByIdAsync(row.Id, CancellationToken.None).ConfigureAwait(false);
+        if (record is null) return;
+
+        var sourceText = System.Text.Encoding.UTF8.GetString(record.Payload.Span);
+        var plain = record.Kind == ItemKind.Html
+            ? Services.ClipboardCleaning.HtmlToPlain(sourceText)
+            : Services.ClipboardCleaning.RtfToPlain(sourceText);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(plain);
+
+        // Single SQL roundtrip swaps both payload AND kind so the row immediately renders as
+        // plain text and the next paste hits Ctrl+V'able text. ItemsChanged broadcast triggers
+        // the popup list to re-query — no manual refresh needed.
+        await _items.UpdatePayloadAsync(row.Id, bytes, bytes.LongLength, ItemKind.Text, CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     [RelayCommand(CanExecute = nameof(IsUrlSelected))]
