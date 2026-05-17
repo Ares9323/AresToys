@@ -121,7 +121,14 @@ public partial class RegionOverlayWindow : Window
         Toolbar.PreviewMouseLeftButtonDown += OnToolbarPreviewMouseDown;
         Loaded += async (_, _) =>
         {
-            Activate(); Focus(); Cursor = Cursors.Cross;
+            Activate(); Focus();
+            // Esplicit Keyboard.Focus on the window itself — Window.Focus() puts logical focus on
+            // the window but does NOT necessarily route keyboard input to it until a child gets
+            // keyboard focus (mouse click). Without this, Esc before the first mouse-press wasn't
+            // raising the KeyDown event; only after the user clicked (which moved keyboard focus
+            // onto the Canvas via the focus scope) did Esc start working.
+            Keyboard.Focus(this);
+            Cursor = Cursors.Cross;
             MagnifierCircle.Width = MagnifierCircle.Height = MagnifierBoxPx;
             UpdateDim(0, 0, 0, 0);
             // Auto-confirm mode hides the multi-region toolbar entirely — the affordances it
@@ -355,6 +362,23 @@ public partial class RegionOverlayWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        HandleKey(e);
+    }
+
+    /// <summary>Tunneling handler so Esc / Enter / Delete reach us EVEN when a child element
+    /// (a Canvas grip handle, an inline TextBox if we ever add one) has keyboard focus and
+    /// would otherwise swallow the key in its own KeyDown. Forwards to the same router as the
+    /// bubbling KeyDown — both edges of the tunnel/bubble cycle hit HandleKey, idempotent
+    /// because every branch sets e.Handled when it acts.</summary>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        HandleKey(e);
+        base.OnPreviewKeyDown(e);
+    }
+
+    private void HandleKey(KeyEventArgs e)
+    {
+        if (e.Handled) return;
         if (e.Key == Key.Escape)
         {
             _result = null;

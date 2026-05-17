@@ -177,19 +177,29 @@ public static partial class DarkTitleBar
             // DPI-aware corner size: scale by the window's transform-to-device matrix so
             // 12 logical px is 12 px on a 1× monitor and ~18 px on a 1.5× monitor.
             int corner = ScalePx(window, cornerSize);
+            // Side-edge resize is intentionally MUCH narrower than the corners (~4 logical px).
+            // A 12-px right edge resize zone overlaps the WPF scrollbar (~17 px wide) and the
+            // user cannot grab the thumb anymore — the resize cursor + drag wins. Corners stay
+            // wide (12 px) so the diagonal-resize grab is still comfortable; the long flat side
+            // gets the standard narrow band. Mirror for the left edge for symmetry.
+            int sideEdge = ScalePx(window, 4);
 
-            bool nearLeft   = x >= rect.Left   && x <  rect.Left   + corner;
-            bool nearRight  = x <  rect.Right  && x >= rect.Right  - corner;
-            bool nearBottom = y <  rect.Bottom && y >= rect.Bottom - corner;
+            bool nearLeftEdge    = x >= rect.Left   && x <  rect.Left   + sideEdge;
+            bool nearRightEdge   = x <  rect.Right  && x >= rect.Right  - sideEdge;
+            bool nearLeftCorner  = x >= rect.Left   && x <  rect.Left   + corner;
+            bool nearRightCorner = x <  rect.Right  && x >= rect.Right  - corner;
+            bool nearBottom      = y <  rect.Bottom && y >= rect.Bottom - corner;
             // Side edges (LEFT / RIGHT) — only when not also near top, so we don't steal the
             // top-corner buttons (close / max).
             bool nearTop = y >= rect.Top && y < rect.Top + corner;
 
-            if (nearBottom && nearLeft)  { handled = true; return new IntPtr(HTBOTTOMLEFT); }
-            if (nearBottom && nearRight) { handled = true; return new IntPtr(HTBOTTOMRIGHT); }
-            if (nearBottom)              { handled = true; return new IntPtr(HTBOTTOM); }
-            if (!nearTop && nearLeft)    { handled = true; return new IntPtr(HTLEFT); }
-            if (!nearTop && nearRight)   { handled = true; return new IntPtr(HTRIGHT); }
+            if (nearBottom && nearLeftCorner)  { handled = true; return new IntPtr(HTBOTTOMLEFT); }
+            if (nearBottom && nearRightCorner) { handled = true; return new IntPtr(HTBOTTOMRIGHT); }
+            if (nearBottom)                    { handled = true; return new IntPtr(HTBOTTOM); }
+            // Flat side edges: only the narrow band, not the full corner-wide stripe. Frees up
+            // the scrollbar (and any docked content) from being captured as a resize grab.
+            if (!nearTop && nearLeftEdge)      { handled = true; return new IntPtr(HTLEFT); }
+            if (!nearTop && nearRightEdge)     { handled = true; return new IntPtr(HTRIGHT); }
             return IntPtr.Zero;
         };
 
