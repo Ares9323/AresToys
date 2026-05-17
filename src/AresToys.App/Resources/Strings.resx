@@ -213,6 +213,8 @@
   <!-- Section blurb (the muted hint text right below the FontSize 20 page header). -->
   <data name="Uploaders_Blurb" xml:space="preserve"><value>Pick which uploaders to use per content type. Multiple selections upload the same file to all of them; the resulting URLs end up on the clipboard, one per line.</value></data>
   <data name="Hotkeys_Blurb" xml:space="preserve"><value>Click the workflow name to open its step list. Click the hotkey chip to set / change / clear the key combo.</value></data>
+  <data name="Hotkeys_ResetAllHotkeys" xml:space="preserve"><value>Reset all hotkeys</value></data>
+  <data name="Hotkeys_ResetAllWorkflows" xml:space="preserve"><value>Reset all workflows</value></data>
   <data name="Hotkeys_StepEditorBlurb" xml:space="preserve"><value>Add actions with the picker below; drag the ⋮⋮ handle to reorder; toggle to mute without removing; × removes. Plumbing steps run automatically and aren't shown.</value></data>
   <data name="Capture_Blurb" xml:space="preserve"><value>Defaults applied when triggering captures from the tray menu or hotkeys. The pipeline that runs after each capture is configured under Workflows.</value></data>
   <data name="Theme_Blurb" xml:space="preserve"><value>Two colors that flow everywhere AresToys uses an accent: primary buttons, toggle switches, the pinned-image border, drag-to-reorder indicators, and selected sidebar entries. Edit the hex values to see the changes apply live.</value></data>
@@ -231,10 +233,11 @@
        layer for built-ins; the value persisted in the DB stays in English (the seeder writes
        it once on first run) but the UI resolves the live translation through these keys. -->
   <data name="Workflow_OnClipboard" xml:space="preserve"><value>On clipboard</value></data>
-  <data name="Workflow_RegionCapture" xml:space="preserve"><value>Region capture</value></data>
-  <data name="Workflow_ActiveWindowCapture" xml:space="preserve"><value>Active window capture</value></data>
-  <data name="Workflow_ActiveMonitorCapture" xml:space="preserve"><value>Active monitor capture</value></data>
-  <data name="Workflow_WebpageCapture" xml:space="preserve"><value>Webpage capture</value></data>
+  <data name="Workflow_RegionCapture" xml:space="preserve"><value>Capture region</value></data>
+  <data name="Workflow_ActiveWindowCapture" xml:space="preserve"><value>Capture active window</value></data>
+  <data name="Workflow_ActiveMonitorCapture" xml:space="preserve"><value>Capture active monitor</value></data>
+  <data name="Workflow_WebpageCapture" xml:space="preserve"><value>Capture webpage</value></data>
+  <data name="Workflow_PinRegionToScreen" xml:space="preserve"><value>Pin region to screen</value></data>
   <data name="Workflow_ManualUpload" xml:space="preserve"><value>Manual upload</value></data>
   <data name="Workflow_UploadClipboardText" xml:space="preserve"><value>Upload clipboard text</value></data>
   <data name="Workflow_UploadSelectedFile" xml:space="preserve"><value>Upload selected file</value></data>
@@ -246,7 +249,7 @@
   <data name="Workflow_RecordScreenMp4" xml:space="preserve"><value>Screen recording (mp4)</value></data>
   <data name="Workflow_RecordScreenGif" xml:space="preserve"><value>Screen recording (gif)</value></data>
   <data name="Workflow_OpenScreenshotFolder" xml:space="preserve"><value>Open screenshot folder</value></data>
-  <data name="Workflow_QrReadFromRegion" xml:space="preserve"><value>QR — read from screen region</value></data>
+  <data name="Workflow_QrReadFromRegion" xml:space="preserve"><value>Scan QR in region</value></data>
   <data name="Workflow_OpenLauncher" xml:space="preserve"><value>Open launcher</value></data>
   <data name="Workflow_OpenSettings" xml:space="preserve"><value>Open settings</value></data>
   <data name="Workflow_SaveQrToHistory" xml:space="preserve"><value>Save QR to history</value></data>
@@ -299,6 +302,14 @@
   <data name="Toast_CopyPathToClipboard" xml:space="preserve"><value>Copy path to clipboard</value></data>
   <data name="Toast_OpenInEditor" xml:space="preserve"><value>Open in editor</value></data>
   <data name="Toast_ShowInFolder" xml:space="preserve"><value>Show in folder</value></data>
+  <data name="Toast_CopyText" xml:space="preserve"><value>Copy text</value></data>
+  <data name="Toast_EditText" xml:space="preserve"><value>Edit (system editor)</value></data>
+  <data name="Toast_Body_Done" xml:space="preserve"><value>Done.</value></data>
+  <data name="Toast_Body_ImageAdded" xml:space="preserve"><value>Image added to clipboard</value></data>
+  <data name="Toast_Body_ImageAddedDims" xml:space="preserve"><value>Image added to clipboard — {0}×{1}</value></data>
+  <data name="Toast_Body_VideoAdded" xml:space="preserve"><value>Video added to clipboard ({0})</value></data>
+  <data name="Toast_Body_FileAdded" xml:space="preserve"><value>File added: {0}</value></data>
+  <data name="Toast_Body_TextAdded" xml:space="preserve"><value>Text added: {0}</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Start minimized</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>Skip the main window on launch and stay in the tray. Click the tray icon to open the Settings window when needed.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Start editor maximized</value></data>
@@ -723,17 +734,16 @@
   <data name="WorkflowAction_arestoys_open_editor_before_upload" xml:space="preserve"><value>Open editor</value></data>
   <data name="WorkflowAction_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Apply image effects preset</value></data>
   <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Save as Image file</value></data>
-  <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Add to clipboard history</value></data>
+  <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Add Payload to AresToys clipboard</value></data>
   <data name="WorkflowAction_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Paste history item</value></data>
   <data name="WorkflowAction_arestoys_press_key" xml:space="preserve"><value>Press key</value></data>
   <data name="WorkflowAction_arestoys_delay" xml:space="preserve"><value>Delay</value></data>
   <data name="WorkflowAction_arestoys_copy_text_to_clipboard" xml:space="preserve"><value>Copy text to clipboard</value></data>
   <data name="WorkflowAction_arestoys_upload" xml:space="preserve"><value>Upload</value></data>
-  <data name="WorkflowAction_arestoys_upload_clipboard_text" xml:space="preserve"><value>Read text from clipboard</value></data>
+  <data name="WorkflowAction_arestoys_upload_clipboard_text" xml:space="preserve"><value>Read text from Windows clipboard</value></data>
   <data name="WorkflowAction_arestoys_capture_selected_explorer_file" xml:space="preserve"><value>Capture file selected in Explorer</value></data>
   <data name="WorkflowAction_arestoys_qr_read" xml:space="preserve"><value>Read QR from image</value></data>
-  <data name="WorkflowAction_arestoys_notify_toast" xml:space="preserve"><value>Show toast notification</value></data>
   <data name="WorkflowAction_arestoys_open_popup" xml:space="preserve"><value>Open clipboard popup</value></data>
   <data name="WorkflowAction_arestoys_toggle_incognito" xml:space="preserve"><value>Toggle incognito</value></data>
   <data name="WorkflowAction_arestoys_open_screenshot_folder" xml:space="preserve"><value>Open screenshot folder</value></data>
@@ -755,6 +765,7 @@
   <!-- Per-parameter labels (only the most common bool / string knobs). -->
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_fullscreen" xml:space="preserve"><value>Open fullscreen on active monitor (fit to screen)</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_default_tool" xml:space="preserve"><value>Default tool</value></data>
+  <data name="WorkflowActionParam_arestoys_open_editor_before_upload_abortOnCancel" xml:space="preserve"><value>Interrupt workflow if canceled</value></data>
   <data name="WorkflowActionParam_arestoys_save_to_file_format" xml:space="preserve"><value>Format</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original" xml:space="preserve"><value>Keep original in clipboard history</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name" xml:space="preserve"><value>Preset</value></data>
@@ -788,7 +799,7 @@
   <data name="WorkflowActionDesc_arestoys_open_editor_before_upload" xml:space="preserve"><value>Pause the pipeline and open the annotation editor on the captured bytes. On save, subsequent steps see the edited image.</value></data>
   <data name="WorkflowActionDesc_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Run a saved chain of adjustments / filters on the image (border, watermark, vignette …). Configure presets in Settings → Image effects.</value></data>
   <data name="WorkflowActionDesc_arestoys_save_to_file" xml:space="preserve"><value>Write the current bytes to disk under the configured capture folder (Settings → Capture). 'Format' is optional: leave empty for the bag's current format.</value></data>
-  <data name="WorkflowActionDesc_arestoys_add_to_history" xml:space="preserve"><value>Index the item in AresToys's history so it shows up in Win+V.</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_to_history" xml:space="preserve"><value>Save the item to AresToys' own history (the popup you open with Win+V). By default does NOT touch the Windows clipboard. Tick the toggle below to also push it to the Windows clipboard so Ctrl+V (and the OS clipboard history) pick it up too.</value></data>
   <data name="WorkflowActionDesc_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Place the bitmap on the Windows clipboard (Ctrl+V in any other app pastes it). Distinct from 'Add to clipboard history'.</value></data>
   <data name="WorkflowActionDesc_arestoys_paste_history_item" xml:space="preserve"><value>Auto-paste the N-th most recent clipboard history item into the foreground window. 1 = most recent.</value></data>
   <data name="WorkflowActionDesc_arestoys_press_key" xml:space="preserve"><value>Send a single keystroke to the foreground window. Useful between paste steps when chaining clipboard items onto consecutive lines.</value></data>
@@ -799,7 +810,6 @@
   <data name="WorkflowActionDesc_arestoys_capture_selected_explorer_file" xml:space="preserve"><value>Read the file currently selected in the foreground Explorer window and stage its bytes as the workflow's payload. Aborts silently when nothing is selected.</value></data>
   <data name="WorkflowActionDesc_arestoys_qr_read" xml:space="preserve"><value>Decode the first QR code found in the current image. Replaces the payload with the decoded UTF-8 text. Aborts the workflow when no QR is found.</value></data>
   <data name="WorkflowActionDesc_arestoys_update_item_url" xml:space="preserve"><value>Persist the upload URL on the history item so the popup shows it.</value></data>
-  <data name="WorkflowActionDesc_arestoys_notify_toast" xml:space="preserve"><value>Display a Windows toast confirming the operation. Click opens the URL when present.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_popup" xml:space="preserve"><value>Open the AresToys clipboard window (Win+V replacement). Pressing the same shortcut again while it's up dismisses it.</value></data>
   <data name="WorkflowActionDesc_arestoys_toggle_incognito" xml:space="preserve"><value>Flip incognito on/off — when on, clipboard items aren't captured into history.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_screenshot_folder" xml:space="preserve"><value>Open the configured capture folder (Settings → Capture) in Windows Explorer.</value></data>

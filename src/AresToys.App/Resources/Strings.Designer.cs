@@ -3001,7 +3001,25 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Hotkeys_Blurb", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reset all hotkeys.
+        /// </summary>
+        public static string Hotkeys_ResetAllHotkeys {
+            get {
+                return ResourceManager.GetString("Hotkeys_ResetAllHotkeys", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reset all workflows.
+        /// </summary>
+        public static string Hotkeys_ResetAllWorkflows {
+            get {
+                return ResourceManager.GetString("Hotkeys_ResetAllWorkflows", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Clone this workflow into a new editable copy.
         /// </summary>
@@ -6142,7 +6160,16 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Workflow_WebpageCapture", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pin region to screen.
+        /// </summary>
+        public static string Workflow_PinRegionToScreen {
+            get {
+                return ResourceManager.GetString("Workflow_PinRegionToScreen", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Add to clipboard history.
         /// </summary>

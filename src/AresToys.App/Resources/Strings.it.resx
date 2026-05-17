@@ -204,6 +204,8 @@
 
   <data name="Uploaders_Blurb" xml:space="preserve"><value>Scegli quali uploader usare per ciascun tipo di contenuto. Selezioni multiple caricano lo stesso file su tutti; gli URL risultanti finiscono negli appunti, uno per riga.</value></data>
   <data name="Hotkeys_Blurb" xml:space="preserve"><value>Clicca il nome del workflow per aprire la lista dei passaggi. Clicca la scorciatoia per impostarla / modificarla / rimuoverla.</value></data>
+  <data name="Hotkeys_ResetAllHotkeys" xml:space="preserve"><value>Reimposta tutte le scorciatoie</value></data>
+  <data name="Hotkeys_ResetAllWorkflows" xml:space="preserve"><value>Reimposta tutti i workflow</value></data>
   <data name="Hotkeys_StepEditorBlurb" xml:space="preserve"><value>Aggiungi azioni con il selettore sotto; trascina la maniglia ⋮⋮ per riordinare; usa il toggle per silenziare senza rimuovere; × rimuove. I passaggi tecnici vengono eseguiti automaticamente e non sono mostrati.</value></data>
   <data name="Capture_Blurb" xml:space="preserve"><value>Predefiniti applicati alle catture lanciate dal menu tray o dalle scorciatoie. La pipeline eseguita dopo ogni cattura è configurata in Workflow.</value></data>
   <data name="Theme_Blurb" xml:space="preserve"><value>Due colori che attraversano ovunque AresToys usi un accento: bottoni primari, toggle, bordo dell'immagine spillata, indicatori di drag-and-drop e voci selezionate nella sidebar. Modifica i valori hex per vedere il cambiamento in tempo reale.</value></data>
@@ -222,6 +224,7 @@
   <data name="Workflow_ActiveWindowCapture" xml:space="preserve"><value>Cattura finestra attiva</value></data>
   <data name="Workflow_ActiveMonitorCapture" xml:space="preserve"><value>Cattura monitor attivo</value></data>
   <data name="Workflow_WebpageCapture" xml:space="preserve"><value>Cattura pagina web</value></data>
+  <data name="Workflow_PinRegionToScreen" xml:space="preserve"><value>Blocca regione a schermo</value></data>
   <data name="Workflow_ManualUpload" xml:space="preserve"><value>Upload manuale</value></data>
   <data name="Workflow_UploadClipboardText" xml:space="preserve"><value>Upload testo dagli appunti</value></data>
   <data name="Workflow_UploadSelectedFile" xml:space="preserve"><value>Upload file selezionato</value></data>
@@ -233,7 +236,7 @@
   <data name="Workflow_RecordScreenMp4" xml:space="preserve"><value>Registrazione schermo (mp4)</value></data>
   <data name="Workflow_RecordScreenGif" xml:space="preserve"><value>Registrazione schermo (gif)</value></data>
   <data name="Workflow_OpenScreenshotFolder" xml:space="preserve"><value>Apri cartella screenshot</value></data>
-  <data name="Workflow_QrReadFromRegion" xml:space="preserve"><value>QR — leggi da regione schermo</value></data>
+  <data name="Workflow_QrReadFromRegion" xml:space="preserve"><value>Scansiona QR in regione</value></data>
   <data name="Workflow_OpenLauncher" xml:space="preserve"><value>Apri launcher</value></data>
   <data name="Workflow_OpenSettings" xml:space="preserve"><value>Apri impostazioni</value></data>
   <data name="Workflow_SaveQrToHistory" xml:space="preserve"><value>Salva QR in cronologia</value></data>
@@ -284,6 +287,14 @@
   <data name="Toast_CopyPathToClipboard" xml:space="preserve"><value>Copia path negli appunti</value></data>
   <data name="Toast_OpenInEditor" xml:space="preserve"><value>Apri nell'editor</value></data>
   <data name="Toast_ShowInFolder" xml:space="preserve"><value>Mostra in cartella</value></data>
+  <data name="Toast_CopyText" xml:space="preserve"><value>Copia testo</value></data>
+  <data name="Toast_EditText" xml:space="preserve"><value>Modifica (editor di sistema)</value></data>
+  <data name="Toast_Body_Done" xml:space="preserve"><value>Fatto.</value></data>
+  <data name="Toast_Body_ImageAdded" xml:space="preserve"><value>Immagine aggiunta agli appunti</value></data>
+  <data name="Toast_Body_ImageAddedDims" xml:space="preserve"><value>Immagine aggiunta agli appunti — {0}×{1}</value></data>
+  <data name="Toast_Body_VideoAdded" xml:space="preserve"><value>Video aggiunto agli appunti ({0})</value></data>
+  <data name="Toast_Body_FileAdded" xml:space="preserve"><value>File aggiunto: {0}</value></data>
+  <data name="Toast_Body_TextAdded" xml:space="preserve"><value>Testo aggiunto: {0}</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Avvia minimizzato</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>All'avvio salta la finestra principale e resta nella tray. Clicca l'icona tray per aprire le Impostazioni quando serve.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Avvia editor a schermo intero</value></data>
@@ -664,17 +675,16 @@
   <data name="WorkflowAction_arestoys_open_editor_before_upload" xml:space="preserve"><value>Apri editor</value></data>
   <data name="WorkflowAction_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Applica preset effetti immagine</value></data>
   <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Salva come immagine</value></data>
-  <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Aggiungi alla cronologia appunti</value></data>
+  <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Aggiungi Payload alla clipboard di AresToys</value></data>
   <data name="WorkflowAction_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Incolla elemento dalla cronologia</value></data>
   <data name="WorkflowAction_arestoys_press_key" xml:space="preserve"><value>Premi tasto</value></data>
   <data name="WorkflowAction_arestoys_delay" xml:space="preserve"><value>Ritardo</value></data>
   <data name="WorkflowAction_arestoys_copy_text_to_clipboard" xml:space="preserve"><value>Copia testo negli appunti</value></data>
   <data name="WorkflowAction_arestoys_upload" xml:space="preserve"><value>Upload</value></data>
-  <data name="WorkflowAction_arestoys_upload_clipboard_text" xml:space="preserve"><value>Leggi testo dagli appunti</value></data>
+  <data name="WorkflowAction_arestoys_upload_clipboard_text" xml:space="preserve"><value>Leggi testo dagli appunti di Windows</value></data>
   <data name="WorkflowAction_arestoys_capture_selected_explorer_file" xml:space="preserve"><value>Cattura file selezionato in Esplora</value></data>
   <data name="WorkflowAction_arestoys_qr_read" xml:space="preserve"><value>Leggi QR dall'immagine</value></data>
-  <data name="WorkflowAction_arestoys_notify_toast" xml:space="preserve"><value>Mostra notifica toast</value></data>
   <data name="WorkflowAction_arestoys_open_popup" xml:space="preserve"><value>Apri popup appunti</value></data>
   <data name="WorkflowAction_arestoys_toggle_incognito" xml:space="preserve"><value>Attiva/disattiva incognito</value></data>
   <data name="WorkflowAction_arestoys_open_screenshot_folder" xml:space="preserve"><value>Apri cartella screenshot</value></data>
@@ -695,6 +705,7 @@
 
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_fullscreen" xml:space="preserve"><value>Apri a schermo intero sul monitor attivo (fit to screen)</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_default_tool" xml:space="preserve"><value>Strumento predefinito</value></data>
+  <data name="WorkflowActionParam_arestoys_open_editor_before_upload_abortOnCancel" xml:space="preserve"><value>Interrompi il workflow se annullato</value></data>
   <data name="WorkflowActionParam_arestoys_save_to_file_format" xml:space="preserve"><value>Formato</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original" xml:space="preserve"><value>Mantieni l'originale nella cronologia appunti</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name" xml:space="preserve"><value>Preset</value></data>
@@ -725,7 +736,7 @@
   <data name="WorkflowActionDesc_arestoys_open_editor_before_upload" xml:space="preserve"><value>Sospende la pipeline e apre l'editor di annotazione sui byte catturati. Al salvataggio, i passi successivi vedono l'immagine modificata.</value></data>
   <data name="WorkflowActionDesc_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Esegue una catena salvata di regolazioni / filtri sull'immagine (bordo, filigrana, vignettatura …). Configura i preset in Impostazioni → Effetti immagine.</value></data>
   <data name="WorkflowActionDesc_arestoys_save_to_file" xml:space="preserve"><value>Scrive i byte correnti su disco nella cartella di cattura configurata (Impostazioni → Cattura). 'Formato' è opzionale: lascia vuoto per il formato corrente del bag.</value></data>
-  <data name="WorkflowActionDesc_arestoys_add_to_history" xml:space="preserve"><value>Indicizza l'elemento nella cronologia AresToys in modo che appaia in Win+V.</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_to_history" xml:space="preserve"><value>Salva l'elemento nella cronologia di AresToys (il popup che apri con Win+V). Per default NON tocca gli appunti di Windows. Attiva l'opzione qui sotto per inviarlo anche agli appunti di Windows, così Ctrl+V (e la cronologia OS) lo vedono.</value></data>
   <data name="WorkflowActionDesc_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Mette la bitmap sugli appunti di Windows (Ctrl+V in altre app la incolla). Distinto da 'Aggiungi alla cronologia appunti'.</value></data>
   <data name="WorkflowActionDesc_arestoys_paste_history_item" xml:space="preserve"><value>Incolla automaticamente l'N-esimo elemento più recente della cronologia appunti nella finestra in primo piano. 1 = più recente.</value></data>
   <data name="WorkflowActionDesc_arestoys_press_key" xml:space="preserve"><value>Invia un singolo tasto alla finestra in primo piano. Utile tra passi di incolla quando si concatenano elementi appunti su righe consecutive.</value></data>
@@ -736,7 +747,6 @@
   <data name="WorkflowActionDesc_arestoys_capture_selected_explorer_file" xml:space="preserve"><value>Legge il file attualmente selezionato nella finestra Esplora in primo piano e prepara i suoi byte come payload del workflow. Si interrompe in silenzio se non è selezionato nulla.</value></data>
   <data name="WorkflowActionDesc_arestoys_qr_read" xml:space="preserve"><value>Decodifica il primo codice QR trovato nell'immagine corrente. Sostituisce il payload con il testo UTF-8 decodificato. Interrompe il workflow se nessun QR viene trovato.</value></data>
   <data name="WorkflowActionDesc_arestoys_update_item_url" xml:space="preserve"><value>Salva l'URL di upload sull'elemento di cronologia in modo che il popup lo mostri.</value></data>
-  <data name="WorkflowActionDesc_arestoys_notify_toast" xml:space="preserve"><value>Mostra un toast Windows che conferma l'operazione. Il click apre l'URL quando presente.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_popup" xml:space="preserve"><value>Apre la finestra appunti di AresToys (sostituto di Win+V). Premere la stessa scorciatoia mentre è aperta la chiude.</value></data>
   <data name="WorkflowActionDesc_arestoys_toggle_incognito" xml:space="preserve"><value>Attiva/disattiva la modalità incognito — quando attiva, gli elementi degli appunti non vengono catturati nella cronologia.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_screenshot_folder" xml:space="preserve"><value>Apre la cartella di cattura configurata (Impostazioni → Cattura) in Esplora risorse.</value></data>

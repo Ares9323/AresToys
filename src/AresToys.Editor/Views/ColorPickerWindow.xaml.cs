@@ -202,7 +202,7 @@ public partial class ColorPickerWindow : Wpf.Ui.Controls.FluentWindow
 
         foreach (var b in new[] { HBox, SBox, VBox, RBox, GBox, BBox, ABox, CBox, MBox, YBox, KBox })
         {
-            // Same handling as Hex / Dec — Enter commits without closing.
+            // Same handling as HEX / DEC — Enter commits without closing.
             b.KeyDown += (s, ev) => { if (ev.Key == Key.Enter) { Keyboard.ClearFocus(); ev.Handled = true; } };
         }
     }
