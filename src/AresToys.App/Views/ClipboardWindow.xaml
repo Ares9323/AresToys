@@ -396,9 +396,12 @@
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <!-- Left rail: Ctrl+N quick-paste badge on top, pin glyph below.
-                                                     Each collapses when its trigger is false. -->
+                                                <!-- Left rail: Ctrl+N quick-paste badge. The pinned-state glyph used
+                                                     to live here as well — replaced by the right-edge accent strip
+                                                     (last column) for visual consistency between labeled and
+                                                     unlabeled pinned rows. -->
                                                 <StackPanel Grid.Column="0"
                                                             VerticalAlignment="Center"
                                                             HorizontalAlignment="Left"
@@ -416,8 +419,6 @@
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center" />
                                                     </Border>
-                                                    <TextBlock Foreground="Gold" FontSize="11" Text="📌" HorizontalAlignment="Center"
-                                                               Visibility="{Binding ShowPinInRail, Converter={StaticResource BoolToVisibility}}" />
                                                 </StackPanel>
                                                 <Border Grid.Column="1"
                                                         Width="56" Height="56"
@@ -436,17 +437,6 @@
                                                     <Grid>
                                                         <StackPanel Orientation="Horizontal"
                                                                     Visibility="{Binding IsRenaming, Converter={StaticResource InverseBoolToVisibility}}">
-                                                            <!-- Inline pin glyph (FA map-pin) shown only when the row has a label, sits
-                                                                 LEFT of the tag icon so the title row reads "[pin] [tag] [label text]"
-                                                                 as a single visual unit. The left-rail 📌 hides in this case
-                                                                 (ShowPinInRail = Pinned AND !HasLabel) so the pin doesn't appear twice. -->
-                                                            <TextBlock Text="&#xF276;"
-                                                                       FontFamily="{DynamicResource IconFont}"
-                                                                       Foreground="{DynamicResource AccentDeleteBrush}"
-                                                                       FontSize="11"
-                                                                       Margin="0,0,6,0"
-                                                                       VerticalAlignment="Center"
-                                                                       Visibility="{Binding ShowPinInline, Converter={StaticResource BoolToVisibility}}" />
                                                             <TextBlock Text="&#xF02B;"
                                                                        FontFamily="{DynamicResource IconFont}"
                                                                        Foreground="{DynamicResource AccentBackgroundLightBrush}"
@@ -534,6 +524,18 @@
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Button>
                                                 </StackPanel>
+                                                <!-- Pinned-state indicator: a 4px accent-coloured strip flush
+                                                     against the row's right edge. Replaces the two pin glyphs
+                                                     (rail 📌 + inline FA map-pin) — uniform treatment for
+                                                     labeled and unlabeled rows. Negative margin escapes the
+                                                     RowBorder's Padding so the strip touches the actual edge.
+                                                     Visibility is Collapsed (= zero width contribution) when
+                                                     the row isn't pinned, so the layout doesn't shift. -->
+                                                <Border Grid.Column="4"
+                                                        Width="4"
+                                                        Margin="6,-6,-8,-6"
+                                                        Background="{DynamicResource AccentBackgroundLightBrush}"
+                                                        Visibility="{Binding Pinned, Converter={StaticResource BoolToVisibility}}" />
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -563,21 +565,47 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <!-- Always-on Label editor for the selected row. Bound OneWay to
-                                 SelectedRow.Label; code-behind LostFocus/Enter handler reads
-                                 the TextBox text and persists via PopupWindowViewModel.
-                                 CommitLabelAsync. IsEnabled false when nothing's selected so
-                                 the user doesn't type into a void. -->
-                            <ui:TextBox Grid.Row="0"
-                                        x:Name="PreviewPaneLabelBox"
-                                        Margin="8,6,8,2"
-                                        MaxLength="200"
-                                        FontSize="12"
-                                        Text="{Binding SelectedRow.Label, Mode=OneWay, FallbackValue=''}"
-                                        PlaceholderText="{Markup:Loc Clipboard_LabelPlaceholder}"
-                                        KeyDown="OnPreviewLabelKeyDown"
-                                        LostFocus="OnPreviewLabelLostFocus"
-                                        Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVisibility}}" />
+                            <!-- Row 0: Label + (optional) Trigger sequence on the same line.
+                                 Label takes the lion's share (column 0 = *), Trigger is a
+                                 narrower field on the right (column 1 = 200px) so the user can
+                                 see both at once instead of stacking them. The Trigger column is
+                                 entirely collapsed when the Key Sequences module is disabled —
+                                 no listener installed, no point editing a trigger string. -->
+                            <Grid Grid.Row="0" Margin="8,6,8,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- Always-on Label editor for the selected row. Bound OneWay to
+                                     SelectedRow.Label; code-behind LostFocus/Enter handler reads
+                                     the TextBox text and persists via PopupWindowViewModel.CommitLabelAsync. -->
+                                <ui:TextBox Grid.Column="0"
+                                            x:Name="PreviewPaneLabelBox"
+                                            MaxLength="200"
+                                            FontSize="12"
+                                            Text="{Binding SelectedRow.Label, Mode=OneWay, FallbackValue=''}"
+                                            PlaceholderText="{Markup:Loc Clipboard_LabelPlaceholder}"
+                                            KeyDown="OnPreviewLabelKeyDown"
+                                            LostFocus="OnPreviewLabelLostFocus"
+                                            Visibility="{Binding SelectedRow, Converter={StaticResource NotNullToVisibility}}" />
+                                <!-- Key Sequences trigger ([a-zA-Z0-9_]+). PreviewTextInput
+                                     handler filters disallowed chars at input time so users can't
+                                     even type invalid characters in the box. -->
+                                <ui:TextBox Grid.Column="1"
+                                            x:Name="PreviewPaneTriggerBox"
+                                            MinWidth="200"
+                                            Margin="6,0,0,0"
+                                            MaxLength="64"
+                                            FontSize="12"
+                                            Text="{Binding SelectedRow.Trigger, Mode=OneWay, FallbackValue=''}"
+                                            PlaceholderText="Trigger sequence"
+                                            ToolTip="Type a short tag (letters, digits, underscore) to make this entry pasteable from any app. While the Key Sequences module is on, typing the tag anywhere on the system opens the overlay so you can confirm + paste this entry. Leave empty to disable for this item."
+                                            PreviewTextInput="OnPreviewTriggerTextInput"
+                                            DataObject.Pasting="OnPreviewTriggerPasting"
+                                            KeyDown="OnPreviewTriggerKeyDown"
+                                            LostFocus="OnPreviewTriggerLostFocus"
+                                            Visibility="{Binding IsKeySequencesEnabled, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}" />
+                            </Grid>
                             <TextBlock Grid.Row="1"
                                        Margin="8,2,8,6"
                                        Foreground="{DynamicResource AccentForegroundDarkBrush}"
@@ -608,6 +636,95 @@
                                         </Image.LayoutTransform>
                                     </Image>
                                 </ScrollViewer>
+                                <!-- Video / animated GIF preview. MediaElement source is set
+                                     imperatively from code-behind on PreviewVideoPath changes
+                                     so the file handle is properly released between selections
+                                     (binding directly is unreliable for MediaElement). A small
+                                     translucent button bar overlays the bottom of the surface
+                                     for Play/Pause + restart, and the entire surface accepts
+                                     left-click to toggle Play/Pause (matches Telegram/WhatsApp
+                                     UX). LoadedBehavior=Manual gives us full control. -->
+                                <Grid Visibility="{Binding IsVideoPreview, Converter={StaticResource BoolToVisibility}}">
+                                    <MediaElement x:Name="PreviewVideoPlayer"
+                                                  LoadedBehavior="Manual"
+                                                  UnloadedBehavior="Stop"
+                                                  Stretch="Uniform"
+                                                  Margin="8"
+                                                  ScrubbingEnabled="False"
+                                                  MediaOpened="OnPreviewVideoOpened"
+                                                  MediaEnded="OnPreviewVideoEnded"
+                                                  MediaFailed="OnPreviewVideoFailed"
+                                                  MouseLeftButtonDown="OnPreviewVideoSurfaceClick"
+                                                  Cursor="Hand" />
+                                    <!-- Bottom control bar: Play/Pause + seek slider + timecode.
+                                         Stretched horizontally so the slider grows with the
+                                         preview pane; the slider's Value is driven by a
+                                         DispatcherTimer while playing and pushed back to the
+                                         MediaElement.Position on user drag (a guard flag avoids
+                                         the feedback loop). Slider clicks on the track count as
+                                         a seek too (WPF default with IsMoveToPointEnabled). -->
+                                    <Border VerticalAlignment="Bottom"
+                                            HorizontalAlignment="Stretch"
+                                            Margin="16,0,16,12"
+                                            Background="#AA000000"
+                                            CornerRadius="6"
+                                            Padding="6,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Play/Pause: simple square / triangle from the
+                                                 basic Symbols block — the dedicated media-control
+                                                 codepoints (⏸ / ▶︎) render inconsistently across
+                                                 fallback fonts. -->
+                                            <Button Grid.Column="0"
+                                                    x:Name="PreviewVideoPlayPauseButton"
+                                                    Click="OnPreviewVideoPlayPauseClicked"
+                                                    Width="32" Height="28"
+                                                    Margin="0,0,8,0"
+                                                    Background="Transparent"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    FontSize="12"
+                                                    Content="■"
+                                                    ToolTip="Play / Pause (click anywhere on the video also toggles)." />
+                                            <Slider Grid.Column="1"
+                                                    x:Name="PreviewVideoSlider"
+                                                    Minimum="0"
+                                                    Maximum="1"
+                                                    SmallChange="0.5"
+                                                    LargeChange="5"
+                                                    IsMoveToPointEnabled="True"
+                                                    VerticalAlignment="Center"
+                                                    ValueChanged="OnPreviewVideoSliderValueChanged"
+                                                    Foreground="White" />
+                                            <TextBlock Grid.Column="2"
+                                                       x:Name="PreviewVideoTimeText"
+                                                       Margin="8,0,8,0"
+                                                       Foreground="White"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="Consolas"
+                                                       Text="00:00 / 00:00" />
+                                            <!-- Mute toggle. Persists globally via the settings
+                                                 store (clipboard.preview.muted) so the user's
+                                                 last choice carries across selections + restarts. -->
+                                            <Button Grid.Column="3"
+                                                    x:Name="PreviewVideoMuteButton"
+                                                    Click="OnPreviewVideoMuteClicked"
+                                                    Width="32" Height="28"
+                                                    Background="Transparent"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    FontSize="12"
+                                                    Content="🔊"
+                                                    ToolTip="Mute / unmute (remembered across selections + restarts)." />
+                                        </Grid>
+                                    </Border>
+                                </Grid>
                                 <TextBox Text="{Binding PreviewText, Mode=OneWay}"
                                          IsReadOnly="True"
                                          IsTabStop="False"

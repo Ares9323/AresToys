@@ -19,6 +19,7 @@ public sealed class ItemRowViewModel : INotifyPropertyChanged
         Thumbnail = record.Thumbnail?.ToArray();
         DisplayIndex = displayIndex;
         _label = record.Label;
+        _trigger = record.Trigger;
         _showSnippetWithLabel = showSnippetWithLabel;
     }
 
@@ -56,19 +57,10 @@ public sealed class ItemRowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(TitleText));
             OnPropertyChanged(nameof(ShowSnippet));
             OnPropertyChanged(nameof(IsLabelEmpty));
-            OnPropertyChanged(nameof(ShowPinInline));
-            OnPropertyChanged(nameof(ShowPinInRail));
         }
     }
     public bool HasLabel => !string.IsNullOrWhiteSpace(_label);
     public bool IsLabelEmpty => string.IsNullOrEmpty(_label);
-
-    /// <summary>Pin glyph moves inline (in the title row, before the tag icon) when the row
-    /// has a label — that way the pin reads as part of the row's "header" alongside the
-    /// label, instead of floating in the left rail where the eye doesn't immediately tie
-    /// it to the label text. Plain rows (no label) keep the pin in the left rail.</summary>
-    public bool ShowPinInline => Pinned && HasLabel;
-    public bool ShowPinInRail => Pinned && !HasLabel;
 
     /// <summary>What the primary text in the row renders. Falls back to <see cref="Preview"/>
     /// when no label is set, so an un-labeled row keeps the legacy behaviour.</summary>
@@ -93,6 +85,24 @@ public sealed class ItemRowViewModel : INotifyPropertyChanged
     /// <summary>Visibility gate for the secondary snippet line: only shown when the row has a
     /// label AND the global setting opts in. Plain rows keep a single-line layout.</summary>
     public bool ShowSnippet => HasLabel && _showSnippetWithLabel;
+
+    private string? _trigger;
+    /// <summary>Optional key-sequence trigger that maps this item to the Key Sequences module.
+    /// When non-empty, typing this sequence outside the app opens the overlay listing this entry
+    /// among the candidates. The value is the literal sequence string ([a-zA-Z0-9_]+), not a hash.</summary>
+    public string? Trigger
+    {
+        get => _trigger;
+        set
+        {
+            var normalised = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (_trigger == normalised) return;
+            _trigger = normalised;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasTrigger));
+        }
+    }
+    public bool HasTrigger => !string.IsNullOrWhiteSpace(_trigger);
 
     private bool _isRenaming;
     /// <summary>True while the row is in inline-rename mode (TextBox swapped in for the title

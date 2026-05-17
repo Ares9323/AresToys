@@ -24,17 +24,24 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     private long _itemsVersion;
     private long _lastRefreshedVersion = -1;
 
-    public PopupWindowViewModel(IItemStore items, ICategoryStore categories, IServiceProvider services)
+    public PopupWindowViewModel(IItemStore items, ICategoryStore categories, IServiceProvider services, ModuleSettings modules)
     {
         _items = items;
         _categories = categories;
         _services = services;
+        IsKeySequencesEnabled = modules.KeySequencesEnabled;
         Rows = [];
         Categories = [];
         _items.ItemsChanged += OnItemsChanged;
         _categories.Changed += OnCategoriesChanged;
         _ = ReloadCategoriesAsync();
     }
+
+    /// <summary>Mirror of <see cref="ModuleSettings.KeySequencesEnabled"/> captured at construction
+    /// time. Bound by <c>ClipboardWindow</c>'s preview pane to gate the Trigger sequence editor —
+    /// the field doesn't make sense when the module is disabled (no listener installed, so the
+    /// trigger string would just sit in the DB doing nothing).</summary>
+    public bool IsKeySequencesEnabled { get; }
 
     public void Dispose()
     {
@@ -231,7 +238,14 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     public bool IsHtmlPreview => PreviewKind == PreviewKind.Html;
     public bool IsRtfPreview => PreviewKind == PreviewKind.Rtf;
     public bool IsImagePreview => PreviewKind == PreviewKind.Image;
+    public bool IsVideoPreview => PreviewKind == PreviewKind.Video;
     public bool HasPreview => PreviewKind != PreviewKind.None;
+
+    /// <summary>Disk path passed to the <c>MediaElement</c> in the preview pane when the
+    /// selected item is a video / animated GIF and we have a file on disk to play. Empty / null
+    /// when the preview isn't a video — the MediaElement's Source binding goes to null and the
+    /// control unloads itself.</summary>
+    [ObservableProperty] private string? _previewVideoPath;
 
     partial void OnPreviewKindChanged(PreviewKind value)
     {
@@ -239,6 +253,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsHtmlPreview));
         OnPropertyChanged(nameof(IsRtfPreview));
         OnPropertyChanged(nameof(IsImagePreview));
+        OnPropertyChanged(nameof(IsVideoPreview));
         OnPropertyChanged(nameof(HasPreview));
     }
 
@@ -280,14 +295,116 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
             case ItemKind.Image:
                 ApplyPreview(PreviewKind.Image, null, payload.ToArray(), null, null, meta);
                 break;
+            case ItemKind.Video:
+                // Recording coordinator writes mp4 + gif both as ItemKind.Video. When the file is
+                // still on disk (BlobRef), route to the MediaElement-backed video preview so the
+                // user can hit Play/Pause + Loop. Falls back to a static ffmpeg-generated thumb
+                // if the file moved/got deleted, or to no preview at all if ffmpeg isn't around.
+                if (!string.IsNullOrEmpty(record.BlobRef) && System.IO.File.Exists(record.BlobRef))
+                {
+                    ApplyVideoPreview(record.BlobRef, meta + " · " + System.IO.Path.GetFileName(record.BlobRef));
+                    break;
+                }
+                // No live file: try a still thumbnail via ffmpeg (might have been cached at a
+                // previous render). If even that fails — no preview.
+                if (!string.IsNullOrEmpty(record.BlobRef))
+                {
+                    var thumbSvc = _services.GetService(typeof(AresToys.App.Services.Recording.VideoThumbnailService))
+                        as AresToys.App.Services.Recording.VideoThumbnailService;
+                    if (thumbSvc is not null)
+                    {
+                        var thumb = await thumbSvc.GenerateAsync(record.Id, record.BlobRef, CancellationToken.None).ConfigureAwait(true);
+                        if (token != System.Threading.Interlocked.Read(ref _previewLoadToken)) return;
+                        if (thumb is { Length: > 0 })
+                        {
+                            ApplyPreview(PreviewKind.Image, null, thumb, null, null, meta + " · " + System.IO.Path.GetFileName(record.BlobRef));
+                            break;
+                        }
+                    }
+                }
+                ApplyPreview(PreviewKind.None, null, null, null, null, meta);
+                break;
             case ItemKind.Files:
-                ApplyPreview(PreviewKind.Text, Encoding.UTF8.GetString(payload.Span), null, null, null, meta);
+                // Files clipboard items store the path list as newline-joined UTF-8 (see
+                // ClipboardIngestionService.MapToNewItem). When the (first) path points at an
+                // image file we have on disk, render the image in the preview pane — matches the
+                // expectation of "I just copied a photo from Explorer, show me what it is."
+                // Otherwise keep the legacy text preview of the path(s) so the user can copy /
+                // read them.
+                var pathsText = Encoding.UTF8.GetString(payload.Span);
+                var firstPath = pathsText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
+                if (firstPath is not null && System.IO.File.Exists(firstPath))
+                {
+                    // Video / animated GIF → MediaElement (play/pause controls in the preview pane).
+                    if (IsVideoPath(firstPath))
+                    {
+                        ApplyVideoPreview(firstPath, meta + " · " + System.IO.Path.GetFileName(firstPath));
+                        break;
+                    }
+                    // Still image → read bytes into the image preview (bounded by size cap so a
+                    // multi-hundred-MB raw doesn't freeze the UI).
+                    if (IsImagePath(firstPath))
+                    {
+                        var info = new System.IO.FileInfo(firstPath);
+                        if (info.Length <= MaxFilePreviewBytes)
+                        {
+                            try
+                            {
+                                var imageBytes = await System.IO.File.ReadAllBytesAsync(firstPath, CancellationToken.None).ConfigureAwait(true);
+                                if (token != System.Threading.Interlocked.Read(ref _previewLoadToken)) return;
+                                ApplyPreview(PreviewKind.Image, null, imageBytes, null, null, meta + " · " + System.IO.Path.GetFileName(firstPath));
+                                break;
+                            }
+                            catch { /* fall through to text preview on any IO failure */ }
+                        }
+                    }
+                }
+                ApplyPreview(PreviewKind.Text, pathsText, null, null, null, meta);
                 break;
             default:
                 ApplyPreview(PreviewKind.None, null, null, null, null, meta);
                 break;
         }
         NotifyCommandsCanExecuteChanged();
+    }
+
+    /// <summary>Soft cap on the file size the Files-preview path will try to load into the
+    /// preview pane. Above this we skip the image render and fall back to the text path list —
+    /// avoids hanging the UI on a 100MB raw camera shot the user happened to copy.</summary>
+    private const long MaxFilePreviewBytes = 20 * 1024 * 1024;
+
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff", ".ico",
+    };
+
+    /// <summary>Extensions we route to the video preview channel. Includes everything ffmpeg can
+    /// generate a still-frame thumbnail for — even containers WPF's <c>MediaElement</c> (Windows
+    /// Media Foundation) can't actually play back. On a playback failure the
+    /// <c>OnPreviewVideoFailed</c> handler automatically swaps in the ffmpeg thumbnail via the
+    /// still-image channel so the user still sees the first frame; tags like .webm, .mkv, .flv
+    /// land there on standard Windows installs without the optional codec packs.</summary>
+    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".m4v", ".mov", ".gif", ".apng",
+        ".webm", ".mkv", ".avi", ".wmv", ".flv",
+        ".mpg", ".mpeg", ".m2ts", ".mts", ".vob",
+        ".3gp", ".3g2", ".ogv", ".rm", ".rmvb",
+        // .ts deliberately NOT here: the extension collides with TypeScript source code
+        // (and Qt translation source). MPEG-2 Transport Stream captures usually arrive as
+        // .m2ts (Blu-ray) or .mts (AVCHD camcorder) which are unambiguous.
+    };
+
+    private static bool IsImagePath(string path)
+    {
+        var ext = System.IO.Path.GetExtension(path);
+        return !string.IsNullOrEmpty(ext) && ImageExtensions.Contains(ext);
+    }
+
+    private static bool IsVideoPath(string path)
+    {
+        var ext = System.IO.Path.GetExtension(path);
+        return !string.IsNullOrEmpty(ext) && VideoExtensions.Contains(ext);
     }
 
     private void NotifyCommandsCanExecuteChanged()
@@ -396,6 +513,23 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         PreviewRtfBytes = rtf;
         PreviewHtml = html;
         PreviewMeta = meta;
+        // Whenever the preview switches to a non-video kind, blank the video path so the
+        // MediaElement releases its file handle + stops any in-flight playback.
+        if (kind != PreviewKind.Video) PreviewVideoPath = null;
+    }
+
+    /// <summary>Switch the preview pane to the video / animated-GIF playback channel pointing at
+    /// the file on disk. The MediaElement bound to <see cref="PreviewVideoPath"/> handles loading
+    /// + auto-loop; the code-behind wires the Play/Pause button.</summary>
+    private void ApplyVideoPreview(string path, string? meta)
+    {
+        PreviewText = null;
+        PreviewImageBytes = null;
+        PreviewRtfBytes = null;
+        PreviewHtml = null;
+        PreviewMeta = meta;
+        PreviewVideoPath = path;
+        PreviewKind = PreviewKind.Video;
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken)
@@ -525,6 +659,19 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         if (SelectedRow is not { } row) return;
         var paster = _services.GetRequiredService<AutoPaster>();
         await paster.PasteAsync(row.Id, CancellationToken.None).ConfigureAwait(false);
+        PasteCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Shift+Enter / explicit "paste path" variant: paste the on-disk file path of the
+    /// selected item as plain text instead of the file itself. Used when the user wants the path
+    /// (e.g. into a code editor / terminal) rather than the file contents. Falls back to the
+    /// regular paste behaviour silently when no path is available (Text items, deleted source).</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task PasteSelectedAsPathAsync()
+    {
+        if (SelectedRow is not { } row) return;
+        var paster = _services.GetRequiredService<AutoPaster>();
+        await paster.PastePathAsTextAsync(row.Id, CancellationToken.None).ConfigureAwait(false);
         PasteCompleted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -709,6 +856,14 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         // so no in-place mutation is needed here.
     }
 
+    /// <summary>Persist an updated trigger sequence for the Key Sequences module. Empty / whitespace
+    /// clears the trigger. The storage layer raises <c>ItemsChanged</c> which the
+    /// <c>ClipboardSequenceProvider</c> observes to rebuild the matcher index.</summary>
+    public async Task CommitTriggerAsync(long itemId, string? newTrigger)
+    {
+        await _items.SetTriggerAsync(itemId, newTrigger, CancellationToken.None).ConfigureAwait(true);
+    }
+
     /// <summary>Move a specific item (by id) into the named category. Called by the
     /// drag-to-category-tab handler on <see cref="Views.ClipboardWindow"/>; the right-click
     /// "Move to" menu uses <see cref="MoveSelectedToCategoryAsync"/> which operates on
@@ -766,7 +921,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     }
 }
 
-public enum PreviewKind { None, Text, Html, Rtf, Image }
+public enum PreviewKind { None, Text, Html, Rtf, Image, Video }
 
 /// <summary>One entry in the popup's category tab strip. <see cref="Name"/> = null marks the
 /// synthetic "All" tab that ignores the category filter; otherwise it's the category's

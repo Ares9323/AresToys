@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using AresToys.App.Views;
 using AresToys.Capture.Recording;
 using AresToys.Core.Domain;
+using AresToys.Core.Pipeline;
 using AresToys.Pipeline.Tasks;
 using AresToys.Storage.Items;
 using MessageBox = System.Windows.MessageBox;
@@ -32,6 +33,16 @@ public sealed class RecordingCoordinator
     private RecordingOverlayWindow? _overlay;
     private RecordingFormat _activeFormat;
     private bool _downloadInProgress;
+    /// <summary>Set when a workflow step kicks off a recording. The coordinator stashes the
+    /// pipeline context here so a stop initiated from a non-pipeline path (overlay Stop button,
+    /// abort, ffmpeg crash) can still populate the bag the awaiting workflow expects. Cleared
+    /// after each stop. Null when the recording was started outside a workflow.</summary>
+    private PipelineContext? _pendingPipelineContext;
+    /// <summary>Signaled when the in-flight recording finishes (cleanly or aborted). The Start
+    /// path of <see cref="ToggleAsync"/> awaits this so the workflow step doesn't return until
+    /// the file is actually on disk and the bag is populated — which is what makes
+    /// "Toggle screen recording → Copy file path" work in a single workflow run.</summary>
+    private TaskCompletionSource<bool>? _recordingCompletion;
 
     public RecordingCoordinator(
         ScreenRecordingService recorder,
@@ -84,16 +95,56 @@ public sealed class RecordingCoordinator
         return s.Length > 40 ? s[..40] : s;
     }
 
-    /// <summary>Single hotkey toggle: if not recording, prompt for region + start; if recording, stop.</summary>
-    public async Task ToggleAsync(RecordingFormat format, CancellationToken cancellationToken)
+    /// <summary>Single hotkey toggle wrapping a recording session.
+    /// <para>
+    /// When called as a workflow step (<paramref name="pipelineContext"/> non-null):
+    /// <list type="bullet">
+    ///   <item><b>Not recording</b> → prompts for region, starts ffmpeg, then AWAITS until the
+    ///         recording finishes (overlay Stop button, second-hotkey stop, abort, or ffmpeg crash).
+    ///         The pipeline context is stashed in <see cref="_pendingPipelineContext"/> so whoever
+    ///         triggers the stop can populate its bag — letting downstream workflow steps
+    ///         (CopyText, Upload, …) see the resulting file path in a single workflow run.</item>
+    ///   <item><b>Recording</b> → stops + persists into the supplied context.</item>
+    /// </list>
+    /// When called from a non-workflow caller (tray menu, raw hotkey outside a profile, or overlay
+    /// event handler), <paramref name="pipelineContext"/> is null and the Start path still awaits
+    /// the stop but no bag is populated.</para></summary>
+    public async Task ToggleAsync(RecordingFormat format, CancellationToken cancellationToken, PipelineContext? pipelineContext = null)
     {
         if (_recorder.IsRecording)
         {
-            await StopAndPersistAsync(cancellationToken).ConfigureAwait(false);
+            // The non-overlapping case: a second hotkey press / explicit stop call. Use the
+            // caller's context if present, otherwise the one captured at Start (overlay-button
+            // stop pre-create on its own thread routes through here too via the event handlers
+            // installed in StartAsync — those pass null and we fall back to the pending context).
+            var ctx = pipelineContext ?? _pendingPipelineContext;
+            await StopAndPersistAsync(cancellationToken, ctx).ConfigureAwait(false);
             return;
         }
 
+        // First time through: stash the pipeline context for the eventual stop. Build a fresh
+        // TaskCompletionSource that StopAndPersistAsync will signal once the file is on disk.
+        _pendingPipelineContext = pipelineContext;
+        _recordingCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
         await StartAsync(format, cancellationToken).ConfigureAwait(false);
+
+        // If StartAsync bailed out (user cancelled region picker, ffmpeg launch failed, etc.) the
+        // overlay never came up and the recorder isn't running — release everyone immediately so
+        // the calling workflow step doesn't hang forever waiting on a stop that won't come.
+        if (!_recorder.IsRecording)
+        {
+            _recordingCompletion.TrySetResult(false);
+            _pendingPipelineContext = null;
+            _recordingCompletion = null;
+            return;
+        }
+
+        // Block the workflow step until the recording ends. The signal can fire from any of:
+        //   - StopAndPersistAsync (normal stop + abort paths)
+        //   - second-hotkey re-press (routed through the IsRecording branch above)
+        try { await _recordingCompletion.Task.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) { /* workflow cancelled — let it propagate naturally */ }
     }
 
     private async Task StartAsync(RecordingFormat format, CancellationToken cancellationToken)
@@ -150,6 +201,12 @@ public sealed class RecordingCoordinator
                 _overlay?.Close();
                 _overlay = null;
                 _notifier.Show("Recording", "Aborted");
+                // Release any workflow step that was awaiting the recording — abort = no file,
+                // so we signal failure and the workflow exits with an empty bag (downstream
+                // steps skip naturally because their expected keys aren't set).
+                _recordingCompletion?.TrySetResult(false);
+                _recordingCompletion = null;
+                _pendingPipelineContext = null;
             };
             _overlay.Show();
         });
@@ -190,8 +247,16 @@ public sealed class RecordingCoordinator
         finally { _downloadInProgress = false; }
     }
 
-    private async Task StopAndPersistAsync(CancellationToken cancellationToken)
+    private async Task StopAndPersistAsync(CancellationToken cancellationToken, PipelineContext? pipelineContext = null)
     {
+        // Capture the completion source up-front so any return path below (file missing,
+        // exception) still releases the awaiting workflow step. Cleared from the fields here
+        // so a concurrent stop call doesn't double-signal.
+        var completion = _recordingCompletion;
+        _recordingCompletion = null;
+        var contextForBag = pipelineContext ?? _pendingPipelineContext;
+        _pendingPipelineContext = null;
+
         var path = _recorder.CurrentOutputPath;
         await _recorder.StopAsync().ConfigureAwait(true);
 
@@ -204,10 +269,12 @@ public sealed class RecordingCoordinator
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
             _notifier.Show("Recording", "Stopped. Output file not found.");
+            completion?.TrySetResult(false);
             return;
         }
 
         var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        var ext = _activeFormat == RecordingFormat.Mp4 ? "mp4" : "gif";
         var newItem = new NewItem(
             Kind: ItemKind.Video,
             Source: ItemSource.CaptureRegion,
@@ -219,17 +286,46 @@ public sealed class RecordingCoordinator
 
         var id = await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
 
-        _notifier.Show($"Recording saved",
-            Path.GetFileName(path),
-            onClick: () =>
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        // Populate the pipeline bag when this stop is happening as part of a workflow run.
+        // Mirrors the bag keys the capture tasks (CaptureRegion / CaptureActiveWindow / etc.) set
+        // so any downstream task that works after a screenshot will also work after a recording
+        // — CopyTextToClipboardTask with template "{bag.local_path}", UploadTask reading
+        // PayloadBytes + FileExtension, AddToHistoryTask consuming NewItem, etc.
+        if (contextForBag is not null)
+        {
+            contextForBag.Bag[PipelineBagKeys.LocalPath] = path;
+            contextForBag.Bag[PipelineBagKeys.Text] = path;
+            contextForBag.Bag[PipelineBagKeys.PayloadBytes] = bytes;
+            contextForBag.Bag[PipelineBagKeys.FileExtension] = ext;
+            contextForBag.Bag[PipelineBagKeys.NewItem] = newItem;
+            contextForBag.Bag[PipelineBagKeys.ItemId] = id;
+            _logger.LogDebug("RecordingCoordinator: populated pipeline bag — local_path={Path} item_id={Id}", path, id);
+        }
+
+        // Release the awaiting workflow step (if any). True = clean stop with a valid file
+        // on disk; downstream steps can rely on bag.local_path / bag.new_item being set IF
+        // contextForBag was provided.
+        completion?.TrySetResult(true);
+
+        // When the recording was kicked off from a workflow step, RecordScreenTask owns the
+        // post-stop UX (showNotification toggle + ToastBuilder). Skipping the legacy toast here
+        // avoids a double-notification stack. UI-only stops (overlay button outside any
+        // workflow, no context captured) still get the historical notify so the user has
+        // immediate feedback.
+        if (contextForBag is null)
+        {
+            _notifier.Show($"Recording saved",
+                Path.GetFileName(path),
+                onClick: () =>
                 {
-                    FileName = "explorer.exe",
-                    Arguments = $"/select,\"{path}\"",
-                    UseShellExecute = true
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"/select,\"{path}\"",
+                        UseShellExecute = true
+                    });
                 });
-            });
+        }
         _logger.LogInformation("Recording stored as item {Id} ({Format})", id, _activeFormat);
     }
 }

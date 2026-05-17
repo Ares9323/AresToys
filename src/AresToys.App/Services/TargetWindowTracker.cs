@@ -12,31 +12,38 @@ public sealed class TargetWindowTracker
     public void CaptureCurrentForeground()
     {
         var hwnd = AppNativeMethods.GetForegroundWindow();
-        if (hwnd != IntPtr.Zero && !IsOwnProcess(hwnd))
+        if (hwnd != IntPtr.Zero)
         {
-            _captured = hwnd;
-            return;
+            if (!IsOwnProcess(hwnd))
+            {
+                _captured = hwnd;
+                return;
+            }
+            // Foreground IS AresToys but NOT the clipboard popup itself — the user has an input
+            // dialog of ours open (WebpageUrlDialog, HotkeyCaptureWindow, IconPickerDialog, etc.)
+            // and the popup was invoked on top of it. They expect paste to land back into that
+            // dialog's text box. The only own-process window we deliberately skip is the popup,
+            // because pasting into itself would be a no-op / weird.
+            if (hwnd != AresToys.App.Views.ClipboardWindow.CurrentHwnd)
+            {
+                _captured = hwnd;
+                return;
+            }
         }
 
-        // Foreground is AresToys (or zero — desktop). Two scenarios where the user still
-        // expects paste to work:
-        //   1. They opened the popup from a AresToys window (Settings, tray, etc.) and want
-        //      paste to land in the previous app they were using.
-        //   2. The foreground bounced to AresToys between hotkey press and dispatcher tick.
-        // Walk the top-level Z-order via EnumWindows and pick the topmost visible non-AresToys
-        // window — that's the user's most-recent foreign foreground in practice. If a
-        // previously captured target is still alive, prefer that (most accurate to the user's
-        // actual flow); otherwise fall back to the EnumWindows scan.
+        // Foreground is the popup itself (or zero — desktop). Same fallback as before: keep the
+        // last valid foreign capture, otherwise scan EnumWindows for the topmost non-AresToys
+        // window so paste at least lands somewhere plausible.
         if (_captured != IntPtr.Zero
             && AppNativeMethods.IsWindow(_captured)
             && !IsOwnProcess(_captured))
         {
-            Debug.WriteLine($"[TargetWindowTracker] Foreground is own process; keeping previous capture {_captured}.");
+            Debug.WriteLine($"[TargetWindowTracker] Foreground is the popup itself; keeping previous capture {_captured}.");
             return;
         }
 
         _captured = FindTopmostNonOwnWindow();
-        Debug.WriteLine($"[TargetWindowTracker] Foreground is own; EnumWindows fallback found {_captured}.");
+        Debug.WriteLine($"[TargetWindowTracker] Foreground is the popup; EnumWindows fallback found {_captured}.");
     }
 
     private static bool IsOwnProcess(IntPtr hwnd)
@@ -70,6 +77,16 @@ public sealed class TargetWindowTracker
     }
 
     public bool TryRestoreCaptured() => ForceForeground(_captured);
+
+    /// <summary>The captured target HWND (or <see cref="IntPtr.Zero"/> when nothing's been
+    /// captured yet). Exposed so AutoPaster can decide between SendInput Ctrl+V (cross-process)
+    /// and a WPF programmatic paste (own-process) — the latter avoids a flaky foreground swap
+    /// + key-injection round-trip when both windows live in our process.</summary>
+    public IntPtr CapturedHwnd => _captured;
+
+    /// <summary>Whether the captured HWND belongs to our own process. Mirrors the same check
+    /// the capture loop uses internally.</summary>
+    public bool CapturedIsOwnProcess => _captured != IntPtr.Zero && IsOwnProcess(_captured);
 
     /// <summary>Force any window to the foreground, bypassing Win32's anti-focus-stealing
     /// rules via the AttachThreadInput + alt-tap workaround. Used both to send focus TO the

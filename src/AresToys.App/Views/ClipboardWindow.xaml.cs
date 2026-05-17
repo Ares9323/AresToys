@@ -26,6 +26,20 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     public static bool IsOpen => _current is { IsLoaded: true, IsVisible: true };
     public static void RequestClose() => _current?.BeginHide();
 
+    /// <summary>HWND of the live ClipboardWindow, or <see cref="IntPtr.Zero"/> when no popup is
+    /// open. Used by <c>TargetWindowTracker</c> to distinguish "the popup itself" from "another
+    /// AresToys window the user was typing into" (e.g. WebpageUrlDialog) — only the popup is
+    /// excluded from being a paste target.</summary>
+    public static IntPtr CurrentHwnd
+    {
+        get
+        {
+            if (_current is null) return IntPtr.Zero;
+            try { return new System.Windows.Interop.WindowInteropHelper(_current).Handle; }
+            catch { return IntPtr.Zero; }
+        }
+    }
+
     private const string SizeWidthKey   = "clipboard.size.width";
     private const string SizeHeightKey  = "clipboard.size.height";
     private const string PreviewWidthKey = "clipboard.preview.width";
@@ -71,6 +85,11 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         _qrService = qrService;
         _ingestion = ingestion;
         _current = this;
+
+        // Hydrate the persisted "mute preview videos" preference so the first MediaElement load
+        // applies it without flicker. Fire-and-forget — the ApplyPreviewMutedToControls call
+        // tolerates being run before the visual tree is wired up (null-guards everywhere).
+        _ = LoadPreviewMutedPreferenceAsync();
 
         // Tunneling so Ctrl+digits / arrows / Enter reach this handler before SearchBox
         // (or any other focused TextBox) swallows them.
@@ -266,7 +285,11 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         // AutoPaster's SetForegroundWindow has already handed focus to the target by the time
         // this fires, so simply hiding here is safe — we're no longer the foreground window
         // and Win32's anti-focus-stealing rules don't kick in.
-        Dispatcher.BeginInvoke(new Action(BeginHide), DispatcherPriority.Background);
+        // PRIORITY=Send (sync-on-dispatcher, not deferred to Background): the popup stays
+        // Topmost until Hide() runs, and a deferred Hide leaves a ~1-frame window where the
+        // popup can still intercept keystrokes via its PreviewKeyDown — consuming the user's
+        // first keystroke after paste before the target window's TextBox can see it.
+        Dispatcher.BeginInvoke(new Action(BeginHide), DispatcherPriority.Send);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -300,7 +323,255 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
                     new Action(FitPreviewImageToPane),
                     DispatcherPriority.ContextIdle);
                 break;
+            case nameof(PopupWindowViewModel.PreviewVideoPath):
+                // Imperatively set the MediaElement source — binding Source directly to a
+                // changing path string is unreliable in WPF (stale handles, no clear file lock
+                // release). Stop + null first so the previous file unlocks, then re-Open.
+                if (PreviewVideoPlayer is not null)
+                {
+                    StopPreviewVideoTimer();
+                    PreviewVideoPlayer.Stop();
+                    PreviewVideoPlayer.Close();
+                    PreviewVideoPlayer.Source = null;
+                    var path = ViewModel.PreviewVideoPath;
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        PreviewVideoPlayer.Source = new Uri(path, UriKind.Absolute);
+                        PreviewVideoPlayer.Play();
+                        UpdatePlayPauseGlyph(playing: true);
+                        // Slider + timer are wired up by OnPreviewVideoOpened once decoding
+                        // surfaces the duration metadata — nothing to start manually here.
+                    }
+                    else
+                    {
+                        UpdatePlayPauseGlyph(playing: false);
+                    }
+                }
+                break;
         }
+    }
+
+    /// <summary>Polls <c>MediaElement.Position</c> ~7×/sec to keep the seek slider + timecode in
+    /// sync with playback. Started on MediaOpened, stopped on Closed / failed / MediaEnded
+    /// (well, briefly — we restart it via the loop). Slower than the per-frame rate to keep CPU
+    /// in single digits even on long recordings.</summary>
+    private DispatcherTimer? _previewVideoTimer;
+    /// <summary>Guard that prevents the slider's ValueChanged handler from feeding our own
+    /// timer-driven updates back into <c>MediaElement.Position</c> — that would create a
+    /// jittery feedback loop and stutter the playback.</summary>
+    private bool _previewVideoSliderUpdating;
+    private bool _previewVideoPlaying;
+
+    /// <summary>Once the MediaElement has decoded enough of the source to know its duration, we
+    /// can size the seek slider and start the timer that drives it during playback.</summary>
+    private void OnPreviewVideoOpened(object sender, RoutedEventArgs e)
+    {
+        if (PreviewVideoPlayer is null) return;
+        // Re-apply the global mute preference every time we open a new clip — MediaElement
+        // resets IsMuted to false on Open.
+        ApplyPreviewMutedToControls();
+        var duration = PreviewVideoPlayer.NaturalDuration.HasTimeSpan
+            ? PreviewVideoPlayer.NaturalDuration.TimeSpan
+            : TimeSpan.Zero;
+        if (PreviewVideoSlider is not null)
+        {
+            _previewVideoSliderUpdating = true;
+            PreviewVideoSlider.Maximum = Math.Max(duration.TotalSeconds, 0.001);
+            PreviewVideoSlider.Value = 0;
+            _previewVideoSliderUpdating = false;
+        }
+        UpdatePreviewVideoTimeText(TimeSpan.Zero, duration);
+
+        _previewVideoTimer?.Stop();
+        _previewVideoTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(150),
+        };
+        _previewVideoTimer.Tick += OnPreviewVideoTimerTick;
+        _previewVideoTimer.Start();
+
+        UpdatePlayPauseGlyph(playing: PreviewVideoPlayer.Source is not null);
+    }
+
+    private void OnPreviewVideoTimerTick(object? sender, EventArgs e)
+    {
+        if (PreviewVideoPlayer is null || PreviewVideoSlider is null) return;
+        var pos = PreviewVideoPlayer.Position;
+        var duration = PreviewVideoPlayer.NaturalDuration.HasTimeSpan
+            ? PreviewVideoPlayer.NaturalDuration.TimeSpan
+            : TimeSpan.Zero;
+        _previewVideoSliderUpdating = true;
+        PreviewVideoSlider.Value = pos.TotalSeconds;
+        _previewVideoSliderUpdating = false;
+        UpdatePreviewVideoTimeText(pos, duration);
+    }
+
+    private void OnPreviewVideoSliderValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        // Two callers possible: the timer above (which sets _previewVideoSliderUpdating=true so we
+        // bail), or the user dragging / clicking the track (we treat that as a seek).
+        if (_previewVideoSliderUpdating) return;
+        if (PreviewVideoPlayer is null) return;
+        PreviewVideoPlayer.Position = TimeSpan.FromSeconds(e.NewValue);
+        if (PreviewVideoPlayer.NaturalDuration.HasTimeSpan)
+            UpdatePreviewVideoTimeText(PreviewVideoPlayer.Position, PreviewVideoPlayer.NaturalDuration.TimeSpan);
+    }
+
+    private void UpdatePreviewVideoTimeText(TimeSpan position, TimeSpan duration)
+    {
+        if (PreviewVideoTimeText is null) return;
+        PreviewVideoTimeText.Text = $"{FormatVideoTime(position)} / {FormatVideoTime(duration)}";
+    }
+
+    private static string FormatVideoTime(TimeSpan t)
+    {
+        // mm:ss is fine for the recording lengths AresToys produces (seconds to a few minutes).
+        // Switch to h:mm:ss if a clip happens to break the hour mark.
+        if (t < TimeSpan.Zero) t = TimeSpan.Zero;
+        if (t.TotalHours >= 1)
+            return $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}";
+        return $"{t.Minutes:D2}:{t.Seconds:D2}";
+    }
+
+    /// <summary>Loop the video by seeking back to zero and resuming. Matches the inline-preview
+    /// UX of Telegram / WhatsApp / Discord: a recording previewed in the popup should keep
+    /// playing as long as the user is looking at it.</summary>
+    private void OnPreviewVideoEnded(object sender, RoutedEventArgs e)
+    {
+        if (PreviewVideoPlayer is null) return;
+        PreviewVideoPlayer.Position = TimeSpan.Zero;
+        PreviewVideoPlayer.Play();
+        UpdatePlayPauseGlyph(playing: true);
+    }
+
+    private async void OnPreviewVideoFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        // MediaElement loads through Windows Media Foundation. Common reasons it fails:
+        //   - Win10 N / KN edition without the Media Feature Pack (no built-in mp4/h264).
+        //   - File moved or locked by another writer.
+        //   - Exotic codec the OS doesn't know.
+        // Fall back to the still-frame ffmpeg thumbnail when we can — the user at least sees
+        // what the recording looks like. If even that fails (no ffmpeg installed) the slot
+        // shows a short explanatory line so the user knows it's not just a blank panel.
+        System.Diagnostics.Debug.WriteLine($"Preview video failed: {e.ErrorException.Message}");
+        StopPreviewVideoTimer();
+
+        var path = ViewModel.PreviewVideoPath;
+        var selectedId = ViewModel.SelectedRow?.Id;
+        if (!string.IsNullOrEmpty(path) && selectedId is { } id)
+        {
+            var thumbSvc = ((App)System.Windows.Application.Current).Services.GetService(typeof(AresToys.App.Services.Recording.VideoThumbnailService))
+                as AresToys.App.Services.Recording.VideoThumbnailService;
+            if (thumbSvc is not null)
+            {
+                var thumb = await thumbSvc.GenerateAsync(id, path, CancellationToken.None);
+                if (thumb is { Length: > 0 })
+                {
+                    // Hand off to the existing image-preview channel: the MediaElement is hidden
+                    // because IsVideoPreview flips back to false when we switch kinds.
+                    ViewModel.PreviewImageBytes = thumb;
+                    ViewModel.PreviewVideoPath = null;
+                    ViewModel.PreviewKind = AresToys.App.ViewModels.PreviewKind.Image;
+                    return;
+                }
+            }
+        }
+        // No ffmpeg / no thumbnail available — surface a plain-text explanation in the text
+        // preview slot so the pane isn't just a blank rectangle.
+        ViewModel.PreviewVideoPath = null;
+        ViewModel.PreviewText = "Preview unavailable. " +
+            "Windows Media Foundation couldn't decode this file — common on Win10/11 N or KN editions without the Media Feature Pack. " +
+            "Ctrl+V still works in apps that handle the file directly.";
+        ViewModel.PreviewKind = AresToys.App.ViewModels.PreviewKind.Text;
+    }
+
+    private void OnPreviewVideoSurfaceClick(object sender, MouseButtonEventArgs e)
+    {
+        TogglePreviewVideoPlayback();
+        e.Handled = true;
+    }
+
+    private void OnPreviewVideoPlayPauseClicked(object sender, RoutedEventArgs e)
+    {
+        TogglePreviewVideoPlayback();
+    }
+
+    private void TogglePreviewVideoPlayback()
+    {
+        if (PreviewVideoPlayer is null) return;
+        if (_previewVideoPlaying)
+        {
+            PreviewVideoPlayer.Pause();
+            UpdatePlayPauseGlyph(playing: false);
+        }
+        else
+        {
+            PreviewVideoPlayer.Play();
+            UpdatePlayPauseGlyph(playing: true);
+        }
+    }
+
+    private void UpdatePlayPauseGlyph(bool playing)
+    {
+        _previewVideoPlaying = playing;
+        if (PreviewVideoPlayPauseButton is not null)
+        {
+            // Square (U+25A0) = playing (click to pause), triangle (U+25B6) = paused (click to play).
+            // Plain Symbols-block glyphs avoid the rendering issues of the dedicated media-control
+            // codepoints in the fallback font chain.
+            PreviewVideoPlayPauseButton.Content = playing ? "■" : "▶";
+        }
+    }
+
+    private void StopPreviewVideoTimer()
+    {
+        if (_previewVideoTimer is null) return;
+        _previewVideoTimer.Stop();
+        _previewVideoTimer.Tick -= OnPreviewVideoTimerTick;
+        _previewVideoTimer = null;
+    }
+
+    private const string PreviewMutedSettingKey = "clipboard.preview.muted";
+    /// <summary>Cached mute preference. Hydrated once at construction (see ClipboardWindow ctor)
+    /// from the settings store; every subsequent toggle persists immediately so the choice rides
+    /// across selections AND app restarts.</summary>
+    private bool _previewMuted = true; // default to muted — quieter UX for screen recordings.
+
+    private async Task LoadPreviewMutedPreferenceAsync()
+    {
+        try
+        {
+            var store = ((App)System.Windows.Application.Current).Services.GetService(
+                typeof(AresToys.Storage.Settings.ISettingsStore)) as AresToys.Storage.Settings.ISettingsStore;
+            if (store is null) return;
+            var raw = await store.GetAsync(PreviewMutedSettingKey, CancellationToken.None).ConfigureAwait(true);
+            // Default = muted (true). Only "0" / "false" flips it off — anything else (including
+            // the unset / first-launch case) keeps the silent default.
+            _previewMuted = raw != "0" && !string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase);
+            ApplyPreviewMutedToControls();
+        }
+        catch { /* settings store hiccup — keep the silent default */ }
+    }
+
+    private void ApplyPreviewMutedToControls()
+    {
+        if (PreviewVideoPlayer is not null) PreviewVideoPlayer.IsMuted = _previewMuted;
+        if (PreviewVideoMuteButton is not null)
+            PreviewVideoMuteButton.Content = _previewMuted ? "🔇" : "🔊";
+    }
+
+    private async void OnPreviewVideoMuteClicked(object sender, RoutedEventArgs e)
+    {
+        _previewMuted = !_previewMuted;
+        ApplyPreviewMutedToControls();
+        try
+        {
+            var store = ((App)System.Windows.Application.Current).Services.GetService(
+                typeof(AresToys.Storage.Settings.ISettingsStore)) as AresToys.Storage.Settings.ISettingsStore;
+            if (store is not null)
+                await store.SetAsync(PreviewMutedSettingKey, _previewMuted ? "1" : "0", sensitive: false, CancellationToken.None);
+        }
+        catch { /* persistence failure isn't fatal — in-memory state still reflects the toggle */ }
     }
 
     /// <summary>Wheel handling on the image preview. Ctrl+wheel zooms the image; Shift+wheel
@@ -822,7 +1093,16 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
                 break;
             case Key.Enter:
                 if (ViewModel.SelectedRow is not null)
-                    ViewModel.PasteSelectedCommand.Execute(null);
+                {
+                    // Shift+Enter = "paste the path as text" (when the row has an on-disk file —
+                    // Image / Video / Files saved by Save-to-file / recording / AddFile). Falls
+                    // back to the normal paste behaviour automatically when the path can't be
+                    // resolved, so the user always gets some paste action.
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                        ViewModel.PasteSelectedAsPathCommand.Execute(null);
+                    else
+                        ViewModel.PasteSelectedCommand.Execute(null);
+                }
                 e.Handled = true;
                 break;
             case Key.Delete:
@@ -877,7 +1157,12 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (_isClosing) return;
         _isClosing = true;
-        Dispatcher.BeginInvoke(new Action(Hide), DispatcherPriority.Background);
+        // Hide immediately (Send priority) rather than at Background — when invoked from
+        // OnPasteCompleted, the Topmost popup must clear the visual + input layer before the
+        // user's next keystroke, otherwise the first post-paste key lands on the popup's
+        // PreviewKeyDown and gets swallowed without effect. For the Esc / Deactivated paths the
+        // priority bump just means hide happens one dispatcher pump earlier — no visible change.
+        Dispatcher.BeginInvoke(new Action(Hide), DispatcherPriority.Send);
     }
 
     /// <summary>Pinned mode toggle in the titlebar — flips the VM flag (which persists via
@@ -1007,5 +1292,71 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         var current = row.Label ?? string.Empty;
         if (string.Equals(tb.Text ?? string.Empty, current, StringComparison.Ordinal)) return;
         await ViewModel.CommitLabelAsync(row.Id, tb.Text);
+    }
+
+    /// <summary>Char-level filter on the Trigger TextBox: drop any keystroke that would add a
+    /// character outside [a-zA-Z0-9_]. Stops the user from typing invalid chars in the first
+    /// place instead of validating at commit time. Combined with <see cref="OnPreviewTriggerPasting"/>
+    /// it also rejects pasted strings containing invalid chars (the storage layer normalises
+    /// whitespace to null but doesn't enforce the regex — validation is a UI concern).</summary>
+    private void OnPreviewTriggerTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+    {
+        foreach (var c in e.Text)
+        {
+            if (!IsTriggerChar(c))
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+    }
+
+    private void OnPreviewTriggerPasting(object sender, System.Windows.DataObjectPastingEventArgs e)
+    {
+        if (!e.DataObject.GetDataPresent(typeof(string))) { e.CancelCommand(); return; }
+        var pasted = (string)e.DataObject.GetData(typeof(string))!;
+        foreach (var c in pasted)
+        {
+            if (!IsTriggerChar(c))
+            {
+                e.CancelCommand();
+                return;
+            }
+        }
+    }
+
+    private static bool IsTriggerChar(char c)
+        => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+
+    /// <summary>Preview-pane Trigger TextBox — same commit/cancel semantics as the Label box.
+    /// Enter commits and blurs; Esc reverts to the stored value and blurs; LostFocus commits if
+    /// the text differs. Trigger content is validated at the storage layer (whitespace → null,
+    /// no length check beyond the 64-char MaxLength on the TextBox itself).</summary>
+    private async void OnPreviewTriggerKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (ViewModel.SelectedRow is not { } row) return;
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await ViewModel.CommitTriggerAsync(row.Id, tb.Text);
+            HistoryList.Focus();
+            return;
+        }
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            tb.Text = row.Trigger ?? string.Empty;
+            HistoryList.Focus();
+        }
+    }
+
+    private async void OnPreviewTriggerLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (ViewModel.SelectedRow is not { } row) return;
+        var current = row.Trigger ?? string.Empty;
+        if (string.Equals(tb.Text ?? string.Empty, current, StringComparison.Ordinal)) return;
+        await ViewModel.CommitTriggerAsync(row.Id, tb.Text);
     }
 }
