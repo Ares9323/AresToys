@@ -199,8 +199,42 @@ public sealed class AutoPaster
                     }
                     break;
 
+                case ItemKind.Files:
+                    // Same CF_HDROP-as-file-drop path the Video branch uses. Files entries come
+                    // from CF_HDROP ingestion (user copied one or more files in Explorer); payload
+                    // is the newline-joined absolute paths, BlobRef holds the first path for
+                    // single-file entries. Pasting as CF_HDROP lets Telegram/Discord/Explorer/email
+                    // treat the entry as an attached file (image entries become inline photos in
+                    // chat apps); previously Files items fell into the default branch and Enter /
+                    // Ctrl+N silently did nothing — only Shift+Enter (PastePathAsText) worked.
+                    var filePaths = new System.Collections.Specialized.StringCollection();
+                    if (!string.IsNullOrEmpty(record.BlobRef) && System.IO.File.Exists(record.BlobRef))
+                    {
+                        filePaths.Add(record.BlobRef);
+                    }
+                    else
+                    {
+                        foreach (var p in Encoding.UTF8.GetString(record.Payload.Span)
+                                                      .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            if (System.IO.File.Exists(p)) filePaths.Add(p);
+                        }
+                    }
+                    if (filePaths.Count == 0)
+                    {
+                        _logger.LogWarning("AutoPaster files: no resolvable on-disk file in entry (payload {Bytes}b, BlobRef='{Blob}')", record.Payload.Length, record.BlobRef);
+                        return false;
+                    }
+                    try { System.Windows.Clipboard.SetFileDropList(filePaths); }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "AutoPaster files: SetFileDropList failed");
+                        return false;
+                    }
+                    break;
+
                 default:
-                    return false; // Files / unknown kinds: paste not supported yet
+                    return false; // unknown kinds: paste not supported
             }
 
             return true;
