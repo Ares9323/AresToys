@@ -18,10 +18,18 @@ internal static class KeyInjector
         AppNativeMethods.VkLShift, AppNativeMethods.VkRShift,
         AppNativeMethods.VkLMenu, AppNativeMethods.VkRMenu,
         AppNativeMethods.VkLControl, AppNativeMethods.VkRControl,
+        // Enter isn't a "modifier" strictly, but it triggers IsDefault=True buttons on any WPF /
+        // WinForms dialog that wins foreground from AutoPaster (e.g. our own WebpageUrlDialog).
+        // If the user paste-by-Enter inside the AresToys popup with that dialog as paste target,
+        // the still-held Enter is forwarded to the dialog right after the foreground swap and
+        // activates the default button before our Ctrl+V lands. Injecting a synthetic Enter-up
+        // here neutralises the race.
+        AppNativeMethods.VkReturn,
     ];
 
-    /// <summary>Inject key-up events for any modifier currently physically held. Does nothing if
-    /// none are down. Returns the count of modifiers released so callers can size a settle delay.</summary>
+    /// <summary>Inject key-up events for any modifier (or Enter) currently physically held. Does
+    /// nothing if none are down. Returns the count of keys released so callers can size a
+    /// settle delay.</summary>
     public static int ReleaseStickyModifiers()
     {
         var releases = new List<AppNativeMethods.INPUT>(StickyModifierVks.Length);

@@ -98,10 +98,14 @@ internal static partial class AppNativeMethods
 
     public const uint InputKeyboard = 1;
     public const uint KeyEventfKeyUp = 0x0002;
+    public const ushort VkBack = 0x08;
     public const ushort VkControl = 0x11;
     public const ushort VkV = 0x56;
     public const ushort VkReturn = 0x0D;
     public const ushort VkTab = 0x09;
+    public const ushort VkEscape = 0x1B;
+    public const ushort VkUp = 0x26;
+    public const ushort VkDown = 0x28;
     public const ushort VkMenu = 0x12; // Alt key — used in the SetForegroundWindow "Alt trick"
     public const ushort VkLWin = 0x5B;
     public const ushort VkRWin = 0x5C;

@@ -7,4 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AresToys.Hotkeys.Tests" />
+  </ItemGroup>
 </Project>
