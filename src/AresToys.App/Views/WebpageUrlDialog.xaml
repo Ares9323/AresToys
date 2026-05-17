@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:Markup="clr-namespace:AresToys.App.Markup"
-        Title="Capture webpage"
+        Title="{Markup:Loc WebpageUrl_Title}"
         Width="460"
         SizeToContent="Height"
         WindowStartupLocation="Manual"
@@ -29,7 +29,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Text="Webpage URL" Foreground="White"
+            <TextBlock Grid.Row="0" Text="{Markup:Loc WebpageUrl_Heading}" Foreground="White"
                        FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
 
             <ui:TextBox Grid.Row="1" x:Name="UrlBox"
@@ -37,10 +37,10 @@
 
             <TextBlock Grid.Row="2" Foreground="{DynamicResource AccentForegroundDarkBrush}"
                        FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
-                       Text="The page is loaded in a hidden WebView2, then captured full-height (everything below the fold included). Login-walled pages won't render the protected content." />
+                       Text="{Markup:Loc WebpageUrl_Hint}" />
 
             <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                <ui:Button x:Name="OkButton" Content="Capture" Width="92" Height="32" Margin="0,0,8,0"
+                <ui:Button x:Name="OkButton" Content="{Markup:Loc WebpageUrl_CaptureButton}" Width="92" Height="32" Margin="0,0,8,0"
                            IsDefault="True" Click="OnOkClicked" FontWeight="SemiBold"
                            Appearance="Primary" />
                 <ui:Button Content="{Markup:Loc Common_Cancel}" Width="80" Height="32"

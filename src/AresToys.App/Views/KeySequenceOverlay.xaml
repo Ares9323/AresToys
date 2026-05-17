@@ -1,6 +1,7 @@
 <Window x:Class="AresToys.App.Views.KeySequenceOverlay"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -25,7 +26,7 @@
                        Foreground="#A0A0A0"
                        FontSize="11"
                        Margin="6,2,6,4"
-                       Text="Press Enter to insert · Esc to dismiss"/>
+                       Text="{Markup:Loc KeySequenceOverlay_Hint}"/>
             <ItemsControl x:Name="OptionsList">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
