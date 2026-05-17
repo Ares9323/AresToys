@@ -295,6 +295,39 @@
   <data name="Toast_Body_VideoAdded" xml:space="preserve"><value>Video aggiunto agli appunti ({0})</value></data>
   <data name="Toast_Body_FileAdded" xml:space="preserve"><value>File aggiunto: {0}</value></data>
   <data name="Toast_Body_TextAdded" xml:space="preserve"><value>Testo aggiunto: {0}</value></data>
+  <data name="ClipboardItem_TriggerPlaceholder" xml:space="preserve"><value>Sequenza trigger</value></data>
+  <data name="ClipboardItem_TriggerTooltip" xml:space="preserve"><value>Inserisci un tag corto (lettere, cifre, underscore) per rendere questa voce incollabile da qualsiasi app. Con il modulo Key Sequences attivo, digitando il tag in qualunque punto del sistema si apre l'overlay per confermare e incollare questa voce. Vuoto = disabilitato per questo elemento.</value></data>
+  <data name="ClipboardVideo_PlayPauseTooltip" xml:space="preserve"><value>Riproduci / Pausa (anche un clic sul video alterna).</value></data>
+  <data name="ClipboardVideo_MuteTooltip" xml:space="preserve"><value>Silenzia / riattiva (ricordato tra selezioni e riavvii).</value></data>
+  <data name="KeySequenceOverlay_Hint" xml:space="preserve"><value>Premi Invio per inserire · Esc per chiudere</value></data>
+  <data name="WebpageUrl_Title" xml:space="preserve"><value>Cattura pagina web</value></data>
+  <data name="WebpageUrl_Heading" xml:space="preserve"><value>URL pagina web</value></data>
+  <data name="WebpageUrl_Hint" xml:space="preserve"><value>La pagina viene caricata in un WebView2 nascosto e poi catturata a tutta altezza (incluso quello che sta sotto la fold). Le pagine con login non rendono il contenuto protetto.</value></data>
+  <data name="WebpageUrl_CaptureButton" xml:space="preserve"><value>Cattura</value></data>
+  <data name="PinSourceChooser_Title" xml:space="preserve"><value>Blocca a schermo</value></data>
+  <data name="PinSourceChooser_Hint" xml:space="preserve"><value>Scegli la fonte dell'immagine da bloccare sopra a tutto il resto.</value></data>
+  <data name="PinSourceChooser_FromScreen" xml:space="preserve"><value>Da schermo…</value></data>
+  <data name="PinSourceChooser_FromScreenTooltip" xml:space="preserve"><value>Disegna una regione sullo schermo; l'area catturata resta bloccata nella sua posizione originale.</value></data>
+  <data name="PinSourceChooser_FromClipboard" xml:space="preserve"><value>Da appunti</value></data>
+  <data name="PinSourceChooser_FromClipboardTooltip" xml:space="preserve"><value>Blocca l'immagine attualmente negli appunti di sistema.</value></data>
+  <data name="PinSourceChooser_FromFile" xml:space="preserve"><value>Da file…</value></data>
+  <data name="PinSourceChooser_FromFileTooltip" xml:space="preserve"><value>Scegli un file PNG / JPG / BMP / GIF e bloccalo a schermo.</value></data>
+  <data name="Hotkeys_ResetAllHotkeysTooltip" xml:space="preserve"><value>Reimposta la scorciatoia di ogni workflow predefinito al valore originale. Le personalizzazioni dei passaggi vengono mantenute. Richiede conferma.</value></data>
+  <data name="Hotkeys_ResetAllWorkflowsTooltip" xml:space="preserve"><value>Reimposta passaggi + scorciatoia di ogni workflow predefinito ai valori originali. Richiede conferma; i workflow personalizzati non vengono toccati.</value></data>
+  <data name="WorkflowAction_arestoys_add_file" xml:space="preserve"><value>Aggiungi file alla clipboard di AresToys</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_file" xml:space="preserve"><value>Aggiunge il file appena prodotto dalla pipeline (bag.local_path — impostato da Salva come immagine / Avvia/ferma registrazione / Salva come SVG / Salva come…) alla cronologia di AresToys come voce Files. Senza configurazione — incatenalo dopo un passo di salvataggio. Le opzioni abilitano push CF_HDROP agli appunti di Windows (incolla come file) e un toast con pulsanti Copia percorso / Mostra in cartella.</value></data>
+  <data name="WorkflowAction_arestoys_add_image" xml:space="preserve"><value>Aggiungi immagine alla clipboard di AresToys</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_image" xml:space="preserve"><value>Aggiunge l'immagine presente in bag.payload_bytes (impostata da qualunque passo di cattura) alla cronologia di AresToys come voce Image. Le opzioni abilitano push PNG agli appunti di Windows (preserva l'alpha) e un toast con pulsanti Apri nell'editor / Mostra in cartella.</value></data>
+  <data name="WorkflowAction_arestoys_add_text" xml:space="preserve"><value>Aggiungi testo alla clipboard di AresToys</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_text" xml:space="preserve"><value>Aggiunge il testo corrente della pipeline (bag.text — sovrascritto da Upload / Scansiona QR / Salva come immagine / ecc.) alla cronologia di AresToys come voce Text. Senza configurazione — incatenalo dopo il passo che produce il testo desiderato. Le opzioni abilitano push agli appunti di Windows e un toast contestuale (Apri URL se il testo è un link, Copia / Modifica con editor di sistema altrimenti).</value></data>
+  <data name="WorkflowAction_arestoys_text_to_qr_png" xml:space="preserve"><value>Converti testo in QR (PNG)</value></data>
+  <data name="WorkflowActionDesc_arestoys_text_to_qr_png" xml:space="preserve"><value>Genera un QR PNG dal testo corrente della pipeline (bag.text — impostato dal precedente passo Upload / Scansiona QR / Salva). Scrive l'immagine in bag.payload_bytes + bag.file_extension=png così i sink a valle ('Aggiungi immagine', 'Salva come immagine') lo trattano come uno screenshot fresco. Non tocca alcuna clipboard da solo — convertitore puro.</value></data>
+  <data name="WorkflowAction_arestoys_text_to_qr_svg" xml:space="preserve"><value>Converti testo in QR (SVG)</value></data>
+  <data name="WorkflowActionDesc_arestoys_text_to_qr_svg" xml:space="preserve"><value>Genera un QR come SVG vettoriale (nitido a qualunque zoom) dal testo corrente della pipeline (bag.text) in bag.svg_output. Combinalo con 'Salva come SVG' a valle per scriverlo su disco. Non tocca alcuna clipboard da solo.</value></data>
+  <data name="WorkflowAction_arestoys_upload_cloud" xml:space="preserve"><value>Carica su servizio cloud</value></data>
+  <data name="WorkflowActionDesc_arestoys_upload_cloud" xml:space="preserve"><value>Carica i byte correnti su uno degli uploader configurati. Scegli la destinazione dal menu a discesa; lasciandolo vuoto la rileva automaticamente in base all'estensione (immagine → uploader immagini, video → uploader video, ecc.). Attiva 'Mostra notifica' per un toast post-upload con pulsanti Apri / Copia URL.</value></data>
+  <data name="WorkflowAction_arestoys_shorten_url" xml:space="preserve"><value>Accorcia URL</value></data>
+  <data name="WorkflowActionDesc_arestoys_shorten_url" xml:space="preserve"><value>Accorcia il payload corrente (byte UTF-8 — tipicamente incatenato dopo 'Leggi testo dagli appunti di Windows') tramite un plugin URL shortener. Scegli uno shortener dal menu; vuoto = primo disponibile. Scrive l'URL accorciato in bag.text così un successivo 'Aggiungi testo alla clipboard' cattura il risultato.</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Avvia minimizzato</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>All'avvio salta la finestra principale e resta nella tray. Clicca l'icona tray per aprire le Impostazioni quando serve.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Avvia editor a schermo intero</value></data>

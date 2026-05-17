@@ -3020,6 +3020,40 @@ namespace AresToys.App.Resources {
             }
         }
 
+        public static string ClipboardItem_TriggerPlaceholder => ResourceManager.GetString("ClipboardItem_TriggerPlaceholder", resourceCulture);
+        public static string ClipboardItem_TriggerTooltip => ResourceManager.GetString("ClipboardItem_TriggerTooltip", resourceCulture);
+        public static string ClipboardVideo_PlayPauseTooltip => ResourceManager.GetString("ClipboardVideo_PlayPauseTooltip", resourceCulture);
+        public static string ClipboardVideo_MuteTooltip => ResourceManager.GetString("ClipboardVideo_MuteTooltip", resourceCulture);
+        public static string KeySequenceOverlay_Hint => ResourceManager.GetString("KeySequenceOverlay_Hint", resourceCulture);
+        public static string WebpageUrl_Title => ResourceManager.GetString("WebpageUrl_Title", resourceCulture);
+        public static string WebpageUrl_Heading => ResourceManager.GetString("WebpageUrl_Heading", resourceCulture);
+        public static string WebpageUrl_Hint => ResourceManager.GetString("WebpageUrl_Hint", resourceCulture);
+        public static string WebpageUrl_CaptureButton => ResourceManager.GetString("WebpageUrl_CaptureButton", resourceCulture);
+        public static string PinSourceChooser_Title => ResourceManager.GetString("PinSourceChooser_Title", resourceCulture);
+        public static string PinSourceChooser_Hint => ResourceManager.GetString("PinSourceChooser_Hint", resourceCulture);
+        public static string PinSourceChooser_FromScreen => ResourceManager.GetString("PinSourceChooser_FromScreen", resourceCulture);
+        public static string PinSourceChooser_FromScreenTooltip => ResourceManager.GetString("PinSourceChooser_FromScreenTooltip", resourceCulture);
+        public static string PinSourceChooser_FromClipboard => ResourceManager.GetString("PinSourceChooser_FromClipboard", resourceCulture);
+        public static string PinSourceChooser_FromClipboardTooltip => ResourceManager.GetString("PinSourceChooser_FromClipboardTooltip", resourceCulture);
+        public static string PinSourceChooser_FromFile => ResourceManager.GetString("PinSourceChooser_FromFile", resourceCulture);
+        public static string PinSourceChooser_FromFileTooltip => ResourceManager.GetString("PinSourceChooser_FromFileTooltip", resourceCulture);
+        public static string Hotkeys_ResetAllHotkeysTooltip => ResourceManager.GetString("Hotkeys_ResetAllHotkeysTooltip", resourceCulture);
+        public static string Hotkeys_ResetAllWorkflowsTooltip => ResourceManager.GetString("Hotkeys_ResetAllWorkflowsTooltip", resourceCulture);
+        public static string WorkflowAction_arestoys_add_file => ResourceManager.GetString("WorkflowAction_arestoys_add_file", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_add_file => ResourceManager.GetString("WorkflowActionDesc_arestoys_add_file", resourceCulture);
+        public static string WorkflowAction_arestoys_add_image => ResourceManager.GetString("WorkflowAction_arestoys_add_image", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_add_image => ResourceManager.GetString("WorkflowActionDesc_arestoys_add_image", resourceCulture);
+        public static string WorkflowAction_arestoys_add_text => ResourceManager.GetString("WorkflowAction_arestoys_add_text", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_add_text => ResourceManager.GetString("WorkflowActionDesc_arestoys_add_text", resourceCulture);
+        public static string WorkflowAction_arestoys_text_to_qr_png => ResourceManager.GetString("WorkflowAction_arestoys_text_to_qr_png", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_text_to_qr_png => ResourceManager.GetString("WorkflowActionDesc_arestoys_text_to_qr_png", resourceCulture);
+        public static string WorkflowAction_arestoys_text_to_qr_svg => ResourceManager.GetString("WorkflowAction_arestoys_text_to_qr_svg", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_text_to_qr_svg => ResourceManager.GetString("WorkflowActionDesc_arestoys_text_to_qr_svg", resourceCulture);
+        public static string WorkflowAction_arestoys_upload_cloud => ResourceManager.GetString("WorkflowAction_arestoys_upload_cloud", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_upload_cloud => ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_cloud", resourceCulture);
+        public static string WorkflowAction_arestoys_shorten_url => ResourceManager.GetString("WorkflowAction_arestoys_shorten_url", resourceCulture);
+        public static string WorkflowActionDesc_arestoys_shorten_url => ResourceManager.GetString("WorkflowActionDesc_arestoys_shorten_url", resourceCulture);
+
         /// <summary>
         ///   Looks up a localized string similar to Clone this workflow into a new editable copy.
         /// </summary>

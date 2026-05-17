@@ -310,6 +310,39 @@
   <data name="Toast_Body_VideoAdded" xml:space="preserve"><value>Video added to clipboard ({0})</value></data>
   <data name="Toast_Body_FileAdded" xml:space="preserve"><value>File added: {0}</value></data>
   <data name="Toast_Body_TextAdded" xml:space="preserve"><value>Text added: {0}</value></data>
+  <data name="ClipboardItem_TriggerPlaceholder" xml:space="preserve"><value>Trigger sequence</value></data>
+  <data name="ClipboardItem_TriggerTooltip" xml:space="preserve"><value>Type a short tag (letters, digits, underscore) to make this entry pasteable from any app. While the Key Sequences module is on, typing the tag anywhere on the system opens the overlay so you can confirm + paste this entry. Leave empty to disable for this item.</value></data>
+  <data name="ClipboardVideo_PlayPauseTooltip" xml:space="preserve"><value>Play / Pause (click anywhere on the video also toggles).</value></data>
+  <data name="ClipboardVideo_MuteTooltip" xml:space="preserve"><value>Mute / unmute (remembered across selections + restarts).</value></data>
+  <data name="KeySequenceOverlay_Hint" xml:space="preserve"><value>Press Enter to insert · Esc to dismiss</value></data>
+  <data name="WebpageUrl_Title" xml:space="preserve"><value>Capture webpage</value></data>
+  <data name="WebpageUrl_Heading" xml:space="preserve"><value>Webpage URL</value></data>
+  <data name="WebpageUrl_Hint" xml:space="preserve"><value>The page is loaded in a hidden WebView2, then captured full-height (everything below the fold included). Login-walled pages won't render the protected content.</value></data>
+  <data name="WebpageUrl_CaptureButton" xml:space="preserve"><value>Capture</value></data>
+  <data name="PinSourceChooser_Title" xml:space="preserve"><value>Pin to screen</value></data>
+  <data name="PinSourceChooser_Hint" xml:space="preserve"><value>Pick a source for the image you want to pin on top of everything else.</value></data>
+  <data name="PinSourceChooser_FromScreen" xml:space="preserve"><value>From screen…</value></data>
+  <data name="PinSourceChooser_FromScreenTooltip" xml:space="preserve"><value>Drag a region on the screen; the captured area stays pinned at its original position.</value></data>
+  <data name="PinSourceChooser_FromClipboard" xml:space="preserve"><value>From clipboard</value></data>
+  <data name="PinSourceChooser_FromClipboardTooltip" xml:space="preserve"><value>Pin the image currently on the system clipboard.</value></data>
+  <data name="PinSourceChooser_FromFile" xml:space="preserve"><value>From file…</value></data>
+  <data name="PinSourceChooser_FromFileTooltip" xml:space="preserve"><value>Pick a PNG / JPG / BMP / GIF file and pin it.</value></data>
+  <data name="Hotkeys_ResetAllHotkeysTooltip" xml:space="preserve"><value>Reset every built-in workflow's hotkey back to its default. Step customisations are kept. Asks for confirmation.</value></data>
+  <data name="Hotkeys_ResetAllWorkflowsTooltip" xml:space="preserve"><value>Reset every built-in workflow's steps + hotkey to defaults. Asks for confirmation; custom workflows are not touched.</value></data>
+  <data name="WorkflowAction_arestoys_add_file" xml:space="preserve"><value>Add file to AresToys clipboard</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_file" xml:space="preserve"><value>Add the file just produced by the pipeline (bag.local_path — set by Save as Image file / Toggle screen recording / Save as SVG / Save as…) to AresToys' history as a Files entry. Zero config — chain it after any save step. Toggles enable Windows-clipboard CF_HDROP push (paste-as-file) and a contextual toast with Copy-path / Show-in-folder buttons.</value></data>
+  <data name="WorkflowAction_arestoys_add_image" xml:space="preserve"><value>Add image to AresToys clipboard</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_image" xml:space="preserve"><value>Add the image staged in bag.payload_bytes (set by any Capture step) to AresToys' history as an Image entry. Toggles enable Windows-clipboard PNG push (alpha-preserving) and a contextual toast with Open-in-editor / Show-in-folder buttons.</value></data>
+  <data name="WorkflowAction_arestoys_add_text" xml:space="preserve"><value>Add text to AresToys clipboard</value></data>
+  <data name="WorkflowActionDesc_arestoys_add_text" xml:space="preserve"><value>Add the pipeline's current text (bag.text — overwritten by Upload / Scan QR / Save as Image file / etc.) to AresToys' history as a Text entry. Zero config — chain it after the step that produces the text you want. Toggles enable Windows-clipboard push and a contextual toast (Open URL if the text is a link, Copy / Edit with system editor otherwise).</value></data>
+  <data name="WorkflowAction_arestoys_text_to_qr_png" xml:space="preserve"><value>Convert text to QR (PNG)</value></data>
+  <data name="WorkflowActionDesc_arestoys_text_to_qr_png" xml:space="preserve"><value>Render a QR code PNG from the pipeline's current text (bag.text — set by the previous Upload / Scan QR / Save step). Writes the image into bag.payload_bytes + bag.file_extension=png so downstream sinks ('Add image', 'Save as Image file') treat it like a fresh screenshot. Doesn't touch any clipboard on its own — pure converter.</value></data>
+  <data name="WorkflowAction_arestoys_text_to_qr_svg" xml:space="preserve"><value>Convert text to QR (SVG)</value></data>
+  <data name="WorkflowActionDesc_arestoys_text_to_qr_svg" xml:space="preserve"><value>Render a QR code as an SVG vector (sharp at any zoom) from the pipeline's current text (bag.text) into bag.svg_output. Compose with 'Save as SVG file' downstream to write it to disk. Doesn't touch any clipboard on its own.</value></data>
+  <data name="WorkflowAction_arestoys_upload_cloud" xml:space="preserve"><value>Upload to cloud service</value></data>
+  <data name="WorkflowActionDesc_arestoys_upload_cloud" xml:space="preserve"><value>Upload the current bytes to one of the configured uploaders. Pick a destination from the dropdown; leave it empty to auto-pick based on the file extension (image → image uploader, video → video uploader, etc.). Toggle 'Show notification' for a post-upload toast with Open / Copy URL buttons.</value></data>
+  <data name="WorkflowAction_arestoys_shorten_url" xml:space="preserve"><value>Shorten URL</value></data>
+  <data name="WorkflowActionDesc_arestoys_shorten_url" xml:space="preserve"><value>Shorten the current payload (UTF-8 text bytes — typically chained after 'Read text from Windows clipboard') via a URL shortener plugin. Pick a shortener from the dropdown; empty = first available. Writes the shortened URL into bag.text so a downstream 'Add text to clipboard' captures the result.</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Start minimized</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>Skip the main window on launch and stay in the tray. Click the tray icon to open the Settings window when needed.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Start editor maximized</value></data>
@@ -698,10 +731,10 @@
   <data name="WorkflowActionCategory_Launcher" xml:space="preserve"><value>Launcher</value></data>
 
   <!-- Action titles (rendered in the workflow editor list + the "+ Add step" picker). -->
-  <data name="WorkflowAction_arestoys_capture_region" xml:space="preserve"><value>Region capture</value></data>
-  <data name="WorkflowAction_arestoys_capture_active_window" xml:space="preserve"><value>Active window capture</value></data>
-  <data name="WorkflowAction_arestoys_capture_active_monitor" xml:space="preserve"><value>Active monitor capture</value></data>
-  <data name="WorkflowAction_arestoys_capture_webpage" xml:space="preserve"><value>Webpage capture</value></data>
+  <data name="WorkflowAction_arestoys_capture_region" xml:space="preserve"><value>Capture region</value></data>
+  <data name="WorkflowAction_arestoys_capture_active_window" xml:space="preserve"><value>Capture active window</value></data>
+  <data name="WorkflowAction_arestoys_capture_active_monitor" xml:space="preserve"><value>Capture active monitor</value></data>
+  <data name="WorkflowAction_arestoys_capture_webpage" xml:space="preserve"><value>Capture webpage</value></data>
   <data name="WorkflowAction_arestoys_record_screen" xml:space="preserve"><value>Screen recording</value></data>
   <data name="WorkflowAction_arestoys_record_screen_mp4" xml:space="preserve"><value>Start/stop screen recording (mp4)</value></data>
   <data name="WorkflowAction_arestoys_record_screen_gif" xml:space="preserve"><value>Start/stop screen recording (gif)</value></data>

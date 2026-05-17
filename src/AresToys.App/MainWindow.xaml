@@ -580,14 +580,14 @@
                                            Appearance="Danger"
                                            Margin="0,0,8,0"
                                            Command="{Binding Hotkeys.Workflows.ResetAllHotkeysCommand}"
-                                           ToolTip="Reset every built-in workflow's hotkey back to its default. Step customisations are kept. Asks for confirmation." />
+                                           ToolTip="{Markup:Loc Hotkeys_ResetAllHotkeysTooltip}" />
                                 <!-- Full reset: overwrites Steps + Hotkey from the seeded defaults
                                      for every built-in. Use when a workflow's been misconfigured
                                      beyond repair. Custom workflows are not touched. -->
                                 <ui:Button Content="{Markup:Loc Hotkeys_ResetAllWorkflows}"
                                            Appearance="Danger"
                                            Command="{Binding Hotkeys.Workflows.ResetAllWorkflowsCommand}"
-                                           ToolTip="Reset every built-in workflow's steps + hotkey to defaults. Asks for confirmation; custom workflows are not touched." />
+                                           ToolTip="{Markup:Loc Hotkeys_ResetAllWorkflowsTooltip}" />
                             </StackPanel>
                         </Grid>
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap"

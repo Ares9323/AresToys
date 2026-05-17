@@ -598,8 +598,8 @@
                                             MaxLength="64"
                                             FontSize="12"
                                             Text="{Binding SelectedRow.Trigger, Mode=OneWay, FallbackValue=''}"
-                                            PlaceholderText="Trigger sequence"
-                                            ToolTip="Type a short tag (letters, digits, underscore) to make this entry pasteable from any app. While the Key Sequences module is on, typing the tag anywhere on the system opens the overlay so you can confirm + paste this entry. Leave empty to disable for this item."
+                                            PlaceholderText="{Markup:Loc ClipboardItem_TriggerPlaceholder}"
+                                            ToolTip="{Markup:Loc ClipboardItem_TriggerTooltip}"
                                             PreviewTextInput="OnPreviewTriggerTextInput"
                                             DataObject.Pasting="OnPreviewTriggerPasting"
                                             KeyDown="OnPreviewTriggerKeyDown"
@@ -690,7 +690,7 @@
                                                     BorderThickness="0"
                                                     FontSize="12"
                                                     Content="■"
-                                                    ToolTip="Play / Pause (click anywhere on the video also toggles)." />
+                                                    ToolTip="{Markup:Loc ClipboardVideo_PlayPauseTooltip}" />
                                             <Slider Grid.Column="1"
                                                     x:Name="PreviewVideoSlider"
                                                     Minimum="0"
@@ -721,7 +721,7 @@
                                                     BorderThickness="0"
                                                     FontSize="12"
                                                     Content="🔊"
-                                                    ToolTip="Mute / unmute (remembered across selections + restarts)." />
+                                                    ToolTip="{Markup:Loc ClipboardVideo_MuteTooltip}" />
                                         </Grid>
                                     </Border>
                                 </Grid>
