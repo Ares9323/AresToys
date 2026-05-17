@@ -32,7 +32,9 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
         Action<WorkflowStepViewModel> onRemove,
         Action<WorkflowStepViewModel, int>? onParameterChanged,
         Action<WorkflowStepViewModel, string, bool>? onBoolParameterChanged = null,
-        Action<WorkflowStepViewModel, string, string>? onStringParameterChanged = null)
+        Action<WorkflowStepViewModel, string, string>? onStringParameterChanged = null,
+        IReadOnlyList<WorkflowPort>? inputs = null,
+        IReadOnlyList<WorkflowPort>? outputs = null)
     {
         StorageIndex = storageIndex;
         TaskId = taskId;
@@ -40,6 +42,10 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
         Description = description;
         Category = category;
         Parameter = parameter;
+        Inputs = (inputs ?? Array.Empty<WorkflowPort>())
+            .Select(p => new WorkflowPortEntry(p, isInput: true)).ToArray();
+        Outputs = (outputs ?? Array.Empty<WorkflowPort>())
+            .Select(p => new WorkflowPortEntry(p, isInput: false)).ToArray();
         _onEnabledChanged = onEnabledChanged;
         _onMove = onMove;
         _onRemove = onRemove;
@@ -107,6 +113,12 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
     public bool HasBoolParameters => BoolParameters.Count > 0;
     public ObservableCollection<StringParameterEntry> StringParameters { get; }
     public bool HasStringParameters => StringParameters.Count > 0;
+    /// <summary>Bag-port pills rendered above the step row (consumed types).</summary>
+    public IReadOnlyList<WorkflowPortEntry> Inputs { get; }
+    public bool HasInputs => Inputs.Count > 0;
+    /// <summary>Bag-port pills rendered below the step row (produced types).</summary>
+    public IReadOnlyList<WorkflowPortEntry> Outputs { get; }
+    public bool HasOutputs => Outputs.Count > 0;
     public string? ParameterLabel => Parameter?.Label;
     public int ParameterMin => Parameter?.Min ?? 0;
     public int ParameterMax => Parameter?.Max ?? 0;
@@ -181,6 +193,49 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
         if (next > Parameter.Max) return;
         ParameterValue = next;
     }
+}
+
+/// <summary>One bag-port segment rendered as a thin coloured strip ABOVE (Inputs) or BELOW
+/// (Outputs) the step card in the workflow editor. <see cref="Background"/> matches the legend
+/// (azzurro / rosa / giallo) and is precomputed + frozen so XAML can bind Border.Background
+/// directly without a converter. <see cref="Tooltip"/> is what the strip shows on hover —
+/// "Input: Payload" or "Output: Text".</summary>
+public sealed class WorkflowPortEntry
+{
+    private static readonly System.Windows.Media.Brush PayloadBrush = Freeze("#26539D"); // azzurro
+    private static readonly System.Windows.Media.Brush TextBrush    = Freeze("#9F3167"); // rosa
+    private static readonly System.Windows.Media.Brush ColorBrush   = Freeze("#D3A107"); // giallo
+
+    private static System.Windows.Media.Brush Freeze(string hex)
+    {
+        var b = (System.Windows.Media.SolidColorBrush)new System.Windows.Media.BrushConverter().ConvertFromString(hex)!;
+        b.Freeze();
+        return b;
+    }
+
+    public WorkflowPortEntry(WorkflowPort port, bool isInput)
+    {
+        Port = port;
+        var label = port switch
+        {
+            WorkflowPort.Payload => "Payload",
+            WorkflowPort.Text    => "Text",
+            WorkflowPort.Color   => "Color",
+            _ => port.ToString(),
+        };
+        Tooltip = (isInput ? "Input: " : "Output: ") + label;
+        Background = port switch
+        {
+            WorkflowPort.Payload => PayloadBrush,
+            WorkflowPort.Text    => TextBrush,
+            WorkflowPort.Color   => ColorBrush,
+            _ => System.Windows.Media.Brushes.Gray,
+        };
+    }
+
+    public WorkflowPort Port { get; }
+    public string Tooltip { get; }
+    public System.Windows.Media.Brush Background { get; }
 }
 
 /// <summary>One row's worth of bool-config state for a step. Two-way bindable so a CheckBox

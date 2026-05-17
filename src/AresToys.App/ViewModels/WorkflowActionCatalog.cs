@@ -57,6 +57,20 @@ public sealed record StringParameter(
     /// keyboard-layout changes.</summary>
     bool LocalizeOptionsAsLauncherKey = false);
 
+/// <summary>The three semantic "data types" that flow through a pipeline's bag. Rendered as
+/// coloured pills above (Inputs) and below (Outputs) each step row so the user can see at a
+/// glance whether two steps speak the same language. Mapping to bag keys:
+/// <list type="bullet">
+///   <item><see cref="Payload"/>: <c>bag.payload_bytes</c> + <c>bag.file_extension</c> — the
+///   current binary blob (image / video / file bytes).</item>
+///   <item><see cref="Text"/>: <c>bag.text</c> — the canonical text channel (URL, file path,
+///   decoded QR string, raw text — last writer wins).</item>
+///   <item><see cref="Color"/>: <c>bag.color</c> — the sampled / picked colour.</item>
+/// </list>
+/// Item / history-entry side-channels are deliberately NOT exposed as ports — they're internal
+/// state, not something the user composes against.</summary>
+public enum WorkflowPort { Payload, Text, Color }
+
 /// <summary>One entry in the "+ Add step" picker for workflows. Maps a pipeline task id to
 /// human-readable metadata + a default config to apply when the user adds the action.</summary>
 public sealed record WorkflowActionDescriptor(
@@ -83,7 +97,13 @@ public sealed record WorkflowActionDescriptor(
     /// descriptors share the same <see cref="TaskId"/> (e.g. upload-by-category, press-key
     /// Enter/Tab, record-screen mp4/gif) so each variant can have a distinct translation.
     /// When null the helper falls back to a sanitised TaskId.</summary>
-    string? LocalizationKey = null);
+    string? LocalizationKey = null,
+    /// <summary>Bag "types" this step reads. Rendered as pills ABOVE the step row in the editor.
+    /// Empty = pure source (no upstream dependency).</summary>
+    IReadOnlyList<WorkflowPort>? Inputs = null,
+    /// <summary>Bag "types" this step writes. Rendered as pills BELOW the step row in the editor.
+    /// Empty = terminal step (writes to clipboard / disk / window — nothing downstream consumes).</summary>
+    IReadOnlyList<WorkflowPort>? Outputs = null);
 
 public static class WorkflowActionCatalog
 {
@@ -109,39 +129,53 @@ public static class WorkflowActionCatalog
             BoolParameters: new[]
             {
                 new BoolParameter("autoConfirmOnFirstSelection", "Auto-confirm on first selection (skip multi-region)", true),
-            }),
+            },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.capture-active-window",
             "Capture active window",
             "Snapshot the currently-foreground window using DWM extended-frame-bounds (no resize-border padding). Honours the global capture delay; own-process windows are skipped so Settings / popup never become the target.",
             "Capture",
-            IntParameter: new IntParameter("delay_seconds", "Delay (s)", 0, 0, 30)),
+            IntParameter: new IntParameter("delay_seconds", "Delay (s)", 0, 0, 30),
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.capture-active-monitor",
             "Capture active monitor",
             "Snapshot the monitor currently under the mouse cursor — useful as a hotkey on multi-monitor setups. On single-monitor it just captures the whole screen.",
             "Capture",
-            IntParameter: new IntParameter("delay_seconds", "Delay (s)", 0, 0, 30)),
+            IntParameter: new IntParameter("delay_seconds", "Delay (s)", 0, 0, 30),
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.capture-webpage",
             "Capture webpage",
-            "Render a URL in a hidden WebView2 and grab a full-page PNG (everything below the fold included). Leave URL empty to be prompted at runtime; set it for fully-automated 'snapshot example.com' workflows. Login-walled pages won't render protected content.",
+            "Render a URL in a hidden WebView2 and grab a full-page PNG (everything below the fold included). URL resolution: (1) the URL field below, (2) bag.text from an upstream step (e.g. Scan QR in region → Capture webpage), (3) interactive prompt when both are empty. Login-walled pages won't render protected content.",
             "Capture",
-            StringParameters: [new StringParameter("url", "URL", string.Empty, Placeholder: "https://example.com (leave empty to prompt)")]),
+            StringParameters: [new StringParameter("url", "URL", string.Empty, Placeholder: "https://example.com (empty = use bag.text, then prompt)")],
+            // Optional Text input: when the workflow has an upstream step that produces bag.text
+            // (Scan QR in region, Read text from clipboard via shorten, etc.) Capture webpage will
+            // pick that up automatically. Empty bag.text + empty config → prompt.
+            Inputs: new[] { WorkflowPort.Text },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.record-screen",
             "Start/stop screen recording (mp4)",
-            "Toggle FFmpeg-driven screen recording in mp4 format. First invocation starts, second stops and produces the file.",
+            "Toggle FFmpeg-driven screen recording in mp4 format. First invocation starts, second stops and produces the file. Toggle 'Show notification' to surface a toast on stop with Copy-path / Show-in-folder buttons.",
             "Capture",
-            DefaultConfigJson: "{\"format\":\"mp4\"}",
-            LocalizationKey: "arestoys_record_screen_mp4"),
+            DefaultConfigJson: "{\"format\":\"mp4\",\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification on stop", false) },
+            LocalizationKey: "arestoys_record_screen_mp4",
+            // On stop: payload_bytes = the .mp4 bytes, text = the saved path. Either chains
+            // downstream (Upload reads the bytes; Add file reads the path).
+            Outputs: new[] { WorkflowPort.Payload, WorkflowPort.Text }),
 
         new("arestoys.record-screen",
             "Start/stop screen recording (gif)",
-            "Toggle FFmpeg-driven screen recording in animated GIF format. First invocation starts, second stops and produces the file.",
+            "Toggle FFmpeg-driven screen recording in animated GIF format. First invocation starts, second stops and produces the file. Toggle 'Show notification' to surface a toast on stop with Copy-path / Show-in-folder buttons.",
             "Capture",
-            DefaultConfigJson: "{\"format\":\"gif\"}",
-            LocalizationKey: "arestoys_record_screen_gif"),
+            DefaultConfigJson: "{\"format\":\"gif\",\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification on stop", false) },
+            LocalizationKey: "arestoys_record_screen_gif",
+            Outputs: new[] { WorkflowPort.Payload, WorkflowPort.Text }),
 
         // Wormholes batch ops — one task class (WormholeBatchOpTask) routed by the "op" config
         // value; six rows here so the workflow editor's "+ Add" menu lists each as a discrete
@@ -199,33 +233,36 @@ public static class WorkflowActionCatalog
         new("arestoys.color-sampler",
             "Color sampler",
             "Open the magnifier-style sampler at the cursor — picks a pixel from anywhere on screen. The sampled color is copied to the clipboard.",
-            "Capture"),
+            "Capture",
+            Outputs: new[] { WorkflowPort.Color }),
 
         new("arestoys.color-picker",
             "Color picker",
             "Open the dialog-style HSB/RGB/CMYK colour picker (wheel + numeric inputs). The chosen color is stashed in the bag — pair with a Copy color as … step to write it to the clipboard.",
-            "Capture"),
+            "Capture",
+            Outputs: new[] { WorkflowPort.Color }),
 
         // Copy-color-as family: read the bag colour produced by Color sampler / Color picker and
         // emit it in a specific format. One step per format keeps the workflow editor's "+ Add"
         // menu friendly — no JSON config dropdowns needed.
         new("arestoys.copy-color-hex",
-            "Copy color as Hex",
-            "Emit the bag colour as RRGGBB (or RRGGBBAA with alpha). Toggles below choose whether to include alpha and whether to prefix with #.",
+            "Copy color as HEX to Windows clipboard",
+            "Emit the bag colour as RRGGBB (or RRGGBBAA with alpha) to the Windows clipboard. Toggles below choose whether to include alpha and whether to prefix with #.",
             "Color",
             DefaultConfigJson: "{\"alpha\":false,\"hash\":false}",
             BoolParameters: new[]
             {
                 new BoolParameter("alpha", "Include alpha (RRGGBBAA)", false),
                 new BoolParameter("hash",  "Prefix with #",            false),
-            }),
-        new("arestoys.copy-color-rgb",     "Copy color as RGB",     "Emit the bag colour as rgb(R, G, B) to the clipboard.",                          "Color"),
-        new("arestoys.copy-color-rgba",    "Copy color as RGBA",    "Emit the bag colour as rgba(R, G, B, A) with alpha 0–1 to the clipboard.",       "Color"),
-        new("arestoys.copy-color-hsb",     "Copy color as HSB",     "Emit the bag colour as hsb(H°, S%, B%) to the clipboard.",                       "Color"),
-        new("arestoys.copy-color-cmyk",    "Copy color as CMYK",    "Emit the bag colour as cmyk(C%, M%, Y%, K%) to the clipboard.",                  "Color"),
-        new("arestoys.copy-color-decimal", "Copy color as Decimal", "Emit the bag colour as the packed AARRGGBB integer to the clipboard.",           "Color"),
-        new("arestoys.copy-color-linear",  "Copy color as Linear",  "Emit (R=…,G=…,B=…,A=…) — Unreal Engine FLinearColor stringification — to the clipboard.", "Color"),
-        new("arestoys.copy-color-bgra",    "Copy color as BGRA",    "Emit (B=…,G=…,R=…,A=…) — Unreal Engine FColor stringification — to the clipboard.", "Color"),
+            },
+            Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-rgb",     "Copy color as RGB to Windows clipboard",     "Emit the bag colour as rgb(R, G, B) to the Windows clipboard (Ctrl+V target).",                          "Color", Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-rgba",    "Copy color as RGBA to Windows clipboard",    "Emit the bag colour as rgba(R, G, B, A) with alpha 0–1 to the Windows clipboard.",       "Color", Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-hsb",     "Copy color as HSB to Windows clipboard",     "Emit the bag colour as hsb(H°, S%, B%) to the Windows clipboard.",                       "Color", Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-cmyk",    "Copy color as CMYK to Windows clipboard",    "Emit the bag colour as cmyk(C%, M%, Y%, K%) to the Windows clipboard.",                  "Color", Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-decimal", "Copy color as Decimal to Windows clipboard", "Emit the bag colour as the packed AARRGGBB integer to the Windows clipboard.",           "Color", Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-linear",  "Copy color as Linear to Windows clipboard",  "Emit (R=…,G=…,B=…,A=…) — Unreal Engine FLinearColor stringification — to the Windows clipboard.", "Color", Inputs: new[] { WorkflowPort.Color }),
+        new("arestoys.copy-color-bgra",    "Copy color as BGRA to Windows clipboard",    "Emit (B=…,G=…,R=…,A=…) — Unreal Engine FColor stringification — to the Windows clipboard.", "Color", Inputs: new[] { WorkflowPort.Color }),
 
         new("arestoys.open-editor-before-upload",
             "Open editor",
@@ -234,17 +271,25 @@ public static class WorkflowActionCatalog
             // No default tool — empty string = "use last-used", which is what the user expects
             // for an "open editor" step that doesn't dictate a starting mode. Specific presets
             // (e.g. a quick-crop pipeline) can pin "Crop" / "Rectangle" / etc. via DefaultConfigJson.
-            DefaultConfigJson: "{\"fullscreen\":false,\"default_tool\":\"\"}",
+            DefaultConfigJson: "{\"fullscreen\":false,\"default_tool\":\"\",\"abortOnCancel\":false}",
             BoolParameters: new[]
             {
                 // Fullscreen on the active monitor (the one currently under the cursor) +
                 // force fit-to-viewport so the image fills the window regardless of size. Off
                 // by default to keep the legacy windowed behaviour for existing presets.
                 new BoolParameter("fullscreen", "Open fullscreen on active monitor (fit to screen)", false),
+                // When ON, Esc / Cancel in the editor aborts the rest of the workflow — no
+                // save, no history entry, no upload. Useful for "decide then commit" pipelines
+                // (Capture region → Open editor → Save) where the user wants to throw away the
+                // capture if they change their mind. OFF preserves the legacy behaviour
+                // (pipeline proceeds with the unedited capture).
+                new BoolParameter("abortOnCancel", "Interrupt workflow if canceled", false),
             },
             StringParameters: [new StringParameter("default_tool", "Default tool", string.Empty,
                 Placeholder: "(use last)", OptionsKey: "editor_tools",
-                IsEditable: false, LocalizeOptionsAsEnum: true)]),
+                IsEditable: false, LocalizeOptionsAsEnum: true)],
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.apply-image-effects-preset",
             "Apply image effects preset",
@@ -256,7 +301,9 @@ public static class WorkflowActionCatalog
             },
             StringParameters: [new StringParameter("preset_name", "Preset", string.Empty,
                 Placeholder: "(none)", OptionsKey: "image_effect_presets",
-                IsEditable: false)]),
+                IsEditable: false)],
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.trace-to-svg",
             "Trace to SVG",
@@ -265,35 +312,89 @@ public static class WorkflowActionCatalog
             DefaultConfigJson: "{\"preset\":\"[Default]\"}",
             StringParameters: [new StringParameter("preset", "Preset", "[Default]",
                 Placeholder: "[Default]", OptionsKey: "trace_presets",
-                IsEditable: false)]),
+                IsEditable: false)],
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.remove-background",
             "Remove background",
             "Run AI background removal on the captured image (U2NetP ONNX model). Replaces the in-flight bytes with a transparent-background PNG. Best on portraits / objects with clear edges; subtle / fluffy edges may show artefacts. Falls through silently when the model fails to load. First call costs ~150-500 ms session warmup; subsequent calls are ~100-500 ms.",
-            "Editor"),
+            "Editor",
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.save-to-file",
             "Save as Image file",
-            "Write the current raster bytes to disk under the configured capture folder (Settings → Capture). 'Format' is optional: leave empty to keep whatever's already in the bag (the global capture format), or pick one to force a re-encode for this step.",
+            "Write the current raster bytes to disk under the configured capture folder (Settings → Capture). 'Format' is optional: leave empty to keep whatever's already in the bag (the global capture format), or pick one to force a re-encode for this step. Toggle 'Show notification' for a post-save toast. Toggle 'Only save if image was edited' to skip when the upstream editor step ran but the user didn't modify anything — useful for placing a second Save AFTER an Open-editor step to get a before/after pair without duplicates.",
             "I/O",
+            DefaultConfigJson: "{\"showNotification\":false,\"skipIfNotModified\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("showNotification", "Show notification", false),
+                new BoolParameter("skipIfNotModified", "Only save if image was edited (since Open editor)", false),
+            },
             StringParameters: [new StringParameter("format", "Format", string.Empty,
                 Placeholder: "(use bag format)", OptionsKey: "image_formats",
-                IsEditable: false)]),
+                IsEditable: false)],
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.save-svg",
             "Save as SVG",
-            "Pair with Trace to SVG: writes the SVG string from the bag's 'svg_output' to disk as a .svg file in the capture folder. Reuses the raster's filename stem when Save-as-Image ran first, so {name}.png and {name}.svg sit side-by-side. Silent no-op when no SVG is in the bag (workflow without Trace-to-SVG).",
-            "I/O"),
+            "Pair with Trace to SVG / Convert text to QR (SVG): writes bag.svg_output to disk as a .svg file in the capture folder. Toggle 'Show notification' for a post-save toast with Copy-path / Show-in-folder buttons.",
+            "I/O",
+            DefaultConfigJson: "{\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.add-to-history",
-            "Add to clipboard history",
-            "Index the item in AresToys's history so it shows up in Win+V.",
-            "Clipboard"),
+            "Add Payload to AresToys clipboard",
+            "Save whatever the upstream capture / generator step staged (image bytes, file path, text — read from bag.new_item) to AresToys' history (the popup you open with Win+V). For composing your own additions, see the more specific 'Add file / image / text' variants below. Toggles add Windows-clipboard push + a contextual toast (Open URL / Copy / Editor buttons chosen from the bag).",
+            "Clipboard",
+            DefaultConfigJson: "{\"alsoCopyToWindows\":false,\"showNotification\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("alsoCopyToWindows", "Also push to Windows clipboard", false),
+                new BoolParameter("showNotification", "Show notification", false),
+            },
+            Inputs: new[] { WorkflowPort.Payload }),
 
-        new("arestoys.copy-image-to-clipboard",
-            "Copy image to Windows clipboard",
-            "Place the bitmap on the Windows clipboard (Ctrl+V in any other app pastes it). Overwritten by any later text-to-clipboard step in the same workflow. Distinct from 'Add to clipboard history', which saves the item to AresToys's persistent popup list.",
-            "Clipboard"),
+        new("arestoys.add-file",
+            "Add file to AresToys clipboard",
+            "Add the file just produced by the pipeline (bag.local_path — set by Save as Image file / Toggle screen recording / Save as SVG / Save as…) to AresToys' history as a Files entry. Zero config — chain it after any save step. Toggles enable Windows-clipboard CF_HDROP push (paste-as-file) and a contextual toast with Copy-path / Show-in-folder buttons.",
+            "Clipboard",
+            DefaultConfigJson: "{\"alsoCopyToWindows\":false,\"showNotification\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("alsoCopyToWindows", "Also push to Windows clipboard (paste-as-file)", false),
+                new BoolParameter("showNotification", "Show notification", false),
+            },
+            Inputs: new[] { WorkflowPort.Text }),
+
+        new("arestoys.add-image",
+            "Add image to AresToys clipboard",
+            "Add the image staged in bag.payload_bytes (set by any Capture step) to AresToys' history as an Image entry. Toggles enable Windows-clipboard PNG push (alpha-preserving) and a contextual toast with Open-in-editor / Show-in-folder buttons.",
+            "Clipboard",
+            DefaultConfigJson: "{\"alsoCopyToWindows\":false,\"showNotification\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("alsoCopyToWindows", "Also push to Windows clipboard", false),
+                new BoolParameter("showNotification", "Show notification", false),
+            },
+            Inputs: new[] { WorkflowPort.Payload }),
+
+        new("arestoys.add-text",
+            "Add text to AresToys clipboard",
+            "Add the pipeline's current text (bag.text — overwritten by Upload / Scan QR / Save as Image file / etc.) to AresToys' history as a Text entry. Zero config — chain it after the step that produces the text you want. Toggles enable Windows-clipboard push and a contextual toast (Open URL if the text is a link, Copy / Edit with system editor otherwise).",
+            "Clipboard",
+            DefaultConfigJson: "{\"alsoCopyToWindows\":false,\"showNotification\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("alsoCopyToWindows", "Also push to Windows clipboard", false),
+                new BoolParameter("showNotification", "Show notification", false),
+            },
+            Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.paste-history-item",
             "Paste history item",
@@ -323,102 +424,84 @@ public static class WorkflowActionCatalog
             DefaultConfigJson: "{\"ms\":250}",
             IntParameter: new IntParameter(Key: "ms", Label: "Milliseconds", DefaultValue: 250, Min: 0, Max: 60000)),
 
-        // Three discrete rows for the most common destinations, all backed by the same
-        // CopyTextToClipboardTask but pre-configured with a fixed template each. Disambiguation
-        // in LookupForStep is via the "template" key in DefaultConfigJson — so a step that has
-        // template="{bag.upload_urls}" reads back as "Copy URL", template="{bag.local_path}"
-        // as "Copy file path", etc. No editable template field on these rows: power users who
-        // want a custom format can drop in the workflow JSON directly (rare).
-        // LocalizationKey is unique-per-variant so the resx lookup misses (we don't ship per-
-        // variant translations of these labels) and the localizer falls back to DisplayName
-        // above. Without this, all three rows would resolve to the catch-all
-        // WorkflowAction_arestoys_copy_text_to_clipboard = "Copy text to clipboard" and the
-        // picker showed three identical entries.
-        new("arestoys.copy-text-to-clipboard",
-            "Copy URL to clipboard",
-            "Put the upload URL(s) on the OS clipboard (Ctrl+V target) — the standard 'capture → upload → paste link' tail. Joined by newline when multiple uploaders ran. Empty if no upload step preceded.",
-            "Clipboard",
-            DefaultConfigJson: "{\"template\":\"{bag.upload_urls}\"}",
-            LocalizationKey: "arestoys_copy_text_url"),
-
-        new("arestoys.copy-text-to-clipboard",
-            "Copy file path to clipboard",
-            "Put the absolute path of the saved file on the OS clipboard. Requires a preceding 'Save as Image file' step (which sets bag.local_path). Useful for pasting the screenshot path into Discord / Slack / file dialogs.",
-            "Clipboard",
-            DefaultConfigJson: "{\"template\":\"{bag.local_path}\"}",
-            LocalizationKey: "arestoys_copy_text_local_path"),
-
-        new("arestoys.copy-text-to-clipboard",
-            "Copy SVG path to clipboard",
-            "Put the absolute path of the saved .svg on the OS clipboard. Requires a preceding 'Save as SVG' step (which sets bag.svg_local_path).",
-            "Clipboard",
-            DefaultConfigJson: "{\"template\":\"{bag.svg_local_path}\"}",
-            LocalizationKey: "arestoys_copy_text_svg_path"),
+        // Consolidated upload: one entry, dropdown of every enabled uploader (auto-populated
+        // from the plugin registry via OptionsProviders["uploader_ids"]). Empty selection =
+        // auto-detect category from the bag's file extension and pick the first matching
+        // uploader. For multi-uploader fan-out the user adds the step twice with different
+        // uploader ids — no special "category" path needed in the descriptor.
+        new("arestoys.upload",
+            "Upload to cloud service",
+            "Upload the current bytes to one of the configured uploaders. Pick a destination from the dropdown; leave it empty to auto-pick based on the file extension (image → image uploader, video → video uploader, etc.) — the first uploader the user has selected for that category wins. Toggle 'Show notification' for a post-upload toast with Open / Copy URL buttons.",
+            "Upload",
+            DefaultConfigJson: "{\"uploader\":\"\",\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            StringParameters: new[]
+            {
+                new StringParameter("uploader", "Uploader", string.Empty,
+                    Placeholder: "(auto-detect from file type)",
+                    OptionsKey: "uploader_ids",
+                    IsEditable: false),
+            },
+            LocalizationKey: "arestoys_upload_cloud",
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.upload",
-            "Upload to selected image uploaders",
-            "Run every uploader the user has selected for the image category (Settings → Plugins → image).",
+            "Shorten URL",
+            "Shorten the current payload (UTF-8 text bytes — typically chained after 'Read text from clipboard') via a URL shortener plugin. Pick a shortener from the dropdown; empty = first available. Input must be a valid http(s) URL — the shortener rejects anything else. Writes the shortened URL into bag.text so a downstream 'Add text to clipboard' captures the result.",
             "Upload",
-            DefaultConfigJson: "{\"category\":\"image\"}",
-            LocalizationKey: "arestoys_upload_image"),
-
-        new("arestoys.upload",
-            "Upload to selected file uploaders",
-            "Run every uploader the user has selected for the file category (Settings → Plugins → file).",
-            "Upload",
-            DefaultConfigJson: "{\"category\":\"file\"}",
-            LocalizationKey: "arestoys_upload_file"),
-
-        new("arestoys.upload",
-            "Upload to selected text uploaders",
-            "Run every uploader the user has selected for the text category (Settings → Plugins → text). paste.rs, Pastebin, Gist, plus any AnyFile destination.",
-            "Upload",
-            DefaultConfigJson: "{\"category\":\"text\"}",
-            LocalizationKey: "arestoys_upload_text"),
-
-        new("arestoys.upload",
-            "Upload to selected video uploaders",
-            "Run every uploader the user has selected for the video category (Settings → Plugins → video).",
-            "Upload",
-            DefaultConfigJson: "{\"category\":\"video\"}",
-            LocalizationKey: "arestoys_upload_video"),
-
-        new("arestoys.upload",
-            "Shorten URL via selected URL shorteners",
-            "Run every URL shortener the user has selected (Settings → Uploaders → URL). is.gd / v.gd are bundled. Input must be a valid absolute URL — the shorteners reject anything else.",
-            "Upload",
-            DefaultConfigJson: "{\"category\":\"url\"}",
-            LocalizationKey: "arestoys_upload_url"),
+            // category:"url" is carried as a discriminator so LookupForStep can distinguish this
+            // descriptor from "Upload to cloud service" (both share TaskId "arestoys.upload"). UploadTask
+            // ignores `category` whenever `uploader` is set, so this does not affect runtime resolution.
+            DefaultConfigJson: "{\"uploader\":\"\",\"category\":\"url\",\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            StringParameters: new[]
+            {
+                new StringParameter("uploader", "Shortener", string.Empty,
+                    Placeholder: "(first available)",
+                    OptionsKey: "shortener_ids",
+                    IsEditable: false),
+            },
+            LocalizationKey: "arestoys_shorten_url",
+            // Reads bag.payload_bytes (same path as "Upload to cloud service" — same task class)
+            // and writes bag.text = shortened URL.
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.upload-clipboard-text",
-            "Read text from clipboard",
+            "Read text from Windows clipboard",
             "Pulls the current text from the system clipboard and stages it as the workflow's payload (UTF-8 bytes, .txt extension). Pair with an Upload step (text category) to publish the content. Skips silently if the clipboard has no text.",
             "Capture",
-            DefaultConfigJson: null),
+            DefaultConfigJson: null,
+            // Writes bag.payload_bytes (UTF-8) + file_extension="txt" — does NOT write bag.text.
+            // Downstream Upload / Shorten URL reads the bytes; chain an Add-text AFTER Upload (which
+            // writes bag.text = the shortened URL) if you want the result in history as text.
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.capture-selected-explorer-file",
             "Capture selected Explorer file",
             "Reads the file currently selected in the foreground Explorer window (via Shell.Application COM) and stages its bytes as the workflow's payload. Aborts silently when no Explorer is foreground or nothing is selected; only takes the first file on multi-selection.",
             "Capture",
-            DefaultConfigJson: null),
+            DefaultConfigJson: null,
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.qr-read",
             "QR — read code from image",
-            "Decodes the first QR code found in the current image payload (ZXing.Net, QR_CODE only, AutoRotate + TryHarder enabled). Replaces the payload with the decoded UTF-8 text and flips the extension to .txt. Aborts the workflow when no QR is found — pair with capture-region to build a 'screenshot QR → clipboard text' flow.",
+            "Decodes the first QR code found in the current image payload (ZXing.Net, QR_CODE only, AutoRotate + TryHarder enabled). Replaces the payload with the decoded UTF-8 text and flips the extension to .txt. Aborts the workflow when no QR is found — pair with capture-region to build a 'screenshot QR → clipboard text' flow. Toggle 'Show notification' for a post-decode toast: Open URL if the text is a link, Copy text + Edit (system editor) otherwise.",
             "Tools",
-            DefaultConfigJson: null),
+            DefaultConfigJson: "{\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            Inputs: new[] { WorkflowPort.Payload },
+            // After decode: text = the decoded string AND payload_bytes = UTF-8 bytes of the same
+            // text (ext flipped to .txt). Lets the user chain either an Add text step (Text) or
+            // an Upload step that treats the decoded text as a .txt file (Payload).
+            Outputs: new[] { WorkflowPort.Payload, WorkflowPort.Text }),
 
         new("arestoys.update-item-url",
             "Update item URL",
             "Persists the upload URL on the history item so the popup shows it. Auto-injected after upload — not user-picked.",
             "I/O",
             IsPlumbing: true),
-
-        new("arestoys.notify-toast",
-            "Show toast notification",
-            "Display a Windows toast confirming the operation. Click opens the URL when present.",
-            "Notify",
-            DefaultConfigJson: "{\"title\":\"AresToys\",\"message\":\"Done.\"}"),
 
         new("arestoys.open-popup",
             "Show clipboard window",
@@ -438,39 +521,48 @@ public static class WorkflowActionCatalog
         new("arestoys.show-in-explorer",
             "Show file in Explorer",
             "Open Windows Explorer with the just-saved file pre-selected. Requires a preceding Save to file step.",
-            "I/O"),
+            "I/O",
+            Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.save-as",
             "Save image as…",
-            "Open a Save File dialog so the user picks the destination + filename. The chosen path becomes the new local_path for subsequent steps.",
-            "I/O"),
+            "Open a Save File dialog so the user picks the destination + filename. The chosen path becomes the new local_path for subsequent steps. Toggle 'Show notification' for a post-save toast with Copy-path / Show-in-folder buttons.",
+            "I/O",
+            DefaultConfigJson: "{\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.open-url",
             "Open URL in browser",
             "Launch the default browser on the upload URL (or an explicit URL via config). Useful right after an Upload step.",
-            "Notify"),
+            "Notify",
+            Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.show-qr-code",
             "Show QR code",
             "Generate a QR code from the upload URL (or explicit text) and pop a small window. Handy for scanning the link on a phone. Also writes the rendered PNG to bag.payload_bytes so Save image as… / Copy image to clipboard / Add to history can chain after.",
-            "Notify"),
-        new("arestoys.save-qr-as-image",
-            "Save QR as image",
-            "Generate a QR PNG and write it to disk. Auto-saves to config.path when set, otherwise prompts with a Save dialog. Source text: config.text → bag.upload_url → bag.payload_bytes (UTF-8).",
-            "Notify"),
-        new("arestoys.save-qr-as-svg",
-            "Save QR as SVG",
-            "Same as Save QR as image but produces a scalable SVG document — sharp at any size, ideal for print or slides.",
-            "Notify"),
-        new("arestoys.copy-qr-to-clipboard",
-            "Copy QR to clipboard",
-            "Generate a QR PNG and place it on the Windows clipboard. Paste-ready in any app that accepts images. (SVG-to-clipboard isn't supported on Windows.)",
-            "Notify"),
+            "Notify",
+            Inputs: new[] { WorkflowPort.Text },
+            Outputs: new[] { WorkflowPort.Payload }),
+        new("arestoys.text-to-qr-png",
+            "Convert text to QR (PNG)",
+            "Render a QR code PNG from the pipeline's current text (bag.text — set by the previous Upload / Scan QR / Save step). Writes the image into bag.payload_bytes + bag.file_extension=png so downstream sinks ('Add image', 'Save as Image file') treat it like a fresh screenshot. Doesn't touch any clipboard on its own — pure converter.",
+            "Notify",
+            Inputs: new[] { WorkflowPort.Text },
+            Outputs: new[] { WorkflowPort.Payload }),
+        new("arestoys.text-to-qr-svg",
+            "Convert text to QR (SVG)",
+            "Render a QR code as an SVG vector (sharp at any zoom) from the pipeline's current text (bag.text) into bag.svg_output. Compose with 'Save as SVG file' downstream to write it to disk. Doesn't touch any clipboard on its own.",
+            "Notify",
+            Inputs: new[] { WorkflowPort.Text },
+            Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.pin-to-screen",
             "Pin image to screen",
             "Show the captured image in an always-on-top window. Drag to move, wheel to zoom, right-click or Esc to close.",
-            "Tools"),
+            "Tools",
+            Inputs: new[] { WorkflowPort.Payload }),
 
         // Launch family — MaxLaunchpad-style "press a shortcut, run a thing". Composable into any
         // workflow so a single AresToys shortcut can capture, save, AND launch an app/file/command
