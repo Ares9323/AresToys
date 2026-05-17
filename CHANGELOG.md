@@ -17,6 +17,28 @@ paste replaces SendInput Ctrl+V for AresToys dialogs, scrollbar no longer
 overlaps the window-resize hit zone, ESC works in region overlay before the
 first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
 
+### Screen recording — split into a composable pipeline
+- `Toggle screen recording (mp4 / gif)` collapses into a single `Record screen`
+  task that always emits MP4 bytes into the bag — format choice / final
+  destination / history insertion / toast all move downstream to dedicated
+  steps. The 0.1.16 single-step shape was an outlier: every other capture
+  flow (region / window / monitor / webpage) already produces bytes and lets
+  Save + AddToHistory tasks own persistence.
+- New **Save as Video file** task (`arestoys.save-video-file`) writes the
+  bag's video bytes to the configured capture folder (Settings → Capture).
+  `format` picks the output container — `mp4` keeps the recording verbatim
+  (fast path, no transcode), `gif` / `webm` / `mov` trigger an ffmpeg
+  transcode (palette-pass GIF, VP9 WebM, stream-copy QuickTime mux).
+- Default `Screen recording (mp4)` / `Screen recording (gif)` profiles are
+  now 3-step chains: Record screen → Save as Video file → Add Payload to
+  AresToys clipboard. One-shot migration in `PipelineProfileSeeder` detects
+  the pre-0.1.17 single-step shape (one `arestoys.record-screen` step) and
+  force-upgrades to the new default chain — users who had genuinely
+  customised either profile beyond the single step are preserved.
+- Tray menu shortcuts (`Tray → Capture → Screen recording`) keep the
+  self-contained legacy path: when no PipelineContext is supplied, the
+  coordinator still writes to the capture folder + history + toast inline.
+
 ### Wormhole — shortcut arrow restored on `.lnk` tiles
 - The 0.1.15 favicon-upscale fix moved the icon pipeline through
   `IShellItemImageFactory::GetImage` first, which does NOT composite the shell

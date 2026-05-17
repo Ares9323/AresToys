@@ -66,6 +66,7 @@ public static class DefaultPipelineProfiles
     public const string CaptureSelectedExplorerFileTaskId = "arestoys.capture-selected-explorer-file";
     public const string QrReadTaskId               = "arestoys.qr-read";
     public const string RecordScreenTaskId         = "arestoys.record-screen";
+    public const string SaveVideoFileTaskId        = "arestoys.save-video-file";
     public const string OpenScreenshotFolderTaskId = "arestoys.open-screenshot-folder";
     public const string OpenLauncherMenuTaskId     = "arestoys.open-launcher-menu";
     public const string OpenSettingsTaskId         = "arestoys.open-settings";
@@ -431,24 +432,35 @@ public static class DefaultPipelineProfiles
             Hotkey: new HotkeyBinding(Ctrl | Shift, 0xDC),
             IsBuiltIn: true),
 
+        // Screen recording (mp4) — 3-step chain mirroring the image-capture pipeline shape:
+        // Record screen (always emits mp4 bytes into the bag) → Save as Video file (writes the
+        // mp4 verbatim to the user's capture folder, fires the toast) → Add Payload to AresToys
+        // clipboard (commits the recording to AresToys' history with Windows-clipboard push).
         new PipelineProfile(
             Id: RecordScreenMp4Id,
             DisplayName: "Screen recording (mp4)",
             Trigger: "hotkey:record",
             Steps:
             [
-                new PipelineStep(RecordScreenTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"format\":\"mp4\"}"), Id: "record-screen")
+                new PipelineStep(RecordScreenTaskId, Id: "record-screen"),
+                new PipelineStep(SaveVideoFileTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"format\":\"mp4\",\"showNotification\":true}"), Id: "save-video"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
             ],
             Hotkey: new HotkeyBinding(Shift, 0x2C),  // Shift+PrintScreen
             IsBuiltIn: true),
 
+        // Screen recording (gif) — same chain as mp4 but Save Video file is configured for gif,
+        // which kicks off an ffmpeg transcode (palette generation pass) on stop. Recording
+        // itself is still mp4 — the format choice is purely a save-time decision.
         new PipelineProfile(
             Id: RecordScreenGifId,
             DisplayName: "Screen recording (gif)",
             Trigger: "hotkey:record-gif",
             Steps:
             [
-                new PipelineStep(RecordScreenTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"format\":\"gif\"}"), Id: "record-screen-gif")
+                new PipelineStep(RecordScreenTaskId, Id: "record-screen-gif"),
+                new PipelineStep(SaveVideoFileTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"format\":\"gif\",\"showNotification\":true}"), Id: "save-video-gif"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history-gif"),
             ],
             Hotkey: new HotkeyBinding(Ctrl | Shift, 0x2C),  // Ctrl+Shift+PrintScreen
             IsBuiltIn: true),

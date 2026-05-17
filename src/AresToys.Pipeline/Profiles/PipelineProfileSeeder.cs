@@ -52,6 +52,20 @@ public sealed class PipelineProfileSeeder
             if (!upgraded.IsBuiltIn && profile.IsBuiltIn)
                 upgraded = upgraded with { IsBuiltIn = true };
 
+            // One-shot migration for the screen-recording profiles: 0.1.16 → 0.1.17 split the
+            // single Toggle-screen-recording task into the 3-step "Record → Save Video file →
+            // Add to history" chain (uniform with image-capture pipelines). Stored profiles from
+            // before the split are now structurally broken — the lone RecordScreenTask emits
+            // bytes into the bag but no downstream step persists them. Detect that exact shape
+            // (a single step with task id arestoys.record-screen) and force-upgrade with the
+            // current default chain. Users who genuinely customised either profile beyond the
+            // single step are left alone — they likely already chained their own Save / AddToHistory.
+            if (IsLegacyRecordScreenProfile(profile.Id, existing))
+            {
+                upgraded = profile;
+                _logger.LogInformation("Pipeline profile {Id} migrated 0.1.16 → 0.1.17 record-screen chain.", profile.Id);
+            }
+
             if (!ReferenceEquals(upgraded, existing))
             {
                 await _store.UpsertAsync(upgraded, cancellationToken).ConfigureAwait(false);
@@ -62,6 +76,21 @@ public sealed class PipelineProfileSeeder
                 _logger.LogDebug("Pipeline profile {Id} already present; preserving user changes.", profile.Id);
             }
         }
+    }
+
+    /// <summary>True when <paramref name="existing"/> matches the pre-0.1.17 single-step shape of
+    /// the screen-recording profiles (one RecordScreenTask step that used to do save + history
+    /// inline). Those profiles produce no output under the new RecordScreenTask, which only
+    /// emits bytes into the bag — so we proactively replace them with the multi-step default.
+    /// Anything else (extra steps, different first task) is treated as a real customisation and
+    /// preserved.</summary>
+    private static bool IsLegacyRecordScreenProfile(string profileId, AresToys.Core.Pipeline.PipelineProfile existing)
+    {
+        if (profileId != DefaultPipelineProfiles.RecordScreenMp4Id
+            && profileId != DefaultPipelineProfiles.RecordScreenGifId)
+            return false;
+        if (existing.Steps.Count != 1) return false;
+        return string.Equals(existing.Steps[0].TaskId, DefaultPipelineProfiles.RecordScreenTaskId, StringComparison.Ordinal);
     }
 
     /// <summary>Force-overwrite a profile with its default definition. Used by the "Reset to

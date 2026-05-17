@@ -290,6 +290,7 @@ public partial class App : Application
                 services.AddSingleton<QrReaderService>();
                 services.AddSingleton<WebpageCaptureService>();
                 services.AddSingleton<IPipelineTask, RecordScreenTask>();
+                services.AddSingleton<IPipelineTask, SaveVideoFileTask>();
                 services.AddSingleton<IPipelineTask, OpenScreenshotFolderTask>();
                 services.AddSingleton<IPipelineTask, PasteHistoryItemTask>();
                 services.AddSingleton<IPipelineTask, PressKeyTask>();
@@ -524,6 +525,12 @@ public partial class App : Application
         // Settings → Capture). Explicit format = re-encode through IImageEncoder before write.
         AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["image_formats"] = () =>
             new[] { string.Empty, "PNG", "JPEG", "BMP", "GIF" };
+
+        // Video-format dropdown for SaveVideoFile's "format". mp4 is the fast path (the
+        // recorder always produces mp4, so picking mp4 is a verbatim file write); gif / webm /
+        // mov route through ffmpeg for a transcode + container swap.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["video_formats"] = () =>
+            new[] { "mp4", "gif", "webm", "mov" };
 
         // Trace-preset dropdown for Trace to SVG's "preset" config. Concatenates the stock
         // presets (TracePresets.Stock — verbatim Illustrator Image Trace defaults) with any

@@ -6697,7 +6697,34 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WorkflowAction_arestoys_save_to_file", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save as Video file.
+        /// </summary>
+        public static string WorkflowAction_arestoys_save_video_file {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_save_video_file", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pair with Record screen: writes the recorded video bytes to disk....
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_save_video_file {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_save_video_file", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Format.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_save_video_file_format {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_save_video_file_format", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Show in Explorer.
         /// </summary>

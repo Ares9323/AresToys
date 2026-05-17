@@ -797,6 +797,9 @@
   <data name="WorkflowAction_arestoys_open_editor_before_upload" xml:space="preserve"><value>Apri editor</value></data>
   <data name="WorkflowAction_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Applica preset effetti immagine</value></data>
   <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Salva come immagine</value></data>
+  <data name="WorkflowAction_arestoys_save_video_file" xml:space="preserve"><value>Salva come video</value></data>
+  <data name="WorkflowActionDesc_arestoys_save_video_file" xml:space="preserve"><value>Da abbinare a Registra schermo: scrive su disco i byte del video registrato, nella cartella di cattura configurata. 'Formato' sceglie il container di output — mp4 mantiene la registrazione originale tale e quale, gif / webm / mov innescano un transcode via ffmpeg.</value></data>
+  <data name="WorkflowActionParam_arestoys_save_video_file_format" xml:space="preserve"><value>Formato</value></data>
   <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Aggiungi Payload alla clipboard di AresToys</value></data>
   <data name="WorkflowAction_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Incolla elemento dalla cronologia</value></data>
