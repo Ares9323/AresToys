@@ -1378,7 +1378,7 @@
                      ClipboardWindow, LauncherWindow, every dialog) + any prominent surface edge
                      the user reads as "this is the boundary of a card". Bound to consumers via
                      {DynamicResource OuterBorderBrush}. -->
-                <TextBlock Text="Outer border" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_OuterBorder}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1400,7 +1400,7 @@
                      between sub-sections inside the same card, list-row separators in the
                      clipboard view. Defaults to Surface3 so the line reads as a one-step-up
                      surface edge rather than a hard accent. Bound via {DynamicResource InnerBorderBrush}. -->
-                <TextBlock Text="Inner border" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <TextBlock Text="{Markup:Loc Theme_InnerBorder}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -1419,7 +1419,7 @@
                 </Grid>
 
                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                           Text="Outer = window frames + card outlines. Inner = swatches, dividers, list separators." />
+                           Text="{Markup:Loc Theme_BorderHint}" />
 
                 <!-- No sample / Apply button: clicking a swatch opens the picker, which previews
                      the new colour on its own OK button. The accent only commits app-wide when
@@ -1874,11 +1874,11 @@
                     <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4"
                             Padding="14" Margin="0,16,0,16">
                         <StackPanel>
-                            <TextBlock Text="Defaults for new and unconfigured wormholes"
+                            <TextBlock Text="{Markup:Loc Wormhole_DefaultsTitle}"
                                        FontWeight="SemiBold" Margin="0,0,0,4" />
                             <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                        FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                                       Text="Per-wormhole overrides win when set (Ctrl+Wheel inside a wormhole sets that wormhole's zoom; the appearance slider in the chrome sets its opacity). 0 for icon size means 'use the Windows desktop icon size'." />
+                                       Text="{Markup:Loc Wormhole_DefaultsHint}" />
 
                             <!-- Icon size: numeric input. Min 0 (sentinel = desktop default),
                                  24 px is the smallest readable tile, 256 the largest preset
@@ -1895,7 +1895,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Default icon size (px, 0 = desktop)" />
+                                           Text="{Markup:Loc Wormhole_DefaultIconSize}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="0" Maximum="256" SmallChange="8"
                                               ClearButtonEnabled="False"
@@ -1910,7 +1910,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Tile padding (px)" />
+                                           Text="{Markup:Loc Wormhole_DefaultTilePadding}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="0" Maximum="32" SmallChange="1"
                                               ClearButtonEnabled="False"
@@ -1927,7 +1927,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Label font size (px)" />
+                                           Text="{Markup:Loc Wormhole_DefaultLabelFontSize}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="8" Maximum="20" SmallChange="1"
                                               ClearButtonEnabled="False"
@@ -1943,7 +1943,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Label lines (max)" />
+                                           Text="{Markup:Loc Wormhole_DefaultLabelMaxLines}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="1" Maximum="3" SmallChange="1"
                                               ClearButtonEnabled="False"
@@ -1961,7 +1961,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Line spacing (overlap, px)" />
+                                           Text="{Markup:Loc Wormhole_DefaultLineSpacing}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="-32" Maximum="32" SmallChange="1"
                                               ClearButtonEnabled="False"
@@ -1979,7 +1979,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Background opacity (%)" />
+                                           Text="{Markup:Loc Wormhole_DefaultBackgroundOpacity}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="1" Maximum="100" SmallChange="1"
                                               ClearButtonEnabled="False"
@@ -1997,7 +1997,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center"
-                                           Text="Border opacity (%)" />
+                                           Text="{Markup:Loc Wormhole_DefaultBorderOpacity}" />
                                 <ui:NumberBox Grid.Column="1" Width="120"
                                               Minimum="0" Maximum="100" SmallChange="1"
                                               ClearButtonEnabled="False"
@@ -2046,16 +2046,16 @@
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_ModuleWormholesTooltip}" />
                             <CheckBox IsChecked="{Binding KeySequencesModuleEnabled, Mode=TwoWay}"
-                                      Content="Key Sequences"
+                                      Content="{Markup:Loc Settings_ModuleKeySequences}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,4"
-                                      ToolTip="Trigger paste / workflow via typed sequences (e.g. 'mpg@'). Installs a global keyboard stream listener." />
+                                      ToolTip="{Markup:Loc Settings_ModuleKeySequencesTooltip}" />
                             <!-- Position dropdown for the Key Sequences overlay. Only meaningful
                                  when the module is enabled (gated by IsEnabled binding). Hot-reload:
                                  the new mode takes effect on the very next overlay spawn, no restart. -->
                             <StackPanel Orientation="Horizontal" Margin="24,0,0,8"
                                         IsEnabled="{Binding KeySequencesModuleEnabled}">
-                                <TextBlock Text="Overlay position:"
+                                <TextBlock Text="{Markup:Loc Settings_KeySequencesPosition}"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                            FontSize="11"
@@ -2064,7 +2064,7 @@
                                           SelectedItem="{Binding KeySequencesPosition, Mode=TwoWay}"
                                           MinWidth="160"
                                           FontSize="11"
-                                          ToolTip="Where the overlay window appears when a trigger matches. LastPosition restores the position you last dragged the overlay to." />
+                                          ToolTip="{Markup:Loc Settings_KeySequencesPositionTooltip}" />
                             </StackPanel>
                             <!-- Restart row appears as soon as any module toggle moves. The button
                                  relaunches the process via OnRestartAppClicked (the same handler
@@ -2294,7 +2294,7 @@
                     </Grid.ColumnDefinitions>
                     <ui:TextBox Grid.Column="0"
                                 Text="{Binding Debug.Filter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                PlaceholderText="Filter (matches category, message, level — case-insensitive)"
+                                PlaceholderText="{Markup:Loc Debug_FilterPlaceholder}"
                                 FontSize="11"
                                 Margin="0,0,8,0" />
                     <CheckBox Grid.Column="1" Content="{Markup:Loc Debug_AutoScroll}"

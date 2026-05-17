@@ -343,6 +343,23 @@
   <data name="WorkflowActionDesc_arestoys_upload_cloud" xml:space="preserve"><value>Upload the current bytes to one of the configured uploaders. Pick a destination from the dropdown; leave it empty to auto-pick based on the file extension (image → image uploader, video → video uploader, etc.). Toggle 'Show notification' for a post-upload toast with Open / Copy URL buttons.</value></data>
   <data name="WorkflowAction_arestoys_shorten_url" xml:space="preserve"><value>Shorten URL</value></data>
   <data name="WorkflowActionDesc_arestoys_shorten_url" xml:space="preserve"><value>Shorten the current payload (UTF-8 text bytes — typically chained after 'Read text from Windows clipboard') via a URL shortener plugin. Pick a shortener from the dropdown; empty = first available. Writes the shortened URL into bag.text so a downstream 'Add text to clipboard' captures the result.</value></data>
+  <data name="Wormhole_DefaultsTitle" xml:space="preserve"><value>Defaults for new and unconfigured wormholes</value></data>
+  <data name="Wormhole_DefaultsHint" xml:space="preserve"><value>Per-wormhole overrides win when set (Ctrl+Wheel inside a wormhole sets that wormhole's zoom; the appearance slider in the chrome sets its opacity). 0 for icon size means 'use the Windows desktop icon size'.</value></data>
+  <data name="Wormhole_DefaultIconSize" xml:space="preserve"><value>Default icon size (px, 0 = desktop)</value></data>
+  <data name="Wormhole_DefaultTilePadding" xml:space="preserve"><value>Tile padding (px)</value></data>
+  <data name="Wormhole_DefaultLabelFontSize" xml:space="preserve"><value>Label font size (px)</value></data>
+  <data name="Wormhole_DefaultLabelMaxLines" xml:space="preserve"><value>Label lines (max)</value></data>
+  <data name="Wormhole_DefaultLineSpacing" xml:space="preserve"><value>Line spacing (overlap, px)</value></data>
+  <data name="Wormhole_DefaultBackgroundOpacity" xml:space="preserve"><value>Background opacity (%)</value></data>
+  <data name="Wormhole_DefaultBorderOpacity" xml:space="preserve"><value>Border opacity (%)</value></data>
+  <data name="Settings_ModuleKeySequences" xml:space="preserve"><value>Key Sequences</value></data>
+  <data name="Settings_ModuleKeySequencesTooltip" xml:space="preserve"><value>Trigger paste / workflow via typed sequences (e.g. 'mpg@'). Installs a global keyboard stream listener.</value></data>
+  <data name="Settings_KeySequencesPosition" xml:space="preserve"><value>Overlay position:</value></data>
+  <data name="Settings_KeySequencesPositionTooltip" xml:space="preserve"><value>Where the overlay window appears when a trigger matches. LastPosition restores the position you last dragged the overlay to.</value></data>
+  <data name="Debug_FilterPlaceholder" xml:space="preserve"><value>Filter (matches category, message, level — case-insensitive)</value></data>
+  <data name="Theme_OuterBorder" xml:space="preserve"><value>Outer border</value></data>
+  <data name="Theme_InnerBorder" xml:space="preserve"><value>Inner border</value></data>
+  <data name="Theme_BorderHint" xml:space="preserve"><value>Outer = window frames + card outlines. Inner = swatches, dividers, list separators.</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Start minimized</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>Skip the main window on launch and stay in the tray. Click the tray icon to open the Settings window when needed.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Start editor maximized</value></data>
