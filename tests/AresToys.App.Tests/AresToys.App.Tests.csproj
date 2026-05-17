@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- App targets net10.0-windows10.0.19041.0; we target the same so the WPF/WinExe reference
+         resolves cleanly. UseWPF=true mirrors the App so its WPF-typed surface compiles in the
+         test project's reference closure (the POCO classes under test themselves don't touch WPF). -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>AresToys.App.Tests</RootNamespace>
+    <AssemblyName>AresToys.App.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AresToys.App\AresToys.App.csproj" />
+  </ItemGroup>
+</Project>

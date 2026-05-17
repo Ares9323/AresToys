@@ -1,0 +1,54 @@
+<Window x:Class="AresToys.App.Views.KeySequenceOverlay"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        Focusable="False"
+        SizeToContent="WidthAndHeight"
+        MinWidth="240"
+        MaxWidth="520">
+    <Border x:Name="OuterBorder"
+            Background="#222222"
+            BorderBrush="{DynamicResource AccentBackgroundBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="6"
+            MouseLeftButtonDown="OuterBorder_MouseLeftButtonDown"
+            Cursor="SizeAll">
+        <StackPanel>
+            <TextBlock x:Name="HeaderText"
+                       Foreground="#A0A0A0"
+                       FontSize="11"
+                       Margin="6,2,6,4"
+                       Text="Press Enter to insert · Esc to dismiss"/>
+            <ItemsControl x:Name="OptionsList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="RowBorder"
+                                Padding="8,4"
+                                CornerRadius="3"
+                                Background="Transparent"
+                                MouseLeftButtonDown="Row_MouseLeftButtonDown"
+                                Cursor="Hand">
+                            <TextBlock Text="{Binding Preview}"
+                                       Foreground="#EAEAEA"
+                                       FontSize="13"
+                                       TextWrapping="NoWrap"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource AccentBackgroundBrush}"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</Window>
