@@ -25,7 +25,7 @@
                 </ui:TitleBar.Icon>
                 <ui:TitleBar.Header>
                     <Grid Margin="0,0,8,0" VerticalAlignment="Center">
-                        <TextBlock Text="AresToys - Set hotkey"
+                        <TextBlock Text="{Markup:Loc HotkeyCapture_BrandTitle}"
                                    Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="13"
                                    VerticalAlignment="Center" />
                     </Grid>
@@ -38,7 +38,7 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="Press a key combination"
+                <TextBlock Grid.Row="0" Text="{Markup:Loc HotkeyCapture_Heading}"
                            Foreground="{DynamicResource AccentForegroundBrush}"
                            FontSize="14" FontWeight="SemiBold" />
                 <Border Grid.Row="1" Margin="0,12" Padding="12"
@@ -51,7 +51,7 @@
                                    HorizontalAlignment="Center" />
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
                                    Margin="0,8,0,0" HorizontalAlignment="Center"
-                                   Text="Hold modifiers (Ctrl / Alt / Shift / Win) then press a key. Esc cancels." />
+                                   Text="{Markup:Loc HotkeyCapture_Hint}" />
                     </StackPanel>
                 </Border>
                 <Grid Grid.Row="2">

@@ -1,6 +1,7 @@
 <Window x:Class="AresToys.App.Views.ScreenColorPickerOverlay"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
         WindowStyle="None"
         Background="Black"
         Topmost="True"
@@ -82,7 +83,7 @@
                                FontSize="10"
                                HorizontalAlignment="Center"
                                Margin="0,2,0,0" />
-                    <TextBlock Text="Click: pick · Wheel: zoom · Esc/RMB: cancel"
+                    <TextBlock Text="{Markup:Loc ScreenColorPicker_Hint}"
                                Foreground="#666"
                                FontSize="10"
                                HorizontalAlignment="Center"

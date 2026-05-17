@@ -360,6 +360,67 @@
   <data name="Theme_OuterBorder" xml:space="preserve"><value>Outer border</value></data>
   <data name="Theme_InnerBorder" xml:space="preserve"><value>Inner border</value></data>
   <data name="Theme_BorderHint" xml:space="preserve"><value>Outer = window frames + card outlines. Inner = swatches, dividers, list separators.</value></data>
+  <data name="Theme_ResetTooltip" xml:space="preserve"><value>Restore the original AresToys accent and surface palette.</value></data>
+  <data name="WorkflowEditor_PipelineStepsTitle" xml:space="preserve"><value>Pipeline steps</value></data>
+  <data name="WorkflowEditor_OpenStepListTooltip" xml:space="preserve"><value>Open this workflow's step list</value></data>
+  <data name="WorkflowEditor_RebindHotkeyTooltip" xml:space="preserve"><value>Click to assign / change / clear the hotkey</value></data>
+  <data name="WorkflowEditor_DragHandleTooltip" xml:space="preserve"><value>Drag to reorder</value></data>
+  <data name="WorkflowEditor_DecreaseTooltip" xml:space="preserve"><value>Decrease</value></data>
+  <data name="WorkflowEditor_IncreaseTooltip" xml:space="preserve"><value>Increase</value></data>
+  <data name="WorkflowEditor_PickFileTooltip" xml:space="preserve"><value>Pick a file…</value></data>
+  <data name="WorkflowEditor_PickFolderTooltip" xml:space="preserve"><value>Pick a folder…</value></data>
+  <data name="WorkflowEditor_RemoveStepTooltip" xml:space="preserve"><value>Remove this step from the workflow</value></data>
+  <data name="Uploaders_ShortenersHint" xml:space="preserve"><value>URL shorteners — take a URL on the clipboard and turn it into a shorter one. Use 'Shorten clipboard URL' workflow (Settings → Hotkeys) to bind a key.</value></data>
+  <data name="Pattern_YearTooltip" xml:space="preserve"><value>4-digit year — 2026</value></data>
+  <data name="Pattern_ShortYearTooltip" xml:space="preserve"><value>2-digit year — 26</value></data>
+  <data name="Pattern_MonthTooltip" xml:space="preserve"><value>Month number — 01-12</value></data>
+  <data name="Pattern_MonthNameTooltip" xml:space="preserve"><value>Full month name — March</value></data>
+  <data name="Pattern_DayTooltip" xml:space="preserve"><value>Day of month — 01-31</value></data>
+  <data name="Pattern_HourTooltip" xml:space="preserve"><value>Hour 24h — 00-23</value></data>
+  <data name="Pattern_MinuteTooltip" xml:space="preserve"><value>Minute — 00-59</value></data>
+  <data name="Pattern_SecondTooltip" xml:space="preserve"><value>Second — 00-59</value></data>
+  <data name="Pattern_AmPmTooltip" xml:space="preserve"><value>AM or PM</value></data>
+  <data name="ClipboardCategories_PickIconTooltip" xml:space="preserve"><value>Click to pick an icon from the library.</value></data>
+  <data name="ClipboardCategories_CategoryNameTooltip" xml:space="preserve"><value>Category name. Renaming re-routes every existing item to the new name.</value></data>
+  <data name="ClipboardCategories_DecreaseByOneTooltip" xml:space="preserve"><value>Decrease by 1.</value></data>
+  <data name="ClipboardCategories_IncreaseByOneTooltip" xml:space="preserve"><value>Increase by 1.</value></data>
+  <data name="ClipboardCategories_MaxItemsTooltip" xml:space="preserve"><value>Max items kept (0 = no cap).</value></data>
+  <data name="ClipboardCategories_DecreaseByMinuteTooltip" xml:space="preserve"><value>Decrease by 1 minute.</value></data>
+  <data name="ClipboardCategories_IncreaseByMinuteTooltip" xml:space="preserve"><value>Increase by 1 minute.</value></data>
+  <data name="ClipboardCategories_AutoCleanupTooltip" xml:space="preserve"><value>Auto-delete items older than N minutes (0 = never).</value></data>
+  <data name="ClipboardCategories_DeleteCategoryTooltip" xml:space="preserve"><value>Delete category (items will move to 'Clipboard').</value></data>
+  <data name="ClipboardCategories_ResetCategoryTooltip" xml:space="preserve"><value>Reset icon, max items and auto-cleanup back to defaults.</value></data>
+  <data name="ClipboardCategories_MoveUpTooltip" xml:space="preserve"><value>Move up</value></data>
+  <data name="ClipboardCategories_MoveDownTooltip" xml:space="preserve"><value>Move down</value></data>
+  <data name="Settings_LookForUpdates" xml:space="preserve"><value>Look for updates at startup</value></data>
+  <data name="Settings_LookForUpdatesTooltip" xml:space="preserve"><value>When on, AresToys queries GitHub Releases once on launch and shows a toast if a newer version is published. Manual checks from About → Check for updates keep working either way.</value></data>
+  <data name="Settings_AutoInstallUpdates" xml:space="preserve"><value>Automatically install updates when available</value></data>
+  <data name="Settings_AutoInstallUpdatesTooltip" xml:space="preserve"><value>When on, an update found by the startup check is downloaded and applied immediately — AresToys restarts into the new version without prompting. Off (default) shows a toast and lets you pick the timing. Requires 'Look for updates at startup' to be on.</value></data>
+  <data name="Settings_BackupExportTooltip" xml:space="preserve"><value>Save every non-sensitive setting to a JSON file.</value></data>
+  <data name="Settings_BackupImportTooltip" xml:space="preserve"><value>Load settings from a previously-exported JSON file. Existing values get overwritten; settings not in the file stay untouched.</value></data>
+  <data name="HotkeyCapture_BrandTitle" xml:space="preserve"><value>AresToys - Set hotkey</value></data>
+  <data name="HotkeyCapture_Heading" xml:space="preserve"><value>Press a key combination</value></data>
+  <data name="HotkeyCapture_Hint" xml:space="preserve"><value>Hold modifiers (Ctrl / Alt / Shift / Win) then press a key. Esc cancels.</value></data>
+  <data name="IconPicker_Title" xml:space="preserve"><value>Pick an icon</value></data>
+  <data name="IconPicker_Hint" xml:space="preserve"><value>Type to filter; hover for the FontAwesome name; click to select.</value></data>
+  <data name="IconPicker_ClearButton" xml:space="preserve"><value>Clear</value></data>
+  <data name="NewWormhole_Title" xml:space="preserve"><value>New wormhole</value></data>
+  <data name="NewWormhole_TitleLabel" xml:space="preserve"><value>Title</value></data>
+  <data name="NewWormhole_FolderLabel" xml:space="preserve"><value>Folder</value></data>
+  <data name="NewWormhole_BrowseButton" xml:space="preserve"><value>Browse…</value></data>
+  <data name="NewWormhole_Hint" xml:space="preserve"><value>Files added to / removed from this folder via Explorer appear or disappear automatically. Drop on the wormhole: same drive moves, different drive copies — Ctrl forces Copy, Shift forces Move.</value></data>
+  <data name="NewWormhole_CreateButton" xml:space="preserve"><value>Create</value></data>
+  <data name="NewWormhole_DefaultTitle" xml:space="preserve"><value>Wormhole</value></data>
+  <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copy image to clipboard</value></data>
+  <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Open in editor</value></data>
+  <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reset zoom to 100%</value></data>
+  <data name="QrCode_Title" xml:space="preserve"><value>QR code</value></data>
+  <data name="QrCode_ScanToOpen" xml:space="preserve"><value>Scan to open</value></data>
+  <data name="RegionOverlay_Instructions" xml:space="preserve"><value>Drag to add region · Click to select · Double-click inside a region to confirm · Del to remove · Wheel to zoom · Drag this popup to move it</value></data>
+  <data name="RegionOverlay_NoRegions" xml:space="preserve"><value>No regions yet — drag to start</value></data>
+  <data name="RegionOverlay_ApplyButton" xml:space="preserve"><value>Apply (Enter)</value></data>
+  <data name="RegionOverlay_CancelButton" xml:space="preserve"><value>Cancel (Esc)</value></data>
+  <data name="ScreenColorPicker_Hint" xml:space="preserve"><value>Click: pick · Wheel: zoom · Esc/RMB: cancel</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Start minimized</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>Skip the main window on launch and stay in the tray. Click the tray icon to open the Settings window when needed.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Start editor maximized</value></data>

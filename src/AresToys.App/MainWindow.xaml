@@ -411,7 +411,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="0,12,0,0">
                                 <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
-                                           Text="URL shorteners — take a URL on the clipboard and turn it into a shorter one. Use 'Shorten clipboard URL' workflow (Settings → Hotkeys) to bind a key." />
+                                           Text="{Markup:Loc Uploaders_ShortenersHint}" />
                                 <ItemsControl ItemsSource="{Binding Uploaders.UrlUploaders}"
                                               ItemTemplate="{StaticResource UploaderRowTemplate}" />
                             </StackPanel>
@@ -549,14 +549,14 @@
                                             Style="{StaticResource HotkeyTitleButtonStyle}"
                                             Content="{Binding DisplayName}"
                                             Command="{Binding OpenInWorkflowsCommand}"
-                                            ToolTip="Open this workflow's step list" />
+                                            ToolTip="{Markup:Loc WorkflowEditor_OpenStepListTooltip}" />
                                     <!-- Chip is the rebind affordance — clicking it opens the
                                          capture dialog. When unbound the text reads
                                          "Click to set hotkey…" so the action is self-explanatory. -->
                                     <Button Grid.Column="1" Style="{StaticResource HotkeyChipButtonStyle}"
                                             Content="{Binding BindingDisplay}"
                                             Command="{Binding RebindCommand}"
-                                            ToolTip="Click to assign / change / clear the hotkey" />
+                                            ToolTip="{Markup:Loc WorkflowEditor_RebindHotkeyTooltip}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -726,14 +726,14 @@
                                         Padding="14,0"
                                         Content="{Binding BindingDisplay}"
                                         Command="{Binding RebindCommand}"
-                                        ToolTip="Click to assign / change / clear the hotkey" />
+                                        ToolTip="{Markup:Loc WorkflowEditor_RebindHotkeyTooltip}" />
                             </StackPanel>
                         </Grid>
 
                         <!-- "Pipeline steps" heading + blurb also sit in the sticky header: they
                              label the scrollable area below and have no value scrolling away with
                              the first row of steps. -->
-                        <TextBlock Text="Pipeline steps" FontWeight="SemiBold" FontSize="14"
+                        <TextBlock Text="{Markup:Loc WorkflowEditor_PipelineStepsTitle}" FontWeight="SemiBold" FontSize="14"
                                    Margin="0,12,0,4" />
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap"
                                    Text="{Markup:Loc Hotkeys_StepEditorBlurb}" />
@@ -795,7 +795,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Margin="0,0,12,0" Padding="6,4"
                                                         Cursor="SizeAll" Background="Transparent"
-                                                        ToolTip="Drag to reorder"
+                                                        ToolTip="{Markup:Loc WorkflowEditor_DragHandleTooltip}"
                                                         MouseLeftButtonDown="OnStepHandleMouseDown"
                                                         MouseMove="OnStepHandleMouseMove"
                                                         MouseLeftButtonUp="OnStepHandleMouseUp">
@@ -825,7 +825,7 @@
                                                                    HorizontalContentAlignment="Center"
                                                                    VerticalContentAlignment="Center"
                                                                    Command="{Binding DecrementParameterCommand}"
-                                                                   ToolTip="Decrease" />
+                                                                   ToolTip="{Markup:Loc WorkflowEditor_DecreaseTooltip}" />
                                                         <ui:TextBox Text="{Binding ParameterValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                     Width="64" Height="32" Margin="4,0"
                                                                     TextAlignment="Center"
@@ -836,7 +836,7 @@
                                                                    HorizontalContentAlignment="Center"
                                                                    VerticalContentAlignment="Center"
                                                                    Command="{Binding IncrementParameterCommand}"
-                                                                   ToolTip="Increase" />
+                                                                   ToolTip="{Markup:Loc WorkflowEditor_IncreaseTooltip}" />
                                                     </StackPanel>
                                                     <!-- Boolean toggles for the step's config flags. Each one persists into
                                                          step.Config[Key] via the BoolParameterEntry callback. -->
@@ -947,7 +947,7 @@
                                                                             BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                                             Cursor="Hand" Margin="4,0,0,0"
                                                                             Command="{Binding BrowseFileCommand}"
-                                                                            ToolTip="Pick a file…"
+                                                                            ToolTip="{Markup:Loc WorkflowEditor_PickFileTooltip}"
                                                                             Visibility="{Binding ShowFileButton, Converter={StaticResource BoolToVisibility}}">
                                                                         <TextBlock Text="&#xF15B;"
                                                                                    FontFamily="{DynamicResource IconFont}"
@@ -960,7 +960,7 @@
                                                                             BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                                             Cursor="Hand" Margin="4,0,0,0"
                                                                             Command="{Binding BrowseFolderCommand}"
-                                                                            ToolTip="Pick a folder…"
+                                                                            ToolTip="{Markup:Loc WorkflowEditor_PickFolderTooltip}"
                                                                             Visibility="{Binding ShowFolderButton, Converter={StaticResource BoolToVisibility}}">
                                                                         <TextBlock Text="&#xF07B;"
                                                                                    FontFamily="{DynamicResource IconFont}"
@@ -977,7 +977,7 @@
                                                 <ui:Button Grid.Column="3" Width="30" Height="22" Padding="0"
                                                            Appearance="Danger"
                                                            Command="{Binding RemoveCommand}"
-                                                           ToolTip="Remove this step from the workflow"
+                                                           ToolTip="{Markup:Loc WorkflowEditor_RemoveStepTooltip}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0">
                                                     <!-- Trash glyph (FontAwesome ) — XAML
                                                          entity reference because raw PUA chars
@@ -1071,15 +1071,15 @@
                              stock chrome would just add weight without contributing visuals. -->
                         <Style TargetType="Button" BasedOn="{StaticResource PatternTokenChipStyle}" />
                     </WrapPanel.Resources>
-                    <Button Content="Year"      Tag="%y"   Click="OnPatternTokenClick" ToolTip="4-digit year — 2026" />
-                    <Button Content="ShortYear" Tag="%yy"  Click="OnPatternTokenClick" ToolTip="2-digit year — 26" />
-                    <Button Content="Month"     Tag="%mo"  Click="OnPatternTokenClick" ToolTip="Month number — 01-12" />
-                    <Button Content="MonthName" Tag="%mon" Click="OnPatternTokenClick" ToolTip="Full month name — March" />
-                    <Button Content="Day"       Tag="%d"   Click="OnPatternTokenClick" ToolTip="Day of month — 01-31" />
-                    <Button Content="Hour"      Tag="%h"   Click="OnPatternTokenClick" ToolTip="Hour 24h — 00-23" />
-                    <Button Content="Minute"    Tag="%mi"  Click="OnPatternTokenClick" ToolTip="Minute — 00-59" />
-                    <Button Content="Second"    Tag="%s"   Click="OnPatternTokenClick" ToolTip="Second — 00-59" />
-                    <Button Content="AM/PM"     Tag="%pm"  Click="OnPatternTokenClick" ToolTip="AM or PM" />
+                    <Button Content="Year"      Tag="%y"   Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_YearTooltip}" />
+                    <Button Content="ShortYear" Tag="%yy"  Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_ShortYearTooltip}" />
+                    <Button Content="Month"     Tag="%mo"  Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_MonthTooltip}" />
+                    <Button Content="MonthName" Tag="%mon" Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_MonthNameTooltip}" />
+                    <Button Content="Day"       Tag="%d"   Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_DayTooltip}" />
+                    <Button Content="Hour"      Tag="%h"   Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_HourTooltip}" />
+                    <Button Content="Minute"    Tag="%mi"  Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_MinuteTooltip}" />
+                    <Button Content="Second"    Tag="%s"   Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_SecondTooltip}" />
+                    <Button Content="AM/PM"     Tag="%pm"  Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_AmPmTooltip}" />
                 </WrapPanel>
 
                 <TextBlock Text="{Markup:Loc Capture_DelaySeconds}" FontWeight="SemiBold" Margin="0,4,0,4" />
@@ -1429,7 +1429,7 @@
                 <ui:Button Content="{Markup:Loc Common_ResetToDefaults}" HorizontalAlignment="Left"
                            Appearance="Danger"
                            Command="{Binding Theme.ResetCommand}"
-                           ToolTip="Restore the original AresToys accent and surface palette." />
+                           ToolTip="{Markup:Loc Theme_ResetTooltip}" />
             </StackPanel>
             </ScrollViewer>
 
@@ -1485,7 +1485,7 @@
                                         BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                         Cursor="Hand" Padding="0"
                                         Margin="0,0,8,0"
-                                        ToolTip="Click to pick an icon from the library.">
+                                        ToolTip="{Markup:Loc ClipboardCategories_PickIconTooltip}">
                                     <TextBlock Text="{Binding Categories.NewCategoryIcon}"
                                                FontFamily="{DynamicResource IconFont}"
                                                FontSize="16" Foreground="{DynamicResource AccentForegroundBrush}"
@@ -1530,7 +1530,7 @@
                                                 Cursor="Hand" Padding="0"
                                                 IsEnabled="{Binding CanConfigure}"
                                                 Margin="0,0,8,0"
-                                                ToolTip="Click to pick an icon from the library.">
+                                                ToolTip="{Markup:Loc ClipboardCategories_PickIconTooltip}">
                                             <Grid>
                                                 <TextBlock Text="{Binding Icon}"
                                                            FontFamily="{DynamicResource IconFont}"
@@ -1552,7 +1552,7 @@
                                                     LostFocus="OnCategoryFieldCommitted"
                                                     KeyDown="OnCategoryFieldKeyDown"
                                                     Margin="0,0,8,0"
-                                                    ToolTip="Category name. Renaming re-routes every existing item to the new name." />
+                                                    ToolTip="{Markup:Loc ClipboardCategories_CategoryNameTooltip}" />
                                         <!-- Stepper: [-] [N] [+]. Replaces the WPF-UI NumberBox
                                              chevrons with a more obvious tap-target on each side.
                                              Binding goes through a TextBox in the middle so
@@ -1572,14 +1572,14 @@
                                                     BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
-                                                    ToolTip="Decrease by 1." />
+                                                    ToolTip="{Markup:Loc ClipboardCategories_DecreaseByOneTooltip}" />
                                             <ui:TextBox Text="{Binding MaxItems, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                         IsEnabled="{Binding CanConfigure}"
                                                         TextAlignment="Center"
                                                         MinWidth="36"
                                                         Margin="2,0,2,0"
                                                         LostFocus="OnCategoryFieldCommitted"
-                                                        ToolTip="Max items kept (0 = no cap)." />
+                                                        ToolTip="{Markup:Loc ClipboardCategories_MaxItemsTooltip}" />
                                             <Button Content="+" Tag="MaxItems+"
                                                     Click="OnCategoryStepperClicked"
                                                     Width="28" Height="32"
@@ -1587,7 +1587,7 @@
                                                     BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
-                                                    ToolTip="Increase by 1." />
+                                                    ToolTip="{Markup:Loc ClipboardCategories_IncreaseByOneTooltip}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="3" Orientation="Horizontal"
                                                     Margin="0,0,8,0">
@@ -1598,14 +1598,14 @@
                                                     BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
-                                                    ToolTip="Decrease by 1 minute." />
+                                                    ToolTip="{Markup:Loc ClipboardCategories_DecreaseByMinuteTooltip}" />
                                             <ui:TextBox Text="{Binding AutoCleanupAfter, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                         IsEnabled="{Binding CanConfigure}"
                                                         TextAlignment="Center"
                                                         MinWidth="36"
                                                         Margin="2,0,2,0"
                                                         LostFocus="OnCategoryFieldCommitted"
-                                                        ToolTip="Auto-delete items older than N minutes (0 = never)." />
+                                                        ToolTip="{Markup:Loc ClipboardCategories_AutoCleanupTooltip}" />
                                             <Button Content="+" Tag="AutoCleanupAfter+"
                                                     Click="OnCategoryStepperClicked"
                                                     Width="28" Height="32"
@@ -1613,7 +1613,7 @@
                                                     BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                     Cursor="Hand" Padding="0"
                                                     IsEnabled="{Binding CanConfigure}"
-                                                    ToolTip="Increase by 1 minute." />
+                                                    ToolTip="{Markup:Loc ClipboardCategories_IncreaseByMinuteTooltip}" />
                                         </StackPanel>
                                         <!-- Custom rows get a Trash button (delete category).
                                              The default 'Clipboard' row swaps it for an Undo
@@ -1625,7 +1625,7 @@
                                                    Command="{Binding DeleteCommand}"
                                                    Appearance="Danger"
                                                    Visibility="{Binding CanModify, Converter={StaticResource BoolToVisibility}}"
-                                                   ToolTip="Delete category (items will move to 'Clipboard').">
+                                                   ToolTip="{Markup:Loc ClipboardCategories_DeleteCategoryTooltip}">
                                             <TextBlock Text="&#xF1F8;"
                                                        FontFamily="{DynamicResource IconFont}"
                                                        FontSize="13" />
@@ -1634,7 +1634,7 @@
                                                    Command="{Binding ResetToDefaultsCommand}"
                                                    Appearance="Danger"
                                                    Visibility="{Binding IsDefault, Converter={StaticResource BoolToVisibility}}"
-                                                   ToolTip="Reset icon, max items and auto-cleanup back to defaults.">
+                                                   ToolTip="{Markup:Loc ClipboardCategories_ResetCategoryTooltip}">
                                             <TextBlock Text="&#xF0E2;"
                                                        FontFamily="{DynamicResource IconFont}"
                                                        FontSize="13" />
@@ -1821,7 +1821,7 @@
                                             <ui:Button Width="24" Height="14" Padding="0" Margin="0,0,0,1"
                                                        Background="Transparent" BorderThickness="0"
                                                        Command="{Binding MoveUpCommand}"
-                                                       ToolTip="Move up">
+                                                       ToolTip="{Markup:Loc ClipboardCategories_MoveUpTooltip}">
                                                 <TextBlock Text="&#xE70E;"
                                                            FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                                            FontSize="10"
@@ -1830,7 +1830,7 @@
                                             <ui:Button Width="24" Height="14" Padding="0"
                                                        Background="Transparent" BorderThickness="0"
                                                        Command="{Binding MoveDownCommand}"
-                                                       ToolTip="Move down">
+                                                       ToolTip="{Markup:Loc ClipboardCategories_MoveDownTooltip}">
                                                 <TextBlock Text="&#xE70D;"
                                                            FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                                            FontSize="10"
@@ -2105,16 +2105,16 @@
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_StartMinimizedTooltip}" />
                             <CheckBox IsChecked="{Binding CheckUpdatesAtStartup, Mode=TwoWay}"
-                                      Content="Look for updates at startup"
+                                      Content="{Markup:Loc Settings_LookForUpdates}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
-                                      ToolTip="When on, AresToys queries GitHub Releases once on launch and shows a toast if a newer version is published. Manual checks from About → Check for updates keep working either way." />
+                                      ToolTip="{Markup:Loc Settings_LookForUpdatesTooltip}" />
                             <CheckBox IsChecked="{Binding AutoInstallUpdates, Mode=TwoWay}"
-                                      Content="Automatically install updates when available"
+                                      Content="{Markup:Loc Settings_AutoInstallUpdates}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,12"
                                       IsEnabled="{Binding CheckUpdatesAtStartup}"
-                                      ToolTip="When on, an update found by the startup check is downloaded and applied immediately — AresToys restarts into the new version without prompting. Off (default) shows a toast and lets you pick the timing. Requires 'Look for updates at startup' to be on." />
+                                      ToolTip="{Markup:Loc Settings_AutoInstallUpdatesTooltip}" />
 
                             <!-- In-card divider between the boolean toggles above and the tray
                                  click-routing matrix below. Same Surface3 thickness/opacity as
@@ -2252,10 +2252,10 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:Button Content="{Markup:Loc Common_Export}" Margin="0,0,8,0" Padding="14,4"
                                            Click="OnExportSettingsClicked"
-                                           ToolTip="Save every non-sensitive setting to a JSON file." />
+                                           ToolTip="{Markup:Loc Settings_BackupExportTooltip}" />
                                 <ui:Button Content="{Markup:Loc Common_Import}" Padding="14,4"
                                            Click="OnImportSettingsClicked"
-                                           ToolTip="Load settings from a previously-exported JSON file. Existing values get overwritten; settings not in the file stay untouched." />
+                                           ToolTip="{Markup:Loc Settings_BackupImportTooltip}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>

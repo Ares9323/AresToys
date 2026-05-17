@@ -1,6 +1,7 @@
 <Window x:Class="AresToys.App.Views.RegionOverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
         WindowStyle="None"
         Background="Black"
         Topmost="True"
@@ -132,13 +133,13 @@
                 <StackPanel Orientation="Vertical">
                     <TextBlock Foreground="#BBB" FontSize="11"
                                Margin="0,0,0,6"
-                               Text="Drag to add region · Click to select · Double-click inside a region to confirm · Del to remove · Wheel to zoom · Drag this popup to move it" />
+                               Text="{Markup:Loc RegionOverlay_Instructions}" />
                     <StackPanel Orientation="Horizontal">
                         <TextBlock x:Name="StatusLabel"
                                    Foreground="White" FontSize="13" FontWeight="SemiBold"
                                    VerticalAlignment="Center"
                                    Margin="0,0,16,0"
-                                   Text="No regions yet — drag to start" />
+                                   Text="{Markup:Loc RegionOverlay_NoRegions}" />
                         <Border Width="1" Background="#80FFFFFF" Margin="0,0,16,0" />
                         <TextBlock x:Name="ZoomLabel"
                                    Foreground="#AAA" FontSize="12"
@@ -147,14 +148,14 @@
                                    Text="Zoom: 17px" />
                         <Border Width="1" Background="#80FFFFFF" Margin="0,0,16,0" />
                         <Button x:Name="ToolbarApplyButton"
-                                Content="Apply (Enter)"
+                                Content="{Markup:Loc RegionOverlay_ApplyButton}"
                                 Click="OnToolbarApplyClicked"
                                 Background="#249A56" Foreground="White"
                                 BorderBrush="#249A56" BorderThickness="0"
                                 Padding="10,4" Margin="0,0,8,0"
                                 IsEnabled="False" />
                         <Button x:Name="ToolbarCancelButton"
-                                Content="Cancel (Esc)"
+                                Content="{Markup:Loc RegionOverlay_CancelButton}"
                                 Click="OnToolbarCancelClicked"
                                 Background="#C54747" Foreground="White"
                                 BorderBrush="#C54747" BorderThickness="0"

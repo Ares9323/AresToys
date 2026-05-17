@@ -4,7 +4,7 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:vm="clr-namespace:AresToys.App.ViewModels"
         xmlns:Markup="clr-namespace:AresToys.App.Markup"
-        Title="Pick an icon"
+        Title="{Markup:Loc IconPicker_Title}"
         Width="540" Height="500"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None"
@@ -28,8 +28,8 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Margin="0,0,0,8">
-                <TextBlock Text="Pick an icon" Foreground="White" FontSize="14" FontWeight="SemiBold" />
-                <TextBlock Text="Type to filter; hover for the FontAwesome name; click to select."
+                <TextBlock Text="{Markup:Loc IconPicker_Title}" Foreground="White" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="{Markup:Loc IconPicker_Hint}"
                            Foreground="{DynamicResource AccentForegroundDarkBrush}"
                            FontSize="11" Margin="0,4,0,0" />
             </StackPanel>
@@ -88,7 +88,7 @@
                 </Grid.ColumnDefinitions>
                 <!-- Clear sets the picked Glyph to empty string and closes — used to remove an
                      existing icon from a category without re-typing one. -->
-                <ui:Button Grid.Column="0" Content="Clear" Width="80" Click="OnClearClicked" />
+                <ui:Button Grid.Column="0" Content="{Markup:Loc IconPicker_ClearButton}" Width="80" Click="OnClearClicked" />
                 <ui:Button Grid.Column="2" Content="{Markup:Loc Common_Cancel}" Width="80" IsCancel="True" Click="OnCancelClicked" />
             </Grid>
         </Grid>

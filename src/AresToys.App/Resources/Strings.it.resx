@@ -345,6 +345,67 @@
   <data name="Theme_OuterBorder" xml:space="preserve"><value>Bordo esterno</value></data>
   <data name="Theme_InnerBorder" xml:space="preserve"><value>Bordo interno</value></data>
   <data name="Theme_BorderHint" xml:space="preserve"><value>Esterno = cornici finestra + contorni delle card. Interno = swatch colore, divisori, separatori di lista.</value></data>
+  <data name="Theme_ResetTooltip" xml:space="preserve"><value>Ripristina la palette accent + surface originale di AresToys.</value></data>
+  <data name="WorkflowEditor_PipelineStepsTitle" xml:space="preserve"><value>Passaggi pipeline</value></data>
+  <data name="WorkflowEditor_OpenStepListTooltip" xml:space="preserve"><value>Apri la lista dei passaggi di questo workflow</value></data>
+  <data name="WorkflowEditor_RebindHotkeyTooltip" xml:space="preserve"><value>Clicca per assegnare / cambiare / rimuovere la scorciatoia</value></data>
+  <data name="WorkflowEditor_DragHandleTooltip" xml:space="preserve"><value>Trascina per riordinare</value></data>
+  <data name="WorkflowEditor_DecreaseTooltip" xml:space="preserve"><value>Diminuisci</value></data>
+  <data name="WorkflowEditor_IncreaseTooltip" xml:space="preserve"><value>Aumenta</value></data>
+  <data name="WorkflowEditor_PickFileTooltip" xml:space="preserve"><value>Scegli un file…</value></data>
+  <data name="WorkflowEditor_PickFolderTooltip" xml:space="preserve"><value>Scegli una cartella…</value></data>
+  <data name="WorkflowEditor_RemoveStepTooltip" xml:space="preserve"><value>Rimuovi questo passaggio dal workflow</value></data>
+  <data name="Uploaders_ShortenersHint" xml:space="preserve"><value>URL shortener — prendono un URL dagli appunti e lo accorciano. Usa il workflow 'Shorten clipboard URL' (Settings → Hotkeys) per assegnare una scorciatoia.</value></data>
+  <data name="Pattern_YearTooltip" xml:space="preserve"><value>Anno a 4 cifre — 2026</value></data>
+  <data name="Pattern_ShortYearTooltip" xml:space="preserve"><value>Anno a 2 cifre — 26</value></data>
+  <data name="Pattern_MonthTooltip" xml:space="preserve"><value>Numero del mese — 01-12</value></data>
+  <data name="Pattern_MonthNameTooltip" xml:space="preserve"><value>Nome del mese — March</value></data>
+  <data name="Pattern_DayTooltip" xml:space="preserve"><value>Giorno del mese — 01-31</value></data>
+  <data name="Pattern_HourTooltip" xml:space="preserve"><value>Ora 24h — 00-23</value></data>
+  <data name="Pattern_MinuteTooltip" xml:space="preserve"><value>Minuti — 00-59</value></data>
+  <data name="Pattern_SecondTooltip" xml:space="preserve"><value>Secondi — 00-59</value></data>
+  <data name="Pattern_AmPmTooltip" xml:space="preserve"><value>AM o PM</value></data>
+  <data name="ClipboardCategories_PickIconTooltip" xml:space="preserve"><value>Clicca per scegliere un'icona dalla libreria.</value></data>
+  <data name="ClipboardCategories_CategoryNameTooltip" xml:space="preserve"><value>Nome della categoria. Rinominandola, tutti gli elementi esistenti vengono spostati nel nuovo nome.</value></data>
+  <data name="ClipboardCategories_DecreaseByOneTooltip" xml:space="preserve"><value>Diminuisci di 1.</value></data>
+  <data name="ClipboardCategories_IncreaseByOneTooltip" xml:space="preserve"><value>Aumenta di 1.</value></data>
+  <data name="ClipboardCategories_MaxItemsTooltip" xml:space="preserve"><value>Numero massimo di elementi mantenuti (0 = nessun limite).</value></data>
+  <data name="ClipboardCategories_DecreaseByMinuteTooltip" xml:space="preserve"><value>Diminuisci di 1 minuto.</value></data>
+  <data name="ClipboardCategories_IncreaseByMinuteTooltip" xml:space="preserve"><value>Aumenta di 1 minuto.</value></data>
+  <data name="ClipboardCategories_AutoCleanupTooltip" xml:space="preserve"><value>Elimina automaticamente elementi più vecchi di N minuti (0 = mai).</value></data>
+  <data name="ClipboardCategories_DeleteCategoryTooltip" xml:space="preserve"><value>Elimina categoria (gli elementi verranno spostati in 'Clipboard').</value></data>
+  <data name="ClipboardCategories_ResetCategoryTooltip" xml:space="preserve"><value>Ripristina icona, numero massimo elementi e auto-pulizia ai valori predefiniti.</value></data>
+  <data name="ClipboardCategories_MoveUpTooltip" xml:space="preserve"><value>Sposta su</value></data>
+  <data name="ClipboardCategories_MoveDownTooltip" xml:space="preserve"><value>Sposta giù</value></data>
+  <data name="Settings_LookForUpdates" xml:space="preserve"><value>Cerca aggiornamenti all'avvio</value></data>
+  <data name="Settings_LookForUpdatesTooltip" xml:space="preserve"><value>Quando attivo, AresToys interroga GitHub Releases una volta all'avvio e mostra un toast se è disponibile una nuova versione. Le verifiche manuali da About → Cerca aggiornamenti funzionano comunque.</value></data>
+  <data name="Settings_AutoInstallUpdates" xml:space="preserve"><value>Installa automaticamente gli aggiornamenti disponibili</value></data>
+  <data name="Settings_AutoInstallUpdatesTooltip" xml:space="preserve"><value>Quando attivo, un aggiornamento trovato dal controllo all'avvio viene scaricato e installato immediatamente — AresToys si riavvia nella nuova versione senza chiederlo. Disattivato (predefinito) mostra un toast e ti lascia scegliere quando aggiornare. Richiede 'Cerca aggiornamenti all'avvio' attivo.</value></data>
+  <data name="Settings_BackupExportTooltip" xml:space="preserve"><value>Salva tutte le impostazioni non sensibili in un file JSON.</value></data>
+  <data name="Settings_BackupImportTooltip" xml:space="preserve"><value>Carica le impostazioni da un file JSON esportato in precedenza. I valori esistenti vengono sovrascritti; le impostazioni non presenti nel file restano invariate.</value></data>
+  <data name="HotkeyCapture_BrandTitle" xml:space="preserve"><value>AresToys - Imposta scorciatoia</value></data>
+  <data name="HotkeyCapture_Heading" xml:space="preserve"><value>Premi una combinazione di tasti</value></data>
+  <data name="HotkeyCapture_Hint" xml:space="preserve"><value>Tieni premuti i modificatori (Ctrl / Alt / Shift / Win) poi premi un tasto. Esc annulla.</value></data>
+  <data name="IconPicker_Title" xml:space="preserve"><value>Scegli un'icona</value></data>
+  <data name="IconPicker_Hint" xml:space="preserve"><value>Digita per filtrare; passa il mouse per il nome FontAwesome; clicca per selezionare.</value></data>
+  <data name="IconPicker_ClearButton" xml:space="preserve"><value>Rimuovi</value></data>
+  <data name="NewWormhole_Title" xml:space="preserve"><value>Nuovo wormhole</value></data>
+  <data name="NewWormhole_TitleLabel" xml:space="preserve"><value>Titolo</value></data>
+  <data name="NewWormhole_FolderLabel" xml:space="preserve"><value>Cartella</value></data>
+  <data name="NewWormhole_BrowseButton" xml:space="preserve"><value>Sfoglia…</value></data>
+  <data name="NewWormhole_Hint" xml:space="preserve"><value>I file aggiunti / rimossi da questa cartella tramite Esplora risorse compaiono o scompaiono automaticamente. Trascina sul wormhole: stesso disco sposta, disco diverso copia — Ctrl forza Copia, Shift forza Sposta.</value></data>
+  <data name="NewWormhole_CreateButton" xml:space="preserve"><value>Crea</value></data>
+  <data name="NewWormhole_DefaultTitle" xml:space="preserve"><value>Wormhole</value></data>
+  <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
+  <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Apri nell'editor</value></data>
+  <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reimposta zoom al 100%</value></data>
+  <data name="QrCode_Title" xml:space="preserve"><value>Codice QR</value></data>
+  <data name="QrCode_ScanToOpen" xml:space="preserve"><value>Scansiona per aprire</value></data>
+  <data name="RegionOverlay_Instructions" xml:space="preserve"><value>Trascina per aggiungere una regione · Clic per selezionare · Doppio clic dentro una regione per confermare · Canc per rimuovere · Rotella per zoom · Trascina questo popup per spostarlo</value></data>
+  <data name="RegionOverlay_NoRegions" xml:space="preserve"><value>Nessuna regione — trascina per iniziare</value></data>
+  <data name="RegionOverlay_ApplyButton" xml:space="preserve"><value>Applica (Invio)</value></data>
+  <data name="RegionOverlay_CancelButton" xml:space="preserve"><value>Annulla (Esc)</value></data>
+  <data name="ScreenColorPicker_Hint" xml:space="preserve"><value>Clic: scegli · Rotella: zoom · Esc/Destro: annulla</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Avvia minimizzato</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>All'avvio salta la finestra principale e resta nella tray. Clicca l'icona tray per aprire le Impostazioni quando serve.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Avvia editor a schermo intero</value></data>
