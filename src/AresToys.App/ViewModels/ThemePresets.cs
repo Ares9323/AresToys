@@ -76,13 +76,13 @@ public static class ThemePresets
     public static readonly ThemePreset SorcererPurple = new(
         Name: "Sorcerer Purple",
         AccentForegroundLightHex: "#FFFFFF",
-        AccentForegroundDarkHex: "#AD75AE",
-        AccentBackgroundLightHex: "#782B78",
+        AccentForegroundDarkHex: "#DCA5DD",
+        AccentBackgroundLightHex: "#6B266B",
         AccentBackgroundDarkHex: "#511A4C",
-        AccentDangerHex: "#993355",
-        Surface1Hex: "#20111F",
-        Surface2Hex: "#2B172B",
-        Surface3Hex: "#391E39",
+        AccentDangerHex: "#99342F",
+        Surface1Hex: "#201A1F",
+        Surface2Hex: "#2B1E2B",
+        Surface3Hex: "#392839",
         OuterBorderHex: "#5E3F5E",
         InnerBorderHex: "#391E39");
 
@@ -92,17 +92,17 @@ public static class ThemePresets
         AccentForegroundDarkHex: "#7FAE75",
         AccentBackgroundLightHex: "#38782B",
         AccentBackgroundDarkHex: "#194C16",
-        AccentDangerHex: "#8F2720",
-        Surface1Hex: "#132011",
-        Surface2Hex: "#1B2B17",
-        Surface3Hex: "#23391E",
+        AccentDangerHex: "#673726",
+        Surface1Hex: "#182017",
+        Surface2Hex: "#232B21",
+        Surface3Hex: "#2B3928",
         OuterBorderHex: "#3F5E3F",
-        InnerBorderHex: "#23391E");
+        InnerBorderHex: "#3F5E3F");
 
     public static readonly ThemePreset WarlockRed = new(
         Name: "Warlock Red",
         AccentForegroundLightHex: "#FFFFFF",
-        AccentForegroundDarkHex: "#AE7575",
+        AccentForegroundDarkHex: "#C98787",
         AccentBackgroundLightHex: "#782B2B",
         AccentBackgroundDarkHex: "#541E1E",
         AccentDangerHex: "#A02727",
@@ -110,12 +110,12 @@ public static class ThemePresets
         Surface2Hex: "#2B1717",
         Surface3Hex: "#391E1E",
         OuterBorderHex: "#5E3F3F",
-        InnerBorderHex: "#391E1E");
+        InnerBorderHex: "#5E3F3F");
 
     public static readonly ThemePreset ClericGold = new(
         Name: "Cleric Gold",
         AccentForegroundLightHex: "#F4F0EB",
-        AccentForegroundDarkHex: "#AE9B75",
+        AccentForegroundDarkHex: "#C6B185",
         AccentBackgroundLightHex: "#9A803E",
         AccentBackgroundDarkHex: "#745F22",
         AccentDangerHex: "#952A2A",
@@ -123,20 +123,20 @@ public static class ThemePresets
         Surface2Hex: "#2B2417",
         Surface3Hex: "#39301E",
         OuterBorderHex: "#5E523F",
-        InnerBorderHex: "#39301E");
+        InnerBorderHex: "#5E523F");
 
     public static readonly ThemePreset BardRouge = new(
         Name: "Bard Rouge",
         AccentForegroundLightHex: "#F4F0EB",
-        AccentForegroundDarkHex: "#AE75A4",
+        AccentForegroundDarkHex: "#D08CBB",
         AccentBackgroundLightHex: "#9D428B",
         AccentBackgroundDarkHex: "#803671",
         AccentDangerHex: "#952A4A",
-        Surface1Hex: "#3F2239",
-        Surface2Hex: "#4B2747",
-        Surface3Hex: "#61325D",
+        Surface1Hex: "#3F1C32",
+        Surface2Hex: "#4B2637",
+        Surface3Hex: "#613650",
         OuterBorderHex: "#754467",
-        InnerBorderHex: "#61325D");
+        InnerBorderHex: "#754467");
 
     public static readonly ThemePreset BurnMyEyes = new(
         Name: "Burn My Eyes",
