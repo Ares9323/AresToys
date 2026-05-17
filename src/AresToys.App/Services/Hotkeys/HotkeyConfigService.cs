@@ -73,6 +73,27 @@ public sealed class HotkeyConfigService
         return new HotkeyDefinition(id, HotkeyModifiers.None, 0);
     }
 
+    /// <summary>Find the workflow id that currently owns a (modifiers, virtualKey) combo, or null
+    /// when the combo is free. Used by the rebind UI to warn the user before they steal a hotkey
+    /// from another workflow. Excludes the workflow with id <paramref name="excludeId"/> so that
+    /// "reassign to itself" (no-op) doesn't trip the duplicate check. Skips bindings with
+    /// VK 0 (unbound) and ignores hotkey trigger profiles whose binding is null.</summary>
+    public async Task<(string Id, string DisplayName)?> FindOwnerAsync(
+        HotkeyModifiers modifiers, uint virtualKey, string? excludeId, CancellationToken cancellationToken)
+    {
+        if (virtualKey == 0) return null;
+        var stored = await _profiles.ListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var profile in stored)
+        {
+            if (string.Equals(profile.Id, excludeId, StringComparison.Ordinal)) continue;
+            if (profile.Hotkey is not { } binding) continue;
+            if (binding.VirtualKey != virtualKey) continue;
+            if ((HotkeyModifiers)binding.Modifiers != modifiers) continue;
+            return (profile.Id, profile.DisplayName);
+        }
+        return null;
+    }
+
     public async Task UpdateAsync(string id, HotkeyModifiers modifiers, uint virtualKey, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);

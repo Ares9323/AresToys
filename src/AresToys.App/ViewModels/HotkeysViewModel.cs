@@ -42,6 +42,15 @@ public sealed partial class HotkeysViewModel : ObservableObject
         // Inline rename in edit view: refresh the row list so the new DisplayName shows when the
         // user clicks Back (or even live, if they switch back to the list manually).
         _workflows.WorkflowDisplayNameChanged += async (_, _) => await ReloadAsync().ConfigureAwait(true);
+        // Bulk reset (Reset all to defaults button): every chip's binding may have flipped, the
+        // inline edit chip too. Rebuild both surfaces so the UI matches whatever the seeder just
+        // wrote back to the store. Without this the chips keep showing the user's pre-reset
+        // bindings even though the runtime hook has already swapped.
+        _workflows.WorkflowsBulkReset += async (_, _) =>
+        {
+            await ReloadAsync().ConfigureAwait(true);
+            await RefreshEditingWorkflowHotkeyAsync().ConfigureAwait(true);
+        };
         // Keep the inline rebind widget in sync with whatever workflow is currently selected for
         // editing. Two triggers: SelectedWorkflow changes (the user clicked Duplicate or Add and
         // landed on a new row) AND IsEditingWorkflow flips on (entering edit mode in the first
@@ -206,6 +215,12 @@ public sealed partial class HotkeysViewModel : ObservableObject
         }
         _workflows.SelectedWorkflow = match;
         IsEditingWorkflow = true;
+        // Always refresh the inline hotkey VM here — not just on SelectedWorkflow PropertyChanged.
+        // If the user assigned a hotkey from the list view (which writes to the config but doesn't
+        // touch SelectedWorkflow) and then opens the same workflow's editor, the property setter
+        // above is a no-op (already selected) so the PropertyChanged-listener path skips. Explicit
+        // refresh on every BeginEdit keeps the editor chip in sync with whatever's persisted.
+        await RefreshEditingWorkflowHotkeyAsync().ConfigureAwait(true);
         if (focusName) EditNameFocusRequested?.Invoke(this, EventArgs.Empty);
     }
 

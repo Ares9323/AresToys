@@ -64,6 +64,13 @@ public sealed partial class WorkflowsViewModel : ObservableObject
     /// without needing the user to click Back first.</summary>
     public event EventHandler<string>? WorkflowDisplayNameChanged;
 
+    /// <summary>Raised after the user fires "Reset all to defaults". HotkeysViewModel subscribes
+    /// to rebuild every chip (the per-id GetEffectiveAsync call after the reset returns the
+    /// default bindings, which the existing VMs don't pick up by themselves). Distinct from
+    /// <see cref="WorkflowDisplayNameChanged"/> because the reset doesn't necessarily change any
+    /// display name — only steps and hotkeys.</summary>
+    public event EventHandler? WorkflowsBulkReset;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DuplicateWorkflowCommand))]
     [NotifyCanExecuteChangedFor(nameof(RemoveWorkflowCommand))]
@@ -219,14 +226,45 @@ public sealed partial class WorkflowsViewModel : ObservableObject
         WorkflowDeleted?.Invoke(this, current.Id);
     }
 
+    /// <summary>"Reset all hotkeys" — wipes every built-in's binding back to the seeded default
+    /// (unbound for most, Win+Shift+S for the canonical region capture). Custom workflows and
+    /// the user's step customisations on built-ins are left untouched. Use this when a hotkey
+    /// table got into a confusing state (duplicates, ghosts) but the user wants to keep their
+    /// pipeline edits.</summary>
     [RelayCommand]
-    private async Task ResetAllToDefaultsAsync()
+    private async Task ResetAllHotkeysAsync()
+    {
+        var confirm = MessageBox.Show(
+            "Reset all hotkeys to their defaults?\n\n" +
+            "Only the keyboard shortcuts get reset — your workflow steps, custom workflows, and " +
+            "any settings stay as they are.",
+            "Reset all hotkeys",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        if (confirm != MessageBoxResult.OK) return;
+
+        foreach (var profile in DefaultPipelineProfiles.All)
+        {
+            // Use HotkeyConfigService.ResetAsync — writes the seeded default binding (or unbound)
+            // into the profile WITHOUT touching its Steps. The Changed event fires inside the
+            // service so the runtime keyboard hook re-binds automatically.
+            await _hotkeys.ResetAsync(profile.Id, CancellationToken.None).ConfigureAwait(true);
+        }
+        WorkflowsBulkReset?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>"Reset all workflows" — overwrites every built-in profile's Steps + Hotkey with
+    /// the seeded defaults. Use when a built-in's pipeline got misconfigured to the point of
+    /// being unusable. Custom workflows are NOT touched.</summary>
+    [RelayCommand]
+    private async Task ResetAllWorkflowsAsync()
     {
         var confirm = MessageBox.Show(
             "Reset all built-in workflows to their default steps and hotkeys?\n\n" +
             "Custom workflows you've added are NOT touched. This is meant for recovering from " +
             "a built-in workflow that's been misconfigured to the point of being unusable.",
-            "Reset built-ins",
+            "Reset all workflows",
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning,
             MessageBoxResult.Cancel);
@@ -246,6 +284,15 @@ public sealed partial class WorkflowsViewModel : ObservableObject
                 _hotkeys.NotifyHotkeyRebound(profile.Id, (AresToys.Hotkeys.HotkeyModifiers)b.Modifiers, b.VirtualKey);
         }
         await ReloadWorkflowsAsync().ConfigureAwait(true);
+        // WorkflowOption is a record (value-equality): when ReloadWorkflowsAsync rebuilds the
+        // collection with the same id+name+description+IsBuiltIn, the SelectedWorkflow setter
+        // sees the new instance as equal to the old and DOESN'T fire OnSelectedWorkflowChanged,
+        // which is what would normally trigger Editor.LoadAsync. Force-refresh the editor
+        // explicitly so the user sees the reset steps. Same reason the Hotkeys list view rebuild
+        // is signalled via the bulk-reset event below.
+        if (SelectedWorkflow is not null)
+            await Editor.LoadAsync(SelectedWorkflow.Id).ConfigureAwait(true);
+        WorkflowsBulkReset?.Invoke(this, EventArgs.Empty);
     }
 
     private bool HasSelection() => SelectedWorkflow is not null;

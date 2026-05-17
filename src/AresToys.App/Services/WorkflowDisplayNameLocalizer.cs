@@ -19,6 +19,7 @@ public static class WorkflowDisplayNameLocalizer
         [DefaultPipelineProfiles.ActiveWindowCaptureId]    = nameof(Strings.Workflow_ActiveWindowCapture),
         [DefaultPipelineProfiles.ActiveMonitorCaptureId]   = nameof(Strings.Workflow_ActiveMonitorCapture),
         [DefaultPipelineProfiles.WebpageCaptureId]         = nameof(Strings.Workflow_WebpageCapture),
+        [DefaultPipelineProfiles.PinRegionToScreenId]      = nameof(Strings.Workflow_PinRegionToScreen),
         [DefaultPipelineProfiles.ManualUploadId]           = nameof(Strings.Workflow_ManualUpload),
         [DefaultPipelineProfiles.UploadClipboardTextId]    = nameof(Strings.Workflow_UploadClipboardText),
         [DefaultPipelineProfiles.UploadSelectedFileId]     = nameof(Strings.Workflow_UploadSelectedFile),

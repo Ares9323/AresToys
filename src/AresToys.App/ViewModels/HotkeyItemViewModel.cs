@@ -76,6 +76,28 @@ public sealed partial class HotkeyItemViewModel : ObservableObject
         }
         else
         {
+            // Duplicate-binding guard: if another workflow already owns this combo, ask the user
+            // how to resolve. Two workflows on the same hotkey would race in the runtime hook
+            // (last Register wins, the loser becomes a ghost binding). Three outcomes:
+            //  - Yes  → clear the conflicting workflow first, then assign here.
+            //  - No   → abort the rebind, leave both bindings untouched.
+            //  - (Cancel is not offered — same effect as No.)
+            var owner = await _config.FindOwnerAsync(
+                dialog.CapturedModifiers, dialog.CapturedVirtualKey, excludeId: Id, CancellationToken.None)
+                .ConfigureAwait(true);
+            if (owner is { } conflict)
+            {
+                var comboLabel = HotkeyDisplay.Format(dialog.CapturedModifiers, dialog.CapturedVirtualKey);
+                var pick = System.Windows.MessageBox.Show(
+                    $"'{comboLabel}' is already assigned to '{conflict.DisplayName}'.\n\n" +
+                    $"Clear it from '{conflict.DisplayName}' and assign it here?",
+                    "Hotkey already in use",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Warning,
+                    System.Windows.MessageBoxResult.No);
+                if (pick != System.Windows.MessageBoxResult.Yes) return;
+                await _config.ClearAsync(conflict.Id, CancellationToken.None).ConfigureAwait(true);
+            }
             await _config.UpdateAsync(Id, dialog.CapturedModifiers, dialog.CapturedVirtualKey, CancellationToken.None).ConfigureAwait(true);
         }
         // Re-read whatever ended up persisted so the row's BindingDisplay matches reality.

@@ -12,6 +12,7 @@ public static class DefaultPipelineProfiles
     public const string ActiveWindowCaptureId = "active-window-capture";
     public const string ActiveMonitorCaptureId = "active-monitor-capture";
     public const string WebpageCaptureId       = "webpage-capture";
+    public const string PinRegionToScreenId    = "pin-region-to-screen";
     public const string UploadSelectedFileId   = "upload-selected-file";
     public const string ManualUploadId      = "manual-upload";
     public const string UploadClipboardTextId = "upload-clipboard-text";
@@ -39,9 +40,11 @@ public static class DefaultPipelineProfiles
     public const string WormholesCreateId      = "wormholes-create";
 
     // Task IDs whose implementations live in AresToys.App (resolved at runtime by the registry).
-    public const string CopyImageToClipboardTaskId = "arestoys.copy-image-to-clipboard";
-    public const string CopyTextToClipboardTaskId  = "arestoys.copy-text-to-clipboard";
-    public const string NotifyToastTaskId          = "arestoys.notify-toast";
+    public const string AddFileTaskId              = "arestoys.add-file";
+    public const string AddImageTaskId             = "arestoys.add-image";
+    public const string AddTextTaskId              = "arestoys.add-text";
+    public const string TextToQrPngTaskId          = "arestoys.text-to-qr-png";
+    public const string TextToQrSvgTaskId          = "arestoys.text-to-qr-svg";
     public const string OpenEditorBeforeUploadTaskId = "arestoys.open-editor-before-upload";
     public const string ApplyImageEffectsPresetTaskId = "arestoys.apply-image-effects-preset";
     public const string OpenPopupTaskId            = "arestoys.open-popup";
@@ -49,6 +52,13 @@ public static class DefaultPipelineProfiles
     public const string ColorSamplerTaskId         = "arestoys.color-sampler";
     public const string ColorPickerTaskId          = "arestoys.color-picker";
     public const string CopyColorAsHexTaskId       = "arestoys.copy-color-hex";
+    public const string CopyColorAsRgbTaskId       = "arestoys.copy-color-rgb";
+    public const string CopyColorAsRgbaTaskId      = "arestoys.copy-color-rgba";
+    public const string CopyColorAsHsbTaskId       = "arestoys.copy-color-hsb";
+    public const string CopyColorAsCmykTaskId      = "arestoys.copy-color-cmyk";
+    public const string CopyColorAsDecimalTaskId   = "arestoys.copy-color-decimal";
+    public const string CopyColorAsLinearTaskId    = "arestoys.copy-color-linear";
+    public const string CopyColorAsBgraTaskId      = "arestoys.copy-color-bgra";
     public const string CaptureRegionTaskId        = "arestoys.capture-region";
     public const string CaptureActiveWindowTaskId  = "arestoys.capture-active-window";
     public const string CaptureActiveMonitorTaskId = "arestoys.capture-active-monitor";
@@ -60,6 +70,7 @@ public static class DefaultPipelineProfiles
     public const string OpenLauncherMenuTaskId     = "arestoys.open-launcher-menu";
     public const string OpenSettingsTaskId         = "arestoys.open-settings";
     public const string UploadClipboardTextTaskId  = "arestoys.upload-clipboard-text";
+    public const string PinToScreenTaskId          = "arestoys.pin-to-screen";
     public const string WormholeBatchOpTaskId      = "arestoys.wormhole-batch-op";
     public const string WormholeCreateTaskId       = "arestoys.wormhole-create";
 
@@ -85,6 +96,7 @@ public static class DefaultPipelineProfiles
         [ActiveWindowCaptureId]   = "Capture",
         [ActiveMonitorCaptureId]  = "Capture",
         [WebpageCaptureId]        = "Capture",
+        [PinRegionToScreenId]     = "Capture",
         [RecordScreenMp4Id]       = "Capture",
         [RecordScreenGifId]       = "Capture",
 
@@ -130,20 +142,31 @@ public static class DefaultPipelineProfiles
         // shortcut every Windows user already has on their finger.
         new PipelineProfile(
             Id: RegionCaptureId,
-            DisplayName: "Region capture",
+            DisplayName: "Capture region",
             Trigger: "hotkey:region",
             Steps:
             [
                 new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":true}"), Id: "capture-region"),
                 new PipelineStep(OpenEditorBeforeUploadTaskId, Id: "open-editor"),
-                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Enabled: false, Id: "upload"),
+                // skipIfNotModified:true ⇒ this save only fires when the user actually edited the
+                // image upstream in Open editor. showNotification:true gives the user the "saved"
+                // confirmation only when an edit actually went to disk — clean captures with no
+                // changes silently skip both the save and the toast.
+                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true,\"skipIfNotModified\":true}"), Id: "save"),
+                // First AddText sits AFTER save → bag.text = local_path, so this enters the AresToys
+                // history as a Text item holding the saved file path. Push to Windows OFF + toast OFF
+                // — purely an internal record next to the Image entry below.
+                // AddText reads bag.text (= local_path set by SaveToFile) and inserts a Text row
+                // pointing at the saved file. Terminal task (Inputs=[Text], Outputs=[]) — does
+                // NOT touch bag.item_id / bag.new_item, so the next AddToHistory sees a clean
+                // slot and commits the Image entry as the workflow's primary item.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":false,\"showNotification\":false}"), Id: "add-text-path"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"uploader\":\"\"}"), Enabled: false, Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Enabled: false, Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
-            ],
+                // Second AddText sits AFTER Upload → bag.text = upload URL. Disabled by default;
+                // user flips Upload + this on when they actually want a public link.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true}"), Enabled: false, Id: "add-text-url")            ],
             Hotkey: new HotkeyBinding(Win | Shift, 0x53),  // Win+Shift+S
             IsBuiltIn: true),
 
@@ -152,42 +175,51 @@ public static class DefaultPipelineProfiles
         // user sees confirmation when the (potentially long) selection workflow finishes.
         new PipelineProfile(
             Id: MultiRegionCaptureId,
-            DisplayName: "Multi-region capture",
+            DisplayName: "Capture multiple regions",
             Trigger: "hotkey:multi-region",
             Steps:
             [
                 new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":false}"), Id: "capture-region"),
-                new PipelineStep(OpenEditorBeforeUploadTaskId, Id: "open-editor"),
-                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Enabled: false, Id: "upload"),
+                // Open editor disabled by default for multi-region: the user just dragged N rects,
+                // popping the editor between drags would break the flow. They can enable it for a
+                // post-batch annotation pass.
+                new PipelineStep(OpenEditorBeforeUploadTaskId, Enabled: false, Id: "open-editor"),
+                // Notification ON for multi-region: the gesture is long (drag → drag → … → Enter)
+                // so an explicit "done, saved" toast confirms the workflow actually completed.
+                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true}"), Id: "save"),
+                // AddText reads bag.text (= local_path set by SaveToFile) and inserts a Text row
+                // pointing at the saved file. Terminal task (Inputs=[Text], Outputs=[]) — does
+                // NOT touch bag.item_id / bag.new_item, so the next AddToHistory sees a clean
+                // slot and commits the Image entry as the workflow's primary item.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":false,\"showNotification\":false}"), Id: "add-text-path"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"uploader\":\"\"}"), Enabled: false, Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Enabled: false, Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true}"), Enabled: false, Id: "add-text-url")            ],
             IsBuiltIn: true),
 
+        // Active window / Active monitor share the same downstream shape as Capture multiple
+        // regions (Save → AddText-path → AddToHistory → Upload[off] → UpdateUrl → AddText-url[off]),
+        // only the source step differs. Keeps user customisations consistent across the three
+        // single-shot captures.
         new PipelineProfile(
             Id: ActiveWindowCaptureId,
-            DisplayName: "Active window capture",
+            DisplayName: "Capture active window",
             Trigger: "hotkey:active-window",
             Steps:
             [
-                // Same shape as region-capture but the first step picks the foreground window's
-                // bounds (DWM extended-frame-bounds aware) instead of opening the overlay. Every
-                // downstream step is identical so user customisations to either profile carry the
-                // same intent.
                 new PipelineStep(CaptureActiveWindowTaskId, Id: "capture-active-window"),
                 new PipelineStep(OpenEditorBeforeUploadTaskId, Enabled: false, Id: "open-editor"),
-                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Id: "upload"),
+                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true}"), Id: "save"),
+                // AddText reads bag.text (= local_path set by SaveToFile) and inserts a Text row
+                // pointing at the saved file. Terminal task (Inputs=[Text], Outputs=[]) — does
+                // NOT touch bag.item_id / bag.new_item, so the next AddToHistory sees a clean
+                // slot and commits the Image entry as the workflow's primary item.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":false,\"showNotification\":false}"), Id: "add-text-path"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"uploader\":\"\"}"), Enabled: false, Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true}"), Enabled: false, Id: "add-text-url")            ],
             // No default hotkey — Print Screen + Alt is Windows' built-in active-window screenshot
             // and we don't want to step on it. The user assigns one in Settings if they want it
             // routed through AresToys's pipeline (editor / upload / etc.) instead of just the clipboard.
@@ -195,7 +227,7 @@ public static class DefaultPipelineProfiles
 
         new PipelineProfile(
             Id: ActiveMonitorCaptureId,
-            DisplayName: "Active monitor capture",
+            DisplayName: "Capture active monitor",
             Trigger: "hotkey:active-monitor",
             Steps:
             [
@@ -204,21 +236,23 @@ public static class DefaultPipelineProfiles
                 // app first; on single-monitor it degrades to a fullscreen of the only screen.
                 new PipelineStep(CaptureActiveMonitorTaskId, Id: "capture-active-monitor"),
                 new PipelineStep(OpenEditorBeforeUploadTaskId, Enabled: false, Id: "open-editor"),
-                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Id: "upload"),
+                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true}"), Id: "save"),
+                // AddText reads bag.text (= local_path set by SaveToFile) and inserts a Text row
+                // pointing at the saved file. Terminal task (Inputs=[Text], Outputs=[]) — does
+                // NOT touch bag.item_id / bag.new_item, so the next AddToHistory sees a clean
+                // slot and commits the Image entry as the workflow's primary item.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":false,\"showNotification\":false}"), Id: "add-text-path"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"uploader\":\"\"}"), Enabled: false, Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true}"), Enabled: false, Id: "add-text-url")            ],
             // No default hotkey — leaves the keymap budget free; the user binds one in Settings
             // if they live with a multi-monitor rig.
             IsBuiltIn: true),
 
         new PipelineProfile(
             Id: WebpageCaptureId,
-            DisplayName: "Webpage capture",
+            DisplayName: "Capture webpage",
             Trigger: "hotkey:webpage",
             Steps:
             [
@@ -226,18 +260,40 @@ public static class DefaultPipelineProfiles
                 // from its own config (set in the workflow editor for "snapshot example.com on
                 // demand" flows). Resulting PNG is full-page (CDP captureBeyondViewport).
                 new PipelineStep(CaptureWebpageTaskId, Id: "capture-webpage"),
-                new PipelineStep(OpenEditorBeforeUploadTaskId, Enabled: false, Id: "open-editor"),
-                new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"image\"}"), Id: "upload"),
+                new PipelineStep(OpenEditorBeforeUploadTaskId, Id: "open-editor"),
+                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true}"), Id: "save"),
+                // First AddText after save → bag.text = local_path. Adds a Text entry to the
+                // history with the saved file path. Push to Windows OFF + toast OFF (the save
+                // step already toasted).
+                // AddText reads bag.text (= local_path set by SaveToFile) and inserts a Text row
+                // pointing at the saved file. Terminal task (Inputs=[Text], Outputs=[]) — does
+                // NOT touch bag.item_id / bag.new_item, so the next AddToHistory sees a clean
+                // slot and commits the Image entry as the workflow's primary item.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":false,\"showNotification\":false}"), Id: "add-text-path"),
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
+                new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"uploader\":\"\"}"), Enabled: false, Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Captured {bag.window_title}\"}"), Id: "toast")
-            ],
+                // Second AddText after Upload picks up bag.text = upload URL. Disabled by default;
+                // user flips Upload + this on when they want a public link copied + toasted.
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true}"), Enabled: false, Id: "add-text-url")            ],
             // No default hotkey — webpage capture is mostly tray-driven (you've got the URL in
             // hand, you click "Webpage…"). The user binds one in Settings if they want it on
             // muscle memory.
+            IsBuiltIn: true),
+
+        // Two-step "screenshot a rect, leave it pinned on top". Mirrors the tray Tools → Pin to
+        // screen → From screen flow but as a hotkey-bindable workflow. autoConfirm=true keeps
+        // the picker single-shot (drag → release → pinned), matching the rest of the Capture
+        // family. No save / history / upload steps — the only goal is the always-on-top pin.
+        new PipelineProfile(
+            Id: PinRegionToScreenId,
+            DisplayName: "Pin region to screen",
+            Trigger: "hotkey:pin-region",
+            Steps:
+            [
+                new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":true}"), Id: "capture-region"),
+                new PipelineStep(PinToScreenTaskId, Id: "pin-to-screen"),
+            ],
             IsBuiltIn: true),
 
         new PipelineProfile(
@@ -249,9 +305,7 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
                 new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"file\"}"), Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Uploaded\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "copy-url")            ],
             IsBuiltIn: true),
 
         new PipelineProfile(
@@ -268,9 +322,7 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
                 new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"text\"}"), Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Uploaded text → {bag.upload_url}\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "copy-url")            ],
             // No default hotkey — text upload is rarely a one-handed flow (you've usually got the
             // text already in the clipboard from elsewhere). User binds in Settings if desired.
             IsBuiltIn: true),
@@ -289,9 +341,7 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
                 new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"file\"}"), Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Uploaded → {bag.upload_url}\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "copy-url")            ],
             // No default hotkey — user binds in Settings if they want it on muscle memory.
             IsBuiltIn: true),
 
@@ -309,9 +359,7 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
                 new PipelineStep(UploadTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"category\":\"url\"}"), Id: "upload"),
                 new PipelineStep(UpdateItemUrlTask.TaskId),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.upload_urls}\"}"), Id: "copy-url"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Shortened → {bag.upload_url}\"}"), Id: "toast")
-            ],
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "copy-url")            ],
             IsBuiltIn: true),
 
         new PipelineProfile(
@@ -342,10 +390,19 @@ public static class DefaultPipelineProfiles
             Trigger: "hotkey:color-sampler",
             Steps:
             [
-                // Sample → emit hex. Composable: user can swap CopyColorAsHex for any other
-                // CopyColorAs* (RGB, FLinearColor, CMYK, …) without touching the sampler.
+                // Sample the pixel → emit hex by default. The other CopyColorAs* tasks are
+                // pre-wired but muted so the user can flip them on inline (one click per format)
+                // without having to know which task ID corresponds to which colour notation.
+                // Hex stays on as the most useful default for web / design.
                 new PipelineStep(ColorSamplerTaskId, Id: "color-sampler"),
-                new PipelineStep(CopyColorAsHexTaskId, Id: "copy-as-hex")
+                new PipelineStep(CopyColorAsHexTaskId, Id: "copy-as-hex"),
+                new PipelineStep(CopyColorAsRgbTaskId, Enabled: false, Id: "copy-as-rgb"),
+                new PipelineStep(CopyColorAsRgbaTaskId, Enabled: false, Id: "copy-as-rgba"),
+                new PipelineStep(CopyColorAsHsbTaskId, Enabled: false, Id: "copy-as-hsb"),
+                new PipelineStep(CopyColorAsCmykTaskId, Enabled: false, Id: "copy-as-cmyk"),
+                new PipelineStep(CopyColorAsDecimalTaskId, Enabled: false, Id: "copy-as-decimal"),
+                new PipelineStep(CopyColorAsLinearTaskId, Enabled: false, Id: "copy-as-linear"),
+                new PipelineStep(CopyColorAsBgraTaskId, Enabled: false, Id: "copy-as-bgra"),
             ],
             Hotkey: new HotkeyBinding(Ctrl, 0xDC),  // Ctrl+\
             IsBuiltIn: true),
@@ -356,8 +413,18 @@ public static class DefaultPipelineProfiles
             Trigger: "hotkey:color-picker",
             Steps:
             [
+                // Same layout as Color sampler — all CopyColorAs* pre-wired, hex on, the rest
+                // muted so the user can enable any format with a single click in the workflow
+                // editor instead of having to discover them via the + Add step picker.
                 new PipelineStep(ColorPickerTaskId, Id: "color-picker"),
-                new PipelineStep(CopyColorAsHexTaskId, Id: "copy-as-hex")
+                new PipelineStep(CopyColorAsHexTaskId, Id: "copy-as-hex"),
+                new PipelineStep(CopyColorAsRgbTaskId, Enabled: false, Id: "copy-as-rgb"),
+                new PipelineStep(CopyColorAsRgbaTaskId, Enabled: false, Id: "copy-as-rgba"),
+                new PipelineStep(CopyColorAsHsbTaskId, Enabled: false, Id: "copy-as-hsb"),
+                new PipelineStep(CopyColorAsCmykTaskId, Enabled: false, Id: "copy-as-cmyk"),
+                new PipelineStep(CopyColorAsDecimalTaskId, Enabled: false, Id: "copy-as-decimal"),
+                new PipelineStep(CopyColorAsLinearTaskId, Enabled: false, Id: "copy-as-linear"),
+                new PipelineStep(CopyColorAsBgraTaskId, Enabled: false, Id: "copy-as-bgra"),
             ],
             // Ctrl+Shift+\ — pairs with the existing Ctrl+\ Color sampler so the dialog launcher
             // and the screen sampler share the same root key. VK_OEM_5 (0xDC) = the \ / | key.
@@ -399,18 +466,21 @@ public static class DefaultPipelineProfiles
 
         new PipelineProfile(
             Id: QrReadFromRegionId,
-            DisplayName: "QR — read from screen region",
+            DisplayName: "Scan QR in region",
             Trigger: "hotkey:qr-read",
             Steps:
             [
-                // Region picker → ZXing decode → text replaces image payload → clipboard +
-                // toast. Aborts mid-pipeline if no QR is found so the empty-payload trail
-                // doesn't poison the history / clipboard with junk.
+                // Region picker → ZXing decode → AddToHistory commits the Text item (set by
+                // QrRead which rewrites bag.new_item to Text kind) AND pushes to the Windows
+                // clipboard AND shows the contextual toast. The toast's button set is picked
+                // automatically: "Open URL" + "Copy URL" if the decoded text is an http(s) link,
+                // "Copy text" + "Edit (system editor)" otherwise. QrRead aborts mid-pipeline
+                // when no QR is found so the empty-payload trail doesn't poison anything.
                 new PipelineStep(CaptureRegionTaskId, Id: "capture-region"),
                 new PipelineStep(QrReadTaskId, Id: "qr-read"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyTextToClipboardTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"template\":\"{bag.qr_text}\"}"), Id: "copy-text"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"QR → {bag.qr_text}\"}"), Id: "toast")
+                new PipelineStep(AddToHistoryTask.TaskId,
+                    Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true,\"notificationMessage\":\"QR: {bag.qr_text}\"}"),
+                    Id: "add-to-history"),
             ],
             // No default hotkey — user binds in Settings if they want it on muscle memory.
             IsBuiltIn: true),
@@ -454,9 +524,7 @@ public static class DefaultPipelineProfiles
                 // the default; users who want it can clone this profile in Settings and tack on
                 // an Upload step.
                 new PipelineStep(SaveToFileTask.TaskId, Id: "save"),
-                new PipelineStep(AddToHistoryTask.TaskId, Id: "add-to-history"),
-                new PipelineStep(CopyImageToClipboardTaskId, Id: "copy-image"),
-                new PipelineStep(NotifyToastTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"title\":\"AresToys\",\"message\":\"Saved {bag.local_path}\"}"), Id: "toast")
+                new PipelineStep(AddToHistoryTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true}"), Id: "add-to-history"),
             ],
             IsBuiltIn: true),
 
