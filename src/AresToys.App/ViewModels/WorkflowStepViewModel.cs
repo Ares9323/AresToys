@@ -110,6 +110,24 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
     public string? Description { get; }
     public string? Category { get; }
 
+    /// <summary>Visual indent depth — incremented for every <c>arestoys.repeat</c> task that
+    /// precedes this step in the storage list. Drives the row's left margin so the user sees
+    /// "these steps are inside the Repeat" at a glance, matching the executor's behaviour
+    /// (Repeat runs everything BELOW it N times).</summary>
+    public int IndentLevel { get; init; }
+
+    /// <summary>Optional warning text shown on the step card under the description with a ⚠
+    /// glyph. Populated from <see cref="WorkflowActionDescriptor.WarningMessage"/> via the
+    /// editor's sync pass — null on the vast majority of steps; set on Repeat (and any other
+    /// future high-blast-radius task) so the user gets an inline reminder before running.</summary>
+    public string? WarningMessage { get; init; }
+    public bool HasWarning => !string.IsNullOrEmpty(WarningMessage);
+
+    /// <summary>Pre-computed left margin = IndentLevel × 24 px. Bound to the step row's
+    /// Margin in XAML so each indent level shifts the whole card right by one notch without
+    /// touching the inner layout.</summary>
+    public System.Windows.Thickness RowMargin => new(IndentLevel * 24, 0, 0, 0);
+
     /// <summary>The integer parameter shape for this step (null = no inline input).</summary>
     public IntParameter? Parameter { get; }
     public bool HasParameter => Parameter is not null;

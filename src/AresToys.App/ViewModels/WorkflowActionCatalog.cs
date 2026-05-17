@@ -96,6 +96,13 @@ public sealed record WorkflowActionDescriptor(
     string DisplayName,
     string Description,
     string Category,
+    /// <summary>Optional inline warning rendered on the step card under the description, with a
+    /// FontAwesome ⚠ glyph in accent yellow. Use for tasks whose misconfiguration can have
+    /// destructive side effects (Repeat with high count, Run command, etc.). Null = no banner.
+    /// Localisation key is <c>WorkflowActionWarning_&lt;sanitised_task_id&gt;</c> (or
+    /// <c>WorkflowActionWarning_&lt;LocalizationKey&gt;</c> when set) — falls back to this
+    /// English string when the resx key is missing.</summary>
+    string? WarningMessage = null,
     /// <summary>True for steps the executor needs to run but aren't user-pickable (e.g. URL persistence
     /// after upload). They're hidden from the workflow editor and from the Add picker.</summary>
     bool IsPlumbing = false,
@@ -435,6 +442,32 @@ public static class WorkflowActionCatalog
             DefaultConfigJson: "{\"ms\":250}",
             IntParameter: new IntParameter(Key: "ms", Label: "Milliseconds", DefaultValue: 250, Min: 0, Max: 60000)),
 
+        new("arestoys.end-repeat",
+            "End repeat",
+            "Closes the scope opened by the nearest preceding Repeat task. Steps below this marker render back at the outer indent and run ONCE per workflow execution instead of being part of the loop body. Omit this marker entirely if you want the Repeat to loop the whole tail of the workflow (back-compat behaviour). An orphan End Repeat (no Repeat above) is a runtime no-op and shows a warning banner.",
+            "Flow",
+            LocalizationKey: "arestoys_end_repeat"),
+
+        new("arestoys.repeat",
+            "Repeat next steps",
+            "Re-execute every step BELOW this one N times. The visual indent on the workflow editor highlights which steps are inside the loop. Optional 'Cancel hotkey' breaks out early (capture a combo like Ctrl+Shift+X — useful safety net for high counts). Pair with Delay for spaced spamming. Nested Repeat tasks are not supported. Hard-capped at 1000 iterations to avoid foot-guns.",
+            "Flow",
+            WarningMessage: "WARNING: every step below runs N times. Set a Cancel hotkey before bumping Count past 20, and double-check that the body doesn't run anything destructive (Run command, Launch app, Send key combos to active windows).",
+            // delayMs is a StringParameter (no IntParameters-list support in the descriptor yet),
+            // so the default JSON value MUST be a string — a JsonNode Number can't be cast to
+            // string when the editor hydrates the parameter row, and would throw InvalidOperation
+            // ("An element of type 'Number' cannot be converted to System.String") on first open.
+            DefaultConfigJson: "{\"count\":2,\"delayMs\":\"0\",\"cancelCombo\":\"\"}",
+            IntParameter: new IntParameter(Key: "count", Label: "Count", DefaultValue: 2, Min: 1, Max: 1000),
+            StringParameters: new[]
+            {
+                new StringParameter("delayMs", "Delay between iterations (ms)", "0", Placeholder: "0"),
+                new StringParameter("cancelCombo", "Cancel hotkey", string.Empty,
+                    Placeholder: "Click ⌨ to capture",
+                    Picker: StringPickerKind.HotkeyCapture),
+            },
+            LocalizationKey: "arestoys_repeat"),
+
         // Consolidated upload: one entry, dropdown of every enabled uploader (auto-populated
         // from the plugin registry via OptionsProviders["uploader_ids"]). Empty selection =
         // auto-detect category from the bag's file extension and pick the first matching
@@ -611,6 +644,7 @@ public static class WorkflowActionCatalog
             "Run command",
             "Run a shell command line via cmd /c — supports PATH lookups, pipes, redirects, chained commands. Fire-and-forget: workflow doesn't block on completion. For interactive console use Launch app with cmd.exe + /k … Leave the Command field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Run command'); a value in Command always wins.",
             "Actions",
+            WarningMessage: "WARNING: executes arbitrary shell commands. If you leave Command empty, whatever text is in the bag at runtime (clipboard contents, decoded QR, etc.) becomes the command line — review the upstream chain before enabling this in workflows that ingest untrusted input.",
             DefaultConfigJson: "{\"command\":\"\"}",
             StringParameters: new[]
             {

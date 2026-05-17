@@ -864,6 +864,16 @@
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Paste history item</value></data>
   <data name="WorkflowAction_arestoys_press_key" xml:space="preserve"><value>Press key</value></data>
   <data name="WorkflowAction_arestoys_delay" xml:space="preserve"><value>Delay</value></data>
+  <data name="WorkflowAction_arestoys_repeat" xml:space="preserve"><value>Repeat next steps</value></data>
+  <data name="WorkflowAction_arestoys_end_repeat" xml:space="preserve"><value>End repeat</value></data>
+  <data name="WorkflowActionDesc_arestoys_end_repeat" xml:space="preserve"><value>Closes the scope opened by the nearest preceding Repeat task. Steps below this marker run ONCE per workflow execution instead of being part of the loop body. Omit entirely to make the Repeat loop the whole tail of the workflow. An orphan End Repeat (no Repeat above) is a runtime no-op and shows a warning banner.</value></data>
+  <data name="WorkflowActionWarning_arestoys_end_repeat" xml:space="preserve"><value>WARNING: orphan End Repeat — no preceding Repeat task. This step runs as a no-op at runtime; drag it after a Repeat or remove it.</value></data>
+  <data name="WorkflowActionDesc_arestoys_repeat" xml:space="preserve"><value>Re-execute every step BELOW this one N times. The visual indent highlights which steps are inside the loop. Optional 'Cancel hotkey' breaks out early (capture a combo like Ctrl+Shift+X). Pair with Delay for spaced spamming. Nested Repeats are not supported. Hard-capped at 1000 iterations.</value></data>
+  <data name="WorkflowActionParam_arestoys_repeat_count" xml:space="preserve"><value>Count</value></data>
+  <data name="WorkflowActionParam_arestoys_repeat_delayMs" xml:space="preserve"><value>Delay between iterations (ms)</value></data>
+  <data name="WorkflowActionParam_arestoys_repeat_cancelCombo" xml:space="preserve"><value>Cancel hotkey</value></data>
+  <data name="WorkflowActionWarning_arestoys_repeat" xml:space="preserve"><value>WARNING: every step below runs N times. Set a Cancel hotkey before bumping Count past 20, and double-check that the body doesn't run anything destructive (Run command, Launch app, Send key combos to active windows).</value></data>
+  <data name="WorkflowActionWarning_arestoys_run_command" xml:space="preserve"><value>WARNING: executes arbitrary shell commands. If you leave Command empty, whatever text is in the bag at runtime (clipboard contents, decoded QR, etc.) becomes the command line — review the upstream chain before enabling this in workflows that ingest untrusted input.</value></data>
   <data name="WorkflowAction_arestoys_copy_text_to_clipboard" xml:space="preserve"><value>Copy text to clipboard</value></data>
   <data name="WorkflowAction_arestoys_upload" xml:space="preserve"><value>Upload</value></data>
   <data name="WorkflowAction_arestoys_upload_clipboard_text" xml:space="preserve"><value>Read Windows clipboard</value></data>

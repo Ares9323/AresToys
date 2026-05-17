@@ -300,6 +300,10 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, OpenScreenshotFolderTask>();
                 services.AddSingleton<IPipelineTask, PasteHistoryItemTask>();
                 services.AddSingleton<IPipelineTask, PressKeyTask>();
+                services.AddSingleton<IPipelineTask, RepeatTask>();
+                services.AddSingleton<IPipelineTask, EndRepeatTask>();
+                services.AddSingleton<AresToys.Core.Pipeline.ICancelHotkeyRegistry,
+                                      Services.Pipeline.CancelHotkeyRegistry>();
                 services.AddSingleton<IPipelineTask, DelayTask>();
                 services.AddSingleton<IPipelineTask, OpenUrlTask>();
                 services.AddSingleton<IPipelineTask, ShowInExplorerTask>();

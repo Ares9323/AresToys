@@ -6441,6 +6441,96 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WorkflowAction_arestoys_delay", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Repeat next steps.
+        /// </summary>
+        public static string WorkflowAction_arestoys_repeat {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_repeat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to End repeat.
+        /// </summary>
+        public static string WorkflowAction_arestoys_end_repeat {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_end_repeat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Closes the scope opened by the nearest preceding Repeat task....
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_end_repeat {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_end_repeat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to WARNING: orphan End Repeat....
+        /// </summary>
+        public static string WorkflowActionWarning_arestoys_end_repeat {
+            get {
+                return ResourceManager.GetString("WorkflowActionWarning_arestoys_end_repeat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Re-execute every step BELOW this one N times....
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_repeat {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_repeat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Count.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_repeat_count {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_repeat_count", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delay between iterations (ms).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_repeat_delayMs {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_repeat_delayMs", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel hotkey.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_repeat_cancelCombo {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_repeat_cancelCombo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to WARNING: every step below runs N times....
+        /// </summary>
+        public static string WorkflowActionWarning_arestoys_repeat {
+            get {
+                return ResourceManager.GetString("WorkflowActionWarning_arestoys_repeat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to WARNING: executes arbitrary shell commands....
+        /// </summary>
+        public static string WorkflowActionWarning_arestoys_run_command {
+            get {
+                return ResourceManager.GetString("WorkflowActionWarning_arestoys_run_command", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Launch application.

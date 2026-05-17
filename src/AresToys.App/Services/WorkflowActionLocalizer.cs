@@ -33,6 +33,18 @@ public static class WorkflowActionLocalizer
         return Strings.ResourceManager.GetString(key, Culture) ?? fallback;
     }
 
+    /// <summary>Localise the inline warning banner shown on risky-task step cards (Repeat,
+    /// future Run-command-with-arbitrary-bag-text, etc.). Resx key:
+    /// <c>WorkflowActionWarning_&lt;suffix&gt;</c>. Falls back to the descriptor's English
+    /// WarningMessage when the resx key is missing.</summary>
+    public static string LocalizeWarning(string taskId, string fallback, string? localizationKey = null)
+    {
+        if (string.IsNullOrEmpty(taskId) && string.IsNullOrEmpty(localizationKey)) return fallback;
+        var suffix = !string.IsNullOrEmpty(localizationKey) ? localizationKey : Sanitize(taskId);
+        var key = "WorkflowActionWarning_" + suffix;
+        return Strings.ResourceManager.GetString(key, Culture) ?? fallback;
+    }
+
     public static string LocalizeCategory(string category, string fallback)
     {
         if (string.IsNullOrEmpty(category)) return fallback;

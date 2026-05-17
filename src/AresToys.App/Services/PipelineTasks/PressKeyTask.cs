@@ -27,7 +27,9 @@ namespace AresToys.App.Services.PipelineTasks;
 /// 0.1.16 / earlier "Press Enter" and "Press Tab" catalog presets.</item>
 /// </list>
 /// Optional knobs in all three modes: <c>"count"</c> (default 1) and <c>"delayMs"</c> (default
-/// 0) — number of repeats and the wait between them.
+/// 0) — number of repeats and the wait between them. <c>"preDelayMs"</c> (default 0) sleeps
+/// before the FIRST press — use it when chaining directly after AutoPaster's Ctrl+V so the
+/// foreground window has time to consume the paste (~120 ms is the legacy 0.1.16 value).
 /// </para>
 /// </summary>
 public sealed class PressKeyTask : IPipelineTask
@@ -56,11 +58,16 @@ public sealed class PressKeyTask : IPipelineTask
 
         var count = Math.Max(1, (int?)config?["count"] ?? 1);
         var delayMs = Math.Max(0, (int?)config?["delayMs"] ?? 0);
-
-        // Tiny pre-delay mirrors AutoPaster.PasteAsync — gives the previous step's Ctrl+V time to
-        // be consumed by the foreground window before we inject the next keystroke. Without it
-        // the action key can race the paste and arrive before the pasted text actually lands.
-        await Task.Delay(120, cancellationToken).ConfigureAwait(false);
+        // Optional pre-delay before the FIRST press. Defaults to 0 — fires immediately. Set
+        // to ~120 ms when chaining directly after AutoPaster's Ctrl+V to give the foreground
+        // window time to consume the paste before the next keystroke lands (was the unconditional
+        // 120 ms in 0.1.16 — moved to opt-in so Repeat loops + standalone hotkey-to-key remaps
+        // don't pay 120 ms × every press of dead time).
+        var preDelayMs = Math.Max(0, (int?)config?["preDelayMs"] ?? 0);
+        if (preDelayMs > 0)
+        {
+            await Task.Delay(preDelayMs, cancellationToken).ConfigureAwait(false);
+        }
 
         for (var i = 0; i < count; i++)
         {

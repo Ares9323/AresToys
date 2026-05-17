@@ -805,6 +805,16 @@
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Incolla elemento dalla cronologia</value></data>
   <data name="WorkflowAction_arestoys_press_key" xml:space="preserve"><value>Premi tasto</value></data>
   <data name="WorkflowAction_arestoys_delay" xml:space="preserve"><value>Ritardo</value></data>
+  <data name="WorkflowAction_arestoys_repeat" xml:space="preserve"><value>Ripeti i passi successivi</value></data>
+  <data name="WorkflowAction_arestoys_end_repeat" xml:space="preserve"><value>Fine ripetizione</value></data>
+  <data name="WorkflowActionDesc_arestoys_end_repeat" xml:space="preserve"><value>Chiude l'ambito aperto dalla Ripetizione precedente più vicina. I passi sotto questo marcatore vengono eseguiti UNA volta per esecuzione del workflow invece di far parte del corpo del loop. Omettilo del tutto per far ripetere alla Repeat l'intera coda del workflow. Una Fine ripetizione orfana (senza Repeat sopra) è un no-op a runtime e mostra un banner di avviso.</value></data>
+  <data name="WorkflowActionWarning_arestoys_end_repeat" xml:space="preserve"><value>ATTENZIONE: Fine ripetizione orfana — manca un Repeat precedente. Questo passo viene eseguito come no-op a runtime; trascinalo dopo un Repeat o rimuovilo.</value></data>
+  <data name="WorkflowActionDesc_arestoys_repeat" xml:space="preserve"><value>Ri-esegue ogni passo SOTTO questo N volte. L'indentazione visiva evidenzia quali passi sono dentro al loop. La 'Hotkey di cancellazione' opzionale interrompe il loop in anticipo (cattura una combo tipo Ctrl+Shift+X). Abbinalo a Ritardo per spammare a intervalli. I Repeat annidati non sono supportati. Limitato a 1000 iterazioni.</value></data>
+  <data name="WorkflowActionParam_arestoys_repeat_count" xml:space="preserve"><value>Conteggio</value></data>
+  <data name="WorkflowActionParam_arestoys_repeat_delayMs" xml:space="preserve"><value>Ritardo tra iterazioni (ms)</value></data>
+  <data name="WorkflowActionParam_arestoys_repeat_cancelCombo" xml:space="preserve"><value>Hotkey di cancellazione</value></data>
+  <data name="WorkflowActionWarning_arestoys_repeat" xml:space="preserve"><value>ATTENZIONE: ogni passo sotto viene eseguito N volte. Imposta una Hotkey di cancellazione prima di alzare il Conteggio oltre 20, e ricontrolla che il corpo non esegua nulla di distruttivo (Esegui comando, Avvia app, combinazioni di tasti verso le finestre attive).</value></data>
+  <data name="WorkflowActionWarning_arestoys_run_command" xml:space="preserve"><value>ATTENZIONE: esegue comandi shell arbitrari. Se lasci Comando vuoto, qualsiasi testo si trovi nel bag a runtime (contenuto degli appunti, QR decodificato, ecc.) diventa la riga di comando — controlla il chain a monte prima di abilitare questo step in workflow che ingeriscono input non affidabili.</value></data>
   <data name="WorkflowAction_arestoys_copy_text_to_clipboard" xml:space="preserve"><value>Copia testo negli appunti</value></data>
   <data name="WorkflowAction_arestoys_upload" xml:space="preserve"><value>Upload</value></data>
   <data name="WorkflowAction_arestoys_upload_clipboard_text" xml:space="preserve"><value>Leggi appunti di Windows</value></data>

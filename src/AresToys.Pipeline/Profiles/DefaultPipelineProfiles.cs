@@ -68,6 +68,8 @@ public static class DefaultPipelineProfiles
     public const string QrReadTaskId               = "arestoys.qr-read";
     public const string RecordScreenTaskId         = "arestoys.record-screen";
     public const string SaveVideoFileTaskId        = "arestoys.save-video-file";
+    public const string RepeatTaskId               = "arestoys.repeat";
+    public const string EndRepeatTaskId            = "arestoys.end-repeat";
     public const string OpenScreenshotFolderTaskId = "arestoys.open-screenshot-folder";
     public const string OpenLauncherMenuTaskId     = "arestoys.open-launcher-menu";
     public const string OpenSettingsTaskId         = "arestoys.open-settings";

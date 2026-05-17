@@ -765,7 +765,7 @@
                                              halves. Tooltip ("Input: Payload" etc.) reveals the port name on hover. -->
                                         <ItemsControl Grid.Row="1" ItemsSource="{Binding Inputs}"
                                                       Visibility="{Binding HasInputs, Converter={StaticResource BoolToVisibility}}"
-                                                      Margin="0,0,0,0">
+                                                      Margin="{Binding RowMargin}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <UniformGrid Rows="1" />
@@ -781,6 +781,7 @@
                                         </ItemsControl>
                                         <Border Grid.Row="2" Padding="10,8" Background="{DynamicResource Surface1Brush}"
                                                 BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                Margin="{Binding RowMargin}"
                                                 Opacity="{Binding IsDragSource, Converter={StaticResource BoolToOpacity}}"
                                                 AllowDrop="True"
                                                 DragOver="OnStepRowDragOver"
@@ -812,6 +813,30 @@
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding Description}" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
                                                                TextWrapping="Wrap" Margin="0,2,0,0" />
+                                                    <!-- Inline warning banner for high-blast-radius tasks (Repeat with
+                                                         large count, future Run-command-with-bag-text, etc.). Visible only
+                                                         when the descriptor sets WarningMessage. Accent yellow + ⚠ glyph
+                                                         (FontAwesome f071) keeps it visually distinct from the regular
+                                                         AccentForegroundDark description text but still inside the step
+                                                         card — no modal popups, just an "look here before you run" hint. -->
+                                                    <Border Margin="0,6,0,0" Padding="8,4"
+                                                            Background="#33D3A107"
+                                                            BorderBrush="#D3A107" BorderThickness="1" CornerRadius="3"
+                                                            Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xF071;"
+                                                                       FontFamily="{DynamicResource IconFont}"
+                                                                       FontSize="12"
+                                                                       Foreground="#D3A107"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,8,0" />
+                                                            <TextBlock Text="{Binding WarningMessage}"
+                                                                       Foreground="#F1D87A"
+                                                                       FontSize="11"
+                                                                       TextWrapping="Wrap"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Border>
                                                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
                                                                 Visibility="{Binding HasParameter, Converter={StaticResource BoolToVisibility}}">
                                                         <TextBlock Text="{Binding ParameterLabel}" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
@@ -1034,7 +1059,7 @@
                                              width 50/50. -->
                                         <ItemsControl Grid.Row="3" ItemsSource="{Binding Outputs}"
                                                       Visibility="{Binding HasOutputs, Converter={StaticResource BoolToVisibility}}"
-                                                      Margin="0,0,0,0">
+                                                      Margin="{Binding RowMargin}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <UniformGrid Rows="1" />

@@ -118,6 +118,13 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
     private void SyncItemsFromStorage()
     {
         Items.Clear();
+        // Indent depth: incremented whenever we PASS a Repeat task (the executor runs every
+        // subsequent step in a loop, so the visual shifts the rest of the workflow right by one
+        // notch). Decremented when we hit an End Repeat marker — and the End itself renders at
+        // the NEW (lower) depth so it visually aligns with the opening Repeat, code-editor
+        // brace-style. Clamped at 0 so an orphan End Repeat (no preceding Repeat in storage)
+        // doesn't go negative; the orphan also gets a warning banner via WarningMessage below.
+        var indentDepth = 0;
         for (var i = 0; i < _storage.Count; i++)
         {
             var step = _storage[i];
@@ -150,13 +157,18 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
             }
             // Snapshot string parameters the same way as bools — fall back to the descriptor
             // default when the key isn't yet in step.Config (newly added step, first edit).
+            // Safe-cast: a direct (string?) on a JsonNode whose underlying value is a Number /
+            // Bool throws InvalidOperationException ("element of type 'Number' cannot be
+            // converted to System.String"). That used to crash on first open of any workflow
+            // whose StringParameter happened to be seeded with a numeric default — stringify
+            // numeric / boolean JsonValues defensively instead.
             Dictionary<string, string>? stringValues = null;
             if (descriptor?.StringParameters is { Count: > 0 } strings)
             {
                 stringValues = new Dictionary<string, string>(strings.Count);
                 foreach (var sp in strings)
                 {
-                    stringValues[sp.Key] = (string?)step.Config?[sp.Key] ?? sp.DefaultValue;
+                    stringValues[sp.Key] = CoerceStringValue(step.Config?[sp.Key], sp.DefaultValue);
                 }
             }
 
@@ -209,6 +221,27 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
             var localizedStrings = descriptor?.StringParameters?.Select(sp =>
                 sp with { Label = Services.WorkflowActionLocalizer.LocalizeParameter(step.TaskId, sp.Key, sp.Label) })
                 .ToList();
+            // End Repeat marker: decrement BEFORE rendering so the End sits at the OUTER indent
+            // (aligned with its opening Repeat, code-editor brace-style). Orphan End Repeats
+            // (no preceding Repeat) keep depth at 0 and get a warning banner.
+            var isOrphanEndRepeat = false;
+            if (string.Equals(step.TaskId, "arestoys.end-repeat", StringComparison.Ordinal))
+            {
+                if (indentDepth > 0) indentDepth--;
+                else isOrphanEndRepeat = true;
+            }
+
+            // Localised warning: WorkflowActionWarning_<key> resx key with fallback to the
+            // descriptor's English WarningMessage. Null when the descriptor doesn't flag the
+            // task as risky. Orphan End Repeat overrides any descriptor-level warning with a
+            // task-specific one explaining the missing pair.
+            var warning = isOrphanEndRepeat
+                ? Services.WorkflowActionLocalizer.LocalizeWarning(step.TaskId,
+                    "Orphan End Repeat — no preceding Repeat task. This step runs as a no-op at runtime; drag it after a Repeat or remove it.",
+                    descriptor?.LocalizationKey)
+                : descriptor?.WarningMessage is { } wm
+                    ? Services.WorkflowActionLocalizer.LocalizeWarning(step.TaskId, wm, descriptor.LocalizationKey)
+                    : null;
             Items.Add(new WorkflowStepViewModel(
                 storageIndex: i,
                 taskId: step.TaskId,
@@ -230,7 +263,17 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
                 onStringParameterChanged: (item, key, value) => _ = OnStringParameterChangedAsync(item, key, value),
                 inputs: descriptor?.Inputs,
                 outputs: descriptor?.Outputs,
-                onDuplicate:      item            => _ = OnDuplicateAsync(item)));
+                onDuplicate:      item            => _ = OnDuplicateAsync(item))
+            {
+                IndentLevel = indentDepth,
+                WarningMessage = warning,
+            });
+
+            // Steps AFTER a Repeat marker live inside its loop body — bump the depth so the
+            // next iteration's Add gets a one-notch right shift. Repeat itself stays at the
+            // current depth (it's the marker, not the body).
+            if (string.Equals(step.TaskId, "arestoys.repeat", StringComparison.Ordinal))
+                indentDepth++;
         }
         UpdateMoveFlags();
         // If we filled in any missing default values into step.Config above, flush the change
@@ -435,6 +478,28 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
             Items[i].CanMoveUp = i > 0;
             Items[i].CanMoveDown = i < Items.Count - 1;
         }
+    }
+
+    /// <summary>Stringify a <see cref="JsonNode"/> safely — direct <c>(string?)JsonNode</c> casts
+    /// throw for Number / Boolean JsonValues, which blew up the editor when a built-in profile
+    /// (or a typo in a catalog DefaultConfigJson) seeded a StringParameter slot with a numeric
+    /// value. We accept String JsonValues as-is, render Number / Bool as their JSON text, and
+    /// fall back to <paramref name="fallback"/> for null / unsupported shapes (Array, Object).</summary>
+    private static string CoerceStringValue(JsonNode? node, string fallback)
+    {
+        if (node is null) return fallback;
+        if (node is JsonValue v && v.TryGetValue<string>(out var s)) return s;
+        try
+        {
+            return node.GetValueKind() switch
+            {
+                System.Text.Json.JsonValueKind.Number => node.ToJsonString(),
+                System.Text.Json.JsonValueKind.True   => "true",
+                System.Text.Json.JsonValueKind.False  => "false",
+                _ => fallback,
+            };
+        }
+        catch { return fallback; }
     }
 }
 
