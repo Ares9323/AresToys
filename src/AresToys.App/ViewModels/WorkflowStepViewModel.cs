@@ -9,6 +9,7 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
     private readonly Action<WorkflowStepViewModel, bool> _onEnabledChanged;
     private readonly Action<WorkflowStepViewModel, int> _onMove;
     private readonly Action<WorkflowStepViewModel> _onRemove;
+    private readonly Action<WorkflowStepViewModel>? _onDuplicate;
     private readonly Action<WorkflowStepViewModel, int>? _onParameterChanged;
     private readonly Action<WorkflowStepViewModel, string, bool>? _onBoolParameterChanged;
     private readonly Action<WorkflowStepViewModel, string, string>? _onStringParameterChanged;
@@ -34,7 +35,8 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
         Action<WorkflowStepViewModel, string, bool>? onBoolParameterChanged = null,
         Action<WorkflowStepViewModel, string, string>? onStringParameterChanged = null,
         IReadOnlyList<WorkflowPort>? inputs = null,
-        IReadOnlyList<WorkflowPort>? outputs = null)
+        IReadOnlyList<WorkflowPort>? outputs = null,
+        Action<WorkflowStepViewModel>? onDuplicate = null)
     {
         StorageIndex = storageIndex;
         TaskId = taskId;
@@ -49,6 +51,7 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
         _onEnabledChanged = onEnabledChanged;
         _onMove = onMove;
         _onRemove = onRemove;
+        _onDuplicate = onDuplicate;
         _onParameterChanged = onParameterChanged;
         _onBoolParameterChanged = onBoolParameterChanged;
         _onStringParameterChanged = onStringParameterChanged;
@@ -92,6 +95,7 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
                 }
                 StringParameters.Add(new StringParameterEntry(sp.Key, sp.Label, sp.Placeholder, initial,
                     sp.Picker, options, sp.IsEditable, sp.LocalizeOptionsAsEnum, sp.LocalizeOptionsAsLauncherKey,
+                    sp.LocalizeOptionsAsColorFormat, sp.LocalizeOptionsAsSettingsTab,
                     (key, value) => _onStringParameterChanged?.Invoke(this, key, value)));
             }
         }
@@ -175,6 +179,12 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
 
     [RelayCommand]
     private void Remove() => _onRemove(this);
+
+    /// <summary>Insert a clone of this step immediately below the current one. The editor
+    /// (which holds the storage list + the catalog descriptor) builds the new PipelineStep —
+    /// this VM just signals intent.</summary>
+    [RelayCommand]
+    private void Duplicate() => _onDuplicate?.Invoke(this);
 
     [RelayCommand]
     private void DecrementParameter()
@@ -289,6 +299,8 @@ public sealed partial class StringParameterEntry : ObservableObject
         bool isEditable,
         bool localizeOptionsAsEnum,
         bool localizeOptionsAsLauncherKey,
+        bool localizeOptionsAsColorFormat,
+        bool localizeOptionsAsSettingsTab,
         Action<string, string> onChanged)
     {
         Key = key;
@@ -321,6 +333,14 @@ public sealed partial class StringParameterEntry : ObservableObject
                 {
                     display = Services.Launcher.KeyboardLayoutMapper.GetDisplayChar(raw);
                 }
+                else if (localizeOptionsAsColorFormat)
+                {
+                    display = Services.ColorFormatLabels.LabelFor(raw);
+                }
+                else if (localizeOptionsAsSettingsTab)
+                {
+                    display = Services.SettingsTabLabels.LabelFor(raw);
+                }
                 else
                 {
                     display = raw;
@@ -346,6 +366,7 @@ public sealed partial class StringParameterEntry : ObservableObject
     public bool HasOptions => OptionEntries is { Count: > 0 };
     public bool ShowFileButton => Picker is StringPickerKind.File or StringPickerKind.FileOrFolder;
     public bool ShowFolderButton => Picker is StringPickerKind.Folder or StringPickerKind.FileOrFolder;
+    public bool ShowHotkeyCaptureButton => Picker is StringPickerKind.HotkeyCapture;
 
     public sealed record OptionEntry(string Raw, string Display);
 
@@ -426,5 +447,27 @@ public sealed partial class StringParameterEntry : ObservableObject
             }
         }
         catch { /* fall back to dialog default */ }
+    }
+
+    /// <summary>Open the same <c>HotkeyCaptureWindow</c> the Settings → Hotkeys list uses for
+    /// rebind, then write the captured combo back as a human-readable string
+    /// (<c>"Ctrl + Shift + T"</c>) via <see cref="Services.Hotkeys.HotkeyDisplay.Format"/> — the
+    /// PressKeyTask config parser round-trips the same format. Clear-binding from the dialog
+    /// writes an empty string so the task skips at runtime; Cancel leaves the value untouched.</summary>
+    [RelayCommand]
+    private void CaptureHotkey()
+    {
+        var dialog = new Views.HotkeyCaptureWindow(canReset: false);
+        if (System.Windows.Application.Current?.MainWindow is { } owner && owner.IsVisible)
+            dialog.Owner = owner;
+        var ok = dialog.ShowDialog();
+        if (ok != true) return;
+        if (dialog.ClearRequested)
+        {
+            Value = string.Empty;
+            return;
+        }
+        if (dialog.CapturedVirtualKey == 0) return;
+        Value = Services.Hotkeys.HotkeyDisplay.Format(dialog.CapturedModifiers, dialog.CapturedVirtualKey);
     }
 }

@@ -37,7 +37,7 @@ public sealed class AddFileToClipboardTask : IPipelineTask
     }
 
     public string Id => TaskId;
-    public string DisplayName => "Add file to AresToys clipboard";
+    public string DisplayName => "Add file path to AresToys clipboard";
     public PipelineTaskKind Kind => PipelineTaskKind.PostCapture;
 
     public async Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)

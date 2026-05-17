@@ -30,11 +30,14 @@ public sealed class QrCodeTask : IPipelineTask
 
     public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
+        // Resolution order: hardcoded config.text > bag.text (Upload / Shorten URL / Read
+        // clipboard / Convert / etc.). Legacy bag.upload_url removed in 0.1.17 — Upload now
+        // writes its URL into bag.text directly.
         var text = (string?)config?["text"]
-                   ?? (context.Bag.TryGetValue(PipelineBagKeys.UploadUrl, out var raw) && raw is string u ? u : null);
+                   ?? (context.Bag.TryGetValue(PipelineBagKeys.Text, out var raw) && raw is string u ? u : null);
         if (string.IsNullOrEmpty(text))
         {
-            _logger.LogWarning("QrCodeTask: no text in config or upload_url in bag; skipping");
+            _logger.LogWarning("QrCodeTask: no text in config or bag.text; skipping");
             return Task.CompletedTask;
         }
 

@@ -27,10 +27,19 @@ public sealed class LaunchAppTask : IPipelineTask
 
     public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
+        // Resolution order: hardcoded config.path > bag.text. Lets a workflow chain "Read
+        // clipboard → Launch app" when the clipboard holds an executable / shortcut path.
+        // args / workingDir stay config-only — using bag.text for those would mix execution
+        // semantics in confusing ways. Hardcoded path always wins.
         var rawPath = (string?)config?["path"];
+        if (string.IsNullOrWhiteSpace(rawPath)
+            && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawBag) && rawBag is string fromBag)
+        {
+            rawPath = fromBag;
+        }
         if (string.IsNullOrWhiteSpace(rawPath))
         {
-            _logger.LogWarning("LaunchAppTask: no path configured; skipping");
+            _logger.LogWarning("LaunchAppTask: no path configured + no bag.text; skipping");
             return Task.CompletedTask;
         }
         var path = Environment.ExpandEnvironmentVariables(rawPath).Trim();

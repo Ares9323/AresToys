@@ -518,6 +518,58 @@ public sealed class EditorLauncher
         return edited;
     }
 
+    /// <summary>Open the editor on the file at <paramref name="path"/>, and on a successful save
+    /// (a) write the edited bytes back to that file AND (b) commit them to the AresToys clipboard
+    /// (history + Windows clipboard publish). Cancel leaves both file and history untouched.
+    /// <para>
+    /// Used by toast-button "Open in editor" flows where the user wanted a quick post-capture
+    /// tweak but the originating workflow didn't include an AddToHistory step — without this
+    /// auto-commit the edits would disappear the moment the editor closed (file overwritten but
+    /// no AresToys-clipboard reference). Mirrors the OpenAsync(itemId) save behaviour, just
+    /// keyed off a path instead of an existing history row.
+    /// </para></summary>
+    public async Task EditPathAsync(string path, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!System.IO.File.Exists(path))
+        {
+            _logger.LogInformation("EditorLauncher.EditPathAsync: file gone {Path}", path);
+            return;
+        }
+        var sourceBytes = await System.IO.File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        var edited = await EditAsync(sourceBytes, cancellationToken).ConfigureAwait(false);
+        if (edited is null) return; // user cancelled — file + history untouched
+
+        await System.IO.File.WriteAllBytesAsync(path, edited, cancellationToken).ConfigureAwait(false);
+
+        // Commit a fresh history row pointing at the just-overwritten file so the user can recall
+        // the edit from the Win+V popup later. BlobRef stays the same path the toast was about;
+        // SearchText falls back to the filename so search inside AresToys finds it. Source =
+        // Manual because the edit was a user gesture, not a workflow step.
+        var fileName = System.IO.Path.GetFileName(path);
+        var newItem = new NewItem(
+            Kind: AresToys.Core.Domain.ItemKind.Image,
+            Source: AresToys.Core.Domain.ItemSource.Manual,
+            CreatedAt: DateTimeOffset.UtcNow,
+            Payload: edited,
+            PayloadSize: edited.LongLength,
+            BlobRef: path,
+            SearchText: string.IsNullOrEmpty(fileName) ? "Image" : fileName);
+        var newId = await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("EditorLauncher.EditPathAsync: edit saved as new history item {NewId} ({Bytes} bytes) at {Path}",
+            newId, edited.Length, path);
+
+        // Push to Windows clipboard so the user can paste immediately — same trailing step as
+        // OpenAsync. SuppressNext keeps the listener from re-ingesting our own write as a
+        // duplicate clipboard event.
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            var listener = _services.GetService<AresToys.Clipboard.IClipboardListener>();
+            listener?.SuppressNext();
+            ClipboardImagePublisher.SetPng(edited);
+        });
+    }
+
     /// <summary>Re-encode the editor's PNG export into the user's globally-configured image
     /// format. Mirrors <see cref="CaptureCoordinator"/>'s post-capture step so a screenshot
     /// goes through the same pipeline regardless of whether it was edited in between. PNG is

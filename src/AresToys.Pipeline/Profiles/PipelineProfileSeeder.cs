@@ -66,6 +66,17 @@ public sealed class PipelineProfileSeeder
                 _logger.LogInformation("Pipeline profile {Id} migrated 0.1.16 → 0.1.17 record-screen chain.", profile.Id);
             }
 
+            // Same 0.1.16 → 0.1.17 migration for the colour-sampler / colour-picker profiles:
+            // collapsed the 8 CopyColorAs* steps into a single ConvertColor + AddText chain.
+            // Detect the exact pre-refactor shape (9 steps where the tail is the 8
+            // arestoys.copy-color-* task ids in any order) and force-upgrade. Customised
+            // profiles with extra / different steps are preserved.
+            if (IsLegacyColorProfile(profile.Id, existing))
+            {
+                upgraded = profile;
+                _logger.LogInformation("Pipeline profile {Id} migrated 0.1.16 → 0.1.17 color chain.", profile.Id);
+            }
+
             if (!ReferenceEquals(upgraded, existing))
             {
                 await _store.UpsertAsync(upgraded, cancellationToken).ConfigureAwait(false);
@@ -91,6 +102,27 @@ public sealed class PipelineProfileSeeder
             return false;
         if (existing.Steps.Count != 1) return false;
         return string.Equals(existing.Steps[0].TaskId, DefaultPipelineProfiles.RecordScreenTaskId, StringComparison.Ordinal);
+    }
+
+    /// <summary>True when <paramref name="existing"/> matches the pre-0.1.17 9-step shape of
+    /// the colour-sampler / colour-picker profiles (sampler/picker + the 8 CopyColorAs* steps).
+    /// Detect by: exactly 9 steps, lead step is the matching colour producer, every step after
+    /// is one of the legacy <c>arestoys.copy-color-*</c> task ids.</summary>
+    private static bool IsLegacyColorProfile(string profileId, AresToys.Core.Pipeline.PipelineProfile existing)
+    {
+        string expectedLead;
+        if (profileId == DefaultPipelineProfiles.ColorSamplerId) expectedLead = DefaultPipelineProfiles.ColorSamplerTaskId;
+        else if (profileId == DefaultPipelineProfiles.ColorPickerId) expectedLead = DefaultPipelineProfiles.ColorPickerTaskId;
+        else return false;
+
+        if (existing.Steps.Count != 9) return false;
+        if (!string.Equals(existing.Steps[0].TaskId, expectedLead, StringComparison.Ordinal)) return false;
+        for (var i = 1; i < existing.Steps.Count; i++)
+        {
+            var id = existing.Steps[i].TaskId;
+            if (id is null || !id.StartsWith("arestoys.copy-color-", StringComparison.Ordinal)) return false;
+        }
+        return true;
     }
 
     /// <summary>Force-overwrite a profile with its default definition. Used by the "Reset to

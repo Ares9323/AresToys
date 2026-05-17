@@ -23,10 +23,16 @@ public sealed class OpenUrlTask : IPipelineTask
 
     public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
-        // Order: explicit config.url > bag.upload_url. Either lets the user wire the task from
-        // a non-upload pipeline (e.g. a workflow that just opens a static URL).
-        var url = (string?)config?["url"]
-                  ?? (context.Bag.TryGetValue(PipelineBagKeys.UploadUrl, out var raw) && raw is string u ? u : null);
+        // Resolution order: hardcoded config.url > bag.text. Upload steps now write their URL
+        // straight into bag.text (the legacy bag.upload_url was retired in 0.1.17 — it only
+        // ever held a duplicate of bag.text), so this single fallback covers both the
+        // "open uploaded link" chain and the "open URL from Read clipboard" chain uniformly.
+        var url = (string?)config?["url"];
+        if (string.IsNullOrWhiteSpace(url)
+            && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawText) && rawText is string text)
+        {
+            url = text;
+        }
         if (string.IsNullOrWhiteSpace(url))
         {
             _logger.LogWarning("OpenUrlTask: no URL in config or bag; skipping");

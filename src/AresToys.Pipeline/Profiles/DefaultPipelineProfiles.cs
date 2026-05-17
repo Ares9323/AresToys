@@ -51,6 +51,7 @@ public static class DefaultPipelineProfiles
     public const string ToggleIncognitoTaskId      = "arestoys.toggle-incognito";
     public const string ColorSamplerTaskId         = "arestoys.color-sampler";
     public const string ColorPickerTaskId          = "arestoys.color-picker";
+    public const string ConvertColorTaskId         = "arestoys.convert-color";
     public const string CopyColorAsHexTaskId       = "arestoys.copy-color-hex";
     public const string CopyColorAsRgbTaskId       = "arestoys.copy-color-rgb";
     public const string CopyColorAsRgbaTaskId      = "arestoys.copy-color-rgba";
@@ -385,47 +386,36 @@ public static class DefaultPipelineProfiles
             Hotkey: new HotkeyBinding(Win | Shift, 0x4E),  // Win+Shift+N
             IsBuiltIn: true),
 
+        // Colour-sampler workflow — 3-step composable chain that mirrors the image-capture
+        // pipeline shape: Sampler emits bag.color → ConvertColor formats it as hex (default) and
+        // writes bag.text → AddText pushes to the Windows clipboard AND adds to AresToys'
+        // history. Format swap is one dropdown change in the editor; the old "8 muted CopyColorAs
+        // steps" fan-out is gone.
         new PipelineProfile(
             Id: ColorSamplerId,
             DisplayName: "Color sampler",
             Trigger: "hotkey:color-sampler",
             Steps:
             [
-                // Sample the pixel → emit hex by default. The other CopyColorAs* tasks are
-                // pre-wired but muted so the user can flip them on inline (one click per format)
-                // without having to know which task ID corresponds to which colour notation.
-                // Hex stays on as the most useful default for web / design.
                 new PipelineStep(ColorSamplerTaskId, Id: "color-sampler"),
-                new PipelineStep(CopyColorAsHexTaskId, Id: "copy-as-hex"),
-                new PipelineStep(CopyColorAsRgbTaskId, Enabled: false, Id: "copy-as-rgb"),
-                new PipelineStep(CopyColorAsRgbaTaskId, Enabled: false, Id: "copy-as-rgba"),
-                new PipelineStep(CopyColorAsHsbTaskId, Enabled: false, Id: "copy-as-hsb"),
-                new PipelineStep(CopyColorAsCmykTaskId, Enabled: false, Id: "copy-as-cmyk"),
-                new PipelineStep(CopyColorAsDecimalTaskId, Enabled: false, Id: "copy-as-decimal"),
-                new PipelineStep(CopyColorAsLinearTaskId, Enabled: false, Id: "copy-as-linear"),
-                new PipelineStep(CopyColorAsBgraTaskId, Enabled: false, Id: "copy-as-bgra"),
+                new PipelineStep(ConvertColorTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"format\":\"hex\"}"), Id: "convert-color"),
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":false}"), Id: "add-text"),
             ],
             Hotkey: new HotkeyBinding(Ctrl, 0xDC),  // Ctrl+\
             IsBuiltIn: true),
 
+        // Colour-picker workflow — same 3-step chain as Color sampler but driven by the
+        // HSB/RGB/CMYK dialog instead of the screen sampler. Hotkey pairs Ctrl+Shift+\ with the
+        // sampler's Ctrl+\.
         new PipelineProfile(
             Id: ColorPickerId,
             DisplayName: "Color picker",
             Trigger: "hotkey:color-picker",
             Steps:
             [
-                // Same layout as Color sampler — all CopyColorAs* pre-wired, hex on, the rest
-                // muted so the user can enable any format with a single click in the workflow
-                // editor instead of having to discover them via the + Add step picker.
                 new PipelineStep(ColorPickerTaskId, Id: "color-picker"),
-                new PipelineStep(CopyColorAsHexTaskId, Id: "copy-as-hex"),
-                new PipelineStep(CopyColorAsRgbTaskId, Enabled: false, Id: "copy-as-rgb"),
-                new PipelineStep(CopyColorAsRgbaTaskId, Enabled: false, Id: "copy-as-rgba"),
-                new PipelineStep(CopyColorAsHsbTaskId, Enabled: false, Id: "copy-as-hsb"),
-                new PipelineStep(CopyColorAsCmykTaskId, Enabled: false, Id: "copy-as-cmyk"),
-                new PipelineStep(CopyColorAsDecimalTaskId, Enabled: false, Id: "copy-as-decimal"),
-                new PipelineStep(CopyColorAsLinearTaskId, Enabled: false, Id: "copy-as-linear"),
-                new PipelineStep(CopyColorAsBgraTaskId, Enabled: false, Id: "copy-as-bgra"),
+                new PipelineStep(ConvertColorTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"format\":\"hex\"}"), Id: "convert-color"),
+                new PipelineStep(AddTextTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":false}"), Id: "add-text"),
             ],
             // Ctrl+Shift+\ — pairs with the existing Ctrl+\ Color sampler so the dialog launcher
             // and the screen sampler share the same root key. VK_OEM_5 (0xDC) = the \ / | key.

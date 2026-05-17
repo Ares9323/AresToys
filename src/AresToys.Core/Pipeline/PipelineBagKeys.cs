@@ -18,15 +18,12 @@ public static class PipelineBagKeys
     /// <summary>Absolute path written by save-to-file. Type: <c>string</c>.</summary>
     public const string LocalPath = "local_path";
 
-    /// <summary>First URL produced by an upload task (or the only one when a single uploader was
-    /// selected). Type: <c>string</c>.</summary>
-    public const string UploadUrl = "upload_url";
-
-    /// <summary>All URLs produced by the upload task, joined by newline. Useful when multiple
-    /// uploaders are selected for a category. Type: <c>string</c>.</summary>
-    public const string UploadUrls = "upload_urls";
-
-    /// <summary>Id of the (first) uploader that produced <see cref="UploadUrl"/>. Type: <c>string</c>.</summary>
+    /// <summary>Id of the uploader that produced the URL currently in <see cref="Text"/>.
+    /// Persisted onto the just-inserted history row by <c>UpdateItemUrlTask</c> so the popup
+    /// window can attribute "this item was uploaded via X" later. Also serves as the "did an
+    /// Upload step actually run" sentinel — UpdateItemUrl only runs when this key is present,
+    /// otherwise a non-Upload bag.text (a save path, a decoded QR string) would be mistakenly
+    /// committed as the item's URL. Type: <c>string</c>.</summary>
     public const string UploaderId = "uploader_id";
 
     /// <summary>Title of the window that was snap-captured (when applicable). Type: <c>string</c>.</summary>
@@ -50,10 +47,12 @@ public static class PipelineBagKeys
     public const string PayloadModified = "payload_modified";
 
     /// <summary>The pipeline's "current text" — overwritten by every step that produces a
-    /// textual artifact (SaveToFile / SaveSvg / SaveAs / RecordScreen → the saved path; Upload →
-    /// the first URL; QrRead → the decoded text). Read as a zero-config default by AddText,
-    /// AddFile, the QR converters and the ToastBuilder. Workflows are linear, so "last writer
-    /// wins" matches the user's mental model — Add text after Upload gets the URL, Add text
-    /// after Scan QR gets the decoded text, etc.</summary>
+    /// textual artifact (SaveToFile / SaveSvg / SaveAs / RecordScreen → the saved path; Upload /
+    /// Shorten URL → the uploaded URL; QrRead → the decoded text; ConvertColor → the formatted
+    /// colour). Read as a zero-config default by AddText, AddFile, the QR converters, OpenUrl,
+    /// UpdateItemUrl and the ToastBuilder. Workflows are linear, so "last writer wins" matches
+    /// the user's mental model — Add text after Upload gets the URL, Add text after Scan QR
+    /// gets the decoded text, etc. Consolidates the legacy <c>upload_url</c> / <c>upload_urls</c>
+    /// keys (removed 0.1.17): Upload writes its URL straight into <see cref="Text"/>.</summary>
     public const string Text = "text";
 }

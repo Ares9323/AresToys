@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AresToys.App.Services;
 using AresToys.App.ViewModels;
 using AresToys.Editor.Model;
@@ -402,7 +403,15 @@ public partial class MainWindow : FluentWindow
 
     /// <summary>Builds the "+ Add step" categorized context menu on demand. Doing this in
     /// code-behind keeps the XAML clean and avoids the WPF HierarchicalDataTemplate gotchas
-    /// around binding Command on dynamically-templated leaf MenuItems.</summary>
+    /// around binding Command on dynamically-templated leaf MenuItems.
+    /// <para>
+    /// A search box sits at the top of the menu — typing in it hides the per-category sub-menus
+    /// and replaces them with a flat filtered list of every matching task across categories.
+    /// Empty search restores the categorised view. Implementation detail: the TextBox lives
+    /// inside a MenuItem so ContextMenu's hit-testing / keyboard navigation still treats it as
+    /// a row; we mark the wrapper <c>StaysOpenOnClick</c> so clicking into the box doesn't
+    /// dismiss the menu, and focus the box on opened so the user can just start typing.
+    /// </para></summary>
     private void OnAddStepButtonClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
@@ -413,7 +422,53 @@ public partial class MainWindow : FluentWindow
             PlacementTarget = btn,
             Placement = PlacementMode.Bottom,
         };
-        foreach (var group in vm.Workflows.Editor.AddableActions)
+
+        // Snapshot the categorised model + a flat list of every action with its localised name.
+        // The flat list drives the filtered results; the categorised list drives the default view.
+        // Building both up-front avoids re-allocating on every keystroke — the WorkflowActionCatalog
+        // result is stable for the lifetime of this menu.
+        var groups = vm.Workflows.Editor.AddableActions;
+        var allActions = groups
+            .SelectMany(g => g.Actions.Select(a => (
+                Action: a,
+                Title: Services.WorkflowActionLocalizer.LocalizeTitle(a.TaskId, a.DisplayName, a.LocalizationKey),
+                Description: Services.WorkflowActionLocalizer.LocalizeDescription(a.TaskId, a.Description, a.LocalizationKey),
+                Category: Services.WorkflowActionLocalizer.LocalizeCategory(g.Category, g.Category))))
+            .ToList();
+
+        // Search-box row. Sits as the first MenuItem; the TextBox itself is the MenuItem.Header
+        // so it inherits the menu's row chrome (padding, hover) without us re-styling. We
+        // disable WPF's "auto-collapse on click" by handling PreviewMouseDown to keep the menu
+        // open while the user types.
+        var searchBox = new Wpf.Ui.Controls.TextBox
+        {
+            Margin = new Thickness(0),
+            MinWidth = 220,
+            VerticalAlignment = VerticalAlignment.Center,
+            PlaceholderText = AresToys.App.Resources.Strings.WorkflowEditor_AddStepSearchPlaceholder,
+        };
+        var searchItem = new MenuItem
+        {
+            Header = searchBox,
+            StaysOpenOnClick = true,
+        };
+        // Without this the MenuItem swallows the click and the TextBox never gets focus.
+        searchItem.PreviewMouseLeftButtonDown += (s, args) =>
+        {
+            if (!searchBox.IsKeyboardFocusWithin)
+            {
+                searchBox.Focus();
+                args.Handled = true;
+            }
+        };
+        menu.Items.Add(searchItem);
+        menu.Items.Add(new Separator());
+
+        // Build the categorised view once — we toggle Visibility on these items based on the
+        // search box. Keeping them around (rather than rebuilding) preserves any user state
+        // (highlighted sub-menu, expanded category) if they clear the search and come back.
+        var categoryItems = new List<MenuItem>();
+        foreach (var group in groups)
         {
             var groupItem = new MenuItem
             {
@@ -421,19 +476,146 @@ public partial class MainWindow : FluentWindow
             };
             foreach (var action in group.Actions)
             {
+                var title = Services.WorkflowActionLocalizer.LocalizeTitle(action.TaskId, action.DisplayName, action.LocalizationKey);
                 var leaf = new MenuItem
                 {
-                    Header = Services.WorkflowActionLocalizer.LocalizeTitle(action.TaskId, action.DisplayName, action.LocalizationKey),
+                    Header = BuildAddStepItemHeader(title, action.Inputs, action.Outputs),
                     ToolTip = Services.WorkflowActionLocalizer.LocalizeDescription(action.TaskId, action.Description, action.LocalizationKey),
                 };
                 var capturedDescriptor = action;
                 leaf.Click += (_, _) => vm.Workflows.Editor.AddStepCommand.Execute(capturedDescriptor);
                 groupItem.Items.Add(leaf);
             }
+            categoryItems.Add(groupItem);
             menu.Items.Add(groupItem);
         }
+
+        // Index of the first slot that flat-search items get inserted into. Anything we add to
+        // the menu during search lives here; we wipe this range when the search text changes
+        // so we don't accumulate stale matches.
+        var flatItems = new List<MenuItem>();
+
+        searchBox.TextChanged += (_, _) =>
+        {
+            // Drop any existing flat results.
+            foreach (var item in flatItems) menu.Items.Remove(item);
+            flatItems.Clear();
+
+            var query = searchBox.Text?.Trim() ?? string.Empty;
+            if (query.Length == 0)
+            {
+                // Empty search → restore the categorised view.
+                foreach (var item in categoryItems) item.Visibility = Visibility.Visible;
+                return;
+            }
+
+            // Filtered view: hide categories, show a flat list under the search box. Match is
+            // case-insensitive substring against the localised title, description, OR localised
+            // category name (so typing "io" still finds Save-as-Image when the I/O category is
+            // what the user remembers).
+            foreach (var item in categoryItems) item.Visibility = Visibility.Collapsed;
+            var matches = allActions
+                .Where(a =>
+                    a.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    a.Description.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    a.Category.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(a => a.Title)
+                .Take(40);  // cap so a wide match doesn't drop a 200-row wall on the user
+            foreach (var (action, title, description, category) in matches)
+            {
+                var leaf = new MenuItem
+                {
+                    // "Title — Category" suffix so the user sees where a match came from
+                    // without having to dismiss + reopen the menu to confirm.
+                    Header = BuildAddStepItemHeader($"{title}  ·  {category}", action.Inputs, action.Outputs),
+                    ToolTip = description,
+                };
+                var captured = action;
+                leaf.Click += (_, _) => vm.Workflows.Editor.AddStepCommand.Execute(captured);
+                menu.Items.Add(leaf);
+                flatItems.Add(leaf);
+            }
+        };
+
+        // Auto-focus the search box on open so the user can just start typing — the Loaded
+        // callback runs after the menu's popup has materialised, otherwise the focus call is a
+        // no-op (TextBox doesn't have a visual tree yet).
+        menu.Opened += (_, _) => Dispatcher.BeginInvoke(new Action(() => searchBox.Focus()), DispatcherPriority.Input);
+
         btn.ContextMenu = menu;
         menu.IsOpen = true;
+    }
+
+    /// <summary>Compose a MenuItem header that surfaces a task's input + output port types
+    /// alongside its title. Layout is a 3-column Grid: input stripes hugging the left edge,
+    /// label in the middle, output stripes hugging the right edge — same colour codes the
+    /// workflow editor uses for the step's own port strips (azzurro = Payload, rosa = Text,
+    /// giallo = Color). When a task has 0 inputs or 0 outputs the corresponding gutter
+    /// stays empty rather than collapsing — visual alignment across rows reads cleaner. Multi-
+    /// port tasks (rare — the only common case is "two outputs") stack stripes adjacent within
+    /// the same gutter, narrowest first.</summary>
+    private static FrameworkElement BuildAddStepItemHeader(
+        string label,
+        IReadOnlyList<AresToys.App.ViewModels.WorkflowPort>? inputs,
+        IReadOnlyList<AresToys.App.ViewModels.WorkflowPort>? outputs)
+    {
+        const double StripeWidth = 4;
+        const double StripeGap = 1;
+        const double GutterMargin = 6;
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var inputStrip = new StackPanel { Orientation = Orientation.Horizontal };
+        if (inputs is { Count: > 0 })
+        {
+            foreach (var port in inputs)
+            {
+                inputStrip.Children.Add(BuildPortStripe(port, StripeWidth, StripeGap));
+            }
+            inputStrip.Margin = new Thickness(0, 0, GutterMargin, 0);
+        }
+        Grid.SetColumn(inputStrip, 0);
+
+        var text = new System.Windows.Controls.TextBlock
+        {
+            Text = label,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(text, 1);
+
+        var outputStrip = new StackPanel { Orientation = Orientation.Horizontal };
+        if (outputs is { Count: > 0 })
+        {
+            foreach (var port in outputs)
+            {
+                outputStrip.Children.Add(BuildPortStripe(port, StripeWidth, StripeGap));
+            }
+            outputStrip.Margin = new Thickness(GutterMargin, 0, 0, 0);
+        }
+        Grid.SetColumn(outputStrip, 2);
+
+        grid.Children.Add(inputStrip);
+        grid.Children.Add(text);
+        grid.Children.Add(outputStrip);
+        return grid;
+    }
+
+    private static FrameworkElement BuildPortStripe(AresToys.App.ViewModels.WorkflowPort port, double width, double gap)
+    {
+        // Reuse WorkflowPortEntry's frozen brushes so the colour palette stays in one place —
+        // any future palette tweak in the workflow editor propagates here automatically.
+        var entry = new AresToys.App.ViewModels.WorkflowPortEntry(port, isInput: true);
+        return new System.Windows.Shapes.Rectangle
+        {
+            Width = width,
+            Fill = entry.Background,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(0, 0, gap, 0),
+            ToolTip = port.ToString(),
+        };
     }
 
     // ── Workflow step drag-and-drop reordering ──────────────────────────────────────────────

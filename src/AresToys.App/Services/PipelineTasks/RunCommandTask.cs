@@ -26,10 +26,19 @@ public sealed class RunCommandTask : IPipelineTask
 
     public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
+        // Resolution order: hardcoded config.command > bag.text. Lets a workflow chain "Read
+        // clipboard → Run command" when the clipboard holds an arbitrary command line; a
+        // pinned command in config always wins so a workflow with a fixed action isn't
+        // hijacked by stray bag content.
         var rawCommand = (string?)config?["command"];
+        if (string.IsNullOrWhiteSpace(rawCommand)
+            && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawBag) && rawBag is string fromBag)
+        {
+            rawCommand = fromBag;
+        }
         if (string.IsNullOrWhiteSpace(rawCommand))
         {
-            _logger.LogWarning("RunCommandTask: no command configured; skipping");
+            _logger.LogWarning("RunCommandTask: no command configured + no bag.text; skipping");
             return Task.CompletedTask;
         }
         var command = Environment.ExpandEnvironmentVariables(rawCommand);

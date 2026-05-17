@@ -26,12 +26,25 @@ public sealed class OpenSettingsTask : IPipelineTask
 
     public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
+        // Optional tab navigation — when the user picks a section in the workflow editor we
+        // route SettingsViewModel.SelectedTab to it on every invocation. Empty / missing /
+        // unparseable raw → leave the previously-selected tab alone (matches "open settings"
+        // semantics, no surprise reset).
+        var rawTab = ((string?)config?["tab"])?.Trim();
+
         Application.Current.Dispatcher.InvokeAsync(() =>
         {
             var window = (MainWindow)_services.GetService(typeof(MainWindow))!;
             if (!window.IsVisible) window.Show();
             if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
             window.Activate();
+
+            if (!string.IsNullOrEmpty(rawTab)
+                && window.DataContext is AresToys.App.ViewModels.SettingsViewModel vm
+                && Enum.TryParse<AresToys.App.ViewModels.SettingsTab>(rawTab, ignoreCase: true, out var tab))
+            {
+                vm.SelectedTab = tab;
+            }
         });
         return Task.CompletedTask;
     }

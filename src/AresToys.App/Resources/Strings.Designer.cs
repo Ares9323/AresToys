@@ -3081,7 +3081,10 @@ namespace AresToys.App.Resources {
         public static string WorkflowEditor_IncreaseTooltip => ResourceManager.GetString("WorkflowEditor_IncreaseTooltip", resourceCulture);
         public static string WorkflowEditor_PickFileTooltip => ResourceManager.GetString("WorkflowEditor_PickFileTooltip", resourceCulture);
         public static string WorkflowEditor_PickFolderTooltip => ResourceManager.GetString("WorkflowEditor_PickFolderTooltip", resourceCulture);
+        public static string WorkflowEditor_CaptureHotkeyTooltip => ResourceManager.GetString("WorkflowEditor_CaptureHotkeyTooltip", resourceCulture);
+        public static string WorkflowEditor_AddStepSearchPlaceholder => ResourceManager.GetString("WorkflowEditor_AddStepSearchPlaceholder", resourceCulture);
         public static string WorkflowEditor_RemoveStepTooltip => ResourceManager.GetString("WorkflowEditor_RemoveStepTooltip", resourceCulture);
+        public static string WorkflowEditor_DuplicateStepTooltip => ResourceManager.GetString("WorkflowEditor_DuplicateStepTooltip", resourceCulture);
         public static string Uploaders_ShortenersHint => ResourceManager.GetString("Uploaders_ShortenersHint", resourceCulture);
         public static string Pattern_YearTooltip => ResourceManager.GetString("Pattern_YearTooltip", resourceCulture);
         public static string Pattern_ShortYearTooltip => ResourceManager.GetString("Pattern_ShortYearTooltip", resourceCulture);
@@ -6377,77 +6380,32 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Copy color as BGRA.
+        ///   Looks up a localized string similar to Convert color.
         /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_bgra {
+        public static string WorkflowAction_arestoys_convert_color {
             get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_bgra", resourceCulture);
+                return ResourceManager.GetString("WorkflowAction_arestoys_convert_color", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Copy color as CMYK.
+        ///   Looks up a localized string similar to Format the colour produced by an upstream Color sampler / Color picker into text....
         /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_cmyk {
+        public static string WorkflowActionDesc_arestoys_convert_color {
             get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_cmyk", resourceCulture);
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_convert_color", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Copy color as Decimal.
+        ///   Looks up a localized string similar to Format.
         /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_decimal {
+        public static string WorkflowActionParam_arestoys_convert_color_format {
             get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_decimal", resourceCulture);
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_convert_color_format", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Copy color as hex.
-        /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_hex {
-            get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_hex", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Copy color as HSB.
-        /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_hsb {
-            get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_hsb", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Copy color as Linear.
-        /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_linear {
-            get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_linear", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Copy color as RGB.
-        /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_rgb {
-            get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_rgb", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Copy color as RGBA.
-        /// </summary>
-        public static string WorkflowAction_arestoys_copy_color_rgba {
-            get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_copy_color_rgba", resourceCulture);
-            }
-        }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Copy image to clipboard.
         /// </summary>
@@ -6564,6 +6522,15 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WorkflowAction_arestoys_open_settings", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Tab.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_open_settings_tab {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_open_settings_tab", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Open URL in browser.
@@ -6602,23 +6569,32 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Press Enter.
+        ///   Looks up a localized string similar to Send key / shortcut.
         /// </summary>
-        public static string WorkflowAction_arestoys_press_key_enter {
+        public static string WorkflowAction_arestoys_press_key_combo {
             get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_press_key_enter", resourceCulture);
+                return ResourceManager.GetString("WorkflowAction_arestoys_press_key_combo", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Press Tab.
+        ///   Looks up a localized string similar to Send an arbitrary key or modifier+key combo….
         /// </summary>
-        public static string WorkflowAction_arestoys_press_key_tab {
+        public static string WorkflowActionDesc_arestoys_press_key_combo {
             get {
-                return ResourceManager.GetString("WorkflowAction_arestoys_press_key_tab", resourceCulture);
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_press_key_combo", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Combo.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_press_key_combo {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_press_key_combo", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Read QR from image.
         /// </summary>
@@ -6836,15 +6812,6 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Color.
-        /// </summary>
-        public static string WorkflowActionCategory_Color {
-            get {
-                return ResourceManager.GetString("WorkflowActionCategory_Color", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Editor.
         /// </summary>
         public static string WorkflowActionCategory_Editor {
@@ -6888,22 +6855,31 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WorkflowActionCategory_Launch", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Actions.
+        /// </summary>
+        public static string WorkflowActionCategory_Actions {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Actions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Panels.
+        /// </summary>
+        public static string WorkflowActionCategory_Panels {
+            get {
+                return ResourceManager.GetString("WorkflowActionCategory_Panels", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Launcher.
         /// </summary>
         public static string WorkflowActionCategory_Launcher {
             get {
                 return ResourceManager.GetString("WorkflowActionCategory_Launcher", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Notify.
-        /// </summary>
-        public static string WorkflowActionCategory_Notify {
-            get {
-                return ResourceManager.GetString("WorkflowActionCategory_Notify", resourceCulture);
             }
         }
         
@@ -7489,24 +7465,6 @@ namespace AresToys.App.Resources {
         public static string WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection {
             get {
                 return ResourceManager.GetString("WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Include alpha (RRGGBBAA).
-        /// </summary>
-        public static string WorkflowActionParam_arestoys_copy_color_hex_alpha {
-            get {
-                return ResourceManager.GetString("WorkflowActionParam_arestoys_copy_color_hex_alpha", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Prefix with #.
-        /// </summary>
-        public static string WorkflowActionParam_arestoys_copy_color_hex_hash {
-            get {
-                return ResourceManager.GetString("WorkflowActionParam_arestoys_copy_color_hex_hash", resourceCulture);
             }
         }
         

@@ -229,7 +229,8 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
                 onBoolParameterChanged: (item, key, value) => _ = OnBoolParameterChangedAsync(item, key, value),
                 onStringParameterChanged: (item, key, value) => _ = OnStringParameterChangedAsync(item, key, value),
                 inputs: descriptor?.Inputs,
-                outputs: descriptor?.Outputs));
+                outputs: descriptor?.Outputs,
+                onDuplicate:      item            => _ = OnDuplicateAsync(item)));
         }
         UpdateMoveFlags();
         // If we filled in any missing default values into step.Config above, flush the change
@@ -367,6 +368,33 @@ public sealed partial class WorkflowEditorViewModel : ObservableObject
         if (_isReloading || _profileId is null) return;
         if (item.StorageIndex < 0 || item.StorageIndex >= _storage.Count) return;
         _storage.RemoveAt(item.StorageIndex);
+        SyncItemsFromStorage();
+        await PersistAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Insert a duplicate of <paramref name="item"/> immediately after it in the
+    /// storage list. The clone keeps the same TaskId + Enabled flag and gets a deep copy of the
+    /// Config JsonNode (so editing one step's params doesn't bleed back into its twin). Fresh
+    /// Guid for the step Id so multi-step workflows referencing both copies stay unambiguous.
+    /// Mirrors the "Duplicate Layer" pattern from Figma / Photoshop — place the new instance
+    /// next to the source for immediate comparison / tweaking.</summary>
+    private async Task OnDuplicateAsync(WorkflowStepViewModel item)
+    {
+        if (_isReloading || _profileId is null) return;
+        if (item.StorageIndex < 0 || item.StorageIndex >= _storage.Count) return;
+        var source = _storage[item.StorageIndex];
+        // Deep-clone the config so subsequent param edits on one twin don't mutate the other.
+        // JsonNode is mutable by reference; parsing the string-rendered form is the cheapest
+        // safe deep-copy that doesn't require knowing the inner schema.
+        var clonedConfig = source.Config is null
+            ? null
+            : System.Text.Json.Nodes.JsonNode.Parse(source.Config.ToJsonString());
+        var copy = new AresToys.Core.Pipeline.PipelineStep(
+            TaskId: source.TaskId,
+            Config: clonedConfig,
+            Enabled: source.Enabled,
+            Id: Guid.NewGuid().ToString("N"));
+        _storage.Insert(item.StorageIndex + 1, copy);
         SyncItemsFromStorage();
         await PersistAsync().ConfigureAwait(true);
     }

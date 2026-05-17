@@ -39,12 +39,28 @@ public sealed class UploadTask : IPipelineTask
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) || rawBytes is not byte[] bytes)
+        // Primary input is bag.payload_bytes — the canonical "what to upload". For the URL
+        // shortener category specifically (category="url") we also accept bag.text as a fallback
+        // so a workflow can chain plain text-producing upstream steps (Convert color → Shorten,
+        // ConvertColor for a URL-encoded code → Shorten, etc.) without going through a payload
+        // intermediary. Image / file / video uploaders still require bytes — they have no
+        // sensible interpretation of "text" as a payload.
+        var category = (string?)config?["category"];
+        byte[] bytes;
+        if (context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) && rawBytes is byte[] direct && direct.Length > 0)
+        {
+            bytes = direct;
+        }
+        else if (string.Equals(category, "url", StringComparison.OrdinalIgnoreCase)
+                 && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawText) && rawText is string text && !string.IsNullOrEmpty(text))
+        {
+            bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        }
+        else
         {
             _logger.LogWarning("UploadTask: bag key '{Key}' missing or not byte[]; skipping", PipelineBagKeys.PayloadBytes);
             return;
         }
-        if (bytes.Length == 0) return;
 
         var ext = context.Bag.TryGetValue(PipelineBagKeys.FileExtension, out var rawExt) && rawExt is string e ? e : "bin";
         var uploaders = await ResolveUploadersAsync(config, ext, cancellationToken).ConfigureAwait(false);
@@ -75,8 +91,12 @@ public sealed class UploadTask : IPipelineTask
 
         if (urls.Count == 0) return;
 
-        context.Bag[PipelineBagKeys.UploadUrl] = urls[0];
-        context.Bag[PipelineBagKeys.UploadUrls] = string.Join('\n', urls);
+        // bag.text is the single source of truth for the URL produced by an upload — both
+        // OpenUrl, UpdateItemUrl, QrCode and the ToastBuilder read it from here. The legacy
+        // upload_url / upload_urls keys were removed in 0.1.17 (only ever held a duplicate of
+        // bag.text and the multi-URL slot had zero consumers since the multi-upload feature was
+        // collapsed in 0.1.16). bag.uploader_id stays as the "did an upload step actually run"
+        // sentinel that UpdateItemUrl gates on, and as the per-item attribution downstream.
         context.Bag[PipelineBagKeys.UploaderId] = firstId!;
         context.Bag[PipelineBagKeys.Text] = urls[0];
 

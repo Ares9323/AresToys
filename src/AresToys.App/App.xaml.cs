@@ -266,6 +266,12 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
                 services.AddSingleton<IPipelineTask, ColorSamplerTask>();
                 services.AddSingleton<IPipelineTask, ColorPickerTask>();
+                services.AddSingleton<IPipelineTask, ConvertColorTask>();
+                // Legacy CopyColorAs* — kept registered for backward compat with profiles that
+                // were authored before 0.1.17 collapsed them into ConvertColor + AddText. Removed
+                // from the workflow editor's "+ Add step" picker (no catalog entry) but the
+                // runtime classes still resolve so an old saved step keeps producing clipboard
+                // text instead of hard-failing on a missing TaskId.
                 services.AddSingleton<IPipelineTask, CopyColorAsHexTask>();
                 services.AddSingleton<IPipelineTask, CopyColorAsRgbTask>();
                 services.AddSingleton<IPipelineTask, CopyColorAsRgbaTask>();
@@ -531,6 +537,24 @@ public partial class App : Application
         // mov route through ffmpeg for a transcode + container swap.
         AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["video_formats"] = () =>
             new[] { "mp4", "gif", "webm", "mov" };
+
+        // Colour-format dropdown for ConvertColor's "format". 4 hex variants (with/without #,
+        // with/without alpha) are exposed as discrete options instead of conditional bool
+        // params — keeps the editor row simple and avoids the "hide/show param" complexity
+        // that a single Hex entry + alpha/hash toggles would need.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["color_formats"] = () =>
+            new[]
+            {
+                "hex", "hex-hash", "hex-alpha", "hex-hash-alpha",
+                "rgb", "rgba", "hsb", "cmyk", "decimal", "linear", "bgra",
+            };
+
+        // Settings-tab dropdown for OpenSettings's "tab" parameter. Raw values match the
+        // SettingsTab enum lowercased so OpenSettingsTask can Enum.TryParse them straight into
+        // SettingsViewModel.SelectedTab. Display labels live in Services.SettingsTabLabels and
+        // mirror the sidebar entries the user already recognises.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["settings_tabs"] = () =>
+            new[] { "settings", "hotkeys", "uploaders", "capture", "categories", "wormholes", "theme", "debug", "about" };
 
         // Trace-preset dropdown for Trace to SVG's "preset" config. Concatenates the stock
         // presets (TracePresets.Stock — verbatim Illustrator Image Trace defaults) with any

@@ -183,7 +183,11 @@ public sealed class ToastBuilderService : AresToys.Core.Pipeline.IPipelineNotifi
 
         // 1. Upload URL path — open + copy URL; offer "open in editor" if the bag still has the
         //    Image item we uploaded (lets the user roundtrip back to editing after sharing).
-        if (context.Bag.TryGetValue(PipelineBagKeys.UploadUrl, out var rawUploadUrl)
+        //    Gate on bag.uploader_id (set only by UploadTask) so a non-Upload bag.text isn't
+        //    misinterpreted as a URL. The actual URL lives in bag.text — legacy bag.upload_url
+        //    was retired in 0.1.17 (only ever held a duplicate of bag.text).
+        if (context.Bag.ContainsKey(PipelineBagKeys.UploaderId)
+            && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawUploadUrl)
             && rawUploadUrl is string uploadUrl && !string.IsNullOrEmpty(uploadUrl))
         {
             list.Add(new ToastButtonChoice(Loc("Toast_OpenUrl"), () => OpenUrlSafe(uploadUrl)));
@@ -349,29 +353,16 @@ public sealed class ToastBuilderService : AresToys.Core.Pipeline.IPipelineNotifi
     }
 
     /// <summary>Open the annotation editor on a file path. Used by the Save-toast path where no
-    /// history item exists yet (Save runs before AddToHistory in default profiles). Reads the
-    /// bytes off disk, hands them to <see cref="EditorLauncher.EditAsync(byte[], CancellationToken)"/>,
-    /// and overwrites the same file when the user saves their edits. Cancel leaves the file
+    /// history item exists yet (Save runs before AddToHistory in default profiles). Delegates to
+    /// <see cref="EditorLauncher.EditPathAsync"/> which (a) overwrites the file on save and (b)
+    /// also commits the edited bytes to the AresToys clipboard — so the user's modifications
+    /// don't evaporate the moment the editor closes. Cancel leaves both file and history
     /// untouched.</summary>
     private void OpenPathInEditorSafe(string path)
     {
         Application.Current.Dispatcher.InvokeAsync(async () =>
         {
-            try
-            {
-                if (!File.Exists(path))
-                {
-                    _logger.LogInformation("Toast button → open in editor: file gone {Path}", path);
-                    return;
-                }
-                var bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(true);
-                var edited = await _editorLauncher.EditAsync(bytes, CancellationToken.None).ConfigureAwait(true);
-                if (edited is not null)
-                {
-                    await File.WriteAllBytesAsync(path, edited).ConfigureAwait(true);
-                    _logger.LogInformation("Toast button → edits written back to {Path} ({Bytes} bytes)", path, edited.Length);
-                }
-            }
+            try { await _editorLauncher.EditPathAsync(path, CancellationToken.None).ConfigureAwait(true); }
             catch (Exception ex) { _logger.LogError(ex, "Toast button → open path in editor failed for {Path}", path); }
         });
     }

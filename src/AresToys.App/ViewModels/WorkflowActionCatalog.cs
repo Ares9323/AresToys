@@ -24,6 +24,11 @@ public enum StringPickerKind
     Folder,
     /// <summary>Both 📄 and 📁 buttons — for parameters that may target either.</summary>
     FileOrFolder,
+    /// <summary>⌨ Click-to-capture button: opens <c>HotkeyCaptureWindow</c> and writes the
+    /// pressed combo (e.g. <c>"Ctrl + Shift + T"</c>) back as the parameter value. Used by
+    /// PressKeyTask's <c>combo</c> parameter so the workflow editor reuses the same capture UI
+    /// the settings → hotkeys list uses, instead of asking the user to type a combo string.</summary>
+    HotkeyCapture,
 }
 
 /// <summary>Declarative description of a free-form string config parameter — rendered as a text
@@ -55,7 +60,20 @@ public sealed record StringParameter(
     /// Raw value persisted in step.Config stays the US-canonical storage key — same trick
     /// the launcher uses for cell labels, so storage portability is preserved across
     /// keyboard-layout changes.</summary>
-    bool LocalizeOptionsAsLauncherKey = false);
+    bool LocalizeOptionsAsLauncherKey = false,
+    /// <summary>When true, dropdown labels render as colour-format preview strings via
+    /// <see cref="Services.ColorFormatLabels.LabelFor"/>: <c>"hex-hash-alpha"</c> shows as
+    /// <c>"Hex with # and alpha (#RRGGBBAA)"</c> so the user can see the output shape before
+    /// committing. Raw value persisted in step.Config stays the compact lookup key so the
+    /// ConvertColorTask format switch keeps working without a parse step.</summary>
+    bool LocalizeOptionsAsColorFormat = false,
+    /// <summary>When true, dropdown labels render as Settings sidebar section names via
+    /// <see cref="Services.SettingsTabLabels.LabelFor"/>: <c>"hotkeys"</c> shows as
+    /// <c>"Hotkeys &amp; workflows"</c>, matching the sidebar entries. Used by OpenSettingsTask's
+    /// tab dropdown — raw enum value persists in step.Config, display string honours the same
+    /// labels the user sees in the sidebar so the dropdown reads as a direct picker for those
+    /// sections.</summary>
+    bool LocalizeOptionsAsSettingsTab = false);
 
 /// <summary>The three semantic "data types" that flow through a pipeline's bag. Rendered as
 /// coloured pills above (Inputs) and below (Outputs) each step row so the user can see at a
@@ -158,7 +176,7 @@ public static class WorkflowActionCatalog
             Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.record-screen",
-            "Record screen",
+            "Record screen area",
             "Toggle FFmpeg-driven screen recording. First invocation prompts for a region and starts; second invocation stops. Always records MP4 into a temp file — pair with 'Save Video file' downstream to write the final output to disk (and pick gif / mp4 / webm / mov there) and 'Add Payload to AresToys clipboard' to commit the video to AresToys' history.",
             "Capture",
             DefaultConfigJson: "{}",
@@ -172,93 +190,87 @@ public static class WorkflowActionCatalog
         // value; six rows here so the workflow editor's "+ Add" menu lists each as a discrete
         // entry. Same pattern as record-screen mp4 / gif.
         new("arestoys.wormhole-batch-op",
-            "Wormholes: hide all",
+            "Hide all",
             "Set IsHidden=true on every wormhole — closes their live windows but keeps the records.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"hide-all\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: show all",
+            "Show all",
             "Set IsHidden=false on every wormhole — re-spawns the live windows for any that were hidden.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"show-all\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: lock all",
+            "Lock all",
             "Lock geometry on every wormhole — drag and resize disabled until unlocked.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"lock-all\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: unlock all",
+            "Unlock all",
             "Unlock every wormhole so they're draggable / resizable again.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"unlock-all\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: collapse all",
+            "Collapse all",
             "Roll up every wormhole to its header strip only — quick way to reclaim desktop space without hiding.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"collapse-all\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: uncollapse all",
+            "Uncollapse all",
             "Restore every rolled-up wormhole to its previous height.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"uncollapse-all\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: toggle hide / show",
+            "Toggle hide / show",
             "If any wormhole is currently visible, hide them all; otherwise show them all. Single-key 'clean up the desktop / bring them back' gesture.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"toggle-hide\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: toggle lock / unlock",
+            "Toggle lock / unlock",
             "If any wormhole is unlocked, lock them all; otherwise unlock them all.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"toggle-lock\"}"),
         new("arestoys.wormhole-batch-op",
-            "Wormholes: toggle collapse / uncollapse",
+            "Toggle collapse / uncollapse",
             "If any wormhole is uncollapsed, collapse them all; otherwise uncollapse them all.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"toggle-collapse\"}"),
         new("arestoys.wormhole-create",
-            "Wormholes: create wormhole",
+            "Create wormhole",
             "Create a new wormhole. If a single folder is selected in the foreground Explorer window, uses that folder automatically. Otherwise opens the New Wormhole dialog so the user picks a folder.",
             "Wormholes"),
 
         new("arestoys.color-sampler",
             "Color sampler",
             "Open the magnifier-style sampler at the cursor — picks a pixel from anywhere on screen. The sampled color is copied to the clipboard.",
-            "Capture",
+            "Tools",
             Outputs: new[] { WorkflowPort.Color }),
 
         new("arestoys.color-picker",
             "Color picker",
             "Open the dialog-style HSB/RGB/CMYK colour picker (wheel + numeric inputs). The chosen color is stashed in the bag — pair with a Copy color as … step to write it to the clipboard.",
-            "Capture",
+            "Tools",
             Outputs: new[] { WorkflowPort.Color }),
 
-        // Copy-color-as family: read the bag colour produced by Color sampler / Color picker and
-        // emit it in a specific format. One step per format keeps the workflow editor's "+ Add"
-        // menu friendly — no JSON config dropdowns needed.
-        new("arestoys.copy-color-hex",
-            "Copy color as HEX to Windows clipboard",
-            "Emit the bag colour as RRGGBB (or RRGGBBAA with alpha) to the Windows clipboard. Toggles below choose whether to include alpha and whether to prefix with #.",
-            "Color",
-            DefaultConfigJson: "{\"alpha\":false,\"hash\":false}",
-            BoolParameters: new[]
-            {
-                new BoolParameter("alpha", "Include alpha (RRGGBBAA)", false),
-                new BoolParameter("hash",  "Prefix with #",            false),
-            },
-            Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-rgb",     "Copy color as RGB to Windows clipboard",     "Emit the bag colour as rgb(R, G, B) to the Windows clipboard (Ctrl+V target).",                          "Color", Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-rgba",    "Copy color as RGBA to Windows clipboard",    "Emit the bag colour as rgba(R, G, B, A) with alpha 0–1 to the Windows clipboard.",       "Color", Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-hsb",     "Copy color as HSB to Windows clipboard",     "Emit the bag colour as hsb(H°, S%, B%) to the Windows clipboard.",                       "Color", Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-cmyk",    "Copy color as CMYK to Windows clipboard",    "Emit the bag colour as cmyk(C%, M%, Y%, K%) to the Windows clipboard.",                  "Color", Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-decimal", "Copy color as Decimal to Windows clipboard", "Emit the bag colour as the packed AARRGGBB integer to the Windows clipboard.",           "Color", Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-linear",  "Copy color as Linear to Windows clipboard",  "Emit (R=…,G=…,B=…,A=…) — Unreal Engine FLinearColor stringification — to the Windows clipboard.", "Color", Inputs: new[] { WorkflowPort.Color }),
-        new("arestoys.copy-color-bgra",    "Copy color as BGRA to Windows clipboard",    "Emit (B=…,G=…,R=…,A=…) — Unreal Engine FColor stringification — to the Windows clipboard.", "Color", Inputs: new[] { WorkflowPort.Color }),
+        // Convert color — single unified converter replacing the 0.1.16 fan-out of 8 separate
+        // CopyColorAs* tasks. Reads bag.color from an upstream sampler/picker, writes the
+        // formatted string into bag.text + bag.payload_bytes. Compose with downstream
+        // "Add text to AresToys clipboard" (alsoCopyToWindows=true) to push the colour to the
+        // Windows clipboard — same chain shape image-capture workflows use (Save → AddToHistory).
+        new("arestoys.convert-color",
+            "Convert color",
+            "Format the colour produced by an upstream Color sampler / Color picker into text. The output goes into bag.text so a downstream Add text step can push it to the Windows clipboard and/or add it to AresToys' history. Format picks the syntax — hex variants, rgb / rgba, hsb, cmyk, decimal (ARGB), Unreal Engine FLinearColor / FColor.",
+            "I/O",
+            DefaultConfigJson: "{\"format\":\"hex\"}",
+            StringParameters: [new StringParameter("format", "Format", "hex",
+                OptionsKey: "color_formats", IsEditable: false, LocalizeOptionsAsColorFormat: true)],
+            LocalizationKey: "arestoys_convert_color",
+            Inputs: new[] { WorkflowPort.Color },
+            Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.open-editor-before-upload",
             "Open editor",
             "Pause the pipeline and open the annotation editor on the captured bytes. On save, subsequent steps see the edited image.",
-            "Editor",
+            "Panels",
             // No default tool — empty string = "use last-used", which is what the user expects
             // for an "open editor" step that doesn't dictate a starting mode. Specific presets
             // (e.g. a quick-crop pipeline) can pin "Crop" / "Rectangle" / etc. via DefaultConfigJson.
@@ -364,8 +376,8 @@ public static class WorkflowActionCatalog
             Inputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.add-file",
-            "Add file to AresToys clipboard",
-            "Add the file just produced by the pipeline (bag.local_path — set by Save as Image file / Toggle screen recording / Save as SVG / Save as…) to AresToys' history as a Files entry. Zero config — chain it after any save step. Toggles enable Windows-clipboard CF_HDROP push (paste-as-file) and a contextual toast with Copy-path / Show-in-folder buttons.",
+            "Add file path to AresToys clipboard",
+            "Add the file at bag.local_path (set by Save as Image file / Record screen + Save as Video file / Save as SVG / Save as…) to AresToys' history as a Files entry. Reads the PATH from the bag (Text input), not the file's bytes — chain it after any save step. The resulting clipboard entry behaves like a real file (preview, paste-as-file). Toggles enable Windows-clipboard CF_HDROP push and a contextual toast with Copy-path / Show-in-folder buttons.",
             "Clipboard",
             DefaultConfigJson: "{\"alsoCopyToWindows\":false,\"showNotification\":false}",
             BoolParameters: new[]
@@ -407,18 +419,14 @@ public static class WorkflowActionCatalog
             IntParameter: new IntParameter(Key: "index", Label: "Index (1 = most recent)", DefaultValue: 1, Min: 1, Max: 99)),
 
         new("arestoys.press-key",
-            "Press Enter",
-            "Send a single Enter keystroke to the foreground window. Useful as a separator between paste steps when chaining clipboard items onto consecutive lines.",
-            "Clipboard",
-            DefaultConfigJson: "{\"key\":\"enter\"}",
-            LocalizationKey: "arestoys_press_key_enter"),
-
-        new("arestoys.press-key",
-            "Press Tab",
-            "Send a single Tab keystroke to the foreground window — handy for moving between fields between paste steps.",
-            "Clipboard",
-            DefaultConfigJson: "{\"key\":\"tab\"}",
-            LocalizationKey: "arestoys_press_key_tab"),
+            "Send key / shortcut",
+            "Send an arbitrary key or modifier+key combo (Ctrl+Shift+T, F12, Win+R, …) to the foreground window. Click the Combo field to capture — the dialog records whatever you press, including OS-reserved combos. Pair with a hotkey-triggered workflow for a PowerToys KBM-style remap (bind a side-button hotkey → workflow sending Ctrl+W = close tab).",
+            "Actions",
+            DefaultConfigJson: "{\"combo\":\"\"}",
+            StringParameters: [new StringParameter("combo", "Combo", string.Empty,
+                Placeholder: "Click ⌨ to capture",
+                Picker: StringPickerKind.HotkeyCapture)],
+            LocalizationKey: "arestoys_press_key_combo"),
 
         new("arestoys.delay",
             "Delay",
@@ -451,7 +459,7 @@ public static class WorkflowActionCatalog
 
         new("arestoys.upload",
             "Shorten URL",
-            "Shorten the current payload (UTF-8 text bytes — typically chained after 'Read text from clipboard') via a URL shortener plugin. Pick a shortener from the dropdown; empty = first available. Input must be a valid http(s) URL — the shortener rejects anything else. Writes the shortened URL into bag.text so a downstream 'Add text to clipboard' captures the result.",
+            "Shorten the current text (typically chained after 'Read Windows clipboard' when the clipboard holds a URL) via a URL shortener plugin. Pick a shortener from the dropdown; empty = first available. Input must be a valid http(s) URL — the shortener rejects anything else. Writes the shortened URL into bag.text so a downstream 'Add text to clipboard' captures the result.",
             "Upload",
             // category:"url" is carried as a discriminator so LookupForStep can distinguish this
             // descriptor from "Upload to cloud service" (both share TaskId "arestoys.upload"). UploadTask
@@ -466,20 +474,21 @@ public static class WorkflowActionCatalog
                     IsEditable: false),
             },
             LocalizationKey: "arestoys_shorten_url",
-            // Reads bag.payload_bytes (same path as "Upload to cloud service" — same task class)
-            // and writes bag.text = shortened URL.
-            Inputs: new[] { WorkflowPort.Payload },
+            // Reads bag.text when present (or bag.payload_bytes as fallback for back-compat with
+            // chains that pre-encode UTF-8). Writes the shortened URL into bag.text.
+            Inputs: new[] { WorkflowPort.Text },
             Outputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.upload-clipboard-text",
-            "Read text from Windows clipboard",
-            "Pulls the current text from the system clipboard and stages it as the workflow's payload (UTF-8 bytes, .txt extension). Pair with an Upload step (text category) to publish the content. Skips silently if the clipboard has no text.",
-            "Capture",
+            "Read Windows clipboard",
+            "Pulls whatever is currently on the system clipboard — files, image, or text — and stages it into the bag. Detection order Files → Image → Text picks the most specific shape (Explorer ships both files and paths-as-text; we prefer files). Files populate bag.local_path; images populate bag.payload_bytes as PNG; text populates both bag.text and bag.payload_bytes (UTF-8). Skips silently when the clipboard is empty; downstream tasks each validate their own preconditions, so a mismatch (image clipboard + text-only Upload downstream, etc.) is a quiet no-op instead of a mid-pipeline failure.",
+            "I/O",
             DefaultConfigJson: null,
-            // Writes bag.payload_bytes (UTF-8) + file_extension="txt" — does NOT write bag.text.
-            // Downstream Upload / Shorten URL reads the bytes; chain an Add-text AFTER Upload (which
-            // writes bag.text = the shortened URL) if you want the result in history as text.
-            Outputs: new[] { WorkflowPort.Payload }),
+            // Output is conditional on clipboard content: Files / Image → Payload, Text → both
+            // Payload and Text. We advertise both ports so the editor's port-strip visualisation
+            // doesn't lie about either of the realistic chains (Upload reads Payload, Shorten URL
+            // / Add text read Text).
+            Outputs: new[] { WorkflowPort.Payload, WorkflowPort.Text }),
 
         new("arestoys.capture-selected-explorer-file",
             "Capture selected Explorer file",
@@ -509,17 +518,17 @@ public static class WorkflowActionCatalog
         new("arestoys.open-popup",
             "Show clipboard window",
             "Open the AresToys clipboard window (Win+V replacement). Pressing the same shortcut again while it's up dismisses it.",
-            "Clipboard"),
+            "Panels"),
 
         new("arestoys.toggle-incognito",
             "Toggle incognito mode",
             "Flip incognito on/off — when on, clipboard items aren't captured into history.",
-            "Tools"),
+            "Actions"),
 
         new("arestoys.open-screenshot-folder",
             "Open screenshot folder",
             "Open the configured capture folder (Settings → Capture) in Windows Explorer.",
-            "Tools"),
+            "Actions"),
 
         new("arestoys.show-in-explorer",
             "Show file in Explorer",
@@ -538,26 +547,29 @@ public static class WorkflowActionCatalog
 
         new("arestoys.open-url",
             "Open URL in browser",
-            "Launch the default browser on the upload URL (or an explicit URL via config). Useful right after an Upload step.",
-            "Notify",
+            "Launch the default browser on a URL. Resolution order: hardcoded URL field (highest priority) → bag.text (set by an upstream Upload / Shorten URL / Read clipboard / etc.). Leave the URL field empty to consume whatever the bag carries; type a value to pin a specific destination regardless of upstream.",
+            "Actions",
+            DefaultConfigJson: "{\"url\":\"\"}",
+            StringParameters: [new StringParameter("url", "URL", string.Empty,
+                Placeholder: "(uses bag.text when empty)")],
             Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.show-qr-code",
             "Show QR code",
             "Generate a QR code from the upload URL (or explicit text) and pop a small window. Handy for scanning the link on a phone. Also writes the rendered PNG to bag.payload_bytes so Save image as… / Copy image to clipboard / Add to history can chain after.",
-            "Notify",
+            "Tools",
             Inputs: new[] { WorkflowPort.Text },
             Outputs: new[] { WorkflowPort.Payload }),
         new("arestoys.text-to-qr-png",
             "Convert text to QR (PNG)",
             "Render a QR code PNG from the pipeline's current text (bag.text — set by the previous Upload / Scan QR / Save step). Writes the image into bag.payload_bytes + bag.file_extension=png so downstream sinks ('Add image', 'Save as Image file') treat it like a fresh screenshot. Doesn't touch any clipboard on its own — pure converter.",
-            "Notify",
+            "Tools",
             Inputs: new[] { WorkflowPort.Text },
             Outputs: new[] { WorkflowPort.Payload }),
         new("arestoys.text-to-qr-svg",
             "Convert text to QR (SVG)",
             "Render a QR code as an SVG vector (sharp at any zoom) from the pipeline's current text (bag.text) into bag.svg_output. Compose with 'Save as SVG file' downstream to write it to disk. Doesn't touch any clipboard on its own.",
-            "Notify",
+            "Tools",
             Inputs: new[] { WorkflowPort.Text },
             Outputs: new[] { WorkflowPort.Payload }),
 
@@ -573,55 +585,62 @@ public static class WorkflowActionCatalog
         // a document and let Windows pick the handler"; Run command for shell pipelines.
         new("arestoys.launch-app",
             "Launch app",
-            "Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Working dir defaults to the path's folder.",
-            "Launch",
+            "Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Working dir defaults to the path's folder. Leave the Path field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Launch app'); a value in Path always wins so a workflow with a pinned target isn't redirected by stray bag content.",
+            "Actions",
             DefaultConfigJson: "{\"path\":\"\",\"args\":\"\",\"workingDir\":\"\"}",
             StringParameters: new[]
             {
-                new StringParameter("path",       "Path",        "", "C:\\Program Files\\…\\app.exe", StringPickerKind.File),
+                new StringParameter("path",       "Path",        "", "(uses bag.text when empty)", StringPickerKind.File),
                 new StringParameter("args",       "Args",        "", "--flag value"),
                 new StringParameter("workingDir", "Working dir", "", "(defaults to app's folder)",   StringPickerKind.Folder),
-            }),
+            },
+            Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.open-file",
-            "Open file or folder",
-            "Open a file or folder with its default OS-registered handler — same as double-clicking in Explorer. PDFs land in the PDF viewer, .txt in Notepad, folders in an Explorer window.",
-            "Launch",
+            "Open file / folder",
+            "Open a file or folder with its default OS-registered handler — same as double-clicking in Explorer. PDFs land in the PDF viewer, .txt in Notepad, folders in an Explorer window. Leave the Path field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Open file / folder' to open whatever path was copied); a value in Path always wins.",
+            "Actions",
             DefaultConfigJson: "{\"path\":\"\"}",
             StringParameters: new[]
             {
-                new StringParameter("path", "Path", "", "C:\\Users\\…\\file.pdf", StringPickerKind.FileOrFolder),
-            }),
+                new StringParameter("path", "Path", "", "(uses bag.text when empty)", StringPickerKind.FileOrFolder),
+            },
+            Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.run-command",
             "Run command",
-            "Run a shell command line via cmd /c — supports PATH lookups, pipes, redirects, chained commands. Fire-and-forget: workflow doesn't block on completion. For interactive console use Launch app with cmd.exe + /k …",
-            "Launch",
+            "Run a shell command line via cmd /c — supports PATH lookups, pipes, redirects, chained commands. Fire-and-forget: workflow doesn't block on completion. For interactive console use Launch app with cmd.exe + /k … Leave the Command field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Run command'); a value in Command always wins.",
+            "Actions",
             DefaultConfigJson: "{\"command\":\"\"}",
             StringParameters: new[]
             {
-                new StringParameter("command", "Command", "", "git pull && npm test"),
-            }),
+                new StringParameter("command", "Command", "", "(uses bag.text when empty)"),
+            },
+            Inputs: new[] { WorkflowPort.Text }),
 
         new("arestoys.open-launcher-menu",
             "Open launcher menu",
             "Show the launcher overlay — a 3×10 keyboard grid where every printable key fires a path / shortcut / shell target. Press a key to launch, Esc to dismiss, right-click a cell to map it to something. Wire this behind a global shortcut and you have a MaxLaunchpad-style panel inside AresToys.",
-            "Launch"),
+            "Panels"),
 
         new("arestoys.open-settings",
             "Open settings window",
-            "Show + activate the main AresToys Settings window. Useful as a tray-click action, or as the entry step of a workflow that opens settings then runs something else.",
-            "Tools"),
+            "Show + activate the main AresToys Settings window, optionally jumping to a specific sidebar section on open. Useful as a tray-click action, or as the entry step of a workflow that opens settings then runs something else. Default tab = App settings; pick another from the dropdown to land directly on Uploaders / Hotkeys & workflows / Capture / Theme / Clipboard categories / Wormholes / Debug / About.",
+            "Panels",
+            DefaultConfigJson: "{\"tab\":\"settings\"}",
+            StringParameters: [new StringParameter("tab", "Tab", "settings",
+                OptionsKey: "settings_tabs", IsEditable: false, LocalizeOptionsAsSettingsTab: true)],
+            LocalizationKey: "arestoys_open_settings"),
 
         new("arestoys.open-launcher-drag-mode",
             "Open launcher (drag mode)",
             "Show the launcher overlay already in drag-and-drop mode: the panel stays open while you drag files / folders / shortcuts from Explorer onto cells to map them. Esc exits drag mode (the launcher stays open in normal mode); a second Esc closes it.",
-            "Launch"),
+            "Panels"),
 
         new("arestoys.launcher.trigger-key",
             "Trigger launcher key",
             "Fire a launcher cell programmatically — same as opening the launcher and pressing the key, but without the overlay. Pick a tab (1-9 / 0) and a key (Q-P, A-;, Z-/, or F1-F10). F1-F10 are global: the tab is ignored when the key is a function key. Toast appears if the slot is empty.",
-            "Launch",
+            "Actions",
             DefaultConfigJson: "{\"tab\":\"1\",\"key\":\"Q\"}",
             StringParameters: new[]
             {
@@ -676,6 +695,22 @@ public static class WorkflowActionCatalog
                 if (string.IsNullOrEmpty(candidate.DefaultConfigJson)) continue;
                 var candidateValue = (string?)JsonNode.Parse(candidate.DefaultConfigJson)?[key];
                 if (string.Equals(stepValue, candidateValue, StringComparison.OrdinalIgnoreCase))
+                    return candidate;
+            }
+        }
+        // Key-PRESENCE discrimination — for variants distinguished by which optional config field
+        // they ship with rather than by a value. Example: "Send key / shortcut" defaults to
+        // {"combo":""} (empty value, key present) and shares TaskId with "Press Enter"
+        // ({"key":"enter"}). Empty values fail the value-match loop above, so we fall through to
+        // here and pick the descriptor whose DefaultConfigJson declares the same optional field.
+        foreach (var key in new[] { "combo" })
+        {
+            var stepObj = step.Config?.AsObject();
+            if (stepObj is null || !stepObj.ContainsKey(key)) continue;
+            foreach (var candidate in matches)
+            {
+                if (string.IsNullOrEmpty(candidate.DefaultConfigJson)) continue;
+                if (JsonNode.Parse(candidate.DefaultConfigJson)?.AsObject().ContainsKey(key) == true)
                     return candidate;
             }
         }

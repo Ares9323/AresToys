@@ -791,7 +791,6 @@
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Margin="0,0,12,0" Padding="6,4"
                                                         Cursor="SizeAll" Background="Transparent"
@@ -872,6 +871,7 @@
                                                                              still align across rows visually. -->
                                                                         <ColumnDefinition Width="Auto" MinWidth="100" />
                                                                         <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="Auto" />
                                                                     </Grid.ColumnDefinitions>
@@ -967,25 +967,66 @@
                                                                                    FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
                                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                                     </Button>
+                                                                    <!-- Hotkey-capture button: opens HotkeyCaptureWindow (the same dialog the
+                                                                         Settings → Hotkeys list uses for rebind) so PressKeyTask's "combo"
+                                                                         parameter can be set without typing strings. FontAwesome 'keyboard'
+                                                                         glyph (f11c) matches the file/folder pair's iconography. -->
+                                                                    <Button Grid.Column="4"
+                                                                            Width="32" Height="32" Padding="0"
+                                                                            Background="{DynamicResource Surface3Brush}"
+                                                                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
+                                                                            Cursor="Hand" Margin="4,0,0,0"
+                                                                            Command="{Binding CaptureHotkeyCommand}"
+                                                                            ToolTip="{Markup:Loc WorkflowEditor_CaptureHotkeyTooltip}"
+                                                                            Visibility="{Binding ShowHotkeyCaptureButton, Converter={StaticResource BoolToVisibility}}">
+                                                                        <TextBlock Text="&#xF11C;"
+                                                                                   FontFamily="{DynamicResource IconFont}"
+                                                                                   FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
+                                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                    </Button>
                                                                 </Grid>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
                                                 </StackPanel>
-                                                <ui:ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                                                 VerticalAlignment="Center" Margin="12,0,0,0" />
-                                                <ui:Button Grid.Column="3" Width="30" Height="22" Padding="0"
-                                                           Appearance="Danger"
-                                                           Command="{Binding RemoveCommand}"
-                                                           ToolTip="{Markup:Loc WorkflowEditor_RemoveStepTooltip}"
-                                                           VerticalAlignment="Center" Margin="8,0,0,0">
-                                                    <!-- Trash glyph (FontAwesome ) — XAML
-                                                         entity reference because raw PUA chars
-                                                         get stripped by editor save round-trips. -->
-                                                    <TextBlock Text="&#xF1F8;"
-                                                               FontFamily="{DynamicResource IconFont}"
-                                                               FontSize="11" />
-                                                </ui:Button>
+                                                <!-- Per-step control column: stacked vertically (Toggle → Duplicate →
+                                                     Trash) instead of three separate Grid.Column slots. Vertical layout
+                                                     keeps the parameter strip on the left wide and uncluttered: the
+                                                     controls take a single ~30-px-wide column instead of ~140 px. Order
+                                                     mirrors action gravity — non-destructive on top, destructive on
+                                                     bottom — so the cursor's vertical distance to the trash is the
+                                                     largest, reducing mis-clicks. -->
+                                                <StackPanel Grid.Column="2" Orientation="Vertical"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalAlignment="Center"
+                                                            Margin="12,0,0,0">
+                                                    <ui:ToggleSwitch IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                                     HorizontalAlignment="Center" />
+                                                    <!-- Duplicate (Photoshop / Figma convention: clones the step and
+                                                         inserts the copy directly below the original). Neutral
+                                                         appearance — only the trash stays Danger-coloured so the
+                                                         destructive action is the only one that visually shouts. -->
+                                                    <ui:Button Width="30" Height="22" Padding="0" Margin="0,4,0,0"
+                                                               Command="{Binding DuplicateCommand}"
+                                                               ToolTip="{Markup:Loc WorkflowEditor_DuplicateStepTooltip}"
+                                                               HorizontalAlignment="Center">
+                                                        <TextBlock Text="&#xF0C5;"
+                                                                   FontFamily="{DynamicResource IconFont}"
+                                                                   FontSize="11" />
+                                                    </ui:Button>
+                                                    <ui:Button Width="30" Height="22" Padding="0" Margin="0,4,0,0"
+                                                               Appearance="Danger"
+                                                               Command="{Binding RemoveCommand}"
+                                                               ToolTip="{Markup:Loc WorkflowEditor_RemoveStepTooltip}"
+                                                               HorizontalAlignment="Center">
+                                                        <!-- Trash glyph (FontAwesome ) — XAML
+                                                             entity reference because raw PUA chars
+                                                             get stripped by editor save round-trips. -->
+                                                        <TextBlock Text="&#xF1F8;"
+                                                                   FontFamily="{DynamicResource IconFont}"
+                                                                   FontSize="11" />
+                                                    </ui:Button>
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
                                         <!-- Output strip: mirror of the input strip, attached to the bottom edge of
