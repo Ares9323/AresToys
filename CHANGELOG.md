@@ -3,19 +3,20 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.16] — 2026-05-17
+## [0.1.17] — 2026-05-17
 
-Pipeline + workflow editor overhaul: the "Copy X to clipboard" / "Save QR as Y"
-task family collapses into a unified `Add X` set, NotifyToast is gone in favour
-of a per-task `showNotification` flag handled by a new `ToastBuilderService`,
-upload entries collapse into one "Upload to cloud service" + one "Shorten URL"
-with runtime-populated dropdowns. The workflow editor gets a coloured port
-visualisation (Payload / Text / Color strips above/below each step). New
-Key Sequences module — typed triggers paste a chosen clipboard entry inline
-via an overlay. A grab-bag of smaller fixes: own-process WPF programmatic
-paste replaces SendInput Ctrl+V for AresToys dialogs, scrollbar no longer
-overlaps the window-resize hit zone, ESC works in region overlay before the
-first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
+Maintenance + structural follow-up on top of 0.1.16. Screen recording was
+split into a 3-step composable pipeline (Record → Save as Video file → Add
+to history) so it matches the image-capture flow instead of being a
+do-everything single step. Wormhole tile shortcuts got their `.lnk` arrow
+overlay back (a 0.1.15 favicon-upscale regression) and the F2 inline rename
+got UX polish — no more overlapping label + editor, the box grows with the
+typed text, focus actually returns to the renamed tile after commit/cancel.
+The clipboard popup now degrades gracefully when Windows Media Foundation
+can't decode the selected video (WebM / VP9 most commonly). Italian
+translation completion (waves 3 + 4 cover workflow editor tooltips, dialog
+chrome, overlays, settings panels, theme borders). AutoPaster pastes file
+paths through CF_HDROP so Explorer accepts them as a real drop.
 
 ### Clipboard popup — graceful fallback for undecodable video
 - WPF `MediaElement` rides on Windows Media Foundation, which has no codec for
@@ -80,6 +81,37 @@ first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
   re-selected and re-focused. Commit-success needs a pending-path stash
   consumed in `RefreshPortalItems` because the `FolderWatcher`'s 300 ms
   debounce means the new VM doesn't exist yet at the moment Move returns.
+
+### Italian translation — waves 3 + 4
+- Wave 3: workflow editor tooltips, sub-folder pattern token reference,
+  dialog buttons (Save / Cancel / Open / etc.), region/multi-region overlay
+  hints, theme picker affordances.
+- Wave 4: Sxcu import dialog, Trace window tool buttons, Uploader config
+  DPAPI hint + signed-in/out status labels, Wormhole header roll-up/unroll
+  tooltip, Image effects gradient swatch edit tooltip.
+- Wormhole defaults panel section + Theme borders + Debug filter + Key
+  Sequences settings: full IT pass replacing previous hardcoded XAML strings
+  with `Markup:Loc` bindings.
+
+### AutoPaster — proper CF_HDROP file paste
+- When the clipboard payload is `ItemKind.Files`, AutoPaster now calls
+  `Clipboard.SetFileDropList` (which posts CF_HDROP) instead of a generic
+  text paste. Explorer / file dialogs now accept the paste as a real file
+  drop instead of dropping a path string into the filename field.
+
+## [0.1.16] — 2026-05-17
+
+Pipeline + workflow editor overhaul: the "Copy X to clipboard" / "Save QR as Y"
+task family collapses into a unified `Add X` set, NotifyToast is gone in favour
+of a per-task `showNotification` flag handled by a new `ToastBuilderService`,
+upload entries collapse into one "Upload to cloud service" + one "Shorten URL"
+with runtime-populated dropdowns. The workflow editor gets a coloured port
+visualisation (Payload / Text / Color strips above/below each step). New
+Key Sequences module — typed triggers paste a chosen clipboard entry inline
+via an overlay. A grab-bag of smaller fixes: own-process WPF programmatic
+paste replaces SendInput Ctrl+V for AresToys dialogs, scrollbar no longer
+overlaps the window-resize hit zone, ESC works in region overlay before the
+first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
 
 ## [0.1.15] — 2026-05-16
 

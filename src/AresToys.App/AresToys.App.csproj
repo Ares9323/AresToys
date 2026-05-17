@@ -21,7 +21,7 @@
     <!-- Dev/local builds get a clearly-not-a-release version so the Settings → About line
          doesn't say "1.0.0.0" and pretend to be a real shipped build. The release workflow
          (and tools/pack-local.ps1) passes -p:Version=<x.y.z> which overrides this. -->
-    <Version>0.1.16</Version>
+    <Version>0.1.17</Version>
     <!-- The base Strings.resx is in English. Telling MSBuild this avoids the runtime cost of
          scanning for an "en" satellite that doesn't exist (the neutral resx covers it) and
          lets ResourceManager skip a probe round when CurrentUICulture is en-* — also makes
