@@ -55,14 +55,26 @@ public sealed class CaptureWebpageTask : IPipelineTask
             return;
         }
 
+        // URL resolution precedence:
+        //  1. Explicit step config "url" (workflow editor → wired to a static URL).
+        //  2. bag.text from an upstream step (e.g. Scan QR in region → Capture webpage feeds the
+        //     decoded URL straight into the page loader).
+        //  3. Interactive prompt — the original on-demand flow.
+        // Only fall through to the prompt when neither source provided a non-empty string.
         var configUrl = (string?)config?["url"];
-        var url = string.IsNullOrWhiteSpace(configUrl)
-            ? await PromptForUrlAsync().ConfigureAwait(false)
-            : configUrl.Trim();
+        string? url = !string.IsNullOrWhiteSpace(configUrl) ? configUrl.Trim() : null;
+        if (url is null
+            && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawText)
+            && rawText is string bagText && !string.IsNullOrWhiteSpace(bagText))
+        {
+            url = bagText.Trim();
+            _logger.LogDebug("CaptureWebpageTask: using URL from bag.text ({Url})", url);
+        }
+        url ??= await PromptForUrlAsync().ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(url))
         {
-            _logger.LogDebug("CaptureWebpageTask: user cancelled URL prompt");
+            _logger.LogDebug("CaptureWebpageTask: no URL provided (config / bag.text / prompt all empty)");
             context.Abort("webpage capture cancelled");
             return;
         }
@@ -92,14 +104,20 @@ public sealed class CaptureWebpageTask : IPipelineTask
         _logger.LogInformation("CaptureWebpageTask: captured {Url} → {Bytes} bytes", url, bytes.Length);
     }
 
-    private static Task<string?> PromptForUrlAsync()
+    private static async Task<string?> PromptForUrlAsync()
     {
-        // Marshalled to the UI thread because the workflow may run on a background scheduler and
-        // ShowDialog() requires the dispatcher.
-        return Application.Current.Dispatcher.InvokeAsync(() =>
+        // Non-modal Show() + TaskCompletionSource: ShowDialog() would put a WPF modal lock on
+        // every other window in the app (Settings / popup clipboard / etc.) — the user couldn't
+        // pull a URL from the AresToys clipboard popup while the prompt is up. Marshalled to the
+        // UI thread because the workflow may run on a background scheduler.
+        var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             var dialog = new WebpageUrlDialog();
-            return dialog.ShowDialog() == true ? dialog.Url : null;
-        }).Task;
+            dialog.Show();
+            _ = dialog.CompletionTask.ContinueWith(t => tcs.TrySetResult(t.Result),
+                TaskScheduler.Default);
+        }).Task.ConfigureAwait(false);
+        return await tcs.Task.ConfigureAwait(false);
     }
 }

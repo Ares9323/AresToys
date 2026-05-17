@@ -37,14 +37,18 @@ public sealed class PinToScreenLauncher
         _windowLogger = windowLogger;
     }
 
-    /// <summary>Show the chooser and dispatch to the chosen source. UI-thread only.</summary>
+    /// <summary>Show the chooser and dispatch to the chosen source. UI-thread only. The chooser
+    /// is shown <c>Show()</c>-modelessly (not <c>ShowDialog()</c>) so the rest of the app stays
+    /// interactive while it's up; we await the window's <c>CompletionTask</c> for the user's
+    /// pick.</summary>
     public async Task ShowAsync(CancellationToken cancellationToken)
     {
         var chooser = new PinSourceChooserWindow();
-        var ok = chooser.ShowDialog();
-        if (ok != true) return;
+        chooser.Show();
+        var picked = await chooser.CompletionTask.ConfigureAwait(true);
+        if (picked == PinSource.Cancelled) return;
 
-        switch (chooser.Result)
+        switch (picked)
         {
             case PinSource.Screen:    await FromScreenAsync(cancellationToken).ConfigureAwait(true); break;
             case PinSource.Clipboard: await FromClipboardAsync(cancellationToken).ConfigureAwait(true); break;

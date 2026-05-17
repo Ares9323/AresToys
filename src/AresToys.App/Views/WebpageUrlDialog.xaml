@@ -6,57 +6,46 @@
         Title="Capture webpage"
         Width="460"
         SizeToContent="Height"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="Manual"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Foreground="White"
         ResizeMode="NoResize"
-        Background="#252525"
-        Foreground="White">
-    <Window.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-    </Window.Resources>
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        ShowInTaskbar="False">
+    <!-- AllowsTransparency=True + Background=Transparent on the Window so the inner Border can
+         render rounded corners + a 1px outer stroke. Same shell as IconPickerDialog /
+         PinSourceChooserWindow / Launcher. WindowStartupLocation=Manual because Center* + SizeToContent
+         is broken in WPF (the window is positioned before content is measured → lands at 0,0);
+         the xaml.cs recenters on the active monitor in the Loaded event, DPI-aware. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+            CornerRadius="8">
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Webpage URL" FontSize="14" FontWeight="SemiBold"
-                   Margin="0,0,0,12" />
+            <TextBlock Grid.Row="0" Text="Webpage URL" Foreground="White"
+                       FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
 
-        <ui:TextBox Grid.Row="1" x:Name="UrlBox"
-                    PlaceholderText="https://example.com" />
+            <ui:TextBox Grid.Row="1" x:Name="UrlBox"
+                        PlaceholderText="https://example.com" />
 
-        <TextBlock Grid.Row="2" FontSize="11" Opacity="0.7" Margin="0,8,0,0" TextWrapping="Wrap"
-                   Text="The page is loaded in a hidden WebView2, then captured full-height (everything below the fold included). Login-walled pages won't render the protected content." />
+            <TextBlock Grid.Row="2" Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                       FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                       Text="The page is loaded in a hidden WebView2, then captured full-height (everything below the fold included). Login-walled pages won't render the protected content." />
 
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button x:Name="OkButton" Content="Capture" Width="92" Height="32" Margin="0,0,4,0"
-                    IsDefault="True" Click="OnOkClicked" FontWeight="SemiBold"
-                    Background="{DynamicResource AccentBackgroundBrush}"
-                    Foreground="{DynamicResource AccentForegroundBrush}">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"
-                                              TextElement.FontWeight="{TemplateBinding FontWeight}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.85" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.7" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
-            <ui:Button Content="{Markup:Loc Common_Cancel}" Width="80" IsCancel="True" Click="OnCancelClicked" />
-        </StackPanel>
-    </Grid>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <ui:Button x:Name="OkButton" Content="Capture" Width="92" Height="32" Margin="0,0,8,0"
+                           IsDefault="True" Click="OnOkClicked" FontWeight="SemiBold"
+                           Appearance="Primary" />
+                <ui:Button Content="{Markup:Loc Common_Cancel}" Width="80" Height="32"
+                           IsCancel="True" Click="OnCancelClicked" />
+            </StackPanel>
+        </Grid>
+    </Border>
 </Window>

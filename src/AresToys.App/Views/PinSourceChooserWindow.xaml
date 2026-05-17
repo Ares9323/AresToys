@@ -7,25 +7,32 @@
         SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        AllowsTransparency="False"
-        Background="{DynamicResource Surface2Brush}"
+        AllowsTransparency="True"
+        Background="Transparent"
         Foreground="White"
         ResizeMode="NoResize"
         Topmost="True"
         ShowInTaskbar="False">
-    <StackPanel Margin="20" Width="320">
-        <TextBlock Text="Pin to screen" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <TextBlock Text="Pick a source for the image you want to pin on top of everything else."
-                   Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16" />
-        <ui:Button x:Name="FromScreenButton" Content="From screen…"
-                   HorizontalAlignment="Stretch" Margin="0,0,0,6"
-                   ToolTip="Drag a region on the screen; the captured area stays pinned at its original position." />
-        <ui:Button x:Name="FromClipboardButton" Content="From clipboard"
-                   HorizontalAlignment="Stretch" Margin="0,0,0,6"
-                   ToolTip="Pin the image currently on the system clipboard." />
-        <ui:Button x:Name="FromFileButton" Content="From file…"
-                   HorizontalAlignment="Stretch" Margin="0,0,0,12"
-                   ToolTip="Pick a PNG / JPG / BMP / GIF file and pin it." />
-        <ui:Button x:Name="CancelButton" Content="{Markup:Loc Common_Cancel}" HorizontalAlignment="Right" Width="100" />
-    </StackPanel>
+    <!-- AllowsTransparency=True + Background=Transparent on the Window so the inner Border can
+         render rounded corners + a 1px outer stroke that reads as a real card against the
+         desktop. Same shell as IconPickerDialog / HotkeyCapture / Launcher. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+            CornerRadius="8">
+        <StackPanel Margin="20" Width="320">
+            <TextBlock Text="Pin to screen" Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBlock Text="Pick a source for the image you want to pin on top of everything else."
+                       Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16" />
+            <ui:Button x:Name="FromScreenButton" Content="From screen…"
+                       HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                       ToolTip="Drag a region on the screen; the captured area stays pinned at its original position." />
+            <ui:Button x:Name="FromClipboardButton" Content="From clipboard"
+                       HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                       ToolTip="Pin the image currently on the system clipboard." />
+            <ui:Button x:Name="FromFileButton" Content="From file…"
+                       HorizontalAlignment="Stretch" Margin="0,0,0,12"
+                       ToolTip="Pick a PNG / JPG / BMP / GIF file and pin it." />
+            <ui:Button x:Name="CancelButton" Content="{Markup:Loc Common_Cancel}" HorizontalAlignment="Right" Width="100" />
+        </StackPanel>
+    </Border>
 </Window>
