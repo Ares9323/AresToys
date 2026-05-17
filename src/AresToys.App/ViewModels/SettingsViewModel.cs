@@ -20,9 +20,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string ClipboardModuleKey  = ModuleSettings.ClipboardKey;
     private const string LauncherModuleKey   = ModuleSettings.LauncherKey;
     private const string WormholesModuleKey  = ModuleSettings.WormholesKey;
+    private const string KeySequencesModuleKey = ModuleSettings.KeySequencesKey;
     private readonly AutostartService _autostart;
     private readonly ISettingsStore _settingsStore;
     private readonly PopupWindowViewModel _clipboardVm;
+    private readonly AresToys.App.Services.KeySequences.KeySequenceModuleSettings _keySequencesSettings;
 
     public SettingsViewModel(
         PluginRegistry registry,
@@ -36,11 +38,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         CategoriesViewModel categories,
         DebugViewModel debug,
         WormholesViewModel wormholes,
-        PopupWindowViewModel clipboardVm)
+        PopupWindowViewModel clipboardVm,
+        AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings)
     {
         _autostart = autostart;
         _settingsStore = settingsStore;
         _clipboardVm = clipboardVm;
+        _keySequencesSettings = keySequencesSettings;
         Theme = theme;
         Categories = categories;
         Debug = debug;
@@ -178,6 +182,33 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _wormholesModuleEnabled;
 
+    /// <summary>Bound to the Settings → Modules "Key Sequences" toggle. Defaults OFF — the module
+    /// installs a global keyboard stream listener when enabled, so opt-in only. Toggle persists
+    /// immediately; takes effect at next launch (the listener install path runs once at startup).</summary>
+    [ObservableProperty]
+    private bool _keySequencesModuleEnabled;
+
+    /// <summary>Bound to the "Overlay position" dropdown under the Key Sequences module toggle.
+    /// Hot-reloadable: the change applies on the next overlay spawn — no restart needed (unlike
+    /// the master enable flag, since the overlay positioning logic re-reads
+    /// <see cref="KeySequenceModuleSettings.Position"/> each Show).</summary>
+    [ObservableProperty]
+    private string _keySequencesPosition = nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter);
+
+    /// <summary>Options bound to the position dropdown's ItemsSource. Strings rather than enum
+    /// values so XAML data-binding stays simple and back-compat with old serialized values (the
+    /// settings store always reads/writes the enum name as a string).</summary>
+    public IReadOnlyList<string> KeySequencesPositionOptions { get; } = new[]
+    {
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.MouseCursor),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.LastPosition),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedTop),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedBottom),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.CaretRight),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.CaretTop),
+    };
+
     /// <summary>True while at least one module toggle has been changed in the current session.
     /// Bound to a hint label below the toggle group that prompts the user to restart for the
     /// changes to take effect — the gates fire once on startup, so live tear-down isn't
@@ -194,6 +225,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _suppressClipboardModulePersist;
     private bool _suppressLauncherModulePersist;
     private bool _suppressWormholesModulePersist;
+    private bool _suppressKeySequencesModulePersist;
+    private bool _suppressKeySequencesPositionPersist;
 
     private async Task LoadPersistedSettingsAsync()
     {
@@ -247,6 +280,26 @@ public sealed partial class SettingsViewModel : ObservableObject
         _suppressWormholesModulePersist = true;
         try { WormholesModuleEnabled = string.Equals(rawWormholesModule, "true", StringComparison.OrdinalIgnoreCase); }
         finally { _suppressWormholesModulePersist = false; }
+
+        var rawKeySequencesModule = await _settingsStore.GetAsync(KeySequencesModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressKeySequencesModulePersist = true;
+        try { KeySequencesModuleEnabled = string.Equals(rawKeySequencesModule, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressKeySequencesModulePersist = false; }
+
+        // Position mode dropdown: hydrate from the settings store, falling back to the default
+        // (FixedCenter) when unset OR when the stored value is a legacy mode name (Caret /
+        // CaretRight / FixedScreen — removed in favour of the explicit FixedTop/Center/Bottom set).
+        var rawKeySequencesPosition = await _settingsStore.GetAsync(
+            AresToys.App.Services.KeySequences.KeySequenceModuleSettings.KeyPosition,
+            CancellationToken.None).ConfigureAwait(true);
+        _suppressKeySequencesPositionPersist = true;
+        try
+        {
+            KeySequencesPosition = KeySequencesPositionOptions.Contains(rawKeySequencesPosition ?? string.Empty)
+                ? rawKeySequencesPosition!
+                : nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter);
+        }
+        finally { _suppressKeySequencesPositionPersist = false; }
     }
 
     partial void OnStartMinimizedChanged(bool value)
@@ -334,6 +387,30 @@ public sealed partial class SettingsViewModel : ObservableObject
             sensitive: false,
             CancellationToken.None);
         ModulesRestartRequired = true;
+    }
+
+    partial void OnKeySequencesModuleEnabledChanged(bool value)
+    {
+        if (_suppressKeySequencesModulePersist) return;
+        _ = _settingsStore.SetAsync(KeySequencesModuleKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+        ModulesRestartRequired = true;
+    }
+
+    partial void OnKeySequencesPositionChanged(string value)
+    {
+        if (_suppressKeySequencesPositionPersist) return;
+        // Parse the dropdown's string value back to the enum. If parsing fails (e.g. someone
+        // edited the underlying ItemsSource), default to FixedCenter — same fallback the load
+        // path uses. Apply via SetPositionAsync so the in-memory KeySequenceModuleSettings is
+        // updated AS WELL as the on-disk store, giving us a true hot-reload.
+        var mode = Enum.TryParse<AresToys.App.Services.KeySequences.OverlayPositionMode>(
+            value, ignoreCase: false, out var parsed)
+            ? parsed
+            : AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter;
+        _ = _keySequencesSettings.SetPositionAsync(mode, CancellationToken.None);
     }
 
     public bool IsUploadersSelected => SelectedTab == SettingsTab.Uploaders;

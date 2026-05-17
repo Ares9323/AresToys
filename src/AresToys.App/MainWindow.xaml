@@ -572,10 +572,23 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_HotkeysWorkflows}" FontSize="20" FontWeight="SemiBold"
                                        VerticalAlignment="Center" />
-                            <ui:Button Grid.Column="1" Content="{Markup:Loc Common_ResetAll}"
-                                       Appearance="Danger"
-                                       Command="{Binding Hotkeys.Workflows.ResetAllToDefaultsCommand}"
-                                       ToolTip="Reset every built-in workflow to its default steps and hotkey. Asks for confirmation; custom workflows are not touched." />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <!-- Hotkeys-only reset: clears every built-in's binding back to its
+                                     seeded default. Leaves step customisations intact — the user
+                                     keeps their pipeline edits, just the keyboard shortcuts go back. -->
+                                <ui:Button Content="{Markup:Loc Hotkeys_ResetAllHotkeys}"
+                                           Appearance="Danger"
+                                           Margin="0,0,8,0"
+                                           Command="{Binding Hotkeys.Workflows.ResetAllHotkeysCommand}"
+                                           ToolTip="Reset every built-in workflow's hotkey back to its default. Step customisations are kept. Asks for confirmation." />
+                                <!-- Full reset: overwrites Steps + Hotkey from the seeded defaults
+                                     for every built-in. Use when a workflow's been misconfigured
+                                     beyond repair. Custom workflows are not touched. -->
+                                <ui:Button Content="{Markup:Loc Hotkeys_ResetAllWorkflows}"
+                                           Appearance="Danger"
+                                           Command="{Binding Hotkeys.Workflows.ResetAllWorkflowsCommand}"
+                                           ToolTip="Reset every built-in workflow's steps + hotkey to defaults. Asks for confirmation; custom workflows are not touched." />
+                            </StackPanel>
                         </Grid>
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap"
                                    Text="{Markup:Loc Hotkeys_Blurb}" />
@@ -737,14 +750,36 @@
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <Border Grid.Row="0" Background="Transparent">
                                             <Border Height="2" Background="{DynamicResource AccentBackgroundBrush}" CornerRadius="1"
                                                     VerticalAlignment="Center" Margin="2,0"
                                                     Visibility="{Binding IsDropTargetAbove, Converter={StaticResource BoolToVisibility}}" />
                                         </Border>
-                                        <Border Grid.Row="1" Padding="10,8" Background="{DynamicResource Surface1Brush}"
+                                        <!-- Input strip: thin coloured bar attached to the top edge of the step card.
+                                             One segment per Input port, evenly divided via UniformGrid so two-port
+                                             outputs (e.g. Record screen → Payload + Text) show as two side-by-side
+                                             halves. Tooltip ("Input: Payload" etc.) reveals the port name on hover. -->
+                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding Inputs}"
+                                                      Visibility="{Binding HasInputs, Converter={StaticResource BoolToVisibility}}"
+                                                      Margin="0,0,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{Binding Background}" Height="3"
+                                                            CornerRadius="2,2,0,0" Margin="1,0"
+                                                            ToolTip="{Binding Tooltip}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Border Grid.Row="2" Padding="10,8" Background="{DynamicResource Surface1Brush}"
                                                 BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4"
                                                 Opacity="{Binding IsDragSource, Converter={StaticResource BoolToOpacity}}"
                                                 AllowDrop="True"
@@ -953,6 +988,25 @@
                                                 </ui:Button>
                                             </Grid>
                                         </Border>
+                                        <!-- Output strip: mirror of the input strip, attached to the bottom edge of
+                                             the step card. Same UniformGrid layout so two-port outputs split the
+                                             width 50/50. -->
+                                        <ItemsControl Grid.Row="3" ItemsSource="{Binding Outputs}"
+                                                      Visibility="{Binding HasOutputs, Converter={StaticResource BoolToVisibility}}"
+                                                      Margin="0,0,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{Binding Background}" Height="3"
+                                                            CornerRadius="0,0,2,2" Margin="1,0"
+                                                            ToolTip="{Binding Tooltip}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -1991,6 +2045,27 @@
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_ModuleWormholesTooltip}" />
+                            <CheckBox IsChecked="{Binding KeySequencesModuleEnabled, Mode=TwoWay}"
+                                      Content="Key Sequences"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" Margin="0,0,0,4"
+                                      ToolTip="Trigger paste / workflow via typed sequences (e.g. 'mpg@'). Installs a global keyboard stream listener." />
+                            <!-- Position dropdown for the Key Sequences overlay. Only meaningful
+                                 when the module is enabled (gated by IsEnabled binding). Hot-reload:
+                                 the new mode takes effect on the very next overlay spawn, no restart. -->
+                            <StackPanel Orientation="Horizontal" Margin="24,0,0,8"
+                                        IsEnabled="{Binding KeySequencesModuleEnabled}">
+                                <TextBlock Text="Overlay position:"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                           FontSize="11"
+                                           Margin="0,0,6,0" />
+                                <ComboBox ItemsSource="{Binding KeySequencesPositionOptions}"
+                                          SelectedItem="{Binding KeySequencesPosition, Mode=TwoWay}"
+                                          MinWidth="160"
+                                          FontSize="11"
+                                          ToolTip="Where the overlay window appears when a trigger matches. LastPosition restores the position you last dragged the overlay to." />
+                            </StackPanel>
                             <!-- Restart row appears as soon as any module toggle moves. The button
                                  relaunches the process via OnRestartAppClicked (the same handler
                                  previously hosted under the Language card — the language picker
@@ -2212,10 +2287,22 @@
                                Command="{Binding Debug.ClearCommand}"
                                ToolTip="{Markup:Loc Debug_ClearTooltip}" />
                 </Grid>
-                <CheckBox Grid.Row="1" Content="{Markup:Loc Debug_AutoScroll}"
-                          IsChecked="{Binding Debug.AutoScroll, Mode=TwoWay}"
-                          Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,8,0,8"
-                          ToolTip="{Markup:Loc Debug_AutoScrollTooltip}" />
+                <Grid Grid.Row="1" Margin="0,8,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox Grid.Column="0"
+                                Text="{Binding Debug.Filter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                PlaceholderText="Filter (matches category, message, level — case-insensitive)"
+                                FontSize="11"
+                                Margin="0,0,8,0" />
+                    <CheckBox Grid.Column="1" Content="{Markup:Loc Debug_AutoScroll}"
+                              IsChecked="{Binding Debug.AutoScroll, Mode=TwoWay}"
+                              Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                              VerticalAlignment="Center"
+                              ToolTip="{Markup:Loc Debug_AutoScrollTooltip}" />
+                </Grid>
                 <Border Grid.Row="2" Background="{DynamicResource Surface1Brush}" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" CornerRadius="4">
                     <ListBox x:Name="DebugLogList"
                              ItemsSource="{Binding Debug.Entries}"

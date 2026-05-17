@@ -19,8 +19,10 @@ public sealed class ModuleSettings
     public bool ClipboardEnabled { get; set; } = true;
     public bool LauncherEnabled { get; set; } = true;
     public bool WormholesEnabled { get; set; }
+    public bool KeySequencesEnabled { get; set; }
 
     public const string ClipboardKey = "app.modules.clipboard_enabled";
     public const string LauncherKey  = "app.modules.launcher_enabled";
     public const string WormholesKey = "app.modules.wormholes_enabled";
+    public const string KeySequencesKey = "app.modules.keysequences_enabled";
 }

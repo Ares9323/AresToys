@@ -246,11 +246,19 @@ public partial class App : Application
                     sp.GetRequiredService<AresToys.App.Services.Plugins.PluginRegistry>());
 
                 // App-side pipeline tasks (registered as IPipelineTask alongside Pipeline's baked tasks).
-                services.AddSingleton<IPipelineTask, CopyImageToClipboardTask>();
+                // Unified "Add * to AresToys clipboard" family (replaces the old Copy* / SaveQr*
+                // tasks): each writes to the AresToys history and optionally pushes to the
+                // Windows clipboard via the `alsoCopyToWindows` toggle.
+                services.AddSingleton<IPipelineTask, AddFileToClipboardTask>();
+                services.AddSingleton<IPipelineTask, AddImageToClipboardTask>();
+                services.AddSingleton<IPipelineTask, AddTextToClipboardTask>();
+                services.AddSingleton<IPipelineTask, TextToQrPngTask>();
+                services.AddSingleton<IPipelineTask, TextToQrSvgTask>();
                 services.AddSingleton<IPipelineTask, ApplyImageEffectsPresetTask>();
-                services.AddSingleton<IPipelineTask, CopyTextToClipboardTask>();
                 services.AddSingleton<IPipelineTask, UploadClipboardTextTask>();
-                services.AddSingleton<IPipelineTask, NotifyToastTask>();
+                services.AddSingleton<AresToys.App.Services.Notifications.ToastBuilderService>();
+                services.AddSingleton<AresToys.Core.Pipeline.IPipelineNotifier>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.Notifications.ToastBuilderService>());
                 services.AddSingleton<IPipelineTask, TraceToSvgTask>();
                 services.AddSingleton<IPipelineTask, SaveSvgTask>();
                 services.AddSingleton<IPipelineTask, RemoveBackgroundTask>();
@@ -291,9 +299,6 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, SaveAsTask>();
                 services.AddSingleton<AresToys.App.Services.Qr.QrCodeService>();
                 services.AddSingleton<IPipelineTask, QrCodeTask>();
-                services.AddSingleton<IPipelineTask, SaveQrCodeAsImageTask>();
-                services.AddSingleton<IPipelineTask, SaveQrCodeAsSvgTask>();
-                services.AddSingleton<IPipelineTask, CopyQrCodeToClipboardTask>();
                 services.AddSingleton<IPipelineTask, PinToScreenTask>();
                 services.AddSingleton<IPipelineTask, LaunchAppTask>();
                 services.AddSingleton<IPipelineTask, OpenFileTask>();
@@ -322,6 +327,7 @@ public partial class App : Application
                 services.AddSingleton<ClipboardIngestionService>();
                 services.AddSingleton<TargetWindowTracker>();
                 services.AddSingleton<AutoPaster>();
+                services.AddSingleton<AresToys.Pipeline.Tasks.IItemClipboardPublisher, WpfItemClipboardPublisher>();
                 services.AddSingleton<CaptureCoordinator>();
                 services.AddSingleton<ManualUploadService>();
                 services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
@@ -342,6 +348,7 @@ public partial class App : Application
                 services.AddSingleton<Services.Recording.FfmpegDownloader>();
                 services.AddSingleton<Services.Recording.ScreenRecordingService>();
                 services.AddSingleton<Services.Recording.RecordingCoordinator>();
+                services.AddSingleton<Services.Recording.VideoThumbnailService>();
                 services.AddSingleton<AresToys.Editor.Persistence.ColorRecentsStore>();
                 services.AddSingleton<AresToys.Editor.Persistence.EditorDefaultsStore>();
                 services.AddSingleton<AresToys.AI.IImageTracer, AresToys.AI.PotraceImageTracer>();
@@ -361,6 +368,25 @@ public partial class App : Application
 
                 services.AddSingleton<AresToys.App.Services.Hotkeys.HotkeyConfigService>();
                 services.AddSingleton<WorkflowRunner>();
+
+                // Key Sequences module — see docs/superpowers/specs/2026-05-16-key-sequences-design.md
+                // The KeyboardHook is also pulled from DI (was a private field; promoted so the
+                // tracker can reuse the same instance the legacy hotkey registration uses).
+                services.AddSingleton<AresToys.Hotkeys.KeyboardHook>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.KeySequenceModuleSettings>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceMatcher>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.ClipboardSequenceProvider>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.WorkflowSequenceProvider>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.ISequenceBindingProvider>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.KeySequences.ClipboardSequenceProvider>());
+                services.AddSingleton<AresToys.App.Services.KeySequences.ISequenceBindingProvider>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.KeySequences.WorkflowSequenceProvider>());
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceBindingStore>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceOverlayHost>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.ISequenceOverlay>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.KeySequences.SequenceOverlayHost>());
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceDispatcher>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.KeySequenceTracker>();
                 services.AddSingleton<UploadersViewModel>();
                 services.AddSingleton<HotkeysViewModel>();
                 services.AddSingleton<WorkflowActionProvider>();
@@ -410,11 +436,13 @@ public partial class App : Application
         var clipboardModuleRaw = await settingsStore.GetAsync(ModuleSettings.ClipboardKey, CancellationToken.None).ConfigureAwait(true);
         var launcherModuleRaw  = await settingsStore.GetAsync(ModuleSettings.LauncherKey,  CancellationToken.None).ConfigureAwait(true);
         var wormholesModuleRaw = await settingsStore.GetAsync(ModuleSettings.WormholesKey, CancellationToken.None).ConfigureAwait(true);
+        var keySequencesModuleRaw = await settingsStore.GetAsync(ModuleSettings.KeySequencesKey, CancellationToken.None).ConfigureAwait(true);
         // Clipboard + Launcher default ON when unset (preserves historical behaviour for existing
-        // installs). Wormholes defaults OFF — feature still in development, opt-in only.
+        // installs). Wormholes + KeySequences default OFF — features still maturing, opt-in only.
         modules.ClipboardEnabled = !string.Equals(clipboardModuleRaw, "false", StringComparison.OrdinalIgnoreCase);
         modules.LauncherEnabled  = !string.Equals(launcherModuleRaw,  "false", StringComparison.OrdinalIgnoreCase);
         modules.WormholesEnabled =  string.Equals(wormholesModuleRaw, "true",  StringComparison.OrdinalIgnoreCase);
+        modules.KeySequencesEnabled = string.Equals(keySequencesModuleRaw, "true", StringComparison.OrdinalIgnoreCase);
 
         // Wormholes manager init: hydrates records from wormholes.json and spawns a window per
         // non-hidden record. Skipped entirely when the module is off — the JSON file is never
@@ -553,6 +581,31 @@ public partial class App : Application
             {
                 return new[] { string.Empty };
             }
+        };
+
+        // Uploader / shortener dropdowns for the consolidated Upload + Shorten URL workflow
+        // descriptors. Lists are re-evaluated each time the workflow editor materialises a
+        // step, so enabling / disabling plugins in Settings reflects immediately. Empty string
+        // is the first entry of each list — the UploadTask auto-picks a destination from the
+        // bag's file extension when the user leaves the field on empty.
+        var pluginRegistry = _host.Services.GetRequiredService<AresToys.App.Services.Plugins.PluginRegistry>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["uploader_ids"] = () =>
+        {
+            var list = new List<string> { string.Empty };
+            list.AddRange(pluginRegistry.AllUploaders
+                .Where(u => (u.Capabilities & ~AresToys.PluginContracts.UploaderCapabilities.Url) != 0)
+                .Select(u => u.Id)
+                .OrderBy(id => id, StringComparer.Ordinal));
+            return list;
+        };
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["shortener_ids"] = () =>
+        {
+            var list = new List<string> { string.Empty };
+            list.AddRange(pluginRegistry.AllUploaders
+                .Where(u => (u.Capabilities & AresToys.PluginContracts.UploaderCapabilities.Url) == AresToys.PluginContracts.UploaderCapabilities.Url)
+                .Select(u => u.Id)
+                .OrderBy(id => id, StringComparer.Ordinal));
+            return list;
         };
 
         AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["editor_tools"] = () =>
@@ -812,7 +865,7 @@ public partial class App : Application
         // shortcut and even against OS-reserved combos like Win+Shift+S — same approach PowerToys
         // KeyboardManager uses. In-app shortcuts (popup Ctrl+P / Enter / Ctrl+1-9, editor bindings)
         // stay focus-local via the WPF Window's KeyDown handlers — those don't pass through here.
-        _keyboardHook = new KeyboardHook();
+        _keyboardHook = _host.Services.GetRequiredService<KeyboardHook>();
 
         // Every hotkey now invokes a workflow (pipeline profile) by id. The 1:1 mapping between
         // hotkey id and workflow id is intentional: HotkeyConfigService's Catalog is built from
@@ -865,9 +918,42 @@ public partial class App : Application
                 return;
             }
             _keyboardHook.Register(def.Id, def.Modifiers, def.VirtualKey, MakeCallback(def.Id), suppress: true);
+            // Special keys whose KEYDOWN is consumed by Windows before reaching the LL hook —
+            // we use their KEYUP as trigger (see KeyboardHook HookProc). When the rebind itself
+            // came from the user pressing this key inside HotkeyCaptureWindow, its KEYUP races
+            // straight into the freshly-registered binding and fires the workflow once. Swallow
+            // that single residual keyup so the trigger only counts the user's NEXT press.
+            const uint VK_SNAPSHOT = 0x2C;
+            const uint VK_PAUSE    = 0x13;
+            if (def.VirtualKey is VK_SNAPSHOT or VK_PAUSE)
+                _keyboardHook.SuppressNextKeyUp(def.VirtualKey);
             hotkeyLogger.LogInformation("Hotkey {Id} re-bound to {Combo}",
                 def.Id, AresToys.App.Services.Hotkeys.HotkeyDisplay.Format(def.Modifiers, def.VirtualKey));
         };
+
+        // Bootstrap KeySequences module before the hook is installed — the tracker registers a
+        // stream listener which the hook will then start invoking. Loading the runtime settings,
+        // hydrating the workflow-triggers provider, and building the initial matcher index are
+        // all idempotent / cheap when the module is off (the listener simply isn't registered).
+        if (modules.KeySequencesEnabled)
+        {
+            try
+            {
+                var ksSettings = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.KeySequenceModuleSettings>();
+                await ksSettings.LoadAsync(CancellationToken.None);
+                var workflowProvider = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.WorkflowSequenceProvider>();
+                await workflowProvider.LoadAsync(CancellationToken.None);
+                var bindingStore = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.SequenceBindingStore>();
+                bindingStore.Rebuild();
+                var tracker = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.KeySequenceTracker>();
+                tracker.ApplyEnabledState();
+                hotkeyLogger.LogInformation("KeySequences module bootstrapped — tracker listening on stream events.");
+            }
+            catch (Exception ex)
+            {
+                hotkeyLogger.LogError(ex, "KeySequences module bootstrap failed — module disabled for this session.");
+            }
+        }
 
         try { _keyboardHook.Install(); hotkeyLogger.LogInformation("Low-level keyboard hook installed for global hotkeys."); }
         catch (Exception ex) { hotkeyLogger.LogWarning(ex, "Failed to install keyboard hook"); }

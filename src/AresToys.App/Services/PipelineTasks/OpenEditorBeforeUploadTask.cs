@@ -77,12 +77,30 @@ public sealed class OpenEditorBeforeUploadTask : IPipelineTask
         }
         _logger.LogDebug("OpenEditorBeforeUploadTask: fullscreen={Fullscreen} defaultTool='{DefaultTool}'",
             fullscreen, defaultTool ?? "(null)");
+        var abortOnCancel = config?["abortOnCancel"]?.GetValue<bool>() ?? false;
         var edited = await _editor.EditAsync(bytes, fullscreen, defaultTool, cancellationToken).ConfigureAwait(false);
         if (edited is null)
         {
+            if (abortOnCancel)
+            {
+                // User opted in to "Esc / Cancel from the editor cancels the whole workflow".
+                // Common use-case: a capture pipeline where the user wants to throw away the
+                // screenshot if they decided not to edit (no save, no history entry, no upload).
+                // Without the flag the pipeline just keeps the unedited bytes and proceeds.
+                _logger.LogInformation("OpenEditorBeforeUploadTask: user cancelled and abortOnCancel=true → aborting workflow");
+                context.Abort("editor cancelled by user");
+                return;
+            }
             _logger.LogInformation("OpenEditorBeforeUploadTask: user cancelled; keeping original bytes");
             return;
         }
+
+        // Compare against the original bytes so downstream "skip if not modified" steps can
+        // tell apart "user saved without changes" (identical bytes — editor confirmed but nothing
+        // was edited) from "user saved a genuine edit". SequenceEqual is O(n) but capture-sized
+        // payloads are typically 1–5 MB so the cost is in the sub-millisecond band — and runs
+        // exactly once per edit, not per pipeline tick.
+        var modified = !bytes.AsSpan().SequenceEqual(edited.AsSpan());
 
         // Replace the in-flight bytes everywhere subsequent steps look:
         // - bag.payload_bytes → seen by SaveToFile, CopyImage, Upload
@@ -96,6 +114,8 @@ public sealed class OpenEditorBeforeUploadTask : IPipelineTask
                 PayloadSize = edited.LongLength,
             };
         }
-        _logger.LogInformation("OpenEditorBeforeUploadTask: replaced payload with edited version ({Bytes} bytes)", edited.Length);
+
+        if (modified) context.Bag[PipelineBagKeys.PayloadModified] = true;
+        _logger.LogInformation("OpenEditorBeforeUploadTask: replaced payload with edited version ({Bytes} bytes, modified={Modified})", edited.Length, modified);
     }
 }
