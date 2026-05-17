@@ -3,6 +3,140 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.18] — 2026-05-17
+
+Pipeline + workflow editor wave on top of 0.1.17. Generalised the
+Send-key task (PowerToys-KBM remap parity, Issue #5), collapsed eight
+CopyColorAs* tasks into a single Convert color + downstream Add text chain,
+big catalog reorganisation (new Actions + Panels categories, Launch / Notify
+/ Color categories deleted, many task moves), Read Windows clipboard
+generalised to accept files / images / text. Workflow editor gained a
+search bar on the "+ Add step" menu, port-type stripes on every entry,
+duplicate-step button stacked vertically with toggle + trash. New Repeat /
+End Repeat control-flow tasks with visual indent on the editor + optional
+cancel hotkey. Bag-key cleanup collapsed upload_url / upload_urls into
+bag.text. Editor opened from a toast notification now auto-commits the
+edit to AresToys' history so the modifications don't disappear when the
+window closes.
+
+### Repeat + End Repeat (Flow category)
+- `Repeat next steps` re-executes every step BELOW it N times (clamped
+  1-1000), with optional `delayMs` between iterations and an optional
+  cancel-hotkey combo that breaks out early. The cancel combo reuses the
+  same HotkeyCapture picker the Send key task uses.
+- `End repeat` marker closes the scope. Steps below the End render back at
+  the outer indent and run once per workflow execution instead of as part
+  of the loop body. Omit it entirely and Repeat loops the full tail
+  (back-compat behaviour). Orphan End Repeat = runtime no-op + warning
+  banner. Nested Repeats stay unsupported.
+- Workflow editor renders the loop body with a 24-px left indent so the
+  user sees which steps belong to the loop. Port strips above + below the
+  step card share the same indent so the visual is consistent.
+- Executor snapshots the bag at loop entry and restores it at the start of
+  every iteration after the first — without this, transient bag keys from
+  iter N (Capture region's payload_bytes, Save's local_path) carried over
+  and caused capture tasks to wrongly reuse the previous iteration's bytes
+  instead of re-prompting the user.
+- ICancelHotkeyRegistry interface in Core keeps PipelineExecutor decoupled
+  from the Hotkeys assembly; App-layer CancelHotkeyRegistry parses the
+  combo string and registers / disposes through IHotkeyManager.
+
+### Send key / shortcut (Issue #5)
+- PressKeyTask generalised to accept any modifier+key combo via new
+  `KeyComboParser` (reverse of `HotkeyDisplay`). The workflow editor reuses
+  the existing HotkeyCaptureWindow for combo input via a new
+  `StringPickerKind.HotkeyCapture` — picker button next to the textbox
+  opens the same dialog Settings → Hotkeys uses for rebind.
+- 120 ms hardcoded pre-delay before SendInput is gone — was a workaround
+  for the AutoPaster → PressKey Ctrl+V race but charged every standalone
+  Repeat-spammed press 120 ms × N of dead time. Now opt-in via the new
+  `preDelayMs` config key (default 0).
+- `LookupForStep` gains a key-presence discrimination pass so the new
+  `combo` config shape isn't confused with legacy `{"key":"enter"|"tab"}`
+  in the workflow editor's descriptor resolution.
+
+### Convert color refactor
+- Eight CopyColorAs* catalog entries collapsed into one ConvertColorTask
+  (Tools category, was Color which is deleted) with a `format` dropdown —
+  hex variants (with/without #, with/without alpha), rgb / rgba, hsb, cmyk,
+  decimal (ARGB), Linear (UE FLinearColor), BGRA (UE FColor). New
+  ColorFormatLabels + LocalizeOptionsAsColorFormat flag render the dropdown
+  with preview strings (e.g. `Hex with # and alpha | #RRGGBBAA`).
+- Color sampler / Color picker default profiles rewritten as 3-step chains:
+  Sampler/Picker → ConvertColor → AddText (alsoCopyToWindows). Migration in
+  the seeder force-upgrades the legacy 9-step shape.
+
+### Workflow editor UX
+- `+ Add step` menu gains a search bar at the top (auto-focused, matches
+  title / description / category case-insensitively, flat-results below).
+- Each MenuItem now carries left/right port-type stripes (Inputs / Outputs)
+  using the same azzurro/rosa/giallo palette the step row strips use.
+- Per-step controls collapse vertically (Toggle → Duplicate → Trash) into
+  a single 30-px column to free the parameter strip. Duplicate clones the
+  step with a deep-copy of its Config + a fresh Guid id and inserts
+  directly below the source (Figma / Photoshop convention).
+- New `WorkflowActionDescriptor.WarningMessage` field renders an inline
+  warning banner on step cards. Applied to Repeat (high blast radius) and
+  Run shell command (executes whatever's in bag.text when Command is
+  empty — important after the bag.text fallback addition).
+
+### Catalog reorganisation
+- New `Actions` + `Panels` categories. `Notify` / `Color` / `Launch` removed.
+- Tasks moved: Color sampler / Color picker → Tools; Convert color → I/O;
+  Read Windows clipboard → I/O; Toggle incognito / Send key / Open
+  screenshot folder / Launch app / Open file / Run command / Open URL /
+  Trigger launcher key → Actions; Show clipboard window / Open launcher
+  (drag mode) / Open settings / Open editor → Panels.
+- Record screen → "Record screen area" (matches it's region-scoped).
+- "Wormholes:" prefix dropped from the 10 Wormhole-batch task names (the
+  category header already disambiguates).
+- Open settings window gains a `tab` parameter (dropdown of sidebar
+  sections — uploaders, hotkeys, theme, …) that jumps straight to the
+  picked tab on open.
+
+### Read Windows clipboard + bag.text input on Open file / Run command / Launch app / Open URL
+- UploadClipboardTextTask renamed to "Read Windows clipboard" and
+  generalised to detect Files → Image → Text in priority order. Files
+  populate bag.local_path; images PNG-encoded into bag.payload_bytes; text
+  populates both bag.text and bag.payload_bytes (UTF-8).
+- Open file / folder, Run command, Launch app, Open URL all gain a
+  bag.text fallback when their hardcoded path/url/command is empty —
+  letting "Read clipboard → Open folder" / "→ Launch" / "→ Run command" /
+  "→ Open URL" workflows compose without manual config. Hardcoded values
+  always win to prevent bag-hijack.
+- "Add file to AresToys clipboard" renamed to "Add file path" so the Text
+  input port matches the user's mental model (the bag value is a path, not
+  the file bytes).
+
+### bag.text consolidation
+- `bag.upload_url` and `bag.upload_urls` keys removed. UploadTask now
+  writes only `bag.text` + `bag.uploader_id`. The multi-URL slot had zero
+  consumers since the multi-upload feature collapsed in 0.1.16; the single
+  upload_url was always a duplicate of bag.text. UpdateItemUrl, OpenUrl,
+  QrCode and ToastBuilder all migrate to read bag.text; `bag.uploader_id`
+  stays as the sentinel "did an Upload step actually run" so non-upload
+  bag.text (a saved path, a decoded QR) doesn't get mistakenly committed
+  as the item's URL.
+- Shorten URL Input port flips from Payload to Text (semantically honest);
+  UploadTask accepts bag.text as a fallback when `category="url"` so URL
+  shorteners work without a payload intermediary.
+
+### Editor save-from-toast auto-add to clipboard
+- Toast "Open in editor" path now auto-commits the edit to AresToys'
+  history on save (new `EditorLauncher.EditPathAsync` wraps the
+  file-read → edit → write-back → history-insert → Windows-clipboard push
+  pipeline). Previous behaviour silently dropped the edit if the source
+  wasn't already a history item.
+
+### Clipboard popup — graceful fallback for undecodable video
+- WPF `MediaElement` can't decode WebM / VP9 / VP8 without the Web Media
+  Extensions Store package. The 0.1.17 video pipeline gained a webm output
+  option so users would hit this — instead of swapping the preview to a
+  still-frame thumbnail the preview pane keeps the video surface and
+  replaces the bottom Play/Pause + seek strip with a "Preview not
+  supported" line + **Open with default viewer** button (ShellExecute on
+  the file path → VLC / system default video player).
+
 ## [0.1.17] — 2026-05-17
 
 Maintenance + structural follow-up on top of 0.1.16. Screen recording was
