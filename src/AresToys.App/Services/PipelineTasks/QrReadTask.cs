@@ -23,12 +23,14 @@ public sealed class QrReadTask : IPipelineTask
     public const string TaskId = "arestoys.qr-read";
 
     private readonly QrReaderService _reader;
+    private readonly Notifications.ToastBuilderService? _toast;
     private readonly ILogger<QrReadTask> _logger;
 
-    public QrReadTask(QrReaderService reader, ILogger<QrReadTask> logger)
+    public QrReadTask(QrReaderService reader, ILogger<QrReadTask> logger, Notifications.ToastBuilderService? toast = null)
     {
         _reader = reader;
         _logger = logger;
+        _toast = toast;
     }
 
     public string Id => TaskId;
@@ -61,6 +63,7 @@ public sealed class QrReadTask : IPipelineTask
         context.Bag[PipelineBagKeys.PayloadBytes] = textBytes;
         context.Bag[PipelineBagKeys.FileExtension] = "txt";
         context.Bag["qr_text"] = text;
+        context.Bag[PipelineBagKeys.Text] = text;
 
         // Critical: rewrite the staged NewItem from Image (set by the prior CaptureRegion step)
         // to Text. Without this AddToHistory persists the row as Image with text-bytes inside,
@@ -80,6 +83,13 @@ public sealed class QrReadTask : IPipelineTask
         }
 
         _logger.LogDebug("QrReadTask: decoded {Chars} chars", text.Length);
+
+        if ((bool?)config?["showNotification"] == true && _toast is not null)
+        {
+            // ToastBuilder picks Open URL (if http(s)) + Copy text + Edit (system editor)
+            // automatically based on the just-rewritten NewItem text payload.
+            _toast.ShowFromBag(context, (string?)config?["notificationTitle"]);
+        }
         return Task.CompletedTask;
     }
 }

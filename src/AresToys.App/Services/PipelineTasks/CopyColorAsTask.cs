@@ -66,7 +66,7 @@ public sealed class CopyColorAsHexTask : CopyColorAsTaskBase
 {
     public const string TaskId = "arestoys.copy-color-hex";
     public override string Id => TaskId;
-    public override string DisplayName => "Copy color as Hex";
+    public override string DisplayName => "Copy color as HEX";
 
     /// <summary>Config schema: <c>{"alpha": bool, "hash": bool}</c>.
     /// Output format is <b>RRGGBB</b> (web/CSS convention) by default; with
