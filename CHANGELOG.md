@@ -17,6 +17,33 @@ paste replaces SendInput Ctrl+V for AresToys dialogs, scrollbar no longer
 overlaps the window-resize hit zone, ESC works in region overlay before the
 first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
 
+### Wormhole — shortcut arrow restored on `.lnk` tiles
+- The 0.1.15 favicon-upscale fix moved the icon pipeline through
+  `IShellItemImageFactory::GetImage` first, which does NOT composite the shell
+  link-arrow overlay (the older imagelist + `SHGFI_OVERLAYINDEX` path did).
+  Result: every `.lnk` in a wormhole rendered as the bare target icon.
+- New `ExtractViaShellItemImageFactoryWithOverlay` keeps the upscale and, for
+  `.lnk` paths, fetches the stock shortcut glyph via
+  `SHGetStockIconInfo(SIID_LINK)` and composites it bottom-left at ~50 % size
+  with `DrawingVisual` + `RenderTargetBitmap` — matches Explorer's convention.
+
+### Wormhole — F2 rename UX fixes
+- During inline rename the original tile label is now hidden via an
+  `IsRenaming` flag bound through `InverseBoolToVisibilityConverter`, so the
+  rename TextBox no longer draws on top of the old text (two overlapping
+  strings was unreadable).
+- Rename editor grows horizontally with the typed text instead of being
+  clamped to `TileWidth`. `FormattedText`-based measurement on every
+  `TextChanged` resizes the box and recentres it around the tile column,
+  clamped to `ContentGrid` bounds — Windows Explorer behaviour.
+- `LostFocus` → `LostKeyboardFocus` so clicks outside the window actually
+  close the rename overlay; `Window.Deactivated` is a belt-and-suspenders
+  fallback for focus-handoff paths where `LostKeyboardFocus` skips.
+- After commit (success or no-op) and after Esc cancel, the renamed tile is
+  re-selected and re-focused. Commit-success needs a pending-path stash
+  consumed in `RefreshPortalItems` because the `FolderWatcher`'s 300 ms
+  debounce means the new VM doesn't exist yet at the moment Move returns.
+
 ## [0.1.15] — 2026-05-16
 
 Wormhole settings expanded with independent typography / opacity / overlap
