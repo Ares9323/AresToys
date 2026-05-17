@@ -3131,6 +3131,17 @@ namespace AresToys.App.Resources {
         public static string RegionOverlay_ApplyButton => ResourceManager.GetString("RegionOverlay_ApplyButton", resourceCulture);
         public static string RegionOverlay_CancelButton => ResourceManager.GetString("RegionOverlay_CancelButton", resourceCulture);
         public static string ScreenColorPicker_Hint => ResourceManager.GetString("ScreenColorPicker_Hint", resourceCulture);
+        public static string ImageEffects_EditGradientTooltip => ResourceManager.GetString("ImageEffects_EditGradientTooltip", resourceCulture);
+        public static string SxcuImport_Title => ResourceManager.GetString("SxcuImport_Title", resourceCulture);
+        public static string SxcuImport_LeadIn => ResourceManager.GetString("SxcuImport_LeadIn", resourceCulture);
+        public static string SxcuImport_Hint => ResourceManager.GetString("SxcuImport_Hint", resourceCulture);
+        public static string Trace_PickedColours => ResourceManager.GetString("Trace_PickedColours", resourceCulture);
+        public static string Trace_PickedColourCellTooltip => ResourceManager.GetString("Trace_PickedColourCellTooltip", resourceCulture);
+        public static string Trace_PickScreenTooltip => ResourceManager.GetString("Trace_PickScreenTooltip", resourceCulture);
+        public static string Uploader_SensitiveHint => ResourceManager.GetString("Uploader_SensitiveHint", resourceCulture);
+        public static string Uploader_NotSignedIn => ResourceManager.GetString("Uploader_NotSignedIn", resourceCulture);
+        public static string Uploader_SignedIn => ResourceManager.GetString("Uploader_SignedIn", resourceCulture);
+        public static string Wormhole_RollUpUnrollTooltip => ResourceManager.GetString("Wormhole_RollUpUnrollTooltip", resourceCulture);
 
         /// <summary>
         ///   Looks up a localized string similar to Clone this workflow into a new editable copy.

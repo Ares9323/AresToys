@@ -123,7 +123,7 @@
                          every pixel to a single colour and produce a flat silhouette. -->
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                                 Visibility="{Binding IsCustomPalette, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="Picked colours: " VerticalAlignment="Center" Margin="0,0,8,0"
+                        <TextBlock Text="{markup:Loc Trace_PickedColours}" VerticalAlignment="Center" Margin="0,0,8,0"
                                    Foreground="{DynamicResource AccentForegroundDarkBrush}" />
                         <ItemsControl ItemsSource="{Binding CustomPalette}">
                             <ItemsControl.ItemsPanel>
@@ -139,7 +139,7 @@
                                             BorderBrush="{DynamicResource OuterBorderBrush}"
                                             BorderThickness="1"
                                             Cursor="Hand"
-                                            ToolTip="Click: re-pick · Right-click: remove"
+                                            ToolTip="{markup:Loc Trace_PickedColourCellTooltip}"
                                             MouseLeftButtonDown="OnCustomSwatchLeftClick"
                                             MouseRightButtonDown="OnCustomSwatchRightClick" />
                                 </DataTemplate>
@@ -148,7 +148,7 @@
                         <ui:Button Width="28" Height="28" Padding="0" Margin="2,0,0,0"
                                    Click="OnAddCustomSwatchClicked"
                                    IsEnabled="{Binding CanAddSwatch}"
-                                   ToolTip="Pick another colour from screen">
+                                   ToolTip="{markup:Loc Trace_PickScreenTooltip}">
                             <TextBlock Text="+" FontSize="16" FontWeight="Bold"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </ui:Button>

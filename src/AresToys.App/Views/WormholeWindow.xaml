@@ -1,6 +1,7 @@
 <Window x:Class="AresToys.App.Views.WormholeWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -79,7 +80,7 @@
                             Background="Transparent"
                             BorderThickness="0"
                             Click="OnChevronClicked"
-                            ToolTip="Roll up / unroll">
+                            ToolTip="{Markup:Loc Wormhole_RollUpUnrollTooltip}">
                         <TextBlock x:Name="ChevronGlyph"
                                    FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                    FontSize="12"

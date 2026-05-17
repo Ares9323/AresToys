@@ -579,7 +579,7 @@
                                                     BorderThickness="1"
                                                     Background="{StaticResource CheckerBrush}"
                                                     Cursor="Hand"
-                                                    ToolTip="Click to edit gradient"
+                                                    ToolTip="{Markup:Loc ImageEffects_EditGradientTooltip}"
                                                     Tag="{Binding}"
                                                     MouseLeftButtonDown="OnGradientSwatchMouseDown"
                                                     Visibility="{Binding IsGradient, Converter={StaticResource BoolToVisibility}}">

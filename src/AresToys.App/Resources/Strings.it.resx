@@ -406,6 +406,17 @@
   <data name="RegionOverlay_ApplyButton" xml:space="preserve"><value>Applica (Invio)</value></data>
   <data name="RegionOverlay_CancelButton" xml:space="preserve"><value>Annulla (Esc)</value></data>
   <data name="ScreenColorPicker_Hint" xml:space="preserve"><value>Clic: scegli · Rotella: zoom · Esc/Destro: annulla</value></data>
+  <data name="ImageEffects_EditGradientTooltip" xml:space="preserve"><value>Clicca per modificare il gradiente</value></data>
+  <data name="SxcuImport_Title" xml:space="preserve"><value>Installare l'uploader personalizzato?</value></data>
+  <data name="SxcuImport_LeadIn" xml:space="preserve"><value>AresToys vuole installare</value></data>
+  <data name="SxcuImport_Hint" xml:space="preserve"><value>Il file .sxcu verrà copiato nella cartella custom-uploaders. AresToys deve essere riavviato perché il nuovo uploader appaia in Settings → Uploaders.</value></data>
+  <data name="Trace_PickedColours" xml:space="preserve"><value>Colori scelti: </value></data>
+  <data name="Trace_PickedColourCellTooltip" xml:space="preserve"><value>Clic: riassegna · Tasto destro: rimuovi</value></data>
+  <data name="Trace_PickScreenTooltip" xml:space="preserve"><value>Scegli un altro colore dallo schermo</value></data>
+  <data name="Uploader_SensitiveHint" xml:space="preserve"><value>I valori sensibili sono crittografati (DPAPI). Lascia un campo vuoto per cancellarlo.</value></data>
+  <data name="Uploader_NotSignedIn" xml:space="preserve"><value>Non autenticato</value></data>
+  <data name="Uploader_SignedIn" xml:space="preserve"><value>Autenticato</value></data>
+  <data name="Wormhole_RollUpUnrollTooltip" xml:space="preserve"><value>Arrotola / srotola</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Avvia minimizzato</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>All'avvio salta la finestra principale e resta nella tray. Clicca l'icona tray per aprire le Impostazioni quando serve.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Avvia editor a schermo intero</value></data>

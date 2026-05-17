@@ -421,6 +421,17 @@
   <data name="RegionOverlay_ApplyButton" xml:space="preserve"><value>Apply (Enter)</value></data>
   <data name="RegionOverlay_CancelButton" xml:space="preserve"><value>Cancel (Esc)</value></data>
   <data name="ScreenColorPicker_Hint" xml:space="preserve"><value>Click: pick · Wheel: zoom · Esc/RMB: cancel</value></data>
+  <data name="ImageEffects_EditGradientTooltip" xml:space="preserve"><value>Click to edit gradient</value></data>
+  <data name="SxcuImport_Title" xml:space="preserve"><value>Install custom uploader?</value></data>
+  <data name="SxcuImport_LeadIn" xml:space="preserve"><value>AresToys wants to install</value></data>
+  <data name="SxcuImport_Hint" xml:space="preserve"><value>The .sxcu file will be copied to your custom-uploaders folder. AresToys needs to restart for the new uploader to appear in Settings → Uploaders.</value></data>
+  <data name="Trace_PickedColours" xml:space="preserve"><value>Picked colours: </value></data>
+  <data name="Trace_PickedColourCellTooltip" xml:space="preserve"><value>Click: re-pick · Right-click: remove</value></data>
+  <data name="Trace_PickScreenTooltip" xml:space="preserve"><value>Pick another colour from screen</value></data>
+  <data name="Uploader_SensitiveHint" xml:space="preserve"><value>Sensitive values are stored encrypted (DPAPI). Leave a field blank to clear it.</value></data>
+  <data name="Uploader_NotSignedIn" xml:space="preserve"><value>Not signed in</value></data>
+  <data name="Uploader_SignedIn" xml:space="preserve"><value>Signed in</value></data>
+  <data name="Wormhole_RollUpUnrollTooltip" xml:space="preserve"><value>Roll up / unroll</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Start minimized</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>Skip the main window on launch and stay in the tray. Click the tray icon to open the Settings window when needed.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Start editor maximized</value></data>

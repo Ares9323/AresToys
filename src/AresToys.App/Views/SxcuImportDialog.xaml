@@ -25,14 +25,14 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Install custom uploader?"
+        <TextBlock Grid.Row="0" Text="{Markup:Loc SxcuImport_Title}"
                    FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
 
         <!-- Body: name + category, mirroring ShareX's "Would you like to set X as the active
              custom uploader for Y?" prompt — slightly rephrased because AresToys's selection model
              is multi-select-per-category, not single-active. -->
         <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,8">
-            <Run Text="AresToys wants to install" />
+            <Run Text="{Markup:Loc SxcuImport_LeadIn}" />
             <Run x:Name="NameRun" FontWeight="SemiBold" />
             <Run Text="as a custom uploader for the" />
             <Run x:Name="CategoryRun" FontWeight="SemiBold" />
@@ -41,7 +41,7 @@
 
         <TextBlock Grid.Row="2" TextWrapping="Wrap" FontSize="11"
                    Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,0,0,4"
-                   Text="The .sxcu file will be copied to your custom-uploaders folder. AresToys needs to restart for the new uploader to appear in Settings → Uploaders." />
+                   Text="{Markup:Loc SxcuImport_Hint}" />
 
         <TextBlock Grid.Row="3" x:Name="SourcePathRun" TextWrapping="Wrap" FontSize="10"
                    Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,4,0,16" />

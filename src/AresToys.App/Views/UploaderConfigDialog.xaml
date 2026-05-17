@@ -100,7 +100,7 @@
                    Margin="0,0,0,4" />
         <TextBlock Grid.Row="1" FontSize="12" Margin="0,0,0,16"
                    Foreground="{DynamicResource AccentForegroundDarkBrush}"
-                   Text="Sensitive values are stored encrypted (DPAPI). Leave a field blank to clear it." />
+                   Text="{Markup:Loc Uploader_SensitiveHint}" />
 
         <!-- OAuth sign-in panel — only present for IOAuthUploader implementations. Three states:
              not signed in (Sign-in button), busy (spinner-text + status), signed in (label + Sign-out).
@@ -118,12 +118,12 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
                         <!-- Signed-out state -->
-                        <TextBlock Text="Not signed in"
+                        <TextBlock Text="{Markup:Loc Uploader_NotSignedIn}"
                                    Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                    Visibility="{Binding IsSignedIn, Converter={StaticResource InverseBoolToVisibility}}" />
                         <!-- Signed-in state: account label OR generic "Signed in" if provider doesn't expose one -->
                         <StackPanel Visibility="{Binding IsSignedIn, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="Signed in"
+                            <TextBlock Text="{Markup:Loc Uploader_SignedIn}"
                                        Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                        Visibility="{Binding SignedInDisplayName, Converter={StaticResource NullToVisibility}}" />
                             <TextBlock Text="{Binding SignedInDisplayName}" FontWeight="SemiBold"
