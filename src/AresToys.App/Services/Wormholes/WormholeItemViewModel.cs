@@ -138,6 +138,14 @@ public sealed partial class WormholeItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isCutMarked;
 
+    /// <summary>True while this item's label is being inline-renamed via the window-level
+    /// <c>ItemRenameEditor</c> TextBox. Bound to the label TextBlock's Visibility (via
+    /// InverseBoolToVisibility) so the original label hides while the rename overlay is up —
+    /// otherwise the two texts overlap on top of each other and the user can't tell which one
+    /// they're editing. Reset by BeginItemRename / EndItemRename in the window code-behind.</summary>
+    [ObservableProperty]
+    private bool _isRenaming;
+
     public WormholeItemViewModel(
         string absolutePath,
         IconService icons,

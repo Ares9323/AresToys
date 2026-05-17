@@ -1,6 +1,8 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace AresToys.App.Services.Launcher;
@@ -44,9 +46,11 @@ public sealed class IconService
         // imagelist slot with transparent padding — so a .url whose IconFile is a 16-px favicon
         // comes back as a 16-px glyph in the top-left of an otherwise empty 48-px bitmap, which
         // WPF then renders as a tiny icon floating in the corner of the tile. SIIGBF_RESIZETOFIT
-        // makes the shell actually scale.
+        // makes the shell actually scale. Downside: IShellItemImageFactory does NOT composite
+        // shell overlays — the .lnk shortcut arrow / OneDrive cloud glyph is dropped — so for
+        // .lnk we re-add the arrow ourselves via SHGetStockIconInfo(SIID_LINK).
         var bmp = LoadFromImageFile(expanded)
-                  ?? ExtractViaShellItemImageFactory(expanded, sizePx)
+                  ?? ExtractViaShellItemImageFactoryWithOverlay(expanded, sizePx)
                   ?? ExtractIconAtSize(expanded, sizePx)
                   ?? ExtractIcon(expanded);
         lock (_lock)
@@ -194,12 +198,75 @@ public sealed class IconService
         }
     }
 
+    /// <summary>Wraps <see cref="ExtractViaShellItemImageFactory"/> and re-adds the link-arrow
+    /// overlay for <c>.lnk</c> files. IShellItemImageFactory doesn't composite shell overlays
+    /// (that's only the imagelist + SHGFI_OVERLAYINDEX path), so for shortcuts we paint the
+    /// stock SIID_LINK glyph onto the bottom-left of the upscaled icon at ~50% size — close to
+    /// Explorer's own convention. Non-.lnk paths pass through unchanged.</summary>
+    private static BitmapSource? ExtractViaShellItemImageFactoryWithOverlay(string path, int sizePx)
+    {
+        var baseImg = ExtractViaShellItemImageFactory(path, sizePx);
+        if (baseImg is null) return null;
+        if (!path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) return baseImg;
+
+        var overlay = GetLinkOverlayIcon(sizePx);
+        if (overlay is null) return baseImg;
+
+        return ComposeOverlay(baseImg, overlay, sizePx);
+    }
+
+    /// <summary>Renders the Windows stock "shortcut" arrow glyph (<c>SIID_LINK</c>) at a size
+    /// appropriate for compositing as an overlay. Returns null on COM failure — caller treats
+    /// that as "ship the base icon without the arrow", which is a strictly better outcome than
+    /// returning nothing.</summary>
+    private static BitmapSource? GetLinkOverlayIcon(int sizePx)
+    {
+        var info = new SHSTOCKICONINFO { cbSize = (uint)Marshal.SizeOf<SHSTOCKICONINFO>() };
+        // SHGSI_LARGEICON returns the 32-px stock icon — fine for compositing onto base sizes
+        // 32–96 px. For very small tiles (≤16) we still ask for SMALLICON to avoid blurry
+        // downscale of a 32-px glyph; for very large tiles WPF resamples our 32-px overlay,
+        // which is fine because the link arrow is a simple shape that scales cleanly.
+        uint flags = SHGSI_ICON | (sizePx <= 16 ? SHGSI_SMALLICON : SHGSI_LARGEICON);
+        if (SHGetStockIconInfo(SIID_LINK, flags, ref info) != 0 || info.hIcon == IntPtr.Zero)
+            return null;
+        try
+        {
+            var src = Imaging.CreateBitmapSourceFromHIcon(info.hIcon,
+                System.Windows.Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+            src.Freeze();
+            return src;
+        }
+        catch { return null; }
+        finally { DestroyIcon(info.hIcon); }
+    }
+
+    /// <summary>Composites <paramref name="overlay"/> onto the bottom-left of <paramref name="baseImg"/>
+    /// at ~50% size — mimics Explorer's shortcut-arrow placement convention. Uses a
+    /// DrawingVisual + RenderTargetBitmap so the result is a normal WPF BitmapSource the cache
+    /// can hand to bindings just like any other icon path.</summary>
+    private static BitmapSource ComposeOverlay(BitmapSource baseImg, BitmapSource overlay, int sizePx)
+    {
+        var dv = new DrawingVisual();
+        using (var ctx = dv.RenderOpen())
+        {
+            ctx.DrawImage(baseImg, new Rect(0, 0, sizePx, sizePx));
+            double overlaySize = sizePx * 0.5;
+            ctx.DrawImage(overlay, new Rect(0, sizePx - overlaySize, overlaySize, overlaySize));
+        }
+        var rtb = new RenderTargetBitmap(sizePx, sizePx, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(dv);
+        rtb.Freeze();
+        return rtb;
+    }
+
     /// <summary>Modern shell-icon path via <see cref="IShellItemImageFactory"/>::GetImage. Unlike
     /// the imagelist route below this one ACTUALLY scales the source icon to the requested pixel
     /// size: a tiny embedded favicon in a <c>.url</c> file gets upscaled to fill the tile instead
     /// of sitting as a 16-px glyph in the corner of a 48-px transparent canvas (which is exactly
-    /// the bug this method fixes). The composited link-arrow overlay still comes through because
-    /// IShellItemImageFactory uses Explorer's full icon pipeline. Returns null on COM failure so
+    /// the bug this method fixes). Does NOT composite shell overlays (link arrow / OneDrive
+    /// glyph) — callers that need those should wrap via
+    /// <see cref="ExtractViaShellItemImageFactoryWithOverlay"/>. Returns null on COM failure so
     /// the caller can fall through to the legacy paths.</summary>
     private static BitmapSource? ExtractViaShellItemImageFactory(string path, int sizePx)
     {
@@ -415,4 +482,26 @@ public sealed class IconService
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern uint ExtractIconEx(string lpszFile, int nIconIndex,
         out IntPtr phiconLarge, out IntPtr phiconSmall, uint nIcons);
+
+    // SHGetStockIconInfo — returns one of Windows' built-in shell icons. SIID_LINK (29) is the
+    // standalone shortcut-arrow glyph used by Explorer as the .lnk overlay. SHGSI_ICON gives us
+    // an HICON we own and must DestroyIcon; the size hints (LARGEICON/SMALLICON) pick between
+    // the 32 and 16-px frames.
+    private const int SIID_LINK = 29;
+    private const uint SHGSI_ICON = 0x000000100;
+    private const uint SHGSI_LARGEICON = 0x000000000;
+    private const uint SHGSI_SMALLICON = 0x000000001;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SHSTOCKICONINFO
+    {
+        public uint cbSize;
+        public IntPtr hIcon;
+        public int iSysImageIndex;
+        public int iIcon;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szPath;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+    private static extern int SHGetStockIconInfo(int siid, uint uFlags, ref SHSTOCKICONINFO psii);
 }

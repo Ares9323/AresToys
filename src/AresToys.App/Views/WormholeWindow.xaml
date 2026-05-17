@@ -299,6 +299,7 @@
                                                    Width="{Binding TileWidth}"
                                                    MaxWidth="{Binding TileWidth}"
                                                    MaxHeight="{Binding LabelAreaHeight}"
+                                                   Visibility="{Binding IsRenaming, Converter={StaticResource InverseBoolToVisibility}}"
                                                    Foreground="{DynamicResource AccentForegroundBrush}"
                                                    FontSize="{Binding LabelFontSizePx}"
                                                    TextAlignment="Center"
@@ -342,8 +343,11 @@
                              Foreground="{DynamicResource AccentForegroundBrush}"
                              BorderBrush="{DynamicResource AccentBackgroundBrush}"
                              BorderThickness="1"
+                             TextWrapping="NoWrap"
+                             AcceptsReturn="False"
                              KeyDown="OnItemRenameEditorKeyDown"
-                             LostFocus="OnItemRenameEditorLostFocus" />
+                             LostKeyboardFocus="OnItemRenameEditorLostKeyboardFocus"
+                             TextChanged="OnItemRenameEditorTextChanged" />
 
                     <StackPanel x:Name="SourceMissingPanel"
                                 HorizontalAlignment="Center" VerticalAlignment="Center"

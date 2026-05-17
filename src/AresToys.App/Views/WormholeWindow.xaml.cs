@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using AresToys.App.Services.Launcher;
 using AresToys.App.Services.Wormholes;
@@ -135,6 +136,16 @@ public partial class WormholeWindow : Window
         // state — and we can mark e.Handled = true before the ListBox sees it (which would
         // otherwise scroll the content while we're trying to zoom).
         PreviewMouseWheel += OnPreviewMouseWheelZoom;
+
+        // Safety net for inline rename: if the user clicks outside the wormhole window entirely
+        // (another app, the desktop) the rename TextBox's LostKeyboardFocus does fire in most
+        // cases, but on some focus-handoff paths (e.g. activating a window of a different
+        // process) it can be skipped. Deactivated is the lowest-common-denominator signal that
+        // the user has moved on, so we commit-or-cancel here as a fallback.
+        Deactivated += (_, _) =>
+        {
+            if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
+        };
 
         // Edge-resize via WM_NCHITTEST. WindowStyle=None + AllowsTransparency=True kills WPF's
         // native resize border; we synthesise hit-zones manually so the cursor switches to the
@@ -471,6 +482,11 @@ public partial class WormholeWindow : Window
             EmptyStateHint.Text = $"Folder has more than {PortalItemCap} entries — only the first {PortalItemCap} are shown.";
             EmptyStateHint.Visibility = Visibility.Visible;
         }
+
+        // If a rename just landed via FileSystemWatcher, the freshly-rebuilt _items now
+        // contains the renamed file under its new path — restore selection on it so arrow-key
+        // navigation resumes on the same tile the user just renamed.
+        ConsumePendingSelectionAfterRefresh();
     }
 
     // -----------------------------------------------------------------------------------------
@@ -1582,6 +1598,11 @@ public partial class WormholeWindow : Window
     /// commits against the original tile, not the new selection).</summary>
     private WormholeItemViewModel? _renamingItem;
 
+    /// <summary>Cached tile-top-left in ContentGrid coordinates for the in-flight rename, so
+    /// TextChanged can re-centre the (growing) editor around the tile without re-querying the
+    /// ListBoxItem container on every keystroke.</summary>
+    private Point _renameTileTopLeft;
+
     private void BeginItemRename(WormholeItemViewModel vm)
     {
         // Force container realization for items that aren't in view yet — virtualization can
@@ -1600,15 +1621,20 @@ public partial class WormholeWindow : Window
         // in the tile's Grid (row 1), starting at IconSizePx + iconMargin.Top inside the tile.
         // TranslatePoint gives us the tile's top-left in ContentGrid coordinates; we add the
         // label offset to land on the right line.
-        var topLeft = container.TranslatePoint(new Point(0, 0), ContentGrid);
+        _renameTileTopLeft = container.TranslatePoint(new Point(0, 0), ContentGrid);
         var labelTopOffset = vm.IconSizePx + vm.IconMargin.Top + vm.IconMargin.Bottom;
-        ItemRenameEditor.Margin = new Thickness(topLeft.X, topLeft.Y + labelTopOffset, 0, 0);
-        ItemRenameEditor.Width = vm.TileWidth;
+        ItemRenameEditor.Margin = new Thickness(_renameTileTopLeft.X, _renameTileTopLeft.Y + labelTopOffset, 0, 0);
+        // No fixed Width — the editor grows horizontally to fit its content (see UpdateRenameEditorLayout).
+        ItemRenameEditor.ClearValue(FrameworkElement.WidthProperty);
 
         var fileName = Path.GetFileName(vm.AbsolutePath);
         ItemRenameEditor.Text = fileName;
         ItemRenameEditor.Visibility = Visibility.Visible;
+        // Hide the original tile label so the rename overlay isn't drawn on top of it (two
+        // overlapping texts is the bug this branch fixes).
+        vm.IsRenaming = true;
         _renamingItem = vm;
+        UpdateRenameEditorLayout();
 
         // Focus + selection must run after layout so the TextBox is fully realized; otherwise
         // SelectAll/Select silently no-ops on a not-yet-arranged element.
@@ -1634,55 +1660,195 @@ public partial class WormholeWindow : Window
         if (vm is null) { EndItemRename(); return; }
 
         var newName = (ItemRenameEditor.Text ?? string.Empty).Trim();
+        var oldPath = vm.AbsolutePath;
         EndItemRename();
 
-        if (string.IsNullOrEmpty(newName)) return;
-        var oldName = Path.GetFileName(vm.AbsolutePath);
-        if (string.Equals(oldName, newName, StringComparison.Ordinal)) return;
-
-        if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            MessageBox.Show(this,
-                "The name contains characters that aren't allowed in filenames.",
-                "Rename", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var dir = Path.GetDirectoryName(vm.AbsolutePath);
-        if (string.IsNullOrEmpty(dir)) return;
-        var newPath = Path.Combine(dir, newName);
+        // Default post-rename target is the original path — every non-success branch (empty
+        // name, unchanged, invalid chars, move-failure) restores selection on the same tile.
+        var selectAfter = oldPath;
 
         try
         {
-            if (Directory.Exists(vm.AbsolutePath))
-                Directory.Move(vm.AbsolutePath, newPath);
-            else
-                File.Move(vm.AbsolutePath, newPath);
-            // FolderWatcher in the manager will tick a Refresh; no manual refresh needed here.
+            if (string.IsNullOrEmpty(newName)) return;
+            var oldName = Path.GetFileName(oldPath);
+            if (string.Equals(oldName, newName, StringComparison.Ordinal)) return;
+
+            if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                MessageBox.Show(this,
+                    "The name contains characters that aren't allowed in filenames.",
+                    "Rename", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dir = Path.GetDirectoryName(oldPath);
+            if (string.IsNullOrEmpty(dir)) return;
+            var newPath = Path.Combine(dir, newName);
+
+            try
+            {
+                if (Directory.Exists(oldPath))
+                    Directory.Move(oldPath, newPath);
+                else
+                    File.Move(oldPath, newPath);
+                // FolderWatcher in the manager will tick a Refresh; no manual refresh needed here.
+                selectAfter = newPath;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    $"Rename failed: {ex.Message}",
+                    "Rename", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            MessageBox.Show(this,
-                $"Rename failed: {ex.Message}",
-                "Rename", MessageBoxButton.OK, MessageBoxImage.Error);
+            SchedulePostRenameFocus(selectAfter);
         }
     }
 
     private void EndItemRename()
     {
         ItemRenameEditor.Visibility = Visibility.Collapsed;
+        if (_renamingItem is not null) _renamingItem.IsRenaming = false;
         _renamingItem = null;
     }
 
     private void OnItemRenameEditorKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) { CommitItemRename(); e.Handled = true; }
-        else if (e.Key == Key.Escape) { EndItemRename(); e.Handled = true; }
+        else if (e.Key == Key.Escape)
+        {
+            // Capture the path before EndItemRename clears _renamingItem — Esc cancels the
+            // edit but should leave the same tile selected + focused so arrow-key navigation
+            // resumes from where the user was.
+            var path = _renamingItem?.AbsolutePath;
+            EndItemRename();
+            if (path is not null) SchedulePostRenameFocus(path);
+            e.Handled = true;
+        }
     }
 
-    private void OnItemRenameEditorLostFocus(object sender, RoutedEventArgs e)
+    /// <summary>Path of the tile that should be selected + focused after the next
+    /// <see cref="RefreshPortalItems"/> rebuild. Set by <see cref="SchedulePostRenameFocus"/>
+    /// when the target VM isn't in <see cref="_items"/> yet (e.g. just after File.Move — the
+    /// FolderWatcher's 300 ms debounced refresh hasn't fired). Consumed by RefreshPortalItems
+    /// at the end of its rebuild. Auto-clears after a 1500 ms timeout in case the FSW never
+    /// reports (slow network share, dropped events).</summary>
+    private string? _pendingSelectionPath;
+    private DispatcherTimer? _pendingSelectionTimeout;
+
+    /// <summary>Restore selection + keyboard focus on the tile that matches <paramref name="path"/>
+    /// after an inline rename ends. For Esc / no-op / move-failure branches the VM is still in
+    /// _items so TryFocusItemByPath succeeds immediately. For commit-success the VM list won't
+    /// be rebuilt until the FolderWatcher's debounced refresh lands (~300 ms later); we stash
+    /// the target path and RefreshPortalItems re-applies it when it next runs.</summary>
+    private void SchedulePostRenameFocus(string path)
     {
+        if (TryFocusItemByPath(path)) return;
+
+        _pendingSelectionPath = path;
+        _pendingSelectionTimeout?.Stop();
+        _pendingSelectionTimeout = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        _pendingSelectionTimeout.Tick += (s, _) =>
+        {
+            ((DispatcherTimer)s!).Stop();
+            _pendingSelectionPath = null;
+        };
+        _pendingSelectionTimeout.Start();
+    }
+
+    /// <summary>If a rename committed but RefreshPortalItems then ran and wiped the freshly-
+    /// applied selection, this re-applies the pending target path so the user gets the renamed
+    /// tile focused for arrow-key navigation. Called from RefreshPortalItems at the end of
+    /// the rebuild.</summary>
+    private void ConsumePendingSelectionAfterRefresh()
+    {
+        if (_pendingSelectionPath is null) return;
+        var path = _pendingSelectionPath;
+        if (TryFocusItemByPath(path))
+        {
+            _pendingSelectionPath = null;
+            _pendingSelectionTimeout?.Stop();
+            _pendingSelectionTimeout = null;
+        }
+    }
+
+    private bool TryFocusItemByPath(string path)
+    {
+        var vm = _items.FirstOrDefault(i =>
+            string.Equals(i.AbsolutePath, path, StringComparison.OrdinalIgnoreCase));
+        if (vm is null) return false;
+
+        ItemsHost.SelectedItem = vm;
+        ItemsHost.UpdateLayout();
+        // ListBoxItem container realisation is virtualised — UpdateLayout forces it for the
+        // selected index. Focusing the container (not just SetCurrentValue on SelectedItem)
+        // is what makes arrow-key navigation resume on the right tile.
+        if (ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) is System.Windows.Controls.ListBoxItem container)
+        {
+            container.Focus();
+            Keyboard.Focus(container);
+            return true;
+        }
+        return false;
+    }
+
+    private void OnItemRenameEditorLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        // LostKeyboardFocus fires reliably whenever keyboard focus leaves the editor — including
+        // clicks elsewhere in the same window AND clicks outside the window entirely. LostFocus
+        // (logical focus) doesn't fire on window deactivation, which left the editor visible
+        // after the user clicked away from the wormhole.
         if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
+    }
+
+    private void OnItemRenameEditorTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_renamingItem is null) return;
+        UpdateRenameEditorLayout();
+    }
+
+    /// <summary>Measure the rename editor's text and resize the TextBox so it shows the full
+    /// filename without horizontal clipping — Explorer's behaviour. Recentres the box around
+    /// the tile's centre column so the edit feels anchored to the tile, then clamps the final
+    /// rect to the ContentGrid bounds so a very long name doesn't slide off-screen.</summary>
+    private void UpdateRenameEditorLayout()
+    {
+        var vm = _renamingItem;
+        if (vm is null) return;
+
+        // Measure the text at the editor's current font + padding. We re-measure on every
+        // keystroke because TextBox doesn't auto-resize when its Width is unset (it just clips
+        // its content area to the parent's available width).
+        var typeface = new Typeface(ItemRenameEditor.FontFamily, ItemRenameEditor.FontStyle,
+            ItemRenameEditor.FontWeight, ItemRenameEditor.FontStretch);
+        var ft = new FormattedText(ItemRenameEditor.Text ?? string.Empty,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            ItemRenameEditor.FontSize,
+            Brushes.Black,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+        // Padding + border + a couple pixels of caret breathing room. Without the +6 the
+        // trailing characters end up scrolled out of view because the caret can sit at the
+        // very edge of the content rect.
+        const double chrome = 12;
+        double desiredWidth = Math.Max(vm.TileWidth, ft.WidthIncludingTrailingWhitespace + chrome);
+
+        // Clamp horizontally to ContentGrid bounds — don't let the editor slide off-screen
+        // for very long names. Centre around the tile's horizontal centre so the editor grows
+        // outward symmetrically (Explorer-style).
+        double tileCentre = _renameTileTopLeft.X + vm.TileWidth / 2.0;
+        double left = tileCentre - desiredWidth / 2.0;
+        double maxLeft = Math.Max(0, ContentGrid.ActualWidth - desiredWidth);
+        if (left < 0) left = 0;
+        else if (left > maxLeft) left = maxLeft;
+
+        ItemRenameEditor.Width = desiredWidth;
+        var m = ItemRenameEditor.Margin;
+        ItemRenameEditor.Margin = new Thickness(left, m.Top, m.Right, m.Bottom);
     }
 
     /// <summary>Snapshot of the selected items' absolute paths, defensively filtered to
