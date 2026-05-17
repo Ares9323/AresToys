@@ -3,7 +3,7 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.16] — Unreleased
+## [0.1.16] — 2026-05-17
 
 Pipeline + workflow editor overhaul: the "Copy X to clipboard" / "Save QR as Y"
 task family collapses into a unified `Add X` set, NotifyToast is gone in favour
