@@ -158,24 +158,15 @@ public static class WorkflowActionCatalog
             Outputs: new[] { WorkflowPort.Payload }),
 
         new("arestoys.record-screen",
-            "Start/stop screen recording (mp4)",
-            "Toggle FFmpeg-driven screen recording in mp4 format. First invocation starts, second stops and produces the file. Toggle 'Show notification' to surface a toast on stop with Copy-path / Show-in-folder buttons.",
+            "Record screen",
+            "Toggle FFmpeg-driven screen recording. First invocation prompts for a region and starts; second invocation stops. Always records MP4 into a temp file — pair with 'Save Video file' downstream to write the final output to disk (and pick gif / mp4 / webm / mov there) and 'Add Payload to AresToys clipboard' to commit the video to AresToys' history.",
             "Capture",
-            DefaultConfigJson: "{\"format\":\"mp4\",\"showNotification\":false}",
-            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification on stop", false) },
-            LocalizationKey: "arestoys_record_screen_mp4",
-            // On stop: payload_bytes = the .mp4 bytes, text = the saved path. Either chains
-            // downstream (Upload reads the bytes; Add file reads the path).
-            Outputs: new[] { WorkflowPort.Payload, WorkflowPort.Text }),
-
-        new("arestoys.record-screen",
-            "Start/stop screen recording (gif)",
-            "Toggle FFmpeg-driven screen recording in animated GIF format. First invocation starts, second stops and produces the file. Toggle 'Show notification' to surface a toast on stop with Copy-path / Show-in-folder buttons.",
-            "Capture",
-            DefaultConfigJson: "{\"format\":\"gif\",\"showNotification\":false}",
-            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification on stop", false) },
-            LocalizationKey: "arestoys_record_screen_gif",
-            Outputs: new[] { WorkflowPort.Payload, WorkflowPort.Text }),
+            DefaultConfigJson: "{}",
+            LocalizationKey: "arestoys_record_screen",
+            // The bag emits MP4 bytes + new_item. Outputs Payload so the workflow editor draws
+            // the proper port; no Text output here since the saved path comes from the
+            // downstream Save Video file step.
+            Outputs: new[] { WorkflowPort.Payload }),
 
         // Wormholes batch ops — one task class (WormholeBatchOpTask) routed by the "op" config
         // value; six rows here so the workflow editor's "+ Add" menu lists each as a discrete
@@ -345,6 +336,18 @@ public static class WorkflowActionCatalog
             "I/O",
             DefaultConfigJson: "{\"showNotification\":false}",
             BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            Inputs: new[] { WorkflowPort.Payload },
+            Outputs: new[] { WorkflowPort.Text }),
+
+        new("arestoys.save-video-file",
+            "Save as Video file",
+            "Pair with Record screen: writes the recorded video bytes to disk under the configured capture folder (Settings → Capture). 'Format' picks the output container — mp4 keeps the original recording verbatim (fast), gif / webm / mov trigger an ffmpeg transcode (slower; requires ffmpeg.exe in PATH or %APPDATA%\\AresToys\\Tools). Toggle 'Show notification' for a post-save toast with Copy-path / Show-in-folder buttons.",
+            "I/O",
+            DefaultConfigJson: "{\"format\":\"mp4\",\"showNotification\":false}",
+            BoolParameters: new[] { new BoolParameter("showNotification", "Show notification", false) },
+            StringParameters: [new StringParameter("format", "Format", "mp4",
+                Placeholder: "mp4", OptionsKey: "video_formats",
+                IsEditable: false)],
             Inputs: new[] { WorkflowPort.Payload },
             Outputs: new[] { WorkflowPort.Text }),
 

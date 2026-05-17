@@ -856,6 +856,9 @@
   <data name="WorkflowAction_arestoys_open_editor_before_upload" xml:space="preserve"><value>Open editor</value></data>
   <data name="WorkflowAction_arestoys_apply_image_effects_preset" xml:space="preserve"><value>Apply image effects preset</value></data>
   <data name="WorkflowAction_arestoys_save_to_file" xml:space="preserve"><value>Save as Image file</value></data>
+  <data name="WorkflowAction_arestoys_save_video_file" xml:space="preserve"><value>Save as Video file</value></data>
+  <data name="WorkflowActionDesc_arestoys_save_video_file" xml:space="preserve"><value>Pair with Record screen: writes the recorded video bytes to disk under the configured capture folder. 'Format' picks the output container — mp4 keeps the original recording verbatim, gif / webm / mov trigger an ffmpeg transcode.</value></data>
+  <data name="WorkflowActionParam_arestoys_save_video_file_format" xml:space="preserve"><value>Format</value></data>
   <data name="WorkflowAction_arestoys_add_to_history" xml:space="preserve"><value>Add Payload to AresToys clipboard</value></data>
   <data name="WorkflowAction_arestoys_copy_image_to_clipboard" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="WorkflowAction_arestoys_paste_history_item" xml:space="preserve"><value>Paste history item</value></data>

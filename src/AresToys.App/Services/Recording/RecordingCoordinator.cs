@@ -14,14 +14,34 @@ using MessageBoxResult = System.Windows.MessageBoxResult;
 
 namespace AresToys.App.Services.Recording;
 
-/// <summary>Top-level orchestrator: pick region, start ffmpeg, show overlay, stop, save to history,
-/// notify toast (click → open in folder). Mirrors the capture-region flow but for video.</summary>
+/// <summary>Top-level orchestrator: pick region, start ffmpeg, show overlay, stop, populate the
+/// pipeline bag (or, in legacy tray mode, save to history + notify toast). Mirrors the
+/// capture-region flow but for video.
+/// <para>
+/// <b>Pipeline mode</b> (called with a non-null PipelineContext, e.g. from RecordScreenTask):
+/// records into a temp folder, on stop populates bag.payload_bytes + bag.file_extension +
+/// bag.new_item + bag.local_path pointing at the temp MP4. Downstream SaveVideoFile +
+/// AddToHistory steps own the final disk write / history insertion / toast — same shape as
+/// the image capture pipeline.
+/// </para>
+/// <para>
+/// <b>Legacy mode</b> (called without a PipelineContext, e.g. from tray menu shortcuts):
+/// preserves the old self-contained flow — writes directly to the user's capture folder,
+/// AddAsync's a Video item, fires a "Recording saved" toast with Show-in-folder onClick.
+/// </para></summary>
 public sealed class RecordingCoordinator
 {
     private const int FpsDefault = 30;
     private const string DefaultFolder = "%USERPROFILE%\\Pictures\\AresToys";
     private const string FolderSettingKey = "capture.folder";
     private const string SubFolderPatternSettingKey = "capture.subfolder_pattern";
+
+    /// <summary>Temp folder under %TEMP% used by pipeline-mode recordings so the raw MP4 exists
+    /// somewhere stable but doesn't pollute the user's capture folder. SaveVideoFileTask reads
+    /// from here, writes to the configured destination, then deletes the temp file. Created on
+    /// demand inside <see cref="ResolveOutputPath"/>.</summary>
+    private static string PipelineTempFolder =>
+        Path.Combine(Path.GetTempPath(), "AresToys", "recordings");
 
     private readonly ScreenRecordingService _recorder;
     private readonly FfmpegLocator _locator;
@@ -33,6 +53,12 @@ public sealed class RecordingCoordinator
     private RecordingOverlayWindow? _overlay;
     private RecordingFormat _activeFormat;
     private bool _downloadInProgress;
+    /// <summary>True when the in-flight recording was started by a pipeline step (non-null
+    /// PipelineContext). Drives <see cref="StopAndPersistAsync"/>: pipeline mode emits bag
+    /// keys only and lets downstream tasks save+history+toast; legacy mode persists+toasts
+    /// itself. Captured at Toggle/Start time so a subsequent stop (overlay button, second
+    /// hotkey) knows which behaviour to apply.</summary>
+    private bool _pipelineMode;
     /// <summary>Set when a workflow step kicks off a recording. The coordinator stashes the
     /// pipeline context here so a stop initiated from a non-pipeline path (overlay Stop button,
     /// abort, ffmpeg crash) can still populate the bag the awaiting workflow expects. Cleared
@@ -125,6 +151,7 @@ public sealed class RecordingCoordinator
         // First time through: stash the pipeline context for the eventual stop. Build a fresh
         // TaskCompletionSource that StopAndPersistAsync will signal once the file is on disk.
         _pendingPipelineContext = pipelineContext;
+        _pipelineMode = pipelineContext is not null;
         _recordingCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await StartAsync(format, cancellationToken).ConfigureAwait(false);
@@ -136,6 +163,7 @@ public sealed class RecordingCoordinator
         {
             _recordingCompletion.TrySetResult(false);
             _pendingPipelineContext = null;
+            _pipelineMode = false;
             _recordingCompletion = null;
             return;
         }
@@ -166,10 +194,13 @@ public sealed class RecordingCoordinator
         }).Task.ConfigureAwait(false);
         if (region is null) return;
 
-        // Same folder + subfolder-pattern resolution as SaveToFileTask, so screen recordings
-        // land alongside screenshots (typically the same %y\%mo subfolder) instead of in the
-        // legacy hardcoded Pictures\AresToys root.
-        var folder = await ResolveCaptureFolderAsync(cancellationToken).ConfigureAwait(false);
+        // Pipeline mode writes to a TEMP folder — the downstream SaveVideoFileTask is the one
+        // that decides the user's actual destination + format. Legacy / tray mode keeps the
+        // historical "same folder as screenshots" behaviour so the standalone tray menu items
+        // still produce a saved file in the user's expected location.
+        var folder = _pipelineMode
+            ? PipelineTempFolder
+            : await ResolveCaptureFolderAsync(cancellationToken).ConfigureAwait(false);
         Directory.CreateDirectory(folder);
         var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
         var ext = format == RecordingFormat.Mp4 ? "mp4" : "gif";
@@ -207,6 +238,7 @@ public sealed class RecordingCoordinator
                 _recordingCompletion?.TrySetResult(false);
                 _recordingCompletion = null;
                 _pendingPipelineContext = null;
+                _pipelineMode = false;
             };
             _overlay.Show();
         });
@@ -256,6 +288,8 @@ public sealed class RecordingCoordinator
         _recordingCompletion = null;
         var contextForBag = pipelineContext ?? _pendingPipelineContext;
         _pendingPipelineContext = null;
+        var pipelineMode = _pipelineMode;
+        _pipelineMode = false;
 
         var path = _recorder.CurrentOutputPath;
         await _recorder.StopAsync().ConfigureAwait(true);
@@ -284,48 +318,53 @@ public sealed class RecordingCoordinator
             BlobRef: path,
             SearchText: $"Recording {Path.GetFileName(path)}");
 
-        var id = await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
+        if (pipelineMode && contextForBag is not null)
+        {
+            // Pipeline mode: emit bytes + NewItem into the bag, no history insertion, no toast.
+            // Downstream SaveVideoFileTask transcodes / moves the temp file to the final
+            // destination (and updates bag.local_path); AddToHistoryTask then commits the
+            // item into the AresToys clipboard (it reads bag.new_item when bag.item_id is
+            // absent — which is the case here since we deliberately don't AddAsync). Same
+            // shape as the image-capture pipeline.
+            contextForBag.Bag[PipelineBagKeys.LocalPath] = path;
+            contextForBag.Bag[PipelineBagKeys.Text] = path;
+            contextForBag.Bag[PipelineBagKeys.PayloadBytes] = bytes;
+            contextForBag.Bag[PipelineBagKeys.FileExtension] = ext;
+            contextForBag.Bag[PipelineBagKeys.NewItem] = newItem;
+            _logger.LogDebug("RecordingCoordinator: pipeline-mode stop — emitted bag (temp={Path})", path);
+            completion?.TrySetResult(true);
+            return;
+        }
 
-        // Populate the pipeline bag when this stop is happening as part of a workflow run.
-        // Mirrors the bag keys the capture tasks (CaptureRegion / CaptureActiveWindow / etc.) set
-        // so any downstream task that works after a screenshot will also work after a recording
-        // — CopyTextToClipboardTask with template "{bag.local_path}", UploadTask reading
-        // PayloadBytes + FileExtension, AddToHistoryTask consuming NewItem, etc.
+        // Legacy / tray mode: self-contained. Commit to history immediately and fire the
+        // "Recording saved" toast with Show-in-folder onClick — the standalone tray menu
+        // shortcuts (which can't compose a multi-step workflow) rely on this path.
+        var id = await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
         if (contextForBag is not null)
         {
+            // Defensive: a non-pipeline call that still happens to carry a context (shouldn't
+            // happen with the current call sites but keep the bag populated so any caller
+            // expecting the old keys doesn't break).
             contextForBag.Bag[PipelineBagKeys.LocalPath] = path;
             contextForBag.Bag[PipelineBagKeys.Text] = path;
             contextForBag.Bag[PipelineBagKeys.PayloadBytes] = bytes;
             contextForBag.Bag[PipelineBagKeys.FileExtension] = ext;
             contextForBag.Bag[PipelineBagKeys.NewItem] = newItem;
             contextForBag.Bag[PipelineBagKeys.ItemId] = id;
-            _logger.LogDebug("RecordingCoordinator: populated pipeline bag — local_path={Path} item_id={Id}", path, id);
         }
-
-        // Release the awaiting workflow step (if any). True = clean stop with a valid file
-        // on disk; downstream steps can rely on bag.local_path / bag.new_item being set IF
-        // contextForBag was provided.
         completion?.TrySetResult(true);
 
-        // When the recording was kicked off from a workflow step, RecordScreenTask owns the
-        // post-stop UX (showNotification toggle + ToastBuilder). Skipping the legacy toast here
-        // avoids a double-notification stack. UI-only stops (overlay button outside any
-        // workflow, no context captured) still get the historical notify so the user has
-        // immediate feedback.
-        if (contextForBag is null)
-        {
-            _notifier.Show($"Recording saved",
-                Path.GetFileName(path),
-                onClick: () =>
+        _notifier.Show($"Recording saved",
+            Path.GetFileName(path),
+            onClick: () =>
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"/select,\"{path}\"",
-                        UseShellExecute = true
-                    });
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true
                 });
-        }
+            });
         _logger.LogInformation("Recording stored as item {Id} ({Format})", id, _activeFormat);
     }
 }
