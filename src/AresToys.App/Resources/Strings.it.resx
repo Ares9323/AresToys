@@ -328,6 +328,23 @@
   <data name="WorkflowActionDesc_arestoys_upload_cloud" xml:space="preserve"><value>Carica i byte correnti su uno degli uploader configurati. Scegli la destinazione dal menu a discesa; lasciandolo vuoto la rileva automaticamente in base all'estensione (immagine → uploader immagini, video → uploader video, ecc.). Attiva 'Mostra notifica' per un toast post-upload con pulsanti Apri / Copia URL.</value></data>
   <data name="WorkflowAction_arestoys_shorten_url" xml:space="preserve"><value>Accorcia URL</value></data>
   <data name="WorkflowActionDesc_arestoys_shorten_url" xml:space="preserve"><value>Accorcia il payload corrente (byte UTF-8 — tipicamente incatenato dopo 'Leggi testo dagli appunti di Windows') tramite un plugin URL shortener. Scegli uno shortener dal menu; vuoto = primo disponibile. Scrive l'URL accorciato in bag.text così un successivo 'Aggiungi testo alla clipboard' cattura il risultato.</value></data>
+  <data name="Wormhole_DefaultsTitle" xml:space="preserve"><value>Predefiniti per wormhole nuovi o non configurati</value></data>
+  <data name="Wormhole_DefaultsHint" xml:space="preserve"><value>Le impostazioni per-wormhole vincono quando impostate (Ctrl+Rotella dentro un wormhole regola il suo zoom; lo slider nella chrome regola la sua opacità). 0 per le dimensioni dell'icona significa 'usa la dimensione icone del desktop di Windows'.</value></data>
+  <data name="Wormhole_DefaultIconSize" xml:space="preserve"><value>Dimensione predefinita icone (px, 0 = desktop)</value></data>
+  <data name="Wormhole_DefaultTilePadding" xml:space="preserve"><value>Padding tile (px)</value></data>
+  <data name="Wormhole_DefaultLabelFontSize" xml:space="preserve"><value>Dimensione carattere etichetta (px)</value></data>
+  <data name="Wormhole_DefaultLabelMaxLines" xml:space="preserve"><value>Righe etichetta (max)</value></data>
+  <data name="Wormhole_DefaultLineSpacing" xml:space="preserve"><value>Spaziatura righe (sovrapposizione, px)</value></data>
+  <data name="Wormhole_DefaultBackgroundOpacity" xml:space="preserve"><value>Opacità sfondo (%)</value></data>
+  <data name="Wormhole_DefaultBorderOpacity" xml:space="preserve"><value>Opacità bordo (%)</value></data>
+  <data name="Settings_ModuleKeySequences" xml:space="preserve"><value>Key Sequences</value></data>
+  <data name="Settings_ModuleKeySequencesTooltip" xml:space="preserve"><value>Attiva paste / workflow tramite sequenze digitate (es. 'mpg@'). Installa un listener globale degli eventi tastiera.</value></data>
+  <data name="Settings_KeySequencesPosition" xml:space="preserve"><value>Posizione overlay:</value></data>
+  <data name="Settings_KeySequencesPositionTooltip" xml:space="preserve"><value>Dove appare la finestra overlay quando un trigger combacia. LastPosition ripristina la posizione in cui avevi trascinato l'overlay l'ultima volta.</value></data>
+  <data name="Debug_FilterPlaceholder" xml:space="preserve"><value>Filtra (categoria, messaggio, livello — case-insensitive)</value></data>
+  <data name="Theme_OuterBorder" xml:space="preserve"><value>Bordo esterno</value></data>
+  <data name="Theme_InnerBorder" xml:space="preserve"><value>Bordo interno</value></data>
+  <data name="Theme_BorderHint" xml:space="preserve"><value>Esterno = cornici finestra + contorni delle card. Interno = swatch colore, divisori, separatori di lista.</value></data>
   <data name="Settings_StartMinimized" xml:space="preserve"><value>Avvia minimizzato</value></data>
   <data name="Settings_StartMinimizedTooltip" xml:space="preserve"><value>All'avvio salta la finestra principale e resta nella tray. Clicca l'icona tray per aprire le Impostazioni quando serve.</value></data>
   <data name="Settings_EditorStartMaximized" xml:space="preserve"><value>Avvia editor a schermo intero</value></data>

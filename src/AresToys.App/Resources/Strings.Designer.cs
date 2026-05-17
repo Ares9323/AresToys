@@ -3053,6 +3053,23 @@ namespace AresToys.App.Resources {
         public static string WorkflowActionDesc_arestoys_upload_cloud => ResourceManager.GetString("WorkflowActionDesc_arestoys_upload_cloud", resourceCulture);
         public static string WorkflowAction_arestoys_shorten_url => ResourceManager.GetString("WorkflowAction_arestoys_shorten_url", resourceCulture);
         public static string WorkflowActionDesc_arestoys_shorten_url => ResourceManager.GetString("WorkflowActionDesc_arestoys_shorten_url", resourceCulture);
+        public static string Wormhole_DefaultsTitle => ResourceManager.GetString("Wormhole_DefaultsTitle", resourceCulture);
+        public static string Wormhole_DefaultsHint => ResourceManager.GetString("Wormhole_DefaultsHint", resourceCulture);
+        public static string Wormhole_DefaultIconSize => ResourceManager.GetString("Wormhole_DefaultIconSize", resourceCulture);
+        public static string Wormhole_DefaultTilePadding => ResourceManager.GetString("Wormhole_DefaultTilePadding", resourceCulture);
+        public static string Wormhole_DefaultLabelFontSize => ResourceManager.GetString("Wormhole_DefaultLabelFontSize", resourceCulture);
+        public static string Wormhole_DefaultLabelMaxLines => ResourceManager.GetString("Wormhole_DefaultLabelMaxLines", resourceCulture);
+        public static string Wormhole_DefaultLineSpacing => ResourceManager.GetString("Wormhole_DefaultLineSpacing", resourceCulture);
+        public static string Wormhole_DefaultBackgroundOpacity => ResourceManager.GetString("Wormhole_DefaultBackgroundOpacity", resourceCulture);
+        public static string Wormhole_DefaultBorderOpacity => ResourceManager.GetString("Wormhole_DefaultBorderOpacity", resourceCulture);
+        public static string Settings_ModuleKeySequences => ResourceManager.GetString("Settings_ModuleKeySequences", resourceCulture);
+        public static string Settings_ModuleKeySequencesTooltip => ResourceManager.GetString("Settings_ModuleKeySequencesTooltip", resourceCulture);
+        public static string Settings_KeySequencesPosition => ResourceManager.GetString("Settings_KeySequencesPosition", resourceCulture);
+        public static string Settings_KeySequencesPositionTooltip => ResourceManager.GetString("Settings_KeySequencesPositionTooltip", resourceCulture);
+        public static string Debug_FilterPlaceholder => ResourceManager.GetString("Debug_FilterPlaceholder", resourceCulture);
+        public static string Theme_OuterBorder => ResourceManager.GetString("Theme_OuterBorder", resourceCulture);
+        public static string Theme_InnerBorder => ResourceManager.GetString("Theme_InnerBorder", resourceCulture);
+        public static string Theme_BorderHint => ResourceManager.GetString("Theme_BorderHint", resourceCulture);
 
         /// <summary>
         ///   Looks up a localized string similar to Clone this workflow into a new editable copy.
