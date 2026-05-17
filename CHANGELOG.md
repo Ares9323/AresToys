@@ -17,6 +17,21 @@ paste replaces SendInput Ctrl+V for AresToys dialogs, scrollbar no longer
 overlaps the window-resize hit zone, ESC works in region overlay before the
 first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
 
+### Clipboard popup — graceful fallback for undecodable video
+- WPF `MediaElement` rides on Windows Media Foundation, which has no codec for
+  WebM / VP9 / VP8 without the Web Media Extensions Store package (and is
+  patchy even with it). The 0.1.17 video pipeline gained a webm output option
+  so users will hit this — instead of swapping the preview to a still-frame
+  thumbnail (which silently drops the play UI and hides that the item is a
+  video) the preview pane keeps the video surface and replaces the bottom
+  Play/Pause + seek strip with a "Preview not supported" line + **Open with
+  default viewer** button (ShellExecute on the file path → VLC / system
+  default video player).
+- New `IsVideoPreviewFailed` observable on `PopupWindowViewModel` drives the
+  bottom-bar swap; auto-resets when `PreviewVideoPath` changes, so picking a
+  different item or re-selecting an mp4 after a failed webm restores the
+  normal control bar.
+
 ### Screen recording — split into a composable pipeline
 - `Toggle screen recording (mp4 / gif)` collapses into a single `Record screen`
   task that always emits MP4 bytes into the bag — format choice / final

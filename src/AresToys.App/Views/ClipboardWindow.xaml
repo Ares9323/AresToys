@@ -668,7 +668,8 @@
                                             Margin="16,0,16,12"
                                             Background="#AA000000"
                                             CornerRadius="6"
-                                            Padding="6,4">
+                                            Padding="6,4"
+                                            Visibility="{Binding IsVideoPreviewFailed, Converter={StaticResource InverseBoolToVisibility}}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
@@ -722,6 +723,44 @@
                                                     FontSize="12"
                                                     Content="🔊"
                                                     ToolTip="{Markup:Loc ClipboardVideo_MuteTooltip}" />
+                                        </Grid>
+                                    </Border>
+                                    <!-- Fallback bar shown when MediaElement can't decode the
+                                         current file (WebM/VP9 without Web Media Extensions,
+                                         Win10/11 N edition without Media Feature Pack, exotic
+                                         codecs). Replaces the Play/Pause+seek strip with a
+                                         "Preview unavailable" line + Open-with-default-viewer
+                                         button so the user still has a one-click escape hatch. -->
+                                    <Border VerticalAlignment="Bottom"
+                                            HorizontalAlignment="Stretch"
+                                            Margin="16,0,16,12"
+                                            Background="#AA000000"
+                                            CornerRadius="6"
+                                            Padding="10,6"
+                                            Visibility="{Binding IsVideoPreviewFailed, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Markup:Loc ClipboardVideo_PreviewUnavailable}"
+                                                       Foreground="White"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,8,0" />
+                                            <Button Grid.Column="1"
+                                                    x:Name="PreviewVideoOpenExternalButton"
+                                                    Click="OnPreviewVideoOpenExternalClicked"
+                                                    Padding="10,4"
+                                                    Background="Transparent"
+                                                    Foreground="White"
+                                                    BorderBrush="White"
+                                                    BorderThickness="1"
+                                                    FontSize="11"
+                                                    Cursor="Hand"
+                                                    Content="{Markup:Loc ClipboardVideo_OpenExternal}" />
                                         </Grid>
                                     </Border>
                                 </Grid>

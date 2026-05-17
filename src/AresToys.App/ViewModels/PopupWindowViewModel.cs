@@ -247,6 +247,16 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// control unloads itself.</summary>
     [ObservableProperty] private string? _previewVideoPath;
 
+    /// <summary>True when WPF's <c>MediaElement</c> failed to decode the current
+    /// <see cref="PreviewVideoPath"/>. Drives the bottom-bar swap in ClipboardWindow: the normal
+    /// Play/Pause + seek + timecode strip hides, replaced by a "Preview unavailable" warning +
+    /// <em>Open with default viewer</em> button. Most commonly fires on WebM / VP9 / VP8 (no
+    /// codec in WMF without Web Media Extensions); also on Win10/11 N or KN editions without the
+    /// Media Feature Pack. Reset to false when PreviewVideoPath changes (new selection).</summary>
+    [ObservableProperty] private bool _isVideoPreviewFailed;
+
+    partial void OnPreviewVideoPathChanged(string? value) => IsVideoPreviewFailed = false;
+
     partial void OnPreviewKindChanged(PreviewKind value)
     {
         OnPropertyChanged(nameof(IsTextPreview));

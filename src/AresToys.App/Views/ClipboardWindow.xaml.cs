@@ -444,45 +444,43 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         UpdatePlayPauseGlyph(playing: true);
     }
 
-    private async void OnPreviewVideoFailed(object sender, ExceptionRoutedEventArgs e)
+    private void OnPreviewVideoFailed(object sender, ExceptionRoutedEventArgs e)
     {
         // MediaElement loads through Windows Media Foundation. Common reasons it fails:
+        //   - WebM / VP9 / VP8 without the Web Media Extensions Store package.
         //   - Win10 N / KN edition without the Media Feature Pack (no built-in mp4/h264).
         //   - File moved or locked by another writer.
         //   - Exotic codec the OS doesn't know.
-        // Fall back to the still-frame ffmpeg thumbnail when we can — the user at least sees
-        // what the recording looks like. If even that fails (no ffmpeg installed) the slot
-        // shows a short explanatory line so the user knows it's not just a blank panel.
+        // Instead of swapping the preview channel to a still-frame thumbnail (which silently
+        // drops the play UI and hides that the item is a video) we keep the video pane up and
+        // swap the bottom control bar for a "Preview unavailable" + Open-with-default-viewer
+        // button. The user still gets a one-click escape hatch to actually play the file.
         System.Diagnostics.Debug.WriteLine($"Preview video failed: {e.ErrorException.Message}");
         StopPreviewVideoTimer();
+        ViewModel.IsVideoPreviewFailed = true;
+    }
 
+    /// <summary>Hand the failed-preview file off to whichever app the OS associates with its
+    /// extension. <see cref="ProcessStartInfo.UseShellExecute"/> + leaving Verb empty triggers
+    /// the "open" verb default — VLC for .webm if installed, the OS default video player
+    /// otherwise. Swallows launch errors silently because the popup itself shouldn't crash on
+    /// a missing handler (rare, but possible in stripped-down builds).</summary>
+    private void OnPreviewVideoOpenExternalClicked(object sender, RoutedEventArgs e)
+    {
         var path = ViewModel.PreviewVideoPath;
-        var selectedId = ViewModel.SelectedRow?.Id;
-        if (!string.IsNullOrEmpty(path) && selectedId is { } id)
+        if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path)) return;
+        try
         {
-            var thumbSvc = ((App)System.Windows.Application.Current).Services.GetService(typeof(AresToys.App.Services.Recording.VideoThumbnailService))
-                as AresToys.App.Services.Recording.VideoThumbnailService;
-            if (thumbSvc is not null)
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                var thumb = await thumbSvc.GenerateAsync(id, path, CancellationToken.None);
-                if (thumb is { Length: > 0 })
-                {
-                    // Hand off to the existing image-preview channel: the MediaElement is hidden
-                    // because IsVideoPreview flips back to false when we switch kinds.
-                    ViewModel.PreviewImageBytes = thumb;
-                    ViewModel.PreviewVideoPath = null;
-                    ViewModel.PreviewKind = AresToys.App.ViewModels.PreviewKind.Image;
-                    return;
-                }
-            }
+                FileName = path,
+                UseShellExecute = true,
+            });
         }
-        // No ffmpeg / no thumbnail available — surface a plain-text explanation in the text
-        // preview slot so the pane isn't just a blank rectangle.
-        ViewModel.PreviewVideoPath = null;
-        ViewModel.PreviewText = "Preview unavailable. " +
-            "Windows Media Foundation couldn't decode this file — common on Win10/11 N or KN editions without the Media Feature Pack. " +
-            "Ctrl+V still works in apps that handle the file directly.";
-        ViewModel.PreviewKind = AresToys.App.ViewModels.PreviewKind.Text;
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Open external failed: {ex.Message}");
+        }
     }
 
     private void OnPreviewVideoSurfaceClick(object sender, MouseButtonEventArgs e)

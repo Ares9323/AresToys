@@ -3024,6 +3024,8 @@ namespace AresToys.App.Resources {
         public static string ClipboardItem_TriggerTooltip => ResourceManager.GetString("ClipboardItem_TriggerTooltip", resourceCulture);
         public static string ClipboardVideo_PlayPauseTooltip => ResourceManager.GetString("ClipboardVideo_PlayPauseTooltip", resourceCulture);
         public static string ClipboardVideo_MuteTooltip => ResourceManager.GetString("ClipboardVideo_MuteTooltip", resourceCulture);
+        public static string ClipboardVideo_PreviewUnavailable => ResourceManager.GetString("ClipboardVideo_PreviewUnavailable", resourceCulture);
+        public static string ClipboardVideo_OpenExternal => ResourceManager.GetString("ClipboardVideo_OpenExternal", resourceCulture);
         public static string KeySequenceOverlay_Hint => ResourceManager.GetString("KeySequenceOverlay_Hint", resourceCulture);
         public static string WebpageUrl_Title => ResourceManager.GetString("WebpageUrl_Title", resourceCulture);
         public static string WebpageUrl_Heading => ResourceManager.GetString("WebpageUrl_Heading", resourceCulture);

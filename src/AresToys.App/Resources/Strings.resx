@@ -314,6 +314,8 @@
   <data name="ClipboardItem_TriggerTooltip" xml:space="preserve"><value>Type a short tag (letters, digits, underscore) to make this entry pasteable from any app. While the Key Sequences module is on, typing the tag anywhere on the system opens the overlay so you can confirm + paste this entry. Leave empty to disable for this item.</value></data>
   <data name="ClipboardVideo_PlayPauseTooltip" xml:space="preserve"><value>Play / Pause (click anywhere on the video also toggles).</value></data>
   <data name="ClipboardVideo_MuteTooltip" xml:space="preserve"><value>Mute / unmute (remembered across selections + restarts).</value></data>
+  <data name="ClipboardVideo_PreviewUnavailable" xml:space="preserve"><value>Preview not supported by Windows Media Foundation. The file is saved correctly.</value></data>
+  <data name="ClipboardVideo_OpenExternal" xml:space="preserve"><value>Open with default viewer</value></data>
   <data name="KeySequenceOverlay_Hint" xml:space="preserve"><value>Press Enter to insert · Esc to dismiss</value></data>
   <data name="WebpageUrl_Title" xml:space="preserve"><value>Capture webpage</value></data>
   <data name="WebpageUrl_Heading" xml:space="preserve"><value>Webpage URL</value></data>

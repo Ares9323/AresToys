@@ -299,6 +299,8 @@
   <data name="ClipboardItem_TriggerTooltip" xml:space="preserve"><value>Inserisci un tag corto (lettere, cifre, underscore) per rendere questa voce incollabile da qualsiasi app. Con il modulo Key Sequences attivo, digitando il tag in qualunque punto del sistema si apre l'overlay per confermare e incollare questa voce. Vuoto = disabilitato per questo elemento.</value></data>
   <data name="ClipboardVideo_PlayPauseTooltip" xml:space="preserve"><value>Riproduci / Pausa (anche un clic sul video alterna).</value></data>
   <data name="ClipboardVideo_MuteTooltip" xml:space="preserve"><value>Silenzia / riattiva (ricordato tra selezioni e riavvii).</value></data>
+  <data name="ClipboardVideo_PreviewUnavailable" xml:space="preserve"><value>Anteprima non supportata da Windows Media Foundation. Il file è stato salvato correttamente.</value></data>
+  <data name="ClipboardVideo_OpenExternal" xml:space="preserve"><value>Apri con visualizzatore predefinito</value></data>
   <data name="KeySequenceOverlay_Hint" xml:space="preserve"><value>Premi Invio per inserire · Esc per chiudere</value></data>
   <data name="WebpageUrl_Title" xml:space="preserve"><value>Cattura pagina web</value></data>
   <data name="WebpageUrl_Heading" xml:space="preserve"><value>URL pagina web</value></data>
