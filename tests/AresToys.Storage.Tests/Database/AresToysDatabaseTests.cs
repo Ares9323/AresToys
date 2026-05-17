@@ -17,8 +17,9 @@ public class AresToysDatabaseTests
         var version = (long)(await cmd.ExecuteScalarAsync())!;
 
         // Migration001 (consolidated v1 schema) + Migration002 (adds items.label + rebuilds FTS)
-        // + Migration003 (adds items.pin_sort_order for user-controlled pinned reordering).
-        Assert.Equal(3, version);
+        // + Migration003 (adds items.pin_sort_order for user-controlled pinned reordering)
+        // + Migration004 (adds items.trigger for the Key Sequences module).
+        Assert.Equal(4, version);
     }
 
     [Fact]
@@ -46,6 +47,8 @@ public class AresToysDatabaseTests
         Assert.Contains("label", columns);
         // Added in Migration003 — user-controlled sort order applied to pinned rows.
         Assert.Contains("pin_sort_order", columns);
+        // Added in Migration004 — Key Sequences module trigger token.
+        Assert.Contains("trigger", columns);
     }
 
     [Fact]
@@ -77,8 +80,8 @@ public class AresToysDatabaseTests
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM schema_version;";
         var rowCount = (long)(await cmd.ExecuteScalarAsync())!;
-        // One row per applied migration (v1 consolidated + v2 label / FTS rebuild + v3 pin_sort_order).
-        Assert.Equal(3, rowCount);
+        // One row per applied migration (v1 consolidated + v2 label / FTS rebuild + v3 pin_sort_order + v4 trigger).
+        Assert.Equal(4, rowCount);
     }
 
     [Fact]

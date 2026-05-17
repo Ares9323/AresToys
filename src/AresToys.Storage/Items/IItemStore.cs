@@ -29,6 +29,18 @@ public interface IItemStore
     /// <see cref="ItemsChangeKind.Updated"/> when the row was found and updated.</summary>
     Task<bool> SetLabelAsync(long id, string? label, CancellationToken cancellationToken);
 
+    /// <summary>Assign / clear the optional trigger sequence used by the Key Sequences module.
+    /// Empty or whitespace-only input is normalised to NULL. Sequence must match [a-zA-Z0-9_]+
+    /// (caller validates; store does not enforce because future modules may relax this). Raises
+    /// <see cref="ItemsChangeKind.Updated"/> when the row was found and updated.</summary>
+    Task<bool> SetTriggerAsync(long id, string? trigger, CancellationToken cancellationToken);
+
+    /// <summary>Cheap projection used by the Key Sequences module to build its matcher index.
+    /// Returns only (Id, Trigger) for non-deleted items with a non-empty trigger. Avoids the full
+    /// <see cref="ListAsync"/> path which decodes payloads + thumbnails for every row — and which
+    /// over-allocates at <c>Limit=int.MaxValue</c> by pre-sizing a List with that capacity.</summary>
+    Task<IReadOnlyList<TriggerBinding>> ListTriggerBindingsAsync(CancellationToken cancellationToken);
+
     /// <summary>Atomically renumber the given pinned items' sort order, in the sequence the
     /// caller passes them (visual top → bottom). Used by drag-reorder and chevron-move on
     /// the pinned strip. Raises a single <see cref="ItemsChangeKind.Updated"/> broadcast so
@@ -41,6 +53,10 @@ public interface IItemStore
 }
 
 public sealed record ItemsChangedEventArgs(ItemsChangeKind Kind, long ItemId);
+
+/// <summary>Minimal (Id, Trigger) row returned by <see cref="IItemStore.ListTriggerBindingsAsync"/>.
+/// Storage-layer record, no payload / serializer involvement.</summary>
+public sealed record TriggerBinding(long Id, string Trigger);
 
 public enum ItemsChangeKind
 {
@@ -65,4 +81,5 @@ public sealed record NewItem(
     string? UploaderId = null,
     string? SearchText = null,
     string Category = "Clipboard",
-    string? Label = null);
+    string? Label = null,
+    string? Trigger = null);

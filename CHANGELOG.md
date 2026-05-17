@@ -3,6 +3,20 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.16] — Unreleased
+
+Pipeline + workflow editor overhaul: the "Copy X to clipboard" / "Save QR as Y"
+task family collapses into a unified `Add X` set, NotifyToast is gone in favour
+of a per-task `showNotification` flag handled by a new `ToastBuilderService`,
+upload entries collapse into one "Upload to cloud service" + one "Shorten URL"
+with runtime-populated dropdowns. The workflow editor gets a coloured port
+visualisation (Payload / Text / Color strips above/below each step). New
+Key Sequences module — typed triggers paste a chosen clipboard entry inline
+via an overlay. A grab-bag of smaller fixes: own-process WPF programmatic
+paste replaces SendInput Ctrl+V for AresToys dialogs, scrollbar no longer
+overlaps the window-resize hit zone, ESC works in region overlay before the
+first mouse press, ApplicationCommands.Paste paths for HTML clipboard items.
+
 ## [0.1.15] — 2026-05-16
 
 Wormhole settings expanded with independent typography / opacity / overlap

@@ -199,4 +199,92 @@ public class ItemStoreTests
 
         Assert.False(await store.UpdatePayloadAsync(99999, new byte[] { 0x01 }, 1, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task SetTriggerAsync_OnExistingItem_PersistsAndRaisesUpdated()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var id = await store.AddAsync(TextItem("payload"), CancellationToken.None);
+
+        ItemsChangedEventArgs? captured = null;
+        store.ItemsChanged += (_, e) => { if (e.Kind == ItemsChangeKind.Updated) captured = e; };
+
+        var ok = await store.SetTriggerAsync(id, "mail", CancellationToken.None);
+
+        Assert.True(ok);
+        Assert.NotNull(captured);
+        Assert.Equal(ItemsChangeKind.Updated, captured!.Kind);
+        Assert.Equal(id, captured.ItemId);
+
+        var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
+        Assert.Equal("mail", loaded.Trigger);
+    }
+
+    [Fact]
+    public async Task SetTriggerAsync_WithNull_ClearsTrigger()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var id = await store.AddAsync(TextItem("payload") with { Trigger = "gh" }, CancellationToken.None);
+
+        Assert.Equal("gh", (await store.GetByIdAsync(id, CancellationToken.None))!.Trigger);
+
+        Assert.True(await store.SetTriggerAsync(id, null, CancellationToken.None));
+        Assert.Null((await store.GetByIdAsync(id, CancellationToken.None))!.Trigger);
+    }
+
+    [Fact]
+    public async Task SetTriggerAsync_WithWhitespace_NormalisesToNull()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var id = await store.AddAsync(TextItem("payload") with { Trigger = "gh" }, CancellationToken.None);
+
+        Assert.True(await store.SetTriggerAsync(id, "   ", CancellationToken.None));
+        Assert.Null((await store.GetByIdAsync(id, CancellationToken.None))!.Trigger);
+    }
+
+    [Fact]
+    public async Task SetTriggerAsync_OnMissingId_ReturnsFalse_AndDoesNotRaise()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+
+        var raised = false;
+        store.ItemsChanged += (_, _) => raised = true;
+
+        var ok = await store.SetTriggerAsync(99999, "missing", CancellationToken.None);
+
+        Assert.False(ok);
+        Assert.False(raised);
+    }
+
+    [Fact]
+    public async Task AddAsync_WithTrigger_PersistsAndRoundTrips()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+
+        var id = await store.AddAsync(TextItem("snippet") with { Trigger = "insta" }, CancellationToken.None);
+
+        var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
+        Assert.Equal("insta", loaded.Trigger);
+    }
+
+    [Fact]
+    public async Task ListAsync_HydratesTriggerColumn()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+
+        await store.AddAsync(TextItem("with") with { Trigger = "hello" }, CancellationToken.None);
+        await store.AddAsync(TextItem("without"), CancellationToken.None);
+
+        var rows = await store.ListAsync(new ItemQuery(Limit: 10), CancellationToken.None);
+
+        // Newest first → row[0] is "without" (no trigger), row[1] is "with" trigger=hello.
+        Assert.Null(rows[0].Trigger);
+        Assert.Equal("hello", rows[1].Trigger);
+    }
 }

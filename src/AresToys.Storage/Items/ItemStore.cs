@@ -46,10 +46,10 @@ public sealed class ItemStore : IItemStore
         cmd.CommandText = """
             INSERT INTO items
                 (kind, source, created_at, pinned, source_process, source_window,
-                 payload, payload_size, blob_ref, uploaded_url, uploader_id, search_text, thumbnail, category, label)
+                 payload, payload_size, blob_ref, uploaded_url, uploader_id, search_text, thumbnail, category, label, trigger)
             VALUES
                 ($kind, $source, $created_at, $pinned, $source_process, $source_window,
-                 $payload, $payload_size, $blob_ref, $uploaded_url, $uploader_id, $search_text, $thumbnail, $category, $label);
+                 $payload, $payload_size, $blob_ref, $uploaded_url, $uploader_id, $search_text, $thumbnail, $category, $label, $trigger);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("$kind", item.Kind.ToString());
@@ -67,6 +67,7 @@ public sealed class ItemStore : IItemStore
         cmd.Parameters.AddWithValue("$thumbnail", (object?)thumbnail ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$category", string.IsNullOrEmpty(item.Category) ? "Clipboard" : item.Category);
         cmd.Parameters.AddWithValue("$label", (object?)NormalizeLabel(item.Label) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$trigger", (object?)NormalizeTrigger(item.Trigger) ?? DBNull.Value);
 
         var newId = (long)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
 
@@ -133,7 +134,7 @@ public sealed class ItemStore : IItemStore
         // between instant and several seconds.
         var payloadColumn = query.IncludePayload ? "payload" : "NULL AS payload";
         var thumbnailColumn = query.IncludeThumbnail ? "thumbnail" : "NULL AS thumbnail";
-        var sql = new System.Text.StringBuilder($"SELECT items.id, items.kind, items.source, items.created_at, items.payload_size, items.pinned, items.deleted_at, items.source_process, items.source_window, items.blob_ref, items.uploaded_url, items.uploader_id, items.search_text, items.category, items.label, items.pin_sort_order, {payloadColumn}, {thumbnailColumn} FROM items");
+        var sql = new System.Text.StringBuilder($"SELECT items.id, items.kind, items.source, items.created_at, items.payload_size, items.pinned, items.deleted_at, items.source_process, items.source_window, items.blob_ref, items.uploaded_url, items.uploader_id, items.search_text, items.category, items.label, items.pin_sort_order, items.trigger, {payloadColumn}, {thumbnailColumn} FROM items");
         var hasFts = !string.IsNullOrWhiteSpace(query.Search);
         var hasCategory = !string.IsNullOrEmpty(query.Category);
         if (hasFts)
@@ -430,6 +431,15 @@ public sealed class ItemStore : IItemStore
             if (!reader.IsDBNull(psoOrd)) pinSortOrder = reader.GetInt32(psoOrd);
         }
         catch (IndexOutOfRangeException) { /* column missing — sort order stays 0 */ }
+        // Trigger column was added in schema v4 — older readers / hand-crafted SELECTs that
+        // pre-date the Key Sequences module fall back to null instead of throwing.
+        string? trigger = null;
+        try
+        {
+            var trigOrd = reader.GetOrdinal("trigger");
+            if (!reader.IsDBNull(trigOrd)) trigger = reader.GetString(trigOrd);
+        }
+        catch (IndexOutOfRangeException) { /* pre-v4 schema — column missing */ }
 
         return new ItemRecord(
             Id: reader.GetInt64(reader.GetOrdinal("id")),
@@ -450,7 +460,8 @@ public sealed class ItemStore : IItemStore
             Thumbnail: thumbnail,
             Category: category,
             Label: label,
-            PinSortOrder: pinSortOrder);
+            PinSortOrder: pinSortOrder,
+            Trigger: trigger);
     }
 
     public async Task<bool> SetCategoryAsync(long id, string category, CancellationToken cancellationToken)
@@ -477,6 +488,46 @@ public sealed class ItemStore : IItemStore
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;
+    }
+
+    public async Task<bool> SetTriggerAsync(long id, string? trigger, CancellationToken cancellationToken)
+    {
+        var normalised = NormalizeTrigger(trigger);
+        var conn = _database.GetOpenConnection();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE items SET trigger = $trigger WHERE id = $id;";
+        cmd.Parameters.AddWithValue("$trigger", (object?)normalised ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id", id);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
+        return rows == 1;
+    }
+
+    public async Task<IReadOnlyList<TriggerBinding>> ListTriggerBindingsAsync(CancellationToken cancellationToken)
+    {
+        var conn = _database.GetOpenConnection();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT id, trigger FROM items
+            WHERE trigger IS NOT NULL AND TRIM(trigger) != '' AND deleted_at IS NULL;
+            """;
+        var results = new List<TriggerBinding>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            results.Add(new TriggerBinding(reader.GetInt64(0), reader.GetString(1)));
+        }
+        return results;
+    }
+
+    /// <summary>Trim and collapse empty/whitespace input to NULL. Storage doesn't enforce
+    /// the [a-zA-Z0-9_]+ shape — the design spec leaves room for future modules to relax it,
+    /// and validation belongs at the call site (settings UI / item editor). Done at the
+    /// storage boundary so the column never gets a stray " " smuggled in from a UI bug.</summary>
+    private static string? NormalizeTrigger(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        return raw.Trim();
     }
 
     /// <summary>Trim, cap at 200 chars, and collapse empty/whitespace to NULL. Done at the

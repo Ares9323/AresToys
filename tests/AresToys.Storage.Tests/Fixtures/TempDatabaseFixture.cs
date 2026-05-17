@@ -26,7 +26,7 @@ public sealed class TempDatabaseFixture : IAsyncDisposable
         Options = new StorageOptions { RootDirectoryOverride = RootDirectory };
         Paths = new StoragePathResolver(Microsoft.Extensions.Options.Options.Create(Options));
 
-        var migrations = new IMigration[] { new Migration001InitialSchema(), new Migration002AddItemLabel(), new Migration003AddPinSortOrder() };
+        var migrations = new IMigration[] { new Migration001InitialSchema(), new Migration002AddItemLabel(), new Migration003AddPinSortOrder(), new Migration004AddItemTrigger() };
         Database = new AresToysDatabase(Paths, new MigrationRunner(migrations), NullLogger<AresToysDatabase>.Instance);
     }
 

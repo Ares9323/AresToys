@@ -42,4 +42,18 @@ public static class PipelineBagKeys
     /// to the clipboard, letting users compose "pick → format" pipelines without per-format
     /// hardcoding inside the sampler. Type: <c>AresToys.Editor.Model.ShapeColor</c>.</summary>
     public const string Color = "color";
+
+    /// <summary>Set to <c>true</c> by <c>OpenEditorBeforeUploadTask</c> when the user saved a
+    /// genuinely-different version of the bytes (post-edit payload differs from pre-edit).
+    /// Downstream tasks with a <c>skipIfNotModified</c> toggle read this to know whether to
+    /// run — lets workflows build "save before/after only when actually edited" flows.</summary>
+    public const string PayloadModified = "payload_modified";
+
+    /// <summary>The pipeline's "current text" — overwritten by every step that produces a
+    /// textual artifact (SaveToFile / SaveSvg / SaveAs / RecordScreen → the saved path; Upload →
+    /// the first URL; QrRead → the decoded text). Read as a zero-config default by AddText,
+    /// AddFile, the QR converters and the ToastBuilder. Workflows are linear, so "last writer
+    /// wins" matches the user's mental model — Add text after Upload gets the URL, Add text
+    /// after Scan QR gets the decoded text, etc.</summary>
+    public const string Text = "text";
 }

@@ -24,7 +24,8 @@ public sealed record ItemRecord(
     ReadOnlyMemory<byte>? Thumbnail = null,
     string Category = "Clipboard",
     string? Label = null,
-    int PinSortOrder = 0)
+    int PinSortOrder = 0,
+    string? Trigger = null)
 {
     public Item ToDomain() => new(
         Id: Id,
