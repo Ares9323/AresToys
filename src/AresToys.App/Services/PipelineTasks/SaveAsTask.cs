@@ -17,9 +17,14 @@ public sealed class SaveAsTask : IPipelineTask
 {
     public const string TaskId = "arestoys.save-as";
 
+    private readonly Notifications.ToastBuilderService? _toast;
     private readonly ILogger<SaveAsTask> _logger;
 
-    public SaveAsTask(ILogger<SaveAsTask> logger) { _logger = logger; }
+    public SaveAsTask(ILogger<SaveAsTask> logger, Notifications.ToastBuilderService? toast = null)
+    {
+        _logger = logger;
+        _toast = toast;
+    }
 
     public string Id => TaskId;
     public string DisplayName => "Save image as…";
@@ -60,7 +65,13 @@ public sealed class SaveAsTask : IPipelineTask
         {
             await File.WriteAllBytesAsync(picked, bytes, cancellationToken).ConfigureAwait(false);
             context.Bag[PipelineBagKeys.LocalPath] = picked;
+            context.Bag[PipelineBagKeys.Text] = picked;
             _logger.LogDebug("SaveAsTask: wrote {Bytes} bytes to {Path}", bytes.Length, picked);
+
+            if ((bool?)config?["showNotification"] == true && _toast is not null)
+            {
+                _toast.ShowFromBag(context, (string?)config?["notificationTitle"]);
+            }
         }
         catch (Exception ex)
         {

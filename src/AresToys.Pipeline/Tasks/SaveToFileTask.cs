@@ -17,13 +17,15 @@ public sealed class SaveToFileTask : IPipelineTask
 
     private readonly ISettingsStore _settings;
     private readonly IImageEncoder? _encoder;
+    private readonly AresToys.Core.Pipeline.IPipelineNotifier? _notifier;
     private readonly ILogger<SaveToFileTask> _logger;
 
-    public SaveToFileTask(ISettingsStore settings, ILogger<SaveToFileTask> logger, IImageEncoder? encoder = null)
+    public SaveToFileTask(ISettingsStore settings, ILogger<SaveToFileTask> logger, IImageEncoder? encoder = null, AresToys.Core.Pipeline.IPipelineNotifier? notifier = null)
     {
         _settings = settings;
         _encoder = encoder;
         _logger = logger;
+        _notifier = notifier;
     }
 
     public string Id => TaskId;
@@ -33,6 +35,17 @@ public sealed class SaveToFileTask : IPipelineTask
     public async Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
+
+        // Opt-in "only run if an editor / generator actually modified the bytes". Lets the user
+        // chain two SaveToFile steps around an OpenEditorBeforeUpload to get a before/after pair
+        // without producing a duplicate file when nothing was edited. Reads the
+        // bag.payload_modified flag set by OpenEditorBeforeUpload on a successful save.
+        var skipIfNotModified = (bool?)config?["skipIfNotModified"] ?? false;
+        if (skipIfNotModified && !context.Bag.ContainsKey(PipelineBagKeys.PayloadModified))
+        {
+            _logger.LogDebug("SaveToFileTask: skipIfNotModified=true and bag.payload_modified is absent — skipping.");
+            return;
+        }
 
         if (!context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) || rawBytes is not byte[] bytes)
         {
@@ -129,7 +142,20 @@ public sealed class SaveToFileTask : IPipelineTask
         await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken).ConfigureAwait(false);
 
         context.Bag[PipelineBagKeys.LocalPath] = fullPath;
+        context.Bag[PipelineBagKeys.Text] = fullPath;
         _logger.LogDebug("SaveToFileTask: wrote {Bytes} bytes to {Path}", bytes.Length, fullPath);
+
+        if ((bool?)config?["showNotification"] == true && _notifier is not null)
+        {
+            // When the user enabled "Only save if image was edited", the toast appears AFTER an
+            // upstream Open-editor step has already closed — surfacing "Open in editor" would just
+            // re-open the same image the user just finished editing. Suppress it so the toast keeps
+            // only the useful Copy path / Show in folder actions.
+            _notifier.ShowFromBag(
+                context,
+                (string?)config?["notificationTitle"],
+                suppressEditorButton: skipIfNotModified);
+        }
     }
 
     /// <summary>ShareX-style date / metadata tokens for the sub-folder pattern. Tokens use the

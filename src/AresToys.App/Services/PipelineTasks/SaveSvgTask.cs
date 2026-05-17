@@ -36,12 +36,14 @@ public sealed class SaveSvgTask : IPipelineTask
     private const string SubFolderPatternSettingKey = "capture.subfolder_pattern";
 
     private readonly ISettingsStore _settings;
+    private readonly Notifications.ToastBuilderService? _toast;
     private readonly ILogger<SaveSvgTask> _logger;
 
-    public SaveSvgTask(ISettingsStore settings, ILogger<SaveSvgTask> logger)
+    public SaveSvgTask(ISettingsStore settings, ILogger<SaveSvgTask> logger, Notifications.ToastBuilderService? toast = null)
     {
         _settings = settings;
         _logger = logger;
+        _toast = toast;
     }
 
     public string Id => TaskId;
@@ -89,7 +91,16 @@ public sealed class SaveSvgTask : IPipelineTask
             // BOM but most svgo / build-pipeline tooling around SVG prefers BOMless.
             await File.WriteAllTextAsync(actualPath, svg, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken).ConfigureAwait(false);
             context.Bag[SvgLocalPathBagKey] = actualPath;
+            // Last-text-wins: every text-producing step also updates bag.text so downstream
+            // zero-config sinks (Add text, Add file, toast body) see the most recent output.
+            // We keep SvgLocalPath as a separate channel for raster+SVG combo workflows.
+            context.Bag[PipelineBagKeys.Text] = actualPath;
             _logger.LogInformation("SaveSvgTask: wrote {Path} ({Bytes} bytes)", actualPath, svg.Length);
+
+            if ((bool?)config?["showNotification"] == true && _toast is not null)
+            {
+                _toast.ShowFromBag(context, (string?)config?["notificationTitle"]);
+            }
         }
         catch (Exception ex)
         {

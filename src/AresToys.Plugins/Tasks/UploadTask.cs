@@ -21,12 +21,14 @@ public sealed class UploadTask : IPipelineTask
     public const string TaskId = "arestoys.upload";
 
     private readonly IUploaderResolver _resolver;
+    private readonly AresToys.Core.Pipeline.IPipelineNotifier? _notifier;
     private readonly ILogger<UploadTask> _logger;
 
-    public UploadTask(IUploaderResolver resolver, ILogger<UploadTask> logger)
+    public UploadTask(IUploaderResolver resolver, ILogger<UploadTask> logger, AresToys.Core.Pipeline.IPipelineNotifier? notifier = null)
     {
         _resolver = resolver;
         _logger = logger;
+        _notifier = notifier;
     }
 
     public string Id => TaskId;
@@ -44,14 +46,14 @@ public sealed class UploadTask : IPipelineTask
         }
         if (bytes.Length == 0) return;
 
-        var uploaders = await ResolveUploadersAsync(config, cancellationToken).ConfigureAwait(false);
+        var ext = context.Bag.TryGetValue(PipelineBagKeys.FileExtension, out var rawExt) && rawExt is string e ? e : "bin";
+        var uploaders = await ResolveUploadersAsync(config, ext, cancellationToken).ConfigureAwait(false);
         if (uploaders.Count == 0)
         {
             _logger.LogWarning("UploadTask: no uploader available (none configured/enabled for this step).");
             return;
         }
 
-        var ext = context.Bag.TryGetValue(PipelineBagKeys.FileExtension, out var rawExt) && rawExt is string e ? e : "bin";
         var contentType = ContentTypeFor(ext);
         var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var fileName = $"arestoys-{stamp}.{ext.TrimStart('.')}";
@@ -76,26 +78,53 @@ public sealed class UploadTask : IPipelineTask
         context.Bag[PipelineBagKeys.UploadUrl] = urls[0];
         context.Bag[PipelineBagKeys.UploadUrls] = string.Join('\n', urls);
         context.Bag[PipelineBagKeys.UploaderId] = firstId!;
+        context.Bag[PipelineBagKeys.Text] = urls[0];
+
+        if ((bool?)config?["showNotification"] == true && _notifier is not null)
+        {
+            _notifier.ShowFromBag(context, (string?)config?["notificationTitle"]);
+        }
     }
 
-    private async Task<IReadOnlyList<IUploader>> ResolveUploadersAsync(JsonNode? config, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<IUploader>> ResolveUploadersAsync(JsonNode? config, string fileExtension, CancellationToken cancellationToken)
     {
-        // Category mode wins when set: routes through the user's per-category selection.
-        var category = (string?)config?["category"];
-        if (!string.IsNullOrEmpty(category) && TryParseCategory(category, out var caps))
-        {
-            return await _resolver.ResolveCategoryAsync(caps, cancellationToken).ConfigureAwait(false);
-        }
-
-        // Fallback: single-uploader-by-id (legacy, used by region-capture before the selection UI).
+        // 1. Explicit uploader id (new primary path — set by the consolidated "Upload to cloud
+        //    service" / "Shorten URL" workflow descriptors which expose a dropdown of ids).
         var uploaderId = (string?)config?["uploader"];
         if (!string.IsNullOrEmpty(uploaderId))
         {
             var uploader = await _resolver.ResolveAsync(uploaderId, cancellationToken).ConfigureAwait(false);
             return uploader is null ? [] : [uploader];
         }
+
+        // 2. Legacy category mode (kept for back-compat with user workflows that still carry the
+        //    pre-refactor "category" config). Runs every uploader in the user's per-category list.
+        var category = (string?)config?["category"];
+        if (!string.IsNullOrEmpty(category) && TryParseCategory(category, out var caps))
+        {
+            return await _resolver.ResolveCategoryAsync(caps, cancellationToken).ConfigureAwait(false);
+        }
+
+        // 3. Auto-detect: derive the category from the payload's file extension and pick the
+        //    first uploader the user has selected for that category. Empty string in config
+        //    means "let the pipeline figure out the right destination" — what the new
+        //    consolidated descriptor's default is.
+        var detected = DetectCategory(fileExtension);
+        if (detected != UploaderCapabilities.None)
+        {
+            var list = await _resolver.ResolveCategoryAsync(detected, cancellationToken).ConfigureAwait(false);
+            return list.Count > 0 ? new[] { list[0] } : (IReadOnlyList<IUploader>)[];
+        }
         return [];
     }
+
+    private static UploaderCapabilities DetectCategory(string ext) => ext.ToLowerInvariant() switch
+    {
+        "png" or "jpg" or "jpeg" or "gif" or "bmp" or "webp" or "tif" or "tiff" => UploaderCapabilities.Image,
+        "mp4" or "mov" or "webm" or "mkv" or "avi" or "wmv" or "m4v" => UploaderCapabilities.Video,
+        "txt" or "md" or "log" or "csv" or "json" or "xml" or "html" or "htm" or "yaml" or "yml" => UploaderCapabilities.Text,
+        _ => UploaderCapabilities.File,
+    };
 
     private static bool TryParseCategory(string raw, out UploaderCapabilities category)
     {
