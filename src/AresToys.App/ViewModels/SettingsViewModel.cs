@@ -49,9 +49,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         Categories = categories;
         Debug = debug;
         Wormholes = wormholes;
-        // Initial state mirrors the registry. Future toggles persist via OnStartWithWindowsChanged.
+        // Initial state mirrors Task Scheduler. Future toggles persist via OnStartWithWindowsChanged /
+        // OnStartWithWindowsAsAdminChanged. We read both flags up-front so the UI reflects the actual
+        // run-level of the task without an extra round-trip after first paint.
         _suppressAutostartPersist = true;
         StartWithWindows = autostart.IsEnabled;
+        StartWithWindowsAsAdmin = autostart.IsElevated;
         _suppressAutostartPersist = false;
 
         // StartMinimized + EditorStartMaximized hydrate async from the SQLite settings store.
@@ -110,7 +113,43 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnStartWithWindowsChanged(bool value)
     {
         if (_suppressAutostartPersist) return;
-        _autostart.SetEnabled(value);
+        _autostart.SetEnabled(value, StartWithWindowsAsAdmin);
+        SyncAutostartFromSystem();
+    }
+
+    /// <summary>Bound to the nested "Run as administrator" checkbox under <see cref="StartWithWindows"/>.
+    /// When ON the autostart task is created with <c>RunLevel=HighestAvailable</c> so the elevated
+    /// session starts automatically at logon (one-time UAC prompt at toggle, none afterwards).
+    /// When OFF the task is recreated at <c>LeastPrivilege</c>. Has no effect while
+    /// <see cref="StartWithWindows"/> is OFF (no task to apply the flag to) — the UI keeps the
+    /// checkbox disabled in that state via an <c>IsEnabled</c> binding.</summary>
+    [ObservableProperty]
+    private bool _startWithWindowsAsAdmin;
+
+    partial void OnStartWithWindowsAsAdminChanged(bool value)
+    {
+        if (_suppressAutostartPersist) return;
+        // Don't poke schtasks when autostart itself is off — we'd be writing a task the user
+        // hasn't asked for. The value is still kept so toggling autostart on later honours the
+        // user's intent.
+        if (!StartWithWindows) return;
+        _autostart.SetEnabled(true, value);
+        SyncAutostartFromSystem();
+    }
+
+    /// <summary>Re-reads the autostart state from Task Scheduler and pushes it back into the two
+    /// observable properties without re-triggering the setter callbacks (suppression flag). Called
+    /// after every SetEnabled so a denied UAC prompt or a schtasks failure reverts the toggle to
+    /// the truthful on-disk state instead of leaving the UI lying to the user.</summary>
+    private void SyncAutostartFromSystem()
+    {
+        _suppressAutostartPersist = true;
+        try
+        {
+            StartWithWindows = _autostart.IsEnabled;
+            StartWithWindowsAsAdmin = _autostart.IsElevated;
+        }
+        finally { _suppressAutostartPersist = false; }
     }
 
     /// <summary>Bound to the Settings-tab "Start minimized" checkbox. Persisted in the SQLite

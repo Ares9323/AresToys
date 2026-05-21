@@ -5001,7 +5001,25 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Settings_StartWithWindowsTooltip", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run as administrator.
+        /// </summary>
+        public static string Settings_StartWithWindowsAsAdmin {
+            get {
+                return ResourceManager.GetString("Settings_StartWithWindowsAsAdmin", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Starts AresToys elevated at logon, so hotkeys keep working when admin-elevated windows (e.g. Task Manager, an elevated PowerShell) are in focus. Toggling this prompts UAC once; later logons start elevated without any further prompt..
+        /// </summary>
+        public static string Settings_StartWithWindowsAsAdminTooltip {
+            get {
+                return ResourceManager.GetString("Settings_StartWithWindowsAsAdminTooltip", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Set AresToys as the default app for .sxie files.
         /// </summary>

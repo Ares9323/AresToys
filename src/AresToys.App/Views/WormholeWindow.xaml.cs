@@ -1578,6 +1578,15 @@ public partial class WormholeWindow : Window
             e.Handled = true;
             return;
         }
+
+        if (e.Key == Key.Enter)
+        {
+            var selected = ItemsHost.SelectedItems.OfType<WormholeItemViewModel>().ToList();
+            if (selected.Count == 0) return;
+            foreach (var vm in selected) OpenItem(vm);
+            e.Handled = true;
+            return;
+        }
     }
 
     // -----------------------------------------------------------------------------------------

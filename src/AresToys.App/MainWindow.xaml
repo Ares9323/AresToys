@@ -2165,6 +2165,17 @@
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_StartWithWindowsTooltip}" />
+                            <!-- Nested "Run as administrator" toggle. Indented 18 px to mirror the
+                                 typical Windows Settings nesting style. Always clickable — the VM
+                                 setter no-ops when the parent autostart toggle is OFF (storing the
+                                 intent without touching schtasks), so flipping autostart on later
+                                 honours the previously expressed admin preference in a single
+                                 task-register call. -->
+                            <CheckBox IsChecked="{Binding StartWithWindowsAsAdmin, Mode=TwoWay}"
+                                      Content="{Markup:Loc Settings_StartWithWindowsAsAdmin}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" Margin="18,0,0,8"
+                                      ToolTip="{Markup:Loc Settings_StartWithWindowsAsAdminTooltip}" />
                             <CheckBox IsChecked="{Binding StartMinimized, Mode=TwoWay}"
                                       Content="{Markup:Loc Settings_StartMinimized}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
