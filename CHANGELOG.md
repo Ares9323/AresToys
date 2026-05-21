@@ -3,6 +3,48 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.19] — 2026-05-21
+
+Small QoL release on top of 0.1.18: clipboard popup gets a proper
+plain-text fallback for HTML/RTF, the Wormhole tiles list answers
+to the Enter key, and the autostart settings grow a "Run as
+administrator" toggle so hotkeys keep working when an elevated
+window (Task Manager, admin PowerShell, etc.) holds foreground
+focus.
+
+### Clipboard popup
+- "Convert to plain text" action on a clipboard entry now strips
+  HTML / RTF wrappers (kept as a separate format in the clipboard
+  history) instead of leaving the entry as-is — the previous behaviour
+  surfaced the raw markup back into the next paste.
+- HTML / RTF cleaning routines tightened: tag stripping handles
+  nested `<style>` / `<script>` blocks and decodes the common HTML
+  entities so the text-only payload matches what the user would
+  see in a rendered preview.
+
+### Wormhole
+- Enter on a selected tile (single or multi) opens every selected
+  item through the same shell-execute path as the existing
+  double-click handler. Matches Explorer's keyboard navigation so
+  arrow-key + Enter feels native.
+
+### Settings → Windows integration
+- New "Run as administrator" checkbox nested under "Run AresToys
+  when Windows starts". When enabled, the scheduled autostart task
+  is registered with `<RunLevel>HighestAvailable</RunLevel>` so
+  AresToys boots elevated at logon. Task Scheduler suppresses the
+  per-logon UAC prompt because the task itself is pre-approved at
+  create time — only the act of toggling the checkbox triggers
+  UAC, never the day-to-day logons.
+- Solves the recurring UIPI symptom where global hotkeys stop
+  intercepting input as soon as an admin-elevated window grabs
+  the foreground (e.g. Task Manager, elevated PowerShell, regedit).
+- `AutostartService.IsElevated` reads the actual `RunLevel` back
+  from the registered task XML so the toggle reflects the truthful
+  on-disk state — a denied UAC prompt rolls the UI back instead of
+  leaving the checkbox stuck "on" while the task isn't really
+  elevated.
+
 ## [0.1.18] — 2026-05-17
 
 Pipeline + workflow editor wave on top of 0.1.17. Generalised the
