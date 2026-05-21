@@ -269,6 +269,14 @@
   <data name="Settings_StartWithWindowsTooltip" xml:space="preserve"><value>Adds (or removes) AresToys to the per-user Windows startup list. No admin rights needed.</value></data>
   <data name="Settings_StartWithWindowsAsAdmin" xml:space="preserve"><value>Run as administrator</value></data>
   <data name="Settings_StartWithWindowsAsAdminTooltip" xml:space="preserve"><value>Starts AresToys elevated at logon, so hotkeys keep working when admin-elevated windows (e.g. Task Manager, an elevated PowerShell) are in focus. Toggling this prompts UAC once; later logons start elevated without any further prompt.</value></data>
+  <data name="Settings_RunningAsAdminTitle" xml:space="preserve"><value>Running as administrator</value></data>
+  <data name="Settings_RunningAsAdminHint" xml:space="preserve"><value>Required for global hotkeys to keep working when an admin-elevated window (Task Manager, elevated PowerShell, regedit, etc.) holds foreground focus. Without elevation, Windows' User Interface Privilege Isolation blocks lower-integrity processes from intercepting input destined for higher-integrity ones.</value></data>
+  <data name="Settings_RestartAsAdminButton" xml:space="preserve"><value>Restart as administrator</value></data>
+  <data name="Settings_RestartAsAdminTooltip" xml:space="preserve"><value>Re-launches AresToys with administrator privileges. A UAC prompt will appear; the current non-elevated instance closes once the elevated one comes up.</value></data>
+  <data name="Settings_RestartAsAdminAlreadyElevated" xml:space="preserve"><value>Already running as administrator.</value></data>
+  <data name="Settings_AlwaysRunAsAdmin" xml:space="preserve"><value>Always run as administrator</value></data>
+  <data name="Settings_AlwaysRunAsAdminTooltip" xml:space="preserve"><value>Persists the elevated-run preference. AresToys self-elevates on every launch (and the autostart task, if enabled, registers itself with HighestAvailable so the logon-time launch comes up elevated without a prompt).</value></data>
+  <data name="Settings_AlwaysRunAsAdminConstraint" xml:space="preserve"><value>This setting can only be changed when AresToys is running as administrator. Click "Restart as administrator" above to elevate the current session.</value></data>
   <data name="QrGenerator_Title" xml:space="preserve"><value>AresToys - QR generator</value></data>
   <data name="QrGenerator_Content" xml:space="preserve"><value>Content</value></data>
   <data name="QrGenerator_PlaceholderInput" xml:space="preserve"><value>Paste a URL, text, vCard, Wi-Fi credentials, …</value></data>

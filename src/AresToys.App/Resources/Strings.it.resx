@@ -254,6 +254,14 @@
   <data name="Settings_StartWithWindowsTooltip" xml:space="preserve"><value>Aggiunge (o rimuove) AresToys dalla lista di avvio utente di Windows. Non servono permessi di amministratore.</value></data>
   <data name="Settings_StartWithWindowsAsAdmin" xml:space="preserve"><value>Esegui come amministratore</value></data>
   <data name="Settings_StartWithWindowsAsAdminTooltip" xml:space="preserve"><value>Avvia AresToys elevato al logon, così le hotkey continuano a funzionare anche quando in focus c'è una finestra eseguita come amministratore (es. Task Manager, PowerShell elevato). Abilitarlo richiede una conferma UAC al momento del toggle; ai logon successivi parte elevato senza altri prompt.</value></data>
+  <data name="Settings_RunningAsAdminTitle" xml:space="preserve"><value>Esecuzione come amministratore</value></data>
+  <data name="Settings_RunningAsAdminHint" xml:space="preserve"><value>Necessario perché le hotkey globali continuino a funzionare quando in focus c'è una finestra eseguita come amministratore (Task Manager, PowerShell elevato, regedit, ecc.). Senza elevazione, l'User Interface Privilege Isolation di Windows blocca i processi a integrity-level inferiore dall'intercettare input destinati a quelli superiori.</value></data>
+  <data name="Settings_RestartAsAdminButton" xml:space="preserve"><value>Riavvia come amministratore</value></data>
+  <data name="Settings_RestartAsAdminTooltip" xml:space="preserve"><value>Rilancia AresToys con privilegi di amministratore. Apparirà un prompt UAC; l'istanza non elevata attuale si chiude appena quella elevata è pronta.</value></data>
+  <data name="Settings_RestartAsAdminAlreadyElevated" xml:space="preserve"><value>Già in esecuzione come amministratore.</value></data>
+  <data name="Settings_AlwaysRunAsAdmin" xml:space="preserve"><value>Esegui sempre come amministratore</value></data>
+  <data name="Settings_AlwaysRunAsAdminTooltip" xml:space="preserve"><value>Salva la preferenza di esecuzione elevata. AresToys si auto-eleva ad ogni avvio (e il task di autostart, se attivo, viene registrato con HighestAvailable in modo che parta elevato al logon senza prompt).</value></data>
+  <data name="Settings_AlwaysRunAsAdminConstraint" xml:space="preserve"><value>Questa impostazione si può cambiare solo quando AresToys è in esecuzione come amministratore. Clicca "Riavvia come amministratore" qui sopra per elevare la sessione corrente.</value></data>
   <data name="QrGenerator_Title" xml:space="preserve"><value>AresToys - Generatore QR</value></data>
   <data name="QrGenerator_Content" xml:space="preserve"><value>Contenuto</value></data>
   <data name="QrGenerator_PlaceholderInput" xml:space="preserve"><value>Incolla un URL, testo, vCard, credenziali Wi-Fi, …</value></data>

@@ -22,6 +22,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string WormholesModuleKey  = ModuleSettings.WormholesKey;
     private const string KeySequencesModuleKey = ModuleSettings.KeySequencesKey;
     private readonly AutostartService _autostart;
+    private readonly ElevationService _elevation;
     private readonly ISettingsStore _settingsStore;
     private readonly PopupWindowViewModel _clipboardVm;
     private readonly AresToys.App.Services.KeySequences.KeySequenceModuleSettings _keySequencesSettings;
@@ -29,6 +30,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(
         PluginRegistry registry,
         AutostartService autostart,
+        ElevationService elevation,
         ISettingsStore settingsStore,
         UploadersViewModel uploaders,
         HotkeysViewModel hotkeys,
@@ -42,6 +44,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings)
     {
         _autostart = autostart;
+        _elevation = elevation;
         _settingsStore = settingsStore;
         _clipboardVm = clipboardVm;
         _keySequencesSettings = keySequencesSettings;
@@ -49,13 +52,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         Categories = categories;
         Debug = debug;
         Wormholes = wormholes;
-        // Initial state mirrors Task Scheduler. Future toggles persist via OnStartWithWindowsChanged /
-        // OnStartWithWindowsAsAdminChanged. We read both flags up-front so the UI reflects the actual
-        // run-level of the task without an extra round-trip after first paint.
+        // Initial state mirrors Task Scheduler — the on-disk task is the single source of truth
+        // for the autostart toggle.
         _suppressAutostartPersist = true;
         StartWithWindows = autostart.IsEnabled;
-        StartWithWindowsAsAdmin = autostart.IsElevated;
         _suppressAutostartPersist = false;
+
+        // RunElevated is the persisted "Always run as administrator" preference. Hydrated from
+        // HKCU registry (see ElevationService for why registry and not the SQLite store — App.OnStartup
+        // needs to read it before DI is built). Subsequent UI toggles propagate via
+        // OnRunElevatedChanged below.
+        _suppressRunElevatedPersist = true;
+        RunElevated = elevation.RunElevated;
+        _suppressRunElevatedPersist = false;
 
         // StartMinimized + EditorStartMaximized hydrate async from the SQLite settings store.
         // The fire-and-forget is intentional: SettingsViewModel is constructed eagerly during
@@ -109,47 +118,64 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _startWithWindows;
 
     private bool _suppressAutostartPersist;
+    private bool _suppressRunElevatedPersist;
 
     partial void OnStartWithWindowsChanged(bool value)
     {
         if (_suppressAutostartPersist) return;
-        _autostart.SetEnabled(value, StartWithWindowsAsAdmin);
-        SyncAutostartFromSystem();
+        // Pair the autostart task's RunLevel with the persisted "Always run as administrator"
+        // preference: enabling autostart while RunElevated is on registers the task as
+        // HighestAvailable (so logon auto-elevates without a prompt); enabling it while
+        // RunElevated is off uses LeastPrivilege as before. RunElevated can only be toggled when
+        // AresToys is itself elevated (see RunElevated below + the XAML IsEnabled gating), so
+        // schtasks always sees an elevated caller for the HighestAvailable case — no DACL drama
+        // on later modifications.
+        _autostart.SetEnabled(value, RunElevated);
     }
 
-    /// <summary>Bound to the nested "Run as administrator" checkbox under <see cref="StartWithWindows"/>.
-    /// When ON the autostart task is created with <c>RunLevel=HighestAvailable</c> so the elevated
-    /// session starts automatically at logon (one-time UAC prompt at toggle, none afterwards).
-    /// When OFF the task is recreated at <c>LeastPrivilege</c>. Has no effect while
-    /// <see cref="StartWithWindows"/> is OFF (no task to apply the flag to) — the UI keeps the
-    /// checkbox disabled in that state via an <c>IsEnabled</c> binding.</summary>
+    /// <summary>True when the current AresToys process is running with an elevated token. Drives
+    /// the IsEnabled gating in the "Running as administrator" Settings card: the "Always run as
+    /// administrator" checkbox is only clickable when this is true, and the "Restart as
+    /// administrator" button is only clickable when this is false. Mirrors the PowerToys flow.</summary>
+    public bool IsRunningAsAdmin => _elevation.IsProcessElevated;
+
+    /// <summary>Inverse of <see cref="IsRunningAsAdmin"/>, bound to the "Restart as administrator"
+    /// button's <c>IsEnabled</c>. Computed property (no field) because the elevation state is
+    /// frozen at process start and never changes mid-run.</summary>
+    public bool CanRestartAsAdmin => !_elevation.IsProcessElevated;
+
+    /// <summary>Persisted "Always run as administrator" preference. <c>App.OnStartup</c> reads it
+    /// from the registry early and self-relaunches via ShellExecute runas if true and the
+    /// current process isn't already elevated. Toggling it here also reshapes the autostart
+    /// task's RunLevel so the logon-time auto-launch matches.</summary>
     [ObservableProperty]
-    private bool _startWithWindowsAsAdmin;
+    private bool _runElevated;
 
-    partial void OnStartWithWindowsAsAdminChanged(bool value)
+    partial void OnRunElevatedChanged(bool value)
     {
-        if (_suppressAutostartPersist) return;
-        // Don't poke schtasks when autostart itself is off — we'd be writing a task the user
-        // hasn't asked for. The value is still kept so toggling autostart on later honours the
-        // user's intent.
-        if (!StartWithWindows) return;
-        _autostart.SetEnabled(true, value);
-        SyncAutostartFromSystem();
+        if (_suppressRunElevatedPersist) return;
+        _elevation.RunElevated = value;
+        // Keep the autostart task in lockstep: if the user enabled both autostart AND
+        // "always run as admin", the task needs HighestAvailable so the logon-time launch comes
+        // up elevated without a UAC prompt. This call is safe because the checkbox is gated to
+        // only be clickable when AresToys is itself elevated.
+        if (StartWithWindows)
+        {
+            _autostart.SetEnabled(true, value);
+        }
     }
 
-    /// <summary>Re-reads the autostart state from Task Scheduler and pushes it back into the two
-    /// observable properties without re-triggering the setter callbacks (suppression flag). Called
-    /// after every SetEnabled so a denied UAC prompt or a schtasks failure reverts the toggle to
-    /// the truthful on-disk state instead of leaving the UI lying to the user.</summary>
-    private void SyncAutostartFromSystem()
+    [RelayCommand]
+    private void RestartAsAdmin()
     {
-        _suppressAutostartPersist = true;
-        try
+        // Persist the preference first so the elevated child reads it back on its OnStartup and
+        // keeps the toggle reflecting the user's intent — even if they hadn't explicitly toggled
+        // the "Always run as admin" checkbox yet (one-shot elevation request).
+        if (ElevationService.RestartElevated())
         {
-            StartWithWindows = _autostart.IsEnabled;
-            StartWithWindowsAsAdmin = _autostart.IsElevated;
+            System.Windows.Application.Current.Shutdown();
         }
-        finally { _suppressAutostartPersist = false; }
+        // UAC declined / failed: stay in the current non-elevated session. No state to revert.
     }
 
     /// <summary>Bound to the Settings-tab "Start minimized" checkbox. Persisted in the SQLite

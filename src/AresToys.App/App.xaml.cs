@@ -40,6 +40,25 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // "Always run as administrator" self-relaunch check. Must come before SingleInstanceGuard
+        // and any heavy bootstrap: if the user opted into elevated autostart and the OS gave us a
+        // non-elevated token (e.g. they double-clicked the Start menu shortcut, which doesn't go
+        // through the elevated Task Scheduler entry), we re-launch ourselves through ShellExecute
+        // with Verb=runas and drop the current process so the user only sees the elevated
+        // instance. The --restarted-elevated arg prevents an infinite bounce on UAC denial.
+        if (!e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedElevatedArg, StringComparison.OrdinalIgnoreCase))
+            && AresToys.App.Services.ElevationService.ReadRunElevatedFromRegistry()
+            && !new AresToys.App.Services.ElevationService().IsProcessElevated)
+        {
+            if (AresToys.App.Services.ElevationService.RestartElevated())
+            {
+                Shutdown();
+                return;
+            }
+            // UAC declined: fall through and start non-elevated. The user can re-trigger the
+            // elevation explicitly via the "Restart as administrator" button in Settings.
+        }
+
         // Wire app-wide TextBox numeric-nudge handlers once. EventManager class-level hooks
         // beat the implicit-Style route (which broke WPF-UI ui:TextBox rendering) — every
         // TextBox / ui:TextBox in the app picks up the wheel + arrow ±1 (±5 with Shift)
@@ -351,6 +370,7 @@ public partial class App : Application
                 // "Check for updates" button as disabled in Settings.
                 services.AddSingleton<AresToys.Updater.UpdaterService>();
                 services.AddSingleton<AutostartService>();
+                services.AddSingleton<ElevationService>();
                 services.AddSingleton<PinToScreenLauncher>();
                 services.AddSingleton<EditorLauncher>();
                 services.AddSingleton<ScreenColorPickerService>();

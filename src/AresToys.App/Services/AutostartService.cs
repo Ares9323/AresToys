@@ -19,6 +19,14 @@ namespace AresToys.App.Services;
 /// Users who want to manage it from there will be surprised; the toggle in our Settings panel
 /// remains the single source of truth.
 ///
+/// Elevation policy: when the user has opted into "Always run as administrator" via the
+/// Running-as-administrator card in Settings, <see cref="SetEnabled"/> registers the task with
+/// <c>&lt;RunLevel&gt;HighestAvailable&lt;/RunLevel&gt;</c>. The PowerToys pattern guarantees
+/// that toggle can only be flipped while AresToys is already elevated, so the call into
+/// <c>schtasks</c> here always runs from an elevated context — no UAC hop / runas verb gymnastics
+/// needed, and the resulting task's DACL grants the elevated user full control over future
+/// modifications.
+///
 /// Migration: if a stale <c>HKCU\…\Run</c> entry from a previous version is present, every call
 /// to <see cref="SetEnabled"/> cleans it up so the user doesn't end up with two competing
 /// autostart paths firing in parallel.
@@ -34,13 +42,10 @@ public sealed class AutostartService
 
     public bool IsEnabled => TaskExists();
 
-    /// <summary>True when the registered task uses <c>&lt;RunLevel&gt;HighestAvailable&lt;/RunLevel&gt;</c>,
-    /// i.e. it starts AresToys elevated at logon (no UAC prompt at each logon — Task Scheduler treats
-    /// the task itself as pre-approved). Used by the Settings toggle to reflect the current state
-    /// truthfully even after a UAC denial: if the user cancels the elevation prompt during
-    /// <see cref="SetEnabled(bool, bool)"/>, the previous run-level survives and this property reads it back.</summary>
-    public bool IsElevated => TaskRunLevelIsHighest();
-
+    /// <summary>Registers or removes the autostart task. <paramref name="elevated"/> selects the
+    /// task's RunLevel (HighestAvailable vs LeastPrivilege) — the Settings VM only passes true
+    /// when the current AresToys process is itself elevated, so the underlying <c>schtasks
+    /// /Create</c> can register a HighestAvailable task without a runas hop.</summary>
     public void SetEnabled(bool enabled, bool elevated = false)
     {
         if (enabled)
@@ -102,37 +107,21 @@ public sealed class AutostartService
         File.WriteAllText(tmpPath, xml, new UnicodeEncoding(bigEndian: false, byteOrderMark: true));
         try
         {
-            // Registering a task with <RunLevel>HighestAvailable</RunLevel> requires the schtasks
-            // process itself to be elevated — schtasks won't escalate the run-level beyond the
-            // caller's. We hop UAC via Verb="runas" (one prompt, only at the moment the user flips
-            // the toggle; subsequent logons start the task elevated without any prompt because
-            // Task Scheduler treats the registered task as pre-approved).
-            //
-            // When elevated=false we keep the plain non-elevated invocation so toggling autostart
-            // off/on doesn't trigger spurious UAC prompts.
-            var psi = elevated
-                ? new ProcessStartInfo("schtasks", $"/Create /TN \"{TaskName}\" /XML \"{tmpPath}\" /F")
-                {
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                }
-                : new ProcessStartInfo("schtasks", $"/Create /TN \"{TaskName}\" /XML \"{tmpPath}\" /F")
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                };
-            using var p = Process.Start(psi);
-            p?.WaitForExit(elevated ? 30000 : 5000);
+            using var p = Process.Start(new ProcessStartInfo("schtasks",
+                $"/Create /TN \"{TaskName}\" /XML \"{tmpPath}\" /F")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            p?.WaitForExit(5000);
         }
         catch
         {
-            // Surface nothing — the Settings toggle will read back IsEnabled / IsElevated after
-            // the call and flip itself to the actual on-disk state if the task didn't get created
-            // (e.g. user denied UAC). Silent failure is preferable to popping a MessageBox during
-            // DI hydration of the Settings VM.
+            // Surface nothing — the Settings toggle will read back IsEnabled after the call and
+            // flip itself off if the task didn't get created. Silent failure is preferable to
+            // popping a MessageBox during DI hydration of the Settings VM.
         }
         finally
         {
@@ -156,46 +145,6 @@ public sealed class AutostartService
         catch
         {
             // Same rationale as CreateOrReplaceTask — Settings re-reads IsEnabled.
-        }
-    }
-
-    private static bool TaskRunLevelIsHighest()
-    {
-        if (!TaskExists()) return false;
-        // schtasks /Query /XML emits the task XML to stdout using the active console code page
-        // (UTF-8 on modern Windows, OEM codepage on older configs) — NOT UTF-16, despite the XML
-        // declaration <?xml version="1.0" encoding="UTF-16"?> baked into the document. Setting
-        // StandardOutputEncoding=Unicode here was a bug: every byte pair got decoded as one
-        // garbled UTF-16 code unit and the Contains() check never matched.
-        //
-        // To dodge encoding ambiguity entirely we redirect schtasks output to a temp file via
-        // cmd.exe ">", then load it with the default-encoding-detecting StreamReader. The
-        // substring "HighestAvailable" appears only in the <RunLevel> element across all
-        // schtasks-emitted XML, so a plain Contains() suffices — no XML parsing needed.
-        var tmpPath = Path.Combine(Path.GetTempPath(), $"arestoys-query-{Guid.NewGuid():N}.xml");
-        try
-        {
-            using var p = Process.Start(new ProcessStartInfo("cmd.exe",
-                $"/c schtasks /Query /TN \"{TaskName}\" /XML > \"{tmpPath}\"")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            });
-            if (p is null) return false;
-            p.WaitForExit(3000);
-            if (!File.Exists(tmpPath)) return false;
-            var xml = File.ReadAllText(tmpPath);
-            return xml.Contains("HighestAvailable", StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
-        finally
-        {
-            try { File.Delete(tmpPath); } catch { /* best-effort cleanup */ }
         }
     }
 
@@ -223,10 +172,10 @@ public sealed class AutostartService
         //   - ExecutionTimeLimit=PT0S = "no time limit" (the default 72 h would otherwise let
         //     Windows kill the process after 3 days of uninterrupted uptime).
         //   - LogonType=InteractiveToken + RunLevel=LeastPrivilege (or HighestAvailable when the
-        //     user opted in via the Settings toggle). HighestAvailable means the task action runs
-        //     with the full admin token of the user *if* they're a member of Administrators —
-        //     otherwise it silently degrades to the standard token. Either way, no UAC prompt at
-        //     logon: Task Scheduler treats the registered task as pre-approved.
+        //     user opted in via the "Always run as administrator" toggle). HighestAvailable means
+        //     the task action runs with the full admin token of the user *if* they're a member of
+        //     Administrators — otherwise it silently degrades to the standard token. Either way,
+        //     no UAC prompt at logon: Task Scheduler treats the registered task as pre-approved.
         var sb = new StringBuilder();
         sb.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-16\"?>");
         sb.AppendLine("<Task version=\"1.4\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">");

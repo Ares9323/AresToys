@@ -5020,6 +5020,16 @@ namespace AresToys.App.Resources {
             }
         }
 
+        public static string Settings_RunningAsAdminTitle => ResourceManager.GetString("Settings_RunningAsAdminTitle", resourceCulture);
+        public static string Settings_RunningAsAdminHint => ResourceManager.GetString("Settings_RunningAsAdminHint", resourceCulture);
+        public static string Settings_RestartAsAdminButton => ResourceManager.GetString("Settings_RestartAsAdminButton", resourceCulture);
+        public static string Settings_RestartAsAdminTooltip => ResourceManager.GetString("Settings_RestartAsAdminTooltip", resourceCulture);
+        public static string Settings_RestartAsAdminAlreadyElevated => ResourceManager.GetString("Settings_RestartAsAdminAlreadyElevated", resourceCulture);
+        public static string Settings_AlwaysRunAsAdmin => ResourceManager.GetString("Settings_AlwaysRunAsAdmin", resourceCulture);
+        public static string Settings_AlwaysRunAsAdminTooltip => ResourceManager.GetString("Settings_AlwaysRunAsAdminTooltip", resourceCulture);
+        public static string Settings_AlwaysRunAsAdminConstraint => ResourceManager.GetString("Settings_AlwaysRunAsAdminConstraint", resourceCulture);
+
+
         /// <summary>
         ///   Looks up a localized string similar to Set AresToys as the default app for .sxie files.
         /// </summary>
