@@ -3,6 +3,57 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.20] — 2026-05-21
+
+Rework of the 0.1.19 "Run as administrator" toggle to a
+PowerToys-style flow. The 0.1.19 design (a nested admin
+sub-checkbox under autostart that flipped the scheduled task's
+RunLevel inline) hit a Task Scheduler DACL wall: once the task
+had been created at HighestAvailable, a non-elevated AresToys
+could no longer demote or delete it, and the toggles locked
+themselves "on" after the first elevation. 0.1.20 sidesteps the
+entire problem by guaranteeing that any state change runs from
+an already-elevated context.
+
+### Running as administrator card
+- New dedicated card in Settings → App settings: a "Restart as
+  administrator" button + an "Always run as administrator"
+  checkbox, mirroring the PowerToys General-settings panel.
+- The checkbox is only clickable while AresToys is itself
+  running elevated — same UX trick PowerToys uses. Click
+  "Restart as administrator" first to elevate the current
+  session, then flip the persistent toggle.
+- The preference is stored under
+  `HKCU\Software\AresToys\RunElevated` (registry, not the
+  SQLite settings store) because `App.OnStartup` reads it before
+  the DI host is built — the self-relaunch decision has to
+  happen before the heavy bootstrap commits us to staying in
+  the current non-elevated process.
+
+### Self-relaunch on startup
+- `App.OnStartup` checks the registry preference up-front: if
+  it's on and the current process didn't already come up
+  elevated, AresToys ShellExecutes itself with `Verb="runas"`
+  and shuts down the current instance. A
+  `--restarted-elevated` flag on the child prevents infinite
+  UAC loops if the user denies the prompt.
+
+### Elevation detection switched to TokenElevation
+- `ElevationService.IsProcessElevated` now uses
+  `GetTokenInformation(TokenElevation)` instead of
+  `WindowsPrincipal.IsInRole(Administrator)`. The latter is
+  unreliable across UAC configurations — it can return true
+  for filtered tokens on some builds — and was the root cause
+  of the 0.1.19 toggle randomly snapping back. Same API
+  PowerToys uses.
+
+### Autostart task simplification
+- `AutostartService` lost the runas-hop / DACL-detection /
+  cmd-redirected XML-parsing scaffolding the 0.1.19 hotfix
+  added. Because the elevated path is now strictly gated by the
+  UI, `schtasks /Create` always sees an elevated caller for
+  HighestAvailable tasks — no special handling needed.
+
 ## [0.1.19] — 2026-05-21
 
 Small QoL release on top of 0.1.18: clipboard popup gets a proper
