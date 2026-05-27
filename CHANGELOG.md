@@ -3,6 +3,33 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.21] — 2026-05-27
+
+Small follow-up to 0.1.20: privacy hardening of the key-sequence
+debug logs and a clear warning about the Windows-imposed drag-and-drop
+limitation when running elevated.
+
+### Key-sequence debug logs — buffer contents redacted
+- `KeySequenceTracker` and its providers no longer write the user's
+  literal typed characters or chosen trigger strings into the in-app
+  Debug tab. Length and match counters are kept so the matcher can
+  still be diagnosed, but the always-on stream listener is no longer
+  effectively a keylogger surface. Every `KS-DEBUG: buffer='…'` /
+  `sequence='…'` / `trigger='…'` line now reports `*Len=<N>` instead,
+  with `// PRIVACY:` comments explaining the discipline so future
+  edits don't reintroduce the leak.
+
+### Settings — drag-and-drop warning under "Always run as administrator"
+- Always-visible amber-coloured warning text under the auto-elevate
+  checkbox: "drag-and-drop onto wormholes and the launcher is
+  disabled while AresToys runs elevated — Windows blocks drops from
+  non-elevated sources (Explorer, desktop) for security reasons".
+  This is a Windows UIPI limitation (OLE drag-drop can't cross
+  integrity levels even with the documented `ChangeWindowMessageFilterEx`
+  + `DragAcceptFiles` workarounds), not something AresToys can fix
+  at the API level. Restart in normal mode if drag-and-drop matters
+  more than the elevated-only paste-into-admin-terminal use case.
+
 ## [0.1.20] — 2026-05-21
 
 Rework of the 0.1.19 "Run as administrator" toggle to a
