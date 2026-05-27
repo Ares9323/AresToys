@@ -223,7 +223,10 @@ public sealed class KeySequenceTracker : IDisposable
         }
 
         var matches = _matcher.Match(snapshot);
-        _logger.LogInformation("KS-DEBUG: buffer='{Buf}' matches={N} (matcher.BindingCount={Total}).", snapshot, matches.Count, _matcher.BindingCount);
+        // PRIVACY: never log the buffer contents — this method fires on every keystroke globally,
+        // and the buffer is the user's literal typing. Length + match counters are enough to
+        // debug the matcher without turning the in-app Debug tab into a keylogger.
+        _logger.LogInformation("KS-DEBUG: bufferLen={Len} matches={N} (matcher.BindingCount={Total}).", snapshot.Length, matches.Count, _matcher.BindingCount);
         if (matches.Count == 0)
         {
             // Buffer continues to grow; if an overlay was open it's now stale — close it.
@@ -234,7 +237,8 @@ public sealed class KeySequenceTracker : IDisposable
         var replacers = matches.Where(b => b.Target is ReplaceWithItem).ToList();
         if (replacers.Count > 0)
         {
-            _logger.LogInformation("KS-DEBUG: opening overlay for {N} replacer(s), sequence='{Buf}'.", replacers.Count, snapshot);
+            // PRIVACY: sequence length only — same reasoning as the bufferLen log above.
+            _logger.LogInformation("KS-DEBUG: opening overlay for {N} replacer(s), sequenceLen={Len}.", replacers.Count, snapshot.Length);
             OpenOverlayForReplacers(replacers, snapshot.Length);
         }
         // Workflow matches don't open an overlay; they wait for a terminator (space/enter).
@@ -292,7 +296,9 @@ public sealed class KeySequenceTracker : IDisposable
         if (workflow is null) return;
 
         var workflowId = ((RunWorkflow)workflow.Target).WorkflowId;
-        _logger.LogDebug("KeySequenceTracker: dispatching workflow '{Id}' for sequence '{Seq}'.", workflowId, snapshot);
+        // PRIVACY: workflow id is fine (user-named identifier), but the sequence itself is
+        // user-defined text → log length only.
+        _logger.LogDebug("KeySequenceTracker: dispatching workflow '{Id}' for sequenceLen={Len}.", workflowId, snapshot.Length);
         // bufferLength + 1 = the trigger chars + the terminator key (space/enter). The dispatcher
         // backspaces all of them so the trigger text doesn't pollute the foreground.
         _ = _dispatcher.DispatchWorkflowAsync(workflowId, bufferLength + 1, CancellationToken.None);

@@ -94,7 +94,9 @@ public sealed class WorkflowSequenceProvider : ISequenceBindingProvider
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "WorkflowSequenceProvider: dropping invalid entry sequence='{Seq}' workflowId='{Wf}'.", e.Sequence, e.WorkflowId);
+                // PRIVACY: workflowId is user-named (and persisted unencrypted in settings); the
+                // sequence is the user's secret trigger text → log length only.
+                _logger.LogWarning(ex, "WorkflowSequenceProvider: dropping invalid entry sequenceLen={Len} workflowId='{Wf}'.", e.Sequence.Length, e.WorkflowId);
             }
         }
         return bindings;

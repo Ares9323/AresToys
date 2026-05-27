@@ -262,6 +262,7 @@
   <data name="Settings_AlwaysRunAsAdmin" xml:space="preserve"><value>Esegui sempre come amministratore</value></data>
   <data name="Settings_AlwaysRunAsAdminTooltip" xml:space="preserve"><value>Salva la preferenza di esecuzione elevata. AresToys si auto-eleva ad ogni avvio (e il task di autostart, se attivo, viene registrato con HighestAvailable in modo che parta elevato al logon senza prompt).</value></data>
   <data name="Settings_AlwaysRunAsAdminConstraint" xml:space="preserve"><value>Questa impostazione si può cambiare solo quando AresToys è in esecuzione come amministratore. Clicca "Riavvia come amministratore" qui sopra per elevare la sessione corrente.</value></data>
+  <data name="Settings_AlwaysRunAsAdminDragDropWarning" xml:space="preserve"><value>⚠ Il drag-and-drop su wormholes e launcher è disabilitato mentre AresToys gira elevato — Windows blocca i drop da sorgenti non elevate (Esplora risorse, desktop) per motivi di sicurezza. Riavvia in modalità normale per usare il drag-and-drop.</value></data>
   <data name="QrGenerator_Title" xml:space="preserve"><value>AresToys - Generatore QR</value></data>
   <data name="QrGenerator_Content" xml:space="preserve"><value>Contenuto</value></data>
   <data name="QrGenerator_PlaceholderInput" xml:space="preserve"><value>Incolla un URL, testo, vCard, credenziali Wi-Fi, …</value></data>

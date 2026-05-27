@@ -48,7 +48,8 @@ public sealed class ClipboardSequenceProvider : ISequenceBindingProvider, IDispo
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "KS-DEBUG: dropping item {Id} with invalid trigger '{Trigger}'.", row.Id, row.Trigger);
+                // PRIVACY: trigger is the user's chosen sequence text → log length only.
+                _logger.LogWarning(ex, "KS-DEBUG: dropping item {Id} with invalid triggerLen={Len}.", row.Id, row.Trigger.Length);
             }
         }
         _logger.LogInformation("KS-DEBUG: ClipboardSequenceProvider produced {Bindings} bindings (from {Rows} rows with trigger).", bindings.Count, rows.Count);

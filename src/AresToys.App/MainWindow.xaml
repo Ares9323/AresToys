@@ -2184,6 +2184,11 @@
                                        Margin="22,2,0,0" TextWrapping="Wrap"
                                        Text="{Markup:Loc Settings_AlwaysRunAsAdminConstraint}"
                                        Visibility="{Binding CanRestartAsAdmin, Converter={StaticResource BoolToVisibility}}" />
+                            <!-- Always visible: warns about the Windows-imposed drag-drop limit on
+                                 elevated processes. Read before opting into auto-elevate. -->
+                            <TextBlock Foreground="#FFC857" FontSize="10"
+                                       Margin="22,6,0,0" TextWrapping="Wrap"
+                                       Text="{Markup:Loc Settings_AlwaysRunAsAdminDragDropWarning}" />
                         </StackPanel>
                     </Border>
 

@@ -5028,6 +5028,7 @@ namespace AresToys.App.Resources {
         public static string Settings_AlwaysRunAsAdmin => ResourceManager.GetString("Settings_AlwaysRunAsAdmin", resourceCulture);
         public static string Settings_AlwaysRunAsAdminTooltip => ResourceManager.GetString("Settings_AlwaysRunAsAdminTooltip", resourceCulture);
         public static string Settings_AlwaysRunAsAdminConstraint => ResourceManager.GetString("Settings_AlwaysRunAsAdminConstraint", resourceCulture);
+        public static string Settings_AlwaysRunAsAdminDragDropWarning => ResourceManager.GetString("Settings_AlwaysRunAsAdminDragDropWarning", resourceCulture);
 
 
         /// <summary>
