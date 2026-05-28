@@ -3,7 +3,7 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.22] — TBD
+## [0.1.22] — 2026-05-28
 
 Tray-menu shortcuts for two-way elevation switching, plus a rename
 of the clipboard context menu's category-copy entries so they no
