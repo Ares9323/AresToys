@@ -3,6 +3,61 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.24] — 2026-05-28
+
+Wormhole Topmost: dedicated batch toggle, default Win+Shift+W hotkey,
+and an auto-disable-on-launch flow so the wormholes get out of the way
+the moment the user clicks an icon to launch something.
+
+### Wormholes — Toggle Topmost workflow + Win+Shift+W default
+- New `WormholeRecord.IsTopmost` flag mirrors the existing
+  `IsLocked` / `IsRolled` / `IsHidden` — persisted in
+  `wormholes.json` (JSON additive, no schema migration needed). The
+  window class applies it via `Window.Topmost` in the ctor +
+  `RefreshFromRecord`; the manager exposes `SetAllTopmostAsync` +
+  `ToggleAllTopmostAsync` matching the existing
+  `SetAll*Async` / `ToggleAll*Async` pattern.
+- New built-in workflow `WormholesToggleTopmostId`
+  (`wormholes-toggle-topmost`) with the standard 3-step shape
+  (toggle enabled, on/off siblings disabled). Default hotkey
+  **Win+Shift+W**: one press pulls every wormhole above a
+  fullscreen app (game, video, IDE) without minimising or
+  alt-tabbing the foreground; a second press lowers them back.
+- `WormholeBatchOpTask` accepts three new ops: `topmost-all`,
+  `untopmost-all`, `toggle-topmost`.
+- Tray submenu Wormholes: four new `BuildShortcutMenuItem`
+  entries below the existing "New wormhole" / "Bring all
+  wormholes here" rows, one per toggle (hide/show, lock/unlock,
+  collapse/expand, topmost on/off). Each dispatches directly to
+  the manager so the matching hotkey appears alongside the label
+  without a profile lookup.
+
+### Wormholes — auto-disable Topmost on launch (ON by default)
+- New "Auto-disable Topmost on launch" setting under
+  Settings → Wormholes (default **ON**): any launch gesture from
+  inside a wormhole (double-click a tile, Enter on a selection,
+  middle-click the header to open the source folder, hamburger
+  "Open folder", drop a file onto an executable tile)
+  automatically fires `SetAllTopmostAsync(false)` so the wormholes
+  drop behind the freshly-launched app without a second hotkey
+  press. Persisted via `WormholeDefaultsService`.
+- z-order management is explicit at the native layer to keep both
+  directions symmetric: ON transition → `SetWindowPos(HWND_TOPMOST,
+  SWP_SHOWWINDOW)` (`BringToFront`), OFF transition →
+  `SetWindowPos(HWND_BOTTOM)` (`SendToBack`). WPF's bare
+  `Topmost = false` only drops below other topmost windows — the
+  explicit HWND_BOTTOM is what tucks the wormholes behind the
+  foreground app. The matching explicit HWND_TOPMOST fixes a Windows
+  quirk where the previously-active wormhole, after being bottomed,
+  refused to lift via WPF alone.
+- Post-launch backtrack: when the launched app eventually closes
+  and Windows hands foreground back to the wormhole the user
+  clicked, an `Activated` handler re-issues `SendToBack` exactly
+  once so the wormhole stays out of the way until the user
+  explicitly re-toggles Topmost via the hotkey. The handler is
+  gated on `IsTopmost == false` so it never fights a user who
+  re-enabled Topmost in the meantime.
+
 ## [0.1.23] — 2026-05-28
 
 Clipboard paste robustness for AutoJpeg-compressed images, a sweep
