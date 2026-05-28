@@ -179,10 +179,24 @@ public sealed class CaptureCoordinator
             ? new CapturedImage(region.Width, region.Height, prefabPng)
             : await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
 
-        var profile = await _profiles.GetAsync(DefaultPipelineProfiles.RegionCaptureId, cancellationToken).ConfigureAwait(false);
+        // Map the capture source to its dedicated pipeline profile. Previously every source
+        // (region, fullscreen, monitor, active-window, last-region) ran RegionCaptureId, whose
+        // SaveToFileTask has skipIfNotModified:true — so anything that didn't pass through the
+        // editor's modification path silently produced no file on disk. The dedicated profiles
+        // (ActiveWindowCaptureId / ActiveMonitorCaptureId) save unconditionally. Their first
+        // step (CaptureActiveWindowTask / CaptureActiveMonitorTask) short-circuits when the bag
+        // already carries PayloadBytes, so the pre-encoded bytes from above are reused untouched.
+        var profileId = source switch
+        {
+            ItemSource.CaptureWindow     => DefaultPipelineProfiles.ActiveWindowCaptureId,
+            ItemSource.CaptureMonitor    => DefaultPipelineProfiles.ActiveMonitorCaptureId,
+            ItemSource.CaptureFullscreen => DefaultPipelineProfiles.ActiveMonitorCaptureId,
+            _                            => DefaultPipelineProfiles.RegionCaptureId,
+        };
+        var profile = await _profiles.GetAsync(profileId, cancellationToken).ConfigureAwait(false);
         if (profile is null)
         {
-            _logger.LogWarning("region-capture profile not found; aborting");
+            _logger.LogWarning("Capture profile '{ProfileId}' not found; aborting", profileId);
             return;
         }
 

@@ -155,8 +155,10 @@ public sealed class TrayIconService : IDisposable
         capture.Items.Add(BuildMenuItem(Strings.Tray_Fullscreen,
             () => Run<CaptureCoordinator>(c => _ = c.CaptureFullscreenAsync(CancellationToken.None))));
         capture.Items.Add(BuildMonitorSubmenu());
-        capture.Items.Add(BuildMenuItem(Strings.Tray_ActiveWindow,
-            () => Run<CaptureCoordinator>(c => _ = c.CaptureActiveWindowAsync(CancellationToken.None))));
+        // "Active window" is only useful via hotkey — invoking it from the tray makes AresToys
+        // itself the foreground window (the menu IS AresToys), so the capture filter excludes
+        // every candidate and the operation silently no-ops. Available as a hotkey-bindable
+        // workflow in Settings → Hotkeys for users who want it.
         capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_Region, DefaultPipelineProfiles.RegionCaptureId,
             () => Run<CaptureCoordinator>(c => _ = c.CaptureRegionAsync(CancellationToken.None))));
         capture.Items.Add(BuildMenuItem(Strings.Tray_LastRegion,
@@ -180,11 +182,7 @@ public sealed class TrayIconService : IDisposable
             () => Run<Services.Recording.RecordingCoordinator>(c => _ = c.ToggleAsync(AresToys.Capture.Recording.RecordingFormat.Mp4, CancellationToken.None))));
         capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_ScreenRecordingGif, DefaultPipelineProfiles.RecordScreenGifId,
             () => Run<Services.Recording.RecordingCoordinator>(c => _ = c.ToggleAsync(AresToys.Capture.Recording.RecordingFormat.Gif, CancellationToken.None))));
-        capture.Items.Add(new Separator());
-        capture.Items.Add(BuildShortcutMenuItem(Strings.Tray_ColorSampler, DefaultPipelineProfiles.ColorSamplerId,
-            () => Run<ScreenColorPickerService>(s => s.PickAtCursor())));
-        capture.Items.Add(BuildMenuItem(Strings.Tray_ColorPicker,
-            () => Run<ColorWheelLauncher>(l => _ = l.ShowAsync())));
+        // Color Sampler / Color Picker live under Tools — they're tools, not captures.
         menu.Items.Add(capture);
 
         // Upload submenu — kicks off the manual-upload pipeline from arbitrary sources.
@@ -196,9 +194,9 @@ public sealed class TrayIconService : IDisposable
 
         // Tools submenu — placeholder; we'll grow this with QR / hash / ruler / etc.
         var tools = new MenuItem { Header = Strings.Tray_Tools };
-        tools.Items.Add(BuildMenuItem(Strings.Tray_ColorSampler,
+        tools.Items.Add(BuildShortcutMenuItem(Strings.Tray_ColorSampler, DefaultPipelineProfiles.ColorSamplerId,
             () => Run<ScreenColorPickerService>(s => s.PickAtCursor())));
-        tools.Items.Add(BuildMenuItem(Strings.Tray_ColorPicker,
+        tools.Items.Add(BuildShortcutMenuItem(Strings.Tray_ColorPicker, DefaultPipelineProfiles.ColorPickerId,
             () => Run<ColorWheelLauncher>(l => _ = l.ShowAsync())));
         tools.Items.Add(BuildMenuItem(Strings.Tray_PinToScreen,
             () => Run<PinToScreenLauncher>(p => _ = p.ShowAsync(CancellationToken.None))));

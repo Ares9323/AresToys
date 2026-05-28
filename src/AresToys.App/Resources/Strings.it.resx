@@ -420,6 +420,7 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Apri nell'editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reimposta zoom al 100%</value></data>
+  <data name="PinnedImage_SaveTooltip" xml:space="preserve"><value>Salva su file…</value></data>
   <data name="QrCode_Title" xml:space="preserve"><value>Codice QR</value></data>
   <data name="QrCode_ScanToOpen" xml:space="preserve"><value>Scansiona per aprire</value></data>
   <data name="RegionOverlay_Instructions" xml:space="preserve"><value>Trascina per aggiungere una regione · Clic per selezionare · Doppio clic dentro una regione per confermare · Canc per rimuovere · Rotella per zoom · Trascina questo popup per spostarlo</value></data>

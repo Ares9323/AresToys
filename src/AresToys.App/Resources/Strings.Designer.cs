@@ -3156,6 +3156,7 @@ namespace AresToys.App.Resources {
         public static string PinnedImage_CopyTooltip => ResourceManager.GetString("PinnedImage_CopyTooltip", resourceCulture);
         public static string PinnedImage_OpenEditorTooltip => ResourceManager.GetString("PinnedImage_OpenEditorTooltip", resourceCulture);
         public static string PinnedImage_ResetZoomTooltip => ResourceManager.GetString("PinnedImage_ResetZoomTooltip", resourceCulture);
+        public static string PinnedImage_SaveTooltip => ResourceManager.GetString("PinnedImage_SaveTooltip", resourceCulture);
         public static string QrCode_Title => ResourceManager.GetString("QrCode_Title", resourceCulture);
         public static string QrCode_ScanToOpen => ResourceManager.GetString("QrCode_ScanToOpen", resourceCulture);
         public static string RegionOverlay_Instructions => ResourceManager.GetString("RegionOverlay_Instructions", resourceCulture);

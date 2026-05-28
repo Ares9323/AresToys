@@ -44,6 +44,16 @@
                         Cursor="Hand"
                         ToolTip="{Markup:Loc PinnedImage_CopyTooltip}"
                         Click="OnCopyClick" />
+                <Button x:Name="SaveButton"
+                        Content="💾"
+                        FontSize="13"
+                        Padding="4,0"
+                        Background="Transparent"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip="{Markup:Loc PinnedImage_SaveTooltip}"
+                        Click="OnSaveClick" />
                 <Button x:Name="EditButton"
                         Content="✏"
                         FontSize="13"

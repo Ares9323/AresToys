@@ -85,14 +85,14 @@ public sealed class CaptureRegionTask : IPipelineTask
         // are gone. ShareX-style: capture once at the earliest entry point, hand the bitmap
         // to the overlay, crop on mouse-up.
         var (prefabSnapshot, prefabLeft, prefabTop) = RegionOverlayWindow.CaptureVirtualScreen();
-        var (region, prefabBytes) = await Application.Current.Dispatcher.InvokeAsync(() =>
+        var (region, prefabBytes, multiParts) = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             var overlay = new RegionOverlayWindow(prefabSnapshot, prefabLeft, prefabTop)
             {
                 AutoConfirmOnFirstSelection = autoConfirm,
             };
             var picked = overlay.PickRegion();
-            return (picked, overlay.PickedSnapshotBytes);
+            return (picked, overlay.PickedSnapshotBytes, overlay.PickedMultiRegionParts);
         }).Task.ConfigureAwait(false);
 
         if (region is null)
@@ -117,6 +117,14 @@ public sealed class CaptureRegionTask : IPipelineTask
         // workflow can place the pinned window exactly where the capture came from. Without this
         // the pin step only sees bytes and centres on the active monitor.
         context.Bag[PipelineBagKeys.CaptureScreenPos] = (region.X, region.Y);
+        // Multi-region commits also publish the per-rect crops so PinToScreenTask can spawn N
+        // independent windows. Save/History/Upload continue to consume PayloadBytes (the
+        // composite) — split behaviour is opt-in per task, not pipeline-wide.
+        if (multiParts is { Count: > 1 })
+        {
+            context.Bag[PipelineBagKeys.MultiRegionParts] = multiParts;
+            _logger.LogInformation("Capture region: committed {Count} rects (publishing parts for downstream split)", multiParts.Count);
+        }
         _logger.LogInformation("Capture region: stored screen pos ({X}, {Y}) {W}×{H} px in bag",
             region.X, region.Y, region.Width, region.Height);
         if (!string.IsNullOrEmpty(region.WindowTitle))

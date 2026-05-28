@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using AresToys.App.Views;
 using AresToys.Capture;
+using AresToys.Clipboard;
+using AresToys.Storage.Items;
 using AresToys.Storage.Settings;
 
 namespace AresToys.App.Services;
@@ -20,6 +22,9 @@ public sealed class PinToScreenLauncher
     private readonly ICaptureSource _captureSource;
     private readonly ISettingsStore _settings;
     private readonly EditorLauncher _editor;
+    private readonly IItemStore _items;
+    private readonly CaptureImageOutputService _outputEncoder;
+    private readonly IClipboardListener? _listener;
     private readonly ILogger<PinToScreenLauncher> _logger;
     private readonly ILogger<PinnedImageWindow> _windowLogger;
 
@@ -27,12 +32,18 @@ public sealed class PinToScreenLauncher
         ICaptureSource captureSource,
         ISettingsStore settings,
         EditorLauncher editor,
+        IItemStore items,
+        CaptureImageOutputService outputEncoder,
         ILogger<PinToScreenLauncher> logger,
-        ILogger<PinnedImageWindow> windowLogger)
+        ILogger<PinnedImageWindow> windowLogger,
+        IClipboardListener? listener = null)
     {
         _captureSource = captureSource;
         _settings = settings;
         _editor = editor;
+        _items = items;
+        _outputEncoder = outputEncoder;
+        _listener = listener;
         _logger = logger;
         _windowLogger = windowLogger;
     }
@@ -59,6 +70,10 @@ public sealed class PinToScreenLauncher
     private async Task FromScreenAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Pin from screen: opening region overlay");
+        // AutoConfirmOnFirstSelection default = false → multi-region is enabled: user can drag
+        // several rects, press Enter to commit them all. We pick the per-rect PNGs from the
+        // overlay's PickedMultiRegionParts (set when >1 rect is committed) so each rect lands
+        // in its own pinned window at its original on-screen origin.
         var overlay = new RegionOverlayWindow();
         var region = overlay.PickRegion();
         if (region is null || region.IsEmpty)
@@ -66,11 +81,28 @@ public sealed class PinToScreenLauncher
             _logger.LogInformation("Pin from screen: cancelled (empty region or Esc)");
             return;
         }
-        _logger.LogInformation("Pin from screen: region picked at ({X}, {Y}) size {W}×{H} (physical pixels)",
-            region.X, region.Y, region.Width, region.Height);
 
         try
         {
+            var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
+
+            if (overlay.PickedMultiRegionParts is { Count: > 1 } parts)
+            {
+                _logger.LogInformation("Pin from screen: spawning {Count} pinned windows (multi-region)", parts.Count);
+                foreach (var (px, py, png) in parts)
+                {
+                    var bmp = DecodePng(png);
+                    if (bmp is null) continue;
+                    var win = new PinnedImageWindow(bmp, initialScreenPos: (px, py),
+                        settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
+                items: _items, listener: _listener, outputEncoder: _outputEncoder);
+                    win.ShowAtCapturedPixel();
+                }
+                return;
+            }
+
+            _logger.LogInformation("Pin from screen: region picked at ({X}, {Y}) size {W}×{H} (physical pixels)",
+                region.X, region.Y, region.Width, region.Height);
             var captured = await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(true);
             var bitmap = DecodePng(captured.PngBytes);
             if (bitmap is null)
@@ -78,11 +110,11 @@ public sealed class PinToScreenLauncher
                 _logger.LogWarning("Pin from screen: bitmap decode failed");
                 return;
             }
-            _logger.LogInformation("Pin from screen: bitmap decoded {W}×{H} px", bitmap.PixelWidth, bitmap.PixelHeight);
-            var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
-            _logger.LogInformation("Pin from screen: sticky border = {Border} DIPs", border);
+            _logger.LogInformation("Pin from screen: bitmap decoded {W}×{H} px, sticky border = {Border} DIPs",
+                bitmap.PixelWidth, bitmap.PixelHeight, border);
             var w = new PinnedImageWindow(bitmap, initialScreenPos: (region.X, region.Y),
-                settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger);
+                settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
+                items: _items, listener: _listener, outputEncoder: _outputEncoder);
             w.ShowAtCapturedPixel();
             _logger.LogInformation("Pin from screen: window shown — Left={Left}, Top={Top} (DIPs)", w.Left, w.Top);
         }
@@ -101,7 +133,8 @@ public sealed class PinToScreenLauncher
             if (bmp is null) return;
             bmp.Freeze();
             var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
-            var w = new PinnedImageWindow(bmp, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger);
+            var w = new PinnedImageWindow(bmp, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
+                items: _items, listener: _listener, outputEncoder: _outputEncoder);
             w.ShowAtCapturedPixel();
         }
         catch (Exception ex)
@@ -126,7 +159,8 @@ public sealed class PinToScreenLauncher
             var bitmap = DecodePng(bytes);
             if (bitmap is null) return;
             var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
-            var w = new PinnedImageWindow(bitmap, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger);
+            var w = new PinnedImageWindow(bitmap, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
+                items: _items, listener: _listener, outputEncoder: _outputEncoder);
             w.ShowAtCapturedPixel();
         }
         catch (Exception ex)

@@ -152,11 +152,12 @@ public static class DefaultPipelineProfiles
             [
                 new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":true}"), Id: "capture-region"),
                 new PipelineStep(OpenEditorBeforeUploadTaskId, Id: "open-editor"),
-                // skipIfNotModified:true ⇒ this save only fires when the user actually edited the
-                // image upstream in Open editor. showNotification:true gives the user the "saved"
-                // confirmation only when an edit actually went to disk — clean captures with no
-                // changes silently skip both the save and the toast.
-                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true,\"skipIfNotModified\":true}"), Id: "save"),
+                // Save unconditionally — matches the webpage / active-window / active-monitor
+                // profiles. Used to be skipIfNotModified:true, but a region capture that only
+                // gets a clipboard copy + history entry left users wondering why nothing landed
+                // in the screenshot folder; the muscle-memory expectation from ShareX/Snipping
+                // Tool is "Win+Shift+S → file on disk".
+                new PipelineStep(SaveToFileTask.TaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"showNotification\":true}"), Id: "save"),
                 // First AddText sits AFTER save → bag.text = local_path, so this enters the AresToys
                 // history as a Text item holding the saved file path. Push to Windows OFF + toast OFF
                 // — purely an internal record next to the Image entry below.
@@ -286,18 +287,20 @@ public static class DefaultPipelineProfiles
             IsBuiltIn: true),
 
         // Two-step "screenshot a rect, leave it pinned on top". Mirrors the tray Tools → Pin to
-        // screen → From screen flow but as a hotkey-bindable workflow. autoConfirm=true keeps
-        // the picker single-shot (drag → release → pinned), matching the rest of the Capture
-        // family. No save / history / upload steps — the only goal is the always-on-top pin.
+        // screen → From screen flow but as a hotkey-bindable workflow. autoConfirm=false matches
+        // the tray flow: user can drag N rects → Enter → N pinned windows. PinToScreenTask honours
+        // bag.multi_region_parts to spawn one pin per rect. No save / history / upload steps —
+        // the only goal is the always-on-top pin(s).
         new PipelineProfile(
             Id: PinRegionToScreenId,
             DisplayName: "Pin region to screen",
             Trigger: "hotkey:pin-region",
             Steps:
             [
-                new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":true}"), Id: "capture-region"),
+                new PipelineStep(CaptureRegionTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"autoConfirmOnFirstSelection\":false}"), Id: "capture-region"),
                 new PipelineStep(PinToScreenTaskId, Id: "pin-to-screen"),
             ],
+            Hotkey: new HotkeyBinding(Win | Shift, 0x50),  // Win+Shift+P
             IsBuiltIn: true),
 
         new PipelineProfile(

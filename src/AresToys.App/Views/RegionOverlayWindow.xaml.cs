@@ -51,6 +51,12 @@ public partial class RegionOverlayWindow : Window
     /// user's mouse-up and the capture, so transient UI (open dropdowns, hover popups)
     /// stays visible in the screenshot exactly as the user saw it during selection.</summary>
     public byte[]? PickedSnapshotBytes { get; private set; }
+
+    /// <summary>Per-rect cropped PNGs when the user committed >1 region in the overlay.
+    /// Each entry is the physical-pixel top-left of the rect plus its PNG bytes. Null on
+    /// single-region commits or cancellation. Lets the pipeline produce N separate
+    /// pinned windows (one per rect) instead of one composite-with-transparent-halo.</summary>
+    public IReadOnlyList<(int X, int Y, byte[] Png)>? PickedMultiRegionParts { get; private set; }
     private System.Windows.Threading.DispatcherTimer? _magnifierTimer;
     private int _lastMagnifierX = int.MinValue, _lastMagnifierY = int.MinValue;
     // Top-level windows enumerated once when the overlay opens. Used for snap-to-window.
@@ -983,6 +989,16 @@ public partial class RegionOverlayWindow : Window
         var bboxH = bb - by;
         _result = new CaptureRegion(bx, by, bboxW, bboxH);
         PickedSnapshotBytes = BuildMultiRegionComposite(pixelRects, bx, by, bboxW, bboxH);
+        // Per-rect crops so workflows that want N independent images (Pin to screen) can use
+        // them instead of the composite. Rects that lie outside the snapshot bounds (very rare,
+        // DPI-rounding multi-mon edge case) produce null and are dropped from the list.
+        var parts = new List<(int X, int Y, byte[] Png)>(pixelRects.Count);
+        foreach (var r in pixelRects)
+        {
+            var png = TryCropSnapshot(r.X, r.Y, r.W, r.H);
+            if (png is { Length: > 0 }) parts.Add((r.X, r.Y, png));
+        }
+        if (parts.Count > 0) PickedMultiRegionParts = parts;
         Close();
     }
 

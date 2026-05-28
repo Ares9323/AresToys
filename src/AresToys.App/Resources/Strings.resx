@@ -435,6 +435,7 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Open in editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reset zoom to 100%</value></data>
+  <data name="PinnedImage_SaveTooltip" xml:space="preserve"><value>Save to file…</value></data>
   <data name="QrCode_Title" xml:space="preserve"><value>QR code</value></data>
   <data name="QrCode_ScanToOpen" xml:space="preserve"><value>Scan to open</value></data>
   <data name="RegionOverlay_Instructions" xml:space="preserve"><value>Drag to add region · Click to select · Double-click inside a region to confirm · Del to remove · Wheel to zoom · Drag this popup to move it</value></data>

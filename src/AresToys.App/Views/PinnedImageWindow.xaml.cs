@@ -8,6 +8,9 @@ using System.Windows.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using AresToys.App.Services;
+using AresToys.Clipboard;
+using AresToys.Core.Domain;
+using AresToys.Storage.Items;
 using AresToys.Storage.Settings;
 
 namespace AresToys.App.Views;
@@ -17,8 +20,18 @@ public partial class PinnedImageWindow : Window
     public const string BorderThicknessSettingKey = "pin.border_thickness";
     public const int MaxBorderThickness = 12;
 
+    /// <summary>Every live pinned window registers itself here in the ctor and unregisters on
+    /// Closed. Used by OnEditClick to drop Topmost across ALL pins while the editor is open —
+    /// without this, the editor opens above the source pin but below the other live pins,
+    /// which still cover it. WeakReference avoids leaking a closed window if Closed somehow
+    /// doesn't fire.</summary>
+    private static readonly List<WeakReference<PinnedImageWindow>> _liveInstances = new();
+
     private readonly ISettingsStore? _settings;
     private readonly EditorLauncher? _editor;
+    private readonly IItemStore? _items;
+    private readonly IClipboardListener? _listener;
+    private readonly CaptureImageOutputService? _outputEncoder;
     private readonly ILogger _logger;
     private BitmapSource _bitmap;
     private double _scale = 1.0;
@@ -44,12 +57,18 @@ public partial class PinnedImageWindow : Window
         ISettingsStore? settings = null,
         EditorLauncher? editor = null,
         int initialBorderThickness = 0,
-        ILogger<PinnedImageWindow>? logger = null)
+        ILogger<PinnedImageWindow>? logger = null,
+        IItemStore? items = null,
+        IClipboardListener? listener = null,
+        CaptureImageOutputService? outputEncoder = null)
     {
         InitializeComponent();
         _bitmap = bitmap;
         _settings = settings;
         _editor = editor;
+        _items = items;
+        _listener = listener;
+        _outputEncoder = outputEncoder;
         _logger = (ILogger?)logger ?? NullLogger.Instance;
         _borderThickness = Math.Clamp(initialBorderThickness, 0, MaxBorderThickness);
         _initialScreenPos = initialScreenPos;
@@ -73,6 +92,13 @@ public partial class PinnedImageWindow : Window
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
 
         Loaded += (_, _) => UpdateZoomLabel();
+
+        // Track this instance so OnEditClick can drop Topmost across every live pinned window.
+        _liveInstances.Add(new WeakReference<PinnedImageWindow>(this));
+        Closed += (_, _) =>
+        {
+            _liveInstances.RemoveAll(wr => !wr.TryGetTarget(out var w) || ReferenceEquals(w, this));
+        };
     }
 
     /// <summary>Show + Activate + reposition. Set Left/Top in DIPs AFTER Show so the layout
@@ -154,20 +180,103 @@ public partial class PinnedImageWindow : Window
     private void UpdateZoomLabel()
         => ZoomLabel.Text = $"{Math.Round(_scale * 100)}%";
 
-    private void OnCopyClick(object sender, RoutedEventArgs e)
+    /// <summary>Encode the current bitmap to PNG. Shared by Copy / Save / Edit so the encode
+    /// happens once per click instead of being inlined three times.</summary>
+    private byte[] EncodeCurrentAsPng()
     {
-        // Encode current bitmap → PNG → publish via the alpha-aware helper. SetImage alone
-        // strips alpha for modern consumers (Telegram / Discord / browsers paste it as opaque);
-        // ClipboardImagePublisher publishes both PNG and CF_BITMAP for full coverage.
+        using var ms = new MemoryStream();
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(_bitmap));
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
+    private async void OnCopyClick(object sender, RoutedEventArgs e)
+    {
+        // Copy = Windows clipboard + AresToys history. Used to be Windows-clipboard-only, but
+        // the user expects parity with every other capture flow (regular region capture,
+        // QR generator, etc.) which writes both. Listener.SuppressNext prevents the
+        // round-trip ingestion from also adding a duplicate row.
+        byte[] png;
+        try { png = EncodeCurrentAsPng(); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Pin: PNG encode failed for Copy"); return; }
+
+        _listener?.SuppressNext();
+        try { ClipboardImagePublisher.SetPng(png); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Pin: clipboard publish failed"); }
+
+        if (_items is not null)
+        {
+            try
+            {
+                var item = new NewItem(
+                    Kind: ItemKind.Image,
+                    Source: ItemSource.Pipeline,
+                    CreatedAt: DateTimeOffset.UtcNow,
+                    Payload: png,
+                    PayloadSize: png.LongLength,
+                    SearchText: $"Pin {_bitmap.PixelWidth}×{_bitmap.PixelHeight}");
+                await _items.AddAsync(item, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "Pin: AddAsync to history failed"); }
+        }
+    }
+
+    /// <summary>Save = drop the current bitmap into the user's configured capture folder
+    /// (capture.folder + capture.subfolder_pattern) using the format chosen in Settings
+    /// (capture.image_format, with AutoJpeg honoured). No SaveFileDialog — the user already
+    /// picks the destination once in Settings; "Save As" exists in the editor for one-off
+    /// destinations. Mirrors the file-naming convention of SaveToFileTask so the pinned save
+    /// is indistinguishable from a regular capture in the screenshot folder.</summary>
+    private async void OnSaveClick(object sender, RoutedEventArgs e)
+    {
+        if (_settings is null || _outputEncoder is null)
+        {
+            _logger.LogWarning("Pin: Save unavailable — settings/encoder not injected");
+            return;
+        }
+
+        byte[] sourcePng;
+        try { sourcePng = EncodeCurrentAsPng(); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Pin: PNG encode failed for Save"); return; }
+
         try
         {
-            using var ms = new System.IO.MemoryStream();
-            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
-            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(_bitmap));
-            enc.Save(ms);
-            AresToys.App.Services.ClipboardImagePublisher.SetPng(ms.ToArray());
+            var (bytes, extension) = await _outputEncoder.EncodeAsync(sourcePng, CancellationToken.None).ConfigureAwait(true);
+
+            const string defaultFolder = "%USERPROFILE%\\Pictures\\AresToys";
+            var folderTemplate = await _settings.GetAsync("capture.folder", CancellationToken.None).ConfigureAwait(true)
+                ?? defaultFolder;
+            var folder = Environment.ExpandEnvironmentVariables(folderTemplate);
+            var subPatternRaw = await _settings.GetAsync("capture.subfolder_pattern", CancellationToken.None).ConfigureAwait(true);
+            if (!string.IsNullOrWhiteSpace(subPatternRaw))
+            {
+                var sub = AresToys.Pipeline.Tasks.DatePatternExpander.Expand(
+                    Environment.ExpandEnvironmentVariables(subPatternRaw), DateTime.Now);
+                folder = Path.Combine(folder, sub);
+            }
+            Directory.CreateDirectory(folder);
+
+            var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
+            var bareExt = extension.TrimStart('.');
+            var fullPath = Path.Combine(folder, $"arestoys-pin-{stamp}.{bareExt}");
+            // Same -N collision guard SaveToFileTask uses; cheap and bounded.
+            if (File.Exists(fullPath))
+            {
+                for (var n = 1; n < 1000; n++)
+                {
+                    var candidate = Path.Combine(folder, $"arestoys-pin-{stamp}-{n}.{bareExt}");
+                    if (!File.Exists(candidate)) { fullPath = candidate; break; }
+                }
+            }
+
+            await File.WriteAllBytesAsync(fullPath, bytes, CancellationToken.None).ConfigureAwait(false);
+            _logger.LogInformation("Pin: saved bitmap to {Path} ({Bytes} bytes, {Ext})", fullPath, bytes.Length, extension);
         }
-        catch { /* clipboard locked — silent */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Pin: save failed");
+        }
     }
 
     /// <summary>Re-open the current image in the annotation editor. On save we replace the
@@ -176,6 +285,20 @@ public partial class PinnedImageWindow : Window
     private async void OnEditClick(object sender, RoutedEventArgs e)
     {
         if (_editor is null) return;
+        // Drop Topmost across EVERY live pinned window for the editor's lifetime — not just
+        // this one. Pinned windows are Topmost so they stay visible over arbitrary other apps,
+        // but that flag also puts them above the (non-Topmost) editor we're about to open.
+        // Lowering only `this` was a partial fix: a second pinned window would still cover
+        // the editor. The whole pin "layer" needs to step down together.
+        var topmostSnapshot = new List<(PinnedImageWindow Window, bool WasTopmost)>();
+        foreach (var wr in _liveInstances)
+        {
+            if (wr.TryGetTarget(out var pin))
+            {
+                topmostSnapshot.Add((pin, pin.Topmost));
+                pin.Topmost = false;
+            }
+        }
         try
         {
             using var ms = new MemoryStream();
@@ -199,13 +322,30 @@ public partial class PinnedImageWindow : Window
         {
             // Editor crashes shouldn't take down the pin — keep the original image visible.
         }
+        finally
+        {
+            foreach (var (win, wasTopmost) in topmostSnapshot)
+            {
+                // Skip windows the user closed while the editor was up — TryGetTarget would
+                // still hand us the instance, but its WPF state is gone.
+                try { if (win.IsLoaded) win.Topmost = wasTopmost; }
+                catch (InvalidOperationException) { /* window finalising — ignore */ }
+            }
+        }
     }
 
     private void OnResetZoomClick(object sender, RoutedEventArgs e)
     {
         if (Math.Abs(_scale - 1.0) < 1e-4) return;
+        // Resize anchored on the window's CURRENT centre, not the top-left corner. ApplyImageSize
+        // only updates Width/Height; without re-positioning Left/Top the user perceives the
+        // shrink as "drifting toward the top-left" — disorienting when the pin had been moved.
+        var centerX = Left + Width / 2;
+        var centerY = Top  + Height / 2;
         _scale = 1.0;
         ApplyImageSize();
+        Left = centerX - Width / 2;
+        Top  = centerY - Height / 2;
         UpdateZoomLabel();
     }
 

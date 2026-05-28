@@ -34,6 +34,15 @@ public static class PipelineBagKeys
     /// can reproduce the exact on-screen origin. Type: <c>(int X, int Y)</c>.</summary>
     public const string CaptureScreenPos = "capture_screen_pos";
 
+    /// <summary>Set by <c>arestoys.capture-region</c> only when the user committed MORE THAN ONE
+    /// rect in the overlay (multi-region mode, autoConfirmOnFirstSelection=false). Each entry is
+    /// one cropped PNG plus the physical-pixel top-left where it came from. <see cref="PayloadBytes"/>
+    /// still carries the bbox-sized composite for back-compat with Save / History / Upload;
+    /// downstream tasks that want per-rect behaviour (notably <c>arestoys.pin-to-screen</c>) read
+    /// this list instead so the user gets N separate pins / files rather than one composite with a
+    /// transparent halo. Type: <c>IReadOnlyList&lt;(int X, int Y, byte[] Png)&gt;</c>.</summary>
+    public const string MultiRegionParts = "multi_region_parts";
+
     /// <summary>Colour produced by the color-sampler / color-picker steps. Downstream
     /// <c>arestoys.copy-color-*</c> tasks read this and emit the colour in their respective format
     /// to the clipboard, letting users compose "pick → format" pipelines without per-format

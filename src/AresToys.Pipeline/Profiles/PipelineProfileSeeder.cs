@@ -77,6 +77,31 @@ public sealed class PipelineProfileSeeder
                 _logger.LogInformation("Pipeline profile {Id} migrated 0.1.16 → 0.1.17 color chain.", profile.Id);
             }
 
+            // 0.1.22 → 0.1.23 migration: region-capture's Save step shipped with
+            // skipIfNotModified:true, which meant any region capture where the user closed
+            // the editor without painting produced no file on disk — opposite of the muscle-
+            // memory expectation. Strip the flag from the seeded copy in the DB. Limited to
+            // the exact legacy shape (skipIfNotModified=true on the save step) so users who
+            // explicitly opted into "only save on edit" via the workflow editor still get
+            // their choice preserved when they flip something else in the future.
+            if (IsLegacyRegionCaptureSkipIfNotModified(profile.Id, existing))
+            {
+                upgraded = RemoveRegionCaptureSkipIfNotModified(upgraded);
+                _logger.LogInformation("Pipeline profile {Id} migrated 0.1.22 → 0.1.23: save step now unconditional.", profile.Id);
+            }
+
+            // 0.1.22 → 0.1.23 migration: pin-region-to-screen shipped with
+            // autoConfirmOnFirstSelection:true (single-shot) and no default hotkey. The new
+            // default is multi-region (drag N rects → Enter → N pins) bound to Win+Shift+P.
+            // Force-upgrade pristine installs (autoConfirm=true AND no hotkey assigned) so
+            // existing users get the new behaviour. If the user had assigned their own
+            // hotkey we preserve it.
+            if (IsLegacyPinRegionSingleShot(profile.Id, existing))
+            {
+                upgraded = profile;
+                _logger.LogInformation("Pipeline profile {Id} migrated 0.1.22 → 0.1.23: multi-region + default Win+Shift+P hotkey.", profile.Id);
+            }
+
             if (!ReferenceEquals(upgraded, existing))
             {
                 await _store.UpsertAsync(upgraded, cancellationToken).ConfigureAwait(false);
@@ -123,6 +148,47 @@ public sealed class PipelineProfileSeeder
             if (id is null || !id.StartsWith("arestoys.copy-color-", StringComparison.Ordinal)) return false;
         }
         return true;
+    }
+
+    /// <summary>True when <paramref name="existing"/> is the region-capture profile carrying
+    /// the legacy <c>skipIfNotModified:true</c> on its save step. Pre-0.1.23 seed shape;
+    /// preserved for users who actively want it via a separate config-only check (the flag
+    /// must be the ONLY non-default value in the step config, otherwise we treat it as a
+    /// deliberate user override and leave it alone).</summary>
+    private static bool IsLegacyRegionCaptureSkipIfNotModified(string profileId, AresToys.Core.Pipeline.PipelineProfile existing)
+    {
+        if (profileId != DefaultPipelineProfiles.RegionCaptureId) return false;
+        var save = existing.Steps.FirstOrDefault(s => string.Equals(s.Id, "save", StringComparison.Ordinal));
+        if (save?.Config is not System.Text.Json.Nodes.JsonObject obj) return false;
+        return (bool?)obj["skipIfNotModified"] == true;
+    }
+
+    /// <summary>True when <paramref name="existing"/> is the pristine pin-region-to-screen
+    /// profile: capture-region step config carrying the legacy <c>autoConfirmOnFirstSelection:true</c>
+    /// AND no user-assigned hotkey. Either modification (autoConfirm flipped to false, or a
+    /// hotkey set) signals user customisation → migration skipped.</summary>
+    private static bool IsLegacyPinRegionSingleShot(string profileId, AresToys.Core.Pipeline.PipelineProfile existing)
+    {
+        if (profileId != DefaultPipelineProfiles.PinRegionToScreenId) return false;
+        if (existing.Hotkey is not null) return false;
+        var capture = existing.Steps.FirstOrDefault(s => string.Equals(s.Id, "capture-region", StringComparison.Ordinal));
+        if (capture?.Config is not System.Text.Json.Nodes.JsonObject obj) return false;
+        return (bool?)obj["autoConfirmOnFirstSelection"] == true;
+    }
+
+    private static AresToys.Core.Pipeline.PipelineProfile RemoveRegionCaptureSkipIfNotModified(AresToys.Core.Pipeline.PipelineProfile profile)
+    {
+        var newSteps = profile.Steps.Select(s =>
+        {
+            if (!string.Equals(s.Id, "save", StringComparison.Ordinal)) return s;
+            if (s.Config is not System.Text.Json.Nodes.JsonObject obj) return s;
+            // Clone the JsonObject — JsonNode parents are single-use; mutating the existing
+            // one would throw "node already has a parent" when the seeder reads it again.
+            var cloned = (System.Text.Json.Nodes.JsonObject)obj.DeepClone();
+            cloned.Remove("skipIfNotModified");
+            return s with { Config = cloned };
+        }).ToList();
+        return profile with { Steps = newSteps };
     }
 
     /// <summary>Force-overwrite a profile with its default definition. Used by the "Reset to
