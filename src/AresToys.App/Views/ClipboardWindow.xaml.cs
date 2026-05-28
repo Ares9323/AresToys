@@ -977,16 +977,11 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OnHistoryDoubleClick(object? sender, MouseButtonEventArgs e)
     {
-        // Double-click an image row → open editor; double-click a text row → paste.
-        if (ViewModel.SelectedRow is not { } row) return;
-        if (row.Kind == ItemKind.Image)
-        {
-            ViewModel.OpenInEditorCommand.Execute(null);
-        }
-        else
-        {
-            ViewModel.PasteSelectedCommand.Execute(null);
-        }
+        // Double-click on any row → paste, regardless of kind. Image rows used to open the
+        // editor here, but the inconsistency surprised users — the right-click menu still
+        // offers "Open in editor" for that path. Mirrors Enter / Ctrl+N / toolbar-Paste.
+        if (ViewModel.SelectedRow is null) return;
+        ViewModel.PasteSelectedCommand.Execute(null);
     }
 
     private void OnKeyDown(object sender, KeyEventArgs e)

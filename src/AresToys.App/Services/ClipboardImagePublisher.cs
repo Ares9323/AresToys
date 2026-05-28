@@ -32,6 +32,18 @@ public static class ClipboardImagePublisher
         ArgumentNullException.ThrowIfNull(pngBytes);
         if (pngBytes.Length == 0) return false;
 
+        // Storage may hand us JPEG bytes (the capture pipeline's AutoJpeg setting re-encodes
+        // PNGs over a size threshold into JPEG, still flagged ItemKind.Image). Publishing JFIF
+        // bytes under the "PNG" clipboard format would silently fail in every consumer — they
+        // read the PNG signature, see FF D8 instead, and treat the paste as no-op. Detect the
+        // mismatch and re-encode through WIC so what we publish is always a real PNG.
+        if (!HasPngSignature(pngBytes))
+        {
+            var converted = TryConvertToPng(pngBytes);
+            if (converted is null) return false;
+            pngBytes = converted;
+        }
+
         var data = new DataObject();
         // PNG: the registered clipboard format used by Chromium / Firefox / Telegram /
         // Discord / Slack / etc. for alpha-correct images. The MemoryStream must wrap the
@@ -94,5 +106,37 @@ public static class ClipboardImagePublisher
         if (pngBytes.Length < 26) return true; // unknown / too short → conservative
         var colorType = pngBytes[25];
         return colorType == 3 || colorType == 4 || colorType == 6;
+    }
+
+    private static bool HasPngSignature(byte[] bytes)
+        => bytes.Length >= 8 &&
+           bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 &&
+           bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A;
+
+    /// <summary>Decode arbitrary image bytes via WIC (BitmapImage handles JPEG/GIF/BMP/TIFF)
+    /// and re-encode as PNG. Used when the storage layer hands us a non-PNG payload (e.g.
+    /// AutoJpeg-compressed capture) but the clipboard contract is "publish as PNG".
+    /// Returns null on decode failure.</summary>
+    private static byte[]? TryConvertToPng(byte[] sourceBytes)
+    {
+        try
+        {
+            var decoded = new BitmapImage();
+            decoded.BeginInit();
+            decoded.CacheOption = BitmapCacheOption.OnLoad;
+            decoded.StreamSource = new MemoryStream(sourceBytes);
+            decoded.EndInit();
+            decoded.Freeze();
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(decoded));
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            return ms.ToArray();
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
