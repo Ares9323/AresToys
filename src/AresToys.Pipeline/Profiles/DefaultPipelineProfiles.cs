@@ -584,6 +584,7 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"topmost-all\"}"),   Enabled: false, Id: "topmost"),
                 new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"untopmost-all\"}"), Enabled: false, Id: "untopmost"),
             ],
+            Hotkey: new HotkeyBinding(Win | Shift, 0x57),  // Win+Shift+W
             IsBuiltIn: true),
         new PipelineProfile(
             Id: WormholesCreateId,

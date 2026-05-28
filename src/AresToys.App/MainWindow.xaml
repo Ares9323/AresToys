@@ -2069,6 +2069,19 @@
                                               ClearButtonEnabled="False"
                                               Value="{Binding Wormholes.DefaultBorderOpacityPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </Grid>
+
+                            <!-- Auto-disable Topmost on launch: when ON, any "open something" gesture
+                                 inside a wormhole (double-click tile / Enter / open folder / drop on
+                                 exe) flips Topmost OFF on every wormhole and sends them behind the
+                                 z-order, so the just-launched app stays in front. Pairs naturally
+                                 with the toggle hotkey: one press pulls wormholes above the
+                                 foreground app, click to launch, wormholes auto-drop behind. -->
+                            <CheckBox Margin="0,12,0,0"
+                                      IsChecked="{Binding Wormholes.AutoDisableTopmostOnLaunch, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_AutoDisableTopmostOnLaunch}"
+                                      ToolTip="{Markup:Loc Wormhole_AutoDisableTopmostOnLaunchTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

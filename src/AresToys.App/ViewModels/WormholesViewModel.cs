@@ -61,6 +61,12 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// Explorer style, 2 = default (wrap up to 2 lines), 3 = generous wrap.</summary>
     [ObservableProperty] private int _defaultLabelMaxLines = 2;
 
+    /// <summary>When true the wormhole auto-disables Topmost on every launch gesture
+    /// (double-click / Enter / open folder / drop-on-executable). Lets the user pull every
+    /// wormhole above a fullscreen app via the toggle hotkey, click an icon to launch, and
+    /// have the wormholes drop behind the launched app without a second hotkey press.</summary>
+    [ObservableProperty] private bool _autoDisableTopmostOnLaunch;
+
     public WormholesViewModel(IWormholeStore store, IWormholeWindowManager manager, WormholeDefaultsService defaults)
     {
         _store = store;
@@ -76,6 +82,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         DefaultLineSpacingPx = _defaults.DefaultLineSpacingPx;
         DefaultLabelFontSizePx = _defaults.DefaultLabelFontSizePx;
         DefaultLabelMaxLines = _defaults.DefaultLabelMaxLines;
+        AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
         _suppressDefaultsPersist = false;
         // Live grid refresh: when the manager persists a record (user drag/resize on the live
         // chrome, lock toggle from chrome, hamburger rename, etc.), the matching row updates
@@ -136,6 +143,12 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetDefaultLabelMaxLinesAsync(value, CancellationToken.None);
     }
 
+    partial void OnAutoDisableTopmostOnLaunchChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetAutoDisableTopmostOnLaunchAsync(value, CancellationToken.None);
+    }
+
     private void OnManagerRecordChanged(object? sender, Guid id)
     {
         var row = Rows.FirstOrDefault(r => r.Id == id);
@@ -164,6 +177,7 @@ public sealed partial class WormholesViewModel : ObservableObject
             DefaultLineSpacingPx    = _defaults.DefaultLineSpacingPx;
             DefaultLabelFontSizePx  = _defaults.DefaultLabelFontSizePx;
             DefaultLabelMaxLines    = _defaults.DefaultLabelMaxLines;
+            AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
         }
         finally { _suppressDefaultsPersist = false; }
 

@@ -148,6 +148,16 @@ public partial class WormholeWindow : Window
             if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
         };
 
+        // Post-launch backtrack: when the user clicks an icon to launch an app while the
+        // auto-disable-on-launch setting is ON, we set _pendingPostLaunchBacktrack and the
+        // batch SetAllTopmostAsync(false) sends every wormhole behind. The launched app takes
+        // foreground; when it eventually closes, Windows transfers foreground back to this
+        // wormhole (it was the foreground when the click happened). Without intervention the
+        // wormhole would sit on top of the non-topmost z-order — visually back on top. The
+        // Activated handler consumes the flag and re-issues SendToBack so the wormhole stays
+        // submerged until the user explicitly hits the Topmost toggle hotkey again.
+        Activated += OnActivatedPostLaunch;
+
         // Edge-resize via WM_NCHITTEST. WindowStyle=None + AllowsTransparency=True kills WPF's
         // native resize border; we synthesise hit-zones manually so the cursor switches to the
         // correct resize arrow within 8 px of any edge and Windows drives the actual resize.
@@ -631,12 +641,59 @@ public partial class WormholeWindow : Window
         try
         {
             Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            MaybeAutoDisableTopmost();
         }
         catch
         {
             // Explorer failed (folder missing / drive offline / ACL); the visible error chrome
             // on the wormhole already advertises the broken state, no need to nag with a dialog.
         }
+    }
+
+    /// <summary>Honour the "Auto-disable Topmost on launch" setting: when ON and we just
+    /// successfully launched something out of the wormhole, fire a batch SetAllTopmostAsync(false)
+    /// so every wormhole drops behind the just-launched app. Read fresh from the defaults service
+    /// on each call (no caching) — the setting is rare-toggle and the manager already shortcuts
+    /// when no record actually needs to change. Fire-and-forget: persisting the IsTopmost=false
+    /// flag is best-effort; a transient store failure shouldn't kill the launch gesture.
+    ///
+    /// We also arm <see cref="_pendingPostLaunchBacktrack"/>: when the launched app eventually
+    /// closes and Windows hands foreground back to this wormhole (the previous foreground), the
+    /// Activated handler below sees the flag and re-issues SendToBack — otherwise the wormhole
+    /// pops to the top of the non-topmost z-order on focus return and the user perceives it as
+    /// "back on top" even though IsTopmost is still false. One-shot: consumed on the first
+    /// Activated after the launch.</summary>
+    private void MaybeAutoDisableTopmost()
+    {
+        if (_defaults?.AutoDisableTopmostOnLaunch != true) return;
+        if (_manager is null) return;
+        // No-op when this wormhole isn't currently topmost: the user is in "normal" mode
+        // (no fullscreen app to compete with) so the post-launch backtrack would just bury
+        // a normal window the user expects to come back when the launched app closes.
+        if (!Topmost) return;
+        _pendingPostLaunchBacktrack = true;
+        _ = _manager.SetAllTopmostAsync(false, CancellationToken.None);
+    }
+
+    /// <summary>One-shot flag honoured by the next <see cref="OnActivatedPostLaunch"/> tick.
+    /// Set by <see cref="MaybeAutoDisableTopmost"/>; cleared on consumption (or when the user
+    /// re-enables Topmost via the toggle hotkey, which makes the post-launch backtrack moot).</summary>
+    private bool _pendingPostLaunchBacktrack;
+
+    /// <summary>Fired when this wormhole regains foreground after the auto-disable-on-launch
+    /// flow. Without this, closing the launched app makes Windows transfer foreground back to
+    /// the wormhole that started it (which was the foreground at click-time), and the wormhole
+    /// pops above every other non-topmost window — the user reads it as "topmost re-enabled".
+    /// We push it back to HWND_BOTTOM exactly once so it stays out of the way until the user
+    /// explicitly re-toggles Topmost via the hotkey. If the user already re-enabled Topmost
+    /// (record.IsTopmost==true) before this fires, do nothing — the BringToFront from the
+    /// transition handler is the correct outcome.</summary>
+    private void OnActivatedPostLaunch(object? sender, EventArgs e)
+    {
+        if (!_pendingPostLaunchBacktrack) return;
+        _pendingPostLaunchBacktrack = false;
+        if (_record.IsTopmost) return;
+        SendToBack();
     }
 
     private void OnContentAreaMouseDown(object sender, MouseButtonEventArgs e)
@@ -788,6 +845,7 @@ public partial class WormholeWindow : Window
         try
         {
             Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            MaybeAutoDisableTopmost();
         }
         catch (Exception ex)
         {
@@ -1050,6 +1108,7 @@ public partial class WormholeWindow : Window
                     WorkingDirectory = Path.GetDirectoryName(resolved) ?? string.Empty,
                 };
                 System.Diagnostics.Process.Start(psi);
+                MaybeAutoDisableTopmost();
             }
             catch (Exception ex)
             {
@@ -2225,6 +2284,7 @@ public partial class WormholeWindow : Window
         try
         {
             Process.Start(new ProcessStartInfo { FileName = vm.AbsolutePath, UseShellExecute = true });
+            MaybeAutoDisableTopmost();
         }
         catch (Exception ex)
         {
@@ -2287,10 +2347,64 @@ public partial class WormholeWindow : Window
 
     /// <summary>Mirror <see cref="WormholeRecord.IsTopmost"/> onto WPF's
     /// <see cref="Window.Topmost"/>. Driven by the "Toggle all Wormholes (Topmost)" workflow
-    /// (and reload after restart). WPF translates the flag to <c>SetWindowPos</c> +
-    /// <c>HWND_TOPMOST</c> internally — no native helper needed here.</summary>
+    /// (and reload after restart). Both directions of the toggle get an explicit native z-order
+    /// push to keep them symmetric:
+    ///
+    /// - ON  → <see cref="BringToFront"/> issues <c>SetWindowPos(HWND_TOPMOST, SWP_SHOWWINDOW)</c>.
+    ///   WPF's own Topmost setter calls HWND_TOPMOST internally, but in the auto-disable-on-launch
+    ///   scenario the previously-active wormhole had been sent to HWND_BOTTOM while still owning
+    ///   the foreground — Windows leaves that HWND in a state where WPF's bare Topmost=true
+    ///   doesn't lift it back above the foreground app. An explicit SetWindowPos forces the
+    ///   issue and fixes "the wormhole I clicked stays hidden after pressing the toggle".
+    /// - OFF → <see cref="SendToBack"/> issues <c>SetWindowPos(HWND_BOTTOM)</c>. WPF's default
+    ///   HWND_NOTOPMOST only drops the window below other topmost windows, leaving it on top of
+    ///   the non-topmost stack (i.e. still in front of the app the user just brought forward).
+    ///   HWND_BOTTOM tucks every wormhole behind the foreground app symmetrically.
+    ///
+    /// We only fire either call on a real transition (state actually changed), so freshly opened
+    /// wormholes don't get gratuitously bounced on app startup.</summary>
     private void ApplyTopmostState()
     {
+        var wasTopmost = Topmost;
         Topmost = _record.IsTopmost;
+        if (wasTopmost == _record.IsTopmost) return;
+        if (_record.IsTopmost) BringToFront();
+        else SendToBack();
     }
+
+    private void SendToBack()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        // HWND_BOTTOM = 1. SWP_NOMOVE|SWP_NOSIZE keep position/size untouched; SWP_NOACTIVATE
+        // avoids stealing focus from whatever the user just brought forward (the whole point of
+        // the toggle is to get out of the way without disrupting the foreground app).
+        const uint SWP_NOSIZE = 0x0001;
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOACTIVATE = 0x0010;
+        SetWindowPos(hwnd, new IntPtr(1), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    private void BringToFront()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        // HWND_TOPMOST = -1. Explicit re-issue of the topmost insert that WPF's Topmost setter
+        // already did internally — needed for the wormhole that initiated the launch gesture,
+        // which had been bottomed while still owning the foreground and then refused to lift
+        // back via WPF alone. SWP_SHOWWINDOW guarantees the window is visible (defensive: if
+        // any path along the auto-disable flow left it hidden). SWP_NOACTIVATE preserves the
+        // user's focus on the launched app — we want the wormholes ABOVE it, not stealing its
+        // input.
+        const uint SWP_NOSIZE = 0x0001;
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOACTIVATE = 0x0010;
+        const uint SWP_SHOWWINDOW = 0x0040;
+        SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 }

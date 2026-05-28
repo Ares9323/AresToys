@@ -3091,6 +3091,8 @@ namespace AresToys.App.Resources {
         public static string Wormhole_DefaultLineSpacing => ResourceManager.GetString("Wormhole_DefaultLineSpacing", resourceCulture);
         public static string Wormhole_DefaultBackgroundOpacity => ResourceManager.GetString("Wormhole_DefaultBackgroundOpacity", resourceCulture);
         public static string Wormhole_DefaultBorderOpacity => ResourceManager.GetString("Wormhole_DefaultBorderOpacity", resourceCulture);
+        public static string Wormhole_AutoDisableTopmostOnLaunch => ResourceManager.GetString("Wormhole_AutoDisableTopmostOnLaunch", resourceCulture);
+        public static string Wormhole_AutoDisableTopmostOnLaunchTooltip => ResourceManager.GetString("Wormhole_AutoDisableTopmostOnLaunchTooltip", resourceCulture);
         public static string Settings_ModuleKeySequences => ResourceManager.GetString("Settings_ModuleKeySequences", resourceCulture);
         public static string Settings_ModuleKeySequencesTooltip => ResourceManager.GetString("Settings_ModuleKeySequencesTooltip", resourceCulture);
         public static string Settings_KeySequencesPosition => ResourceManager.GetString("Settings_KeySequencesPosition", resourceCulture);

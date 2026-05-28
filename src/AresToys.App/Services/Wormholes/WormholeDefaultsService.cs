@@ -23,6 +23,7 @@ public sealed class WormholeDefaultsService
     public const string LineSpacingKey     = "app.wormholes.default_line_spacing_px";
     public const string LabelFontSizeKey   = "app.wormholes.default_label_font_size_px";
     public const string LabelMaxLinesKey   = "app.wormholes.default_label_max_lines";
+    public const string AutoDisableTopmostOnLaunchKey = "app.wormholes.auto_disable_topmost_on_launch";
 
     private const int IconMin = 0;     // 0 has the special meaning "use DesktopIconSize.Get()"
     private const int IconMax = 256;
@@ -68,6 +69,11 @@ public sealed class WormholeDefaultsService
     private int _defaultLineSpacingPx = LineSpacingFallback;
     private int _defaultLabelFontSizePx = LabelFontSizeFallback;
     private int _defaultLabelMaxLines = LabelMaxLinesFallback;
+    // Default ON: when wormholes ride on top of a fullscreen app via the toggle hotkey, the
+    // natural follow-up is "click an icon to launch something, the launched app should win the
+    // foreground". The auto-disable + post-launch backtrack flow in WormholeWindow is what
+    // delivers that — opt-in would just hide the feature from users who'd benefit by default.
+    private bool _autoDisableTopmostOnLaunch = true;
 
     public WormholeDefaultsService(ISettingsStore store, ILogger<WormholeDefaultsService> logger)
     {
@@ -111,6 +117,15 @@ public sealed class WormholeDefaultsService
     /// fino a 2 righe (default), 3 = wrap fino a 3 righe. Determina, insieme al font size,
     /// l'altezza riservata alla label nella tile.</summary>
     public int DefaultLabelMaxLines => _defaultLabelMaxLines;
+
+    /// <summary>When true, launching anything from a wormhole (double-click on a tile,
+    /// Enter on a selection, middle-click → open source folder, hamburger → open folder,
+    /// drop file onto an executable tile) automatically toggles every wormhole's Topmost
+    /// flag back to OFF — sending them behind the foreground app so the user can interact
+    /// with the program they just launched without alt-tabbing or pressing the toggle a
+    /// second time. Default false to preserve the explicit-toggle-only behaviour for users
+    /// who want the wormholes to stay above the launched app.</summary>
+    public bool AutoDisableTopmostOnLaunch => _autoDisableTopmostOnLaunch;
 
     /// <summary>Raised when the default icon size changed. Subscribers must re-extract icons
     /// at the new size (expensive — IShellItemImageFactory call per item).</summary>
@@ -173,6 +188,10 @@ public sealed class WormholeDefaultsService
             var maxRaw = await _store.GetAsync(LabelMaxLinesKey, cancellationToken).ConfigureAwait(false);
             if (int.TryParse(maxRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var max))
                 _defaultLabelMaxLines = Math.Clamp(max, LabelMaxLinesMin, LabelMaxLinesMax);
+
+            var autoTopmostRaw = await _store.GetAsync(AutoDisableTopmostOnLaunchKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(autoTopmostRaw, out var autoTopmost))
+                _autoDisableTopmostOnLaunch = autoTopmost;
         }
         catch (Exception ex)
         {
@@ -249,5 +268,16 @@ public sealed class WormholeDefaultsService
         await _store.SetAsync(BorderOpacityKey, clamped.ToString("F2", CultureInfo.InvariantCulture),
             sensitive: false, cancellationToken).ConfigureAwait(true);
         BorderOpacityChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetAutoDisableTopmostOnLaunchAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _autoDisableTopmostOnLaunch) return;
+        _autoDisableTopmostOnLaunch = enabled;
+        await _store.SetAsync(AutoDisableTopmostOnLaunchKey,
+            enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        // No event raised — the flag is read on demand at launch time (see
+        // WormholeWindow.MaybeAutoDisableTopmost), no live UI reflects it.
     }
 }
