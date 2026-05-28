@@ -5958,6 +5958,11 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Tray_RecenterWormholes", resourceCulture);
             }
         }
+
+        public static string Tray_ToggleHideWormholes => ResourceManager.GetString("Tray_ToggleHideWormholes", resourceCulture);
+        public static string Tray_ToggleLockWormholes => ResourceManager.GetString("Tray_ToggleLockWormholes", resourceCulture);
+        public static string Tray_ToggleCollapseWormholes => ResourceManager.GetString("Tray_ToggleCollapseWormholes", resourceCulture);
+        public static string Tray_ToggleTopmostWormholes => ResourceManager.GetString("Tray_ToggleTopmostWormholes", resourceCulture);
         
         /// <summary>
         ///   Looks up a localized string similar to Region.

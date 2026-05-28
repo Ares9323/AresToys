@@ -82,6 +82,10 @@
   <data name="Tray_QrGenerator" xml:space="preserve"><value>Generatore QR…</value></data>
   <data name="Tray_NewWormhole" xml:space="preserve"><value>Nuovo wormhole…</value></data>
   <data name="Tray_RecenterWormholes" xml:space="preserve"><value>Porta qui tutti i wormhole</value></data>
+  <data name="Tray_ToggleHideWormholes" xml:space="preserve"><value>Mostra / nascondi tutti</value></data>
+  <data name="Tray_ToggleLockWormholes" xml:space="preserve"><value>Blocca / sblocca tutti</value></data>
+  <data name="Tray_ToggleCollapseWormholes" xml:space="preserve"><value>Comprimi / espandi tutti</value></data>
+  <data name="Tray_ToggleTopmostWormholes" xml:space="preserve"><value>Sempre in primo piano on / off</value></data>
   <data name="Tray_Wormholes" xml:space="preserve"><value>Wormholes</value></data>
   <data name="Wormholes_Blurb" xml:space="preserve"><value>Gestisci tutti i wormhole che possiedi. Nascondi o mostra, blocca la geometria, apri la cartella sottostante, o eliminane uno.</value></data>
   <data name="Wormholes_NewButton" xml:space="preserve"><value>+ Nuovo wormhole</value></data>

@@ -13,6 +13,7 @@ namespace AresToys.App.Services.PipelineTasks;
 ///   <item><c>hide-all</c> / <c>show-all</c> → <see cref="IWormholeWindowManager.SetAllHiddenAsync"/></item>
 ///   <item><c>lock-all</c> / <c>unlock-all</c> → <see cref="IWormholeWindowManager.SetAllLockedAsync"/></item>
 ///   <item><c>collapse-all</c> / <c>uncollapse-all</c> → <see cref="IWormholeWindowManager.SetAllRolledAsync"/></item>
+///   <item><c>topmost-all</c> / <c>untopmost-all</c> → <see cref="IWormholeWindowManager.SetAllTopmostAsync"/></item>
 /// </list>
 /// Same pattern as <c>RecordScreenTask</c> (one task, two descriptor rows for mp4 vs gif) — keeps
 /// the action picker friendly without spawning six near-identical task classes.</summary>
@@ -45,9 +46,12 @@ public sealed class WormholeBatchOpTask : IPipelineTask
             case "unlock-all":     await _manager.SetAllLockedAsync(false, cancellationToken).ConfigureAwait(false); break;
             case "collapse-all":   await _manager.SetAllRolledAsync(true,  cancellationToken).ConfigureAwait(false); break;
             case "uncollapse-all": await _manager.SetAllRolledAsync(false, cancellationToken).ConfigureAwait(false); break;
+            case "topmost-all":    await _manager.SetAllTopmostAsync(true,  cancellationToken).ConfigureAwait(false); break;
+            case "untopmost-all":  await _manager.SetAllTopmostAsync(false, cancellationToken).ConfigureAwait(false); break;
             case "toggle-hide":     await _manager.ToggleAllHiddenAsync(cancellationToken).ConfigureAwait(false); break;
             case "toggle-lock":     await _manager.ToggleAllLockedAsync(cancellationToken).ConfigureAwait(false); break;
             case "toggle-collapse": await _manager.ToggleAllRolledAsync(cancellationToken).ConfigureAwait(false); break;
+            case "toggle-topmost":  await _manager.ToggleAllTopmostAsync(cancellationToken).ConfigureAwait(false); break;
             default:
                 _logger.LogWarning("WormholeBatchOpTask: unknown op '{Op}' — no-op", op);
                 break;

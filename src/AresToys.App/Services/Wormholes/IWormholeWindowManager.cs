@@ -80,6 +80,15 @@ public interface IWormholeWindowManager
     /// all.</summary>
     Task ToggleAllRolledAsync(CancellationToken cancellationToken);
 
+    /// <summary>Flip <see cref="WormholeRecord.IsTopmost"/> on every record — live windows
+    /// have their WPF Topmost flag updated in place. Lets the user pull wormholes above an
+    /// otherwise-foreground app (game / video / IDE) without minimising it.</summary>
+    Task SetAllTopmostAsync(bool topmost, CancellationToken cancellationToken);
+
+    /// <summary>Smart-toggle: if ANY wormhole is currently not topmost, make all topmost;
+    /// otherwise turn topmost off everywhere.</summary>
+    Task ToggleAllTopmostAsync(CancellationToken cancellationToken);
+
     /// <summary>Called by a wormhole window when the user clicks/selects an item inside it
     /// (without Ctrl/Shift) — clears the item selection on every OTHER live wormhole, so the
     /// "selected" highlight is always single-wormhole. Mirrors Explorer's per-folder selection

@@ -37,6 +37,7 @@ public static class DefaultPipelineProfiles
     public const string WormholesToggleHideId    = "wormholes-toggle-hide";
     public const string WormholesToggleLockId    = "wormholes-toggle-lock";
     public const string WormholesToggleCollapseId = "wormholes-toggle-collapse";
+    public const string WormholesToggleTopmostId = "wormholes-toggle-topmost";
     public const string WormholesCreateId      = "wormholes-create";
 
     // Task IDs whose implementations live in AresToys.App (resolved at runtime by the registry).
@@ -124,6 +125,7 @@ public static class DefaultPipelineProfiles
         [WormholesToggleHideId]    = "Wormholes",
         [WormholesToggleLockId]    = "Wormholes",
         [WormholesToggleCollapseId] = "Wormholes",
+        [WormholesToggleTopmostId]  = "Wormholes",
         [WormholesCreateId]        = "Wormholes",
     };
 
@@ -570,6 +572,17 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"toggle-collapse\"}"), Id: "toggle"),
                 new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"collapse-all\"}"),   Enabled: false, Id: "collapse"),
                 new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"uncollapse-all\"}"), Enabled: false, Id: "uncollapse"),
+            ],
+            IsBuiltIn: true),
+        new PipelineProfile(
+            Id: WormholesToggleTopmostId,
+            DisplayName: "Toggle all Wormholes (Topmost/Normal)",
+            Trigger: "hotkey:wormholes-toggle-topmost",
+            Steps:
+            [
+                new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"toggle-topmost\"}"), Id: "toggle"),
+                new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"topmost-all\"}"),   Enabled: false, Id: "topmost"),
+                new PipelineStep(WormholeBatchOpTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"op\":\"untopmost-all\"}"), Enabled: false, Id: "untopmost"),
             ],
             IsBuiltIn: true),
         new PipelineProfile(

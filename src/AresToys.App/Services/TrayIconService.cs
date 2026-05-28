@@ -235,6 +235,19 @@ public sealed class TrayIconService : IDisposable
             // primary monitor and brings them to the front.
             wormholes.Items.Add(BuildMenuItem(Strings.Tray_RecenterWormholes,
                 () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => m.RecenterAll())));
+            wormholes.Items.Add(new Separator());
+            // Toggle entries: each mirrors a built-in workflow (WormholesToggle*Id) so the
+            // assigned hotkey shows up alongside the label via BuildShortcutMenuItem.
+            // Clicking dispatches straight to the manager's ToggleAll*Async methods, identical
+            // to what the workflow would do — same end state, no profile lookup needed.
+            wormholes.Items.Add(BuildShortcutMenuItem(Strings.Tray_ToggleHideWormholes, DefaultPipelineProfiles.WormholesToggleHideId,
+                () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => _ = m.ToggleAllHiddenAsync(CancellationToken.None))));
+            wormholes.Items.Add(BuildShortcutMenuItem(Strings.Tray_ToggleLockWormholes, DefaultPipelineProfiles.WormholesToggleLockId,
+                () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => _ = m.ToggleAllLockedAsync(CancellationToken.None))));
+            wormholes.Items.Add(BuildShortcutMenuItem(Strings.Tray_ToggleCollapseWormholes, DefaultPipelineProfiles.WormholesToggleCollapseId,
+                () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => _ = m.ToggleAllRolledAsync(CancellationToken.None))));
+            wormholes.Items.Add(BuildShortcutMenuItem(Strings.Tray_ToggleTopmostWormholes, DefaultPipelineProfiles.WormholesToggleTopmostId,
+                () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => _ = m.ToggleAllTopmostAsync(CancellationToken.None))));
             menu.Items.Add(wormholes);
         }
 

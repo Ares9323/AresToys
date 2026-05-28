@@ -112,6 +112,7 @@ public partial class WormholeWindow : Window
 
         ApplyLockState();
         ApplyRollState();
+        ApplyTopmostState();
         ApplyAppearance();
 
         RefreshPortalItems();
@@ -363,6 +364,7 @@ public partial class WormholeWindow : Window
         DataContext = _record;
         ApplyLockState();
         ApplyRollState();
+        ApplyTopmostState();
     }
 
     /// <summary>Re-enumerate the watched folder and rebuild the item tiles. Called by the
@@ -2281,5 +2283,14 @@ public partial class WormholeWindow : Window
         LockGlyph.Text = _record.IsLocked ? LockClosedGlyph : LockOpenGlyph;
         if (!_record.IsRolled)
             ResizeMode = _record.IsLocked ? ResizeMode.NoResize : ResizeMode.CanResize;
+    }
+
+    /// <summary>Mirror <see cref="WormholeRecord.IsTopmost"/> onto WPF's
+    /// <see cref="Window.Topmost"/>. Driven by the "Toggle all Wormholes (Topmost)" workflow
+    /// (and reload after restart). WPF translates the flag to <c>SetWindowPos</c> +
+    /// <c>HWND_TOPMOST</c> internally — no native helper needed here.</summary>
+    private void ApplyTopmostState()
+    {
+        Topmost = _record.IsTopmost;
     }
 }

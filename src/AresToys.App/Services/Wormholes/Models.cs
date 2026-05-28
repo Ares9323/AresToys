@@ -68,6 +68,12 @@ public sealed class WormholeRecord
     public bool IsLocked { get; set; }
     public bool IsRolled { get; set; }
     public bool IsHidden { get; set; }
+    /// <summary>True ⇒ this wormhole's window stays above other apps (WPF
+    /// <see cref="System.Windows.Window.Topmost"/>). Lets the user pull all wormholes to the
+    /// foreground via the Toggle Topmost hotkey without minimising or alt-tabbing the active
+    /// app — they reappear over any covering window. Defaults false so existing wormholes
+    /// keep the original z-order behaviour.</summary>
+    public bool IsTopmost { get; set; }
     /// <summary>Per-wormhole icon-tile pixel size. 0 = "not set, use the system desktop icon
     /// size at render time" (see <see cref="DesktopIconSize"/>). Any other value is the exact
     /// pixel size the user dialed in via Ctrl+MouseWheel inside the wormhole. Persisted so the

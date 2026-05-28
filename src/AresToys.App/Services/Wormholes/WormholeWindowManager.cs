@@ -485,6 +485,34 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         await SetAllRolledAsync(anyUnrolled, cancellationToken).ConfigureAwait(true);
     }
 
+    public async Task SetAllTopmostAsync(bool topmost, CancellationToken cancellationToken)
+    {
+        var records = (await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true)).ToList();
+        var changed = records.Where(r => r.IsTopmost != topmost).ToList();
+        if (changed.Count == 0) return;
+        foreach (var r in changed) r.IsTopmost = topmost;
+        foreach (var r in changed)
+        {
+            if (_live.TryGetValue(r.Id, out var w))
+            {
+                try { w.RefreshFromRecord(); } catch (Exception ex) { _logger.LogWarning(ex, "Refresh batch failed for {Id}", r.Id); }
+            }
+        }
+        await _store.FlushAsync(cancellationToken).ConfigureAwait(true);
+        foreach (var r in changed) RecordChanged?.Invoke(this, r.Id);
+    }
+
+    public async Task ToggleAllTopmostAsync(CancellationToken cancellationToken)
+    {
+        var records = await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true);
+        // "Any not topmost → make all topmost" mirrors the hide / lock / collapse toggles:
+        // pressing the hotkey while at least one wormhole is buried under another window reads
+        // as "bring them to the front"; pressing again with everything already topmost lowers
+        // them back into normal z-order.
+        var anyNotTopmost = records.Any(r => !r.IsTopmost);
+        await SetAllTopmostAsync(anyNotTopmost, cancellationToken).ConfigureAwait(true);
+    }
+
     private void RefreshLiveWindowItems(Guid id)
     {
         if (!_live.TryGetValue(id, out var window)) return;
