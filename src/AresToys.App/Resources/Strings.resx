@@ -104,6 +104,8 @@
   <data name="Tray_CaptureSettings" xml:space="preserve"><value>Capture settings</value></data>
   <data name="Tray_OpenScreenshotFolder" xml:space="preserve"><value>Open screenshot folder</value></data>
   <data name="Tray_AppSettings" xml:space="preserve"><value>App settings</value></data>
+  <data name="Tray_RestartAsAdmin" xml:space="preserve"><value>Restart as administrator</value></data>
+  <data name="Tray_RestartNormally" xml:space="preserve"><value>Restart normally</value></data>
   <data name="Tray_Quit" xml:space="preserve"><value>Quit</value></data>
 
   <!-- MainWindow sidebar nav buttons + matching section headers in the right pane. The
@@ -133,8 +135,8 @@
   <data name="Clipboard_Title" xml:space="preserve"><value>AresToys - Clipboard</value></data>
   <data name="Clipboard_SearchPlaceholder" xml:space="preserve"><value>🔍 Search…</value></data>
   <data name="Clipboard_MenuPinUnpin" xml:space="preserve"><value>Pin / unpin</value></data>
-  <data name="Clipboard_MenuMoveTo" xml:space="preserve"><value>Move to</value></data>
-  <data name="Clipboard_MenuCopyTo" xml:space="preserve"><value>Copy to</value></data>
+  <data name="Clipboard_MenuMoveTo" xml:space="preserve"><value>Move in category</value></data>
+  <data name="Clipboard_MenuCopyTo" xml:space="preserve"><value>Copy in category</value></data>
   <data name="Clipboard_MenuGenerateQr" xml:space="preserve"><value>Generate QR code…</value></data>
   <data name="Clipboard_MenuRenameLabel" xml:space="preserve"><value>Rename label (F2)</value></data>
   <data name="Clipboard_LabelPlaceholder" xml:space="preserve"><value>Add a label…</value></data>

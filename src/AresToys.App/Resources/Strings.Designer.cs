@@ -5966,7 +5966,25 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Tray_Region", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restart as administrator.
+        /// </summary>
+        public static string Tray_RestartAsAdmin {
+            get {
+                return ResourceManager.GetString("Tray_RestartAsAdmin", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restart normally.
+        /// </summary>
+        public static string Tray_RestartNormally {
+            get {
+                return ResourceManager.GetString("Tray_RestartNormally", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Screen recording.
         /// </summary>

@@ -46,7 +46,12 @@ public partial class App : Application
         // through the elevated Task Scheduler entry), we re-launch ourselves through ShellExecute
         // with Verb=runas and drop the current process so the user only sees the elevated
         // instance. The --restarted-elevated arg prevents an infinite bounce on UAC denial.
+        // RestartedUnelevatedArg is the one-shot bypass from the tray "Restart normally" entry:
+        // when the user explicitly asked for an unelevated session we honour that for this run
+        // even if RunElevated is still ON in the registry. They didn't toggle the preference, so
+        // a subsequent normal launch (Start menu, autostart task) will re-elevate as expected.
         if (!e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedElevatedArg, StringComparison.OrdinalIgnoreCase))
+            && !e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedUnelevatedArg, StringComparison.OrdinalIgnoreCase))
             && AresToys.App.Services.ElevationService.ReadRunElevatedFromRegistry()
             && !new AresToys.App.Services.ElevationService().IsProcessElevated)
         {

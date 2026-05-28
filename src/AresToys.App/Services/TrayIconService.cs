@@ -39,6 +39,7 @@ public sealed class TrayIconService : IDisposable
     private readonly Hotkeys.HotkeyConfigService _hotkeys;
     private readonly LocalizationService _localization;
     private readonly ModuleSettings _modules;
+    private readonly ElevationService _elevation;
     private readonly TaskbarIcon _icon;
     private MainWindow? _mainWindow;
     // Click handler bound to the most recently shown toast. Cleared after the toast closes
@@ -53,6 +54,7 @@ public sealed class TrayIconService : IDisposable
         Hotkeys.HotkeyConfigService hotkeys,
         LocalizationService localization,
         ModuleSettings modules,
+        ElevationService elevation,
         ILogger<TrayIconService> logger)
     {
         _services = services;
@@ -62,6 +64,7 @@ public sealed class TrayIconService : IDisposable
         _hotkeys = hotkeys;
         _localization = localization;
         _modules = modules;
+        _elevation = elevation;
         _logger = logger;
         _icon = new TaskbarIcon
         {
@@ -332,8 +335,40 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(BuildMenuItem(Strings.Tray_OpenScreenshotFolder, OnOpenScreenshotFolder));
         menu.Items.Add(BuildMenuItem(Strings.Tray_AppSettings,
             () => OnOpenSettingsTab(AresToys.App.ViewModels.SettingsTab.Settings)));
+        // Mutually exclusive: when running unelevated show "Restart as administrator" (triggers
+        // the same ShellExecute runas hop the Settings card uses); when running elevated show
+        // "Restart normally" (Shell.Application.ShellExecute hand-off to Explorer for a medium-IL
+        // child). One-shot bypass — neither entry touches the persistent "Always run as admin"
+        // preference; that stays the exclusive job of the Settings checkbox.
+        if (_elevation.IsProcessElevated)
+        {
+            menu.Items.Add(BuildMenuItem(Strings.Tray_RestartNormally, OnRestartNormally));
+        }
+        else
+        {
+            menu.Items.Add(BuildMenuItem(Strings.Tray_RestartAsAdmin, OnRestartAsAdmin));
+        }
         menu.Items.Add(BuildMenuItem(Strings.Tray_Quit, OnQuit));
         return menu;
+    }
+
+    private void OnRestartAsAdmin()
+    {
+        _logger.LogInformation("Restart-as-admin requested from tray menu");
+        if (ElevationService.RestartElevated())
+        {
+            Application.Current.Shutdown();
+        }
+        // UAC declined: stay in the current non-elevated session, no state to revert.
+    }
+
+    private void OnRestartNormally()
+    {
+        _logger.LogInformation("Restart-normally requested from tray menu");
+        if (ElevationService.RestartUnelevated())
+        {
+            Application.Current.Shutdown();
+        }
     }
 
     /// <summary>Tray-menu shortcut to the configured capture folder. Mirrors what

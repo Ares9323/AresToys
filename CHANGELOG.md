@@ -3,6 +3,54 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.22] — TBD
+
+Tray-menu shortcuts for two-way elevation switching, plus a rename
+of the clipboard context menu's category-copy entries so they no
+longer look like "copy to the Windows clipboard".
+
+### Tray menu — Restart as administrator / Restart normally
+- New entry just above the Quit row in the system tray menu,
+  mutually exclusive based on the current process integrity:
+  "Restart as administrator" when running unelevated, "Restart
+  normally" when running elevated. One-shot bypass — neither
+  entry touches the persisted "Always run as administrator"
+  preference (that stays the exclusive job of the Settings
+  checkbox), so a subsequent normal launch still honours the
+  saved choice.
+- The unelevated-restart path borrows explorer.exe's primary
+  token via `OpenProcessToken` + `DuplicateTokenEx` and spawns
+  the child through `CreateProcessWithTokenW`. The naïve
+  `Shell.Application.ShellExecute` COM trick was tried first
+  but doesn't actually drop integrity: when activated from an
+  elevated process, Shell.Application is a same-IL in-proc
+  instance, so its ShellExecute child stays elevated. Only
+  token borrowing (the technique Process Explorer / PowerToys'
+  RestartHelper use) reliably produces a medium-IL child.
+- A new `--restarted-unelevated` startup flag tells the child's
+  `App.OnStartup` to skip the auto-elevation self-relaunch gate
+  for this session, symmetric to the existing
+  `--restarted-elevated`. Prevents the elevated-on-launch
+  preference from immediately bouncing the just-demoted process
+  back to admin.
+- Headline use case: the clipboard hotkey (Win+V) is routed
+  through a low-level keyboard hook (`WH_KEYBOARD_LL`), which
+  UIPI silently skips for keystrokes destined for elevated
+  windows — so a non-elevated AresToys can't see Win+V while a
+  cmd / regedit / Task Manager is in the foreground. The tray
+  shortcut lets the user flip elevation modes in one click
+  without diving into Settings.
+
+### Clipboard context menu — "Move to" / "Copy to" renamed
+- The submenu labels in the clipboard popup right-click menu
+  are now "Move in category" and "Copy in category" (Italian:
+  "Sposta in categoria" / "Copia in categoria"). The old "Move
+  to" / "Copy to" wording read like it might mean "copy into
+  the Windows clipboard", but those submenus only move / copy
+  items between AresToys' internal categories. Default item
+  activation (Enter or double-click) is what writes to the
+  Windows clipboard and auto-pastes — unchanged.
+
 ## [0.1.21] — 2026-05-27
 
 Small follow-up to 0.1.20: privacy hardening of the key-sequence

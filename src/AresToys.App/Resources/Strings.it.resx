@@ -103,6 +103,8 @@
   <data name="Tray_CaptureSettings" xml:space="preserve"><value>Impostazioni cattura</value></data>
   <data name="Tray_OpenScreenshotFolder" xml:space="preserve"><value>Apri cartella screenshot</value></data>
   <data name="Tray_AppSettings" xml:space="preserve"><value>Impostazioni app</value></data>
+  <data name="Tray_RestartAsAdmin" xml:space="preserve"><value>Riavvia come amministratore</value></data>
+  <data name="Tray_RestartNormally" xml:space="preserve"><value>Riavvia normalmente</value></data>
   <data name="Tray_Quit" xml:space="preserve"><value>Esci</value></data>
 
   <data name="Sidebar_HotkeysWorkflows" xml:space="preserve"><value>Scorciatoie e workflow</value></data>
@@ -126,8 +128,8 @@
   <data name="Clipboard_Title" xml:space="preserve"><value>AresToys - Appunti</value></data>
   <data name="Clipboard_SearchPlaceholder" xml:space="preserve"><value>🔍 Cerca…</value></data>
   <data name="Clipboard_MenuPinUnpin" xml:space="preserve"><value>Fissa / Sgancia</value></data>
-  <data name="Clipboard_MenuMoveTo" xml:space="preserve"><value>Sposta in</value></data>
-  <data name="Clipboard_MenuCopyTo" xml:space="preserve"><value>Copia in</value></data>
+  <data name="Clipboard_MenuMoveTo" xml:space="preserve"><value>Sposta in categoria</value></data>
+  <data name="Clipboard_MenuCopyTo" xml:space="preserve"><value>Copia in categoria</value></data>
   <data name="Clipboard_MenuGenerateQr" xml:space="preserve"><value>Genera codice QR…</value></data>
   <data name="Clipboard_MenuRenameLabel" xml:space="preserve"><value>Rinomina etichetta (F2)</value></data>
   <data name="Clipboard_LabelPlaceholder" xml:space="preserve"><value>Aggiungi un'etichetta…</value></data>
