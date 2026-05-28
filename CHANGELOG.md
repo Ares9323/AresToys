@@ -3,6 +3,100 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.23] — 2026-05-28
+
+Clipboard paste robustness for AutoJpeg-compressed images, a sweep
+of Capture tray issues (Fullscreen / Monitor / Active window weren't
+saving to disk), and a quality-of-life pass over the Pin-to-screen
+flow: multi-region pins, save-to-default-folder, history-aware copy,
+and editor visibility across stacked pins.
+
+### Clipboard — image paste, doppio click, AutoJpeg compatibility
+- Double-clicking an image row in the clipboard window now pastes
+  it, matching the muscle-memory parity of every other shortcut
+  (Enter, Ctrl+1..9, toolbar). The previous "double-click images
+  → open editor" behaviour was inconsistent with every other kind;
+  the "Open in editor" action remains accessible from the row's
+  right-click menu.
+- `ClipboardImagePublisher.SetPng` now detects non-PNG payloads
+  (the capture pipeline's AutoJpeg setting re-encodes large PNGs
+  into JPEG over the configured threshold while keeping
+  `ItemKind.Image`), decodes them through WIC, and re-encodes as
+  PNG before publishing. Previously the JPEG bytes were published
+  under the "PNG" clipboard format and every consumer (Telegram,
+  Edge, Paint, Discord) treated the paste as a silent no-op —
+  pictures over the AutoJpeg threshold appeared in the history
+  but couldn't be pasted anywhere.
+
+### Capture tray — Fullscreen / Monitor / Active window save fixed
+- `CaptureCoordinator.RunPipelineAsync` previously sent every
+  `ItemSource` through `RegionCaptureId`, whose Save step had
+  `skipIfNotModified:true` — so Fullscreen / Monitor / last-region
+  / Active-window captures only produced a file if the user
+  edited the image in the editor first. Each source now picks
+  its dedicated profile (`ActiveWindowCaptureId` /
+  `ActiveMonitorCaptureId`), all of which save unconditionally.
+  The pre-existing CaptureActiveWindow/Monitor first steps
+  short-circuit on a bag with payload bytes already present, so
+  the pre-encoded payload from the coordinator is reused untouched.
+- `region-capture`'s Save step itself loses
+  `skipIfNotModified:true` — every region pick now writes a file
+  by default, matching ShareX / Snipping Tool muscle memory.
+  `PipelineProfileSeeder` carries a non-destructive migration
+  that strips the legacy flag from existing DB rows on first
+  start; users who deliberately enabled "only save on edit" via
+  the workflow editor (i.e. anything beyond the legacy default
+  shape) are preserved.
+- "Active window" removed from the tray Capture submenu: the
+  foreground at the moment of the click is always AresToys
+  itself, the filter then no-ops. Still exposed as a
+  hotkey-bindable workflow in Settings → Hotkeys
+  (`ActiveWindowCaptureId`).
+- Color Sampler / Color Picker removed from the Capture submenu
+  (duplicates of the Tools entries) and promoted to
+  `BuildShortcutMenuItem` under Tools so the hotkey is visible.
+
+### Pin to screen — multi-region split + default Win+Shift+P
+- The region overlay's multi-region commit (>1 rect committed
+  with `autoConfirmOnFirstSelection:false`) now also exposes the
+  per-rect cropped PNGs alongside the existing bbox composite.
+  `RegionOverlayWindow.PickedMultiRegionParts` carries one entry
+  per rect (top-left in physical pixels + PNG bytes). A new bag
+  key `PipelineBagKeys.MultiRegionParts` plumbs the list through
+  `CaptureRegionTask` to consumers.
+- `PinToScreenTask` and the tray `PinToScreenLauncher.FromScreenAsync`
+  read that list and spawn N independent `PinnedImageWindow`
+  instances at the original on-screen origins. Pre-0.1.23 you got
+  one giant bbox-sized pin with a transparent halo covering the
+  empty space between the rects — opposite of the desired
+  behaviour. Save / History / Upload workflows continue consuming
+  the composite `PayloadBytes`, so the split is opt-in per task
+  and doesn't disturb the rest of the pipeline.
+- `PinRegionToScreenId` default updated:
+  `autoConfirmOnFirstSelection:false` + a default `Win+Shift+P`
+  hotkey. Pristine installs are migrated by the seeder; users who
+  had assigned their own hotkey or flipped autoConfirm are left
+  intact.
+
+### Pinned-window polish
+- Copy button now also inserts the bitmap into AresToys history
+  (was Windows-clipboard-only); `IClipboardListener.SuppressNext`
+  avoids the round-trip duplicate.
+- New Save button writes directly into `capture.folder` +
+  `capture.subfolder_pattern` using the configured
+  `capture.image_format` (AutoJpeg honoured) — no
+  `SaveFileDialog`. Mirrors `SaveToFileTask`'s naming + `-N`
+  collision guard. Save-As remains available via the in-pin
+  editor → editor's save dialogs.
+- Reset zoom now anchors on the window's current centre instead
+  of the top-left corner, so the shrink doesn't visually drift
+  off after the user has moved the pin around.
+- Edit drops `Topmost` across EVERY live pinned window for the
+  editor's lifetime (tracked via a static `WeakReference` list)
+  so the editor is visible even when multiple pins are on
+  screen. Restored in `finally`; closed pins during the edit are
+  skipped via an `IsLoaded` guard.
+
 ## [0.1.22] — 2026-05-28
 
 Tray-menu shortcuts for two-way elevation switching, plus a rename
