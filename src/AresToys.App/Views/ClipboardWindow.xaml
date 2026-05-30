@@ -487,23 +487,19 @@
                                                                    TextTrimming="CharacterEllipsis" MaxWidth="200" />
                                                     </StackPanel>
                                                 </StackPanel>
-                                                <!-- Reorder chevrons on the pinned strip — appear only on hover over a pinned
-                                                     row (MultiDataTrigger: Pinned AND IsMouseOver on the row Border). Click
-                                                     handlers call PopupWindowViewModel.MovePinnedAsync which swaps the row
-                                                     with its neighbour. Drag-to-reorder is the alternative gesture and is
-                                                     wired on the row Border's Drop event. -->
+                                                <!-- Reorder chevrons — appear on hover over ANY row (pinned or unpinned).
+                                                     Click handlers call MovePinnedAsync / MoveUnpinnedAsync (picked by the
+                                                     row's Pinned flag) which swaps the row with its neighbour WITHIN its own
+                                                     strip, so an unpinned row can never climb above a pinned one. Drag-to-
+                                                     reorder is the alternative gesture, wired on the row Border's Drop event. -->
                                                 <StackPanel Grid.Column="3" Orientation="Vertical" VerticalAlignment="Center" Margin="6,0,0,0">
                                                     <StackPanel.Style>
                                                         <Style TargetType="StackPanel">
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                             <Style.Triggers>
-                                                                <MultiDataTrigger>
-                                                                    <MultiDataTrigger.Conditions>
-                                                                        <Condition Binding="{Binding Pinned}" Value="True" />
-                                                                        <Condition Binding="{Binding IsMouseOver, ElementName=RowBorder}" Value="True" />
-                                                                    </MultiDataTrigger.Conditions>
+                                                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=RowBorder}" Value="True">
                                                                     <Setter Property="Visibility" Value="Visible" />
-                                                                </MultiDataTrigger>
+                                                                </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>

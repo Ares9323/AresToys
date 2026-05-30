@@ -887,25 +887,30 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         if (sender is FrameworkElement fe) fe.Opacity = 1.0;
     }
 
-    // ── Pinned reorder: chevron clicks + drag-onto-row ───────────────────────────────
+    // ── Row reorder (pinned AND unpinned strips): chevron clicks + drag-onto-row ──────
+    // Both strips reorder the same way; the only rule is they stay separate — an unpinned row
+    // can't move above a pinned one (and vice-versa). The VM exposes a pinned/unpinned method
+    // pair; we pick by the clicked/target row's Pinned flag.
 
     private async void OnRowMoveUpClicked(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
-        if (fe.DataContext is not ItemRowViewModel row || !row.Pinned) return;
-        await ViewModel.MovePinnedAsync(row.Id, -1);
+        if (fe.DataContext is not ItemRowViewModel row) return;
+        if (row.Pinned) await ViewModel.MovePinnedAsync(row.Id, -1);
+        else await ViewModel.MoveUnpinnedAsync(row.Id, -1);
     }
 
     private async void OnRowMoveDownClicked(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
-        if (fe.DataContext is not ItemRowViewModel row || !row.Pinned) return;
-        await ViewModel.MovePinnedAsync(row.Id, +1);
+        if (fe.DataContext is not ItemRowViewModel row) return;
+        if (row.Pinned) await ViewModel.MovePinnedAsync(row.Id, +1);
+        else await ViewModel.MoveUnpinnedAsync(row.Id, +1);
     }
 
     private void OnItemRowDragEnter(object sender, DragEventArgs e)
     {
-        if (!IsValidPinnedReorderDrag(sender, e, out _, out _))
+        if (!IsValidReorderDrag(sender, e, out _, out _, out _))
         {
             e.Effects = DragDropEffects.None;
             e.Handled = true;
@@ -926,33 +931,38 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     private async void OnItemRowDrop(object sender, DragEventArgs e)
     {
         if (sender is Border b) b.ClearValue(Border.BorderBrushProperty);
-        if (!IsValidPinnedReorderDrag(sender, e, out var sourceId, out var targetId))
+        if (!IsValidReorderDrag(sender, e, out var sourceId, out var targetId, out var pinned))
         {
             return;
         }
         e.Handled = true;
-        await ViewModel.ReorderPinnedAsync(sourceId, targetId);
+        if (pinned) await ViewModel.ReorderPinnedAsync(sourceId, targetId);
+        else await ViewModel.ReorderUnpinnedAsync(sourceId, targetId);
     }
 
-    /// <summary>Common gate for the pinned-reorder DnD. Allows the operation only when both
-    /// the source row (carried in the DataObject) and the target row (the Border's
-    /// DataContext) are pinned and different from each other. Drops between unpinned rows
-    /// or from unpinned to pinned (and vice-versa) are silently ignored — those gestures
-    /// have no meaningful reorder semantic.</summary>
-    private bool IsValidPinnedReorderDrag(object sender, DragEventArgs e, out long sourceId, out long targetId)
+    /// <summary>Common gate for the row-reorder DnD. Allows the operation only when the source
+    /// row (carried in the DataObject) and the target row (the Border's DataContext) live in the
+    /// SAME strip — both pinned or both unpinned — and are different from each other. A cross-strip
+    /// drag has no meaningful reorder semantic (pinned always sorts above unpinned), so it's
+    /// silently ignored here; re-bucketing across categories is handled by the category-tab drop.
+    /// <paramref name="pinned"/> reports which strip matched so the caller picks the right VM
+    /// method.</summary>
+    private bool IsValidReorderDrag(object sender, DragEventArgs e, out long sourceId, out long targetId, out bool pinned)
     {
         sourceId = 0;
         targetId = 0;
+        pinned = false;
         if (!e.Data.GetDataPresent(ClipboardItemDragFormat)) return false;
         if (e.Data.GetData(ClipboardItemDragFormat) is not long sid) return false;
         if (sender is not Border border) return false;
         if (border.DataContext is not ItemRowViewModel targetRow) return false;
-        if (!targetRow.Pinned) return false;
         var sourceRow = ViewModel.Rows.FirstOrDefault(r => r.Id == sid);
-        if (sourceRow is null || !sourceRow.Pinned) return false;
+        if (sourceRow is null) return false;
+        if (sourceRow.Pinned != targetRow.Pinned) return false;
         if (sourceRow.Id == targetRow.Id) return false;
         sourceId = sid;
         targetId = targetRow.Id;
+        pinned = targetRow.Pinned;
         return true;
     }
 

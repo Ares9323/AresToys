@@ -192,6 +192,50 @@ public class ItemStoreTests
     }
 
     [Fact]
+    public async Task UpdatePayloadAsync_TextRow_RefreshesSearchTextSnippet()
+    {
+        // Regression: editing a text entry (external editor sync-back) used to leave search_text
+        // stale, so the popup's left-hand list kept the pre-edit snippet while the preview pane
+        // showed the new content. UpdatePayloadAsync must refresh search_text from the new payload.
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var id = await store.AddAsync(TextItem("original"), CancellationToken.None);
+
+        var newBytes = Encoding.UTF8.GetBytes("rewritten body");
+        Assert.True(await store.UpdatePayloadAsync(id, newBytes, newBytes.LongLength, newKind: null, CancellationToken.None));
+
+        var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
+        Assert.Equal("rewritten body", loaded.SearchText);
+    }
+
+    [Fact]
+    public async Task UpdatePayloadAsync_WithKindFlip_StoresKindAsName()
+    {
+        // The kind column is stored as the enum NAME everywhere else; UpdatePayloadAsync must
+        // follow suit so a flipped row still matches the kind = $kind filter in ListAsync.
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var id = await store.AddAsync(
+            new NewItem(
+                Kind: ItemKind.Html,
+                Source: ItemSource.Clipboard,
+                CreatedAt: DateTimeOffset.UtcNow,
+                Payload: Encoding.UTF8.GetBytes("<b>hi</b>"),
+                PayloadSize: 9,
+                SearchText: "hi"),
+            CancellationToken.None);
+
+        var plain = Encoding.UTF8.GetBytes("hi");
+        Assert.True(await store.UpdatePayloadAsync(id, plain, plain.LongLength, ItemKind.Text, CancellationToken.None));
+
+        var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
+        Assert.Equal(ItemKind.Text, loaded.Kind);
+        // The flipped item is findable under the Text kind filter (would fail if kind were "0").
+        var textRows = await store.ListAsync(new ItemQuery(Kind: ItemKind.Text), CancellationToken.None);
+        Assert.Contains(textRows, r => r.Id == id);
+    }
+
+    [Fact]
     public async Task UpdatePayloadAsync_Missing_ReturnsFalse()
     {
         await using var fx = await new TempDatabaseFixture().InitializeAsync();

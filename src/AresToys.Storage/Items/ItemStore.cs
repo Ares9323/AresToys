@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Data.Sqlite;
 using AresToys.Core.Domain;
 using AresToys.Storage.Database;
@@ -303,22 +304,73 @@ public sealed class ItemStore : IItemStore
     public async Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, ItemKind? newKind, CancellationToken cancellationToken)
     {
         var conn = _database.GetOpenConnection();
+
+        // Resolve the kind the row will have AFTER this update so we can refresh the columns the
+        // popup's LEFT-hand list renders from — search_text (the row snippet + FTS index) for
+        // text-shaped rows, and the inline thumbnail for images. Without this refresh the list
+        // keeps showing the pre-edit snippet/thumbnail while the preview pane (which re-reads the
+        // live payload via GetByIdAsync) shows the new content — the stale mismatch the user hit
+        // after editing an entry in the external editor / "Convert to plain text".
+        ItemKind effectiveKind;
+        if (newKind is { } nk)
+        {
+            effectiveKind = nk;
+        }
+        else
+        {
+            await using var kindCmd = conn.CreateCommand();
+            kindCmd.CommandText = "SELECT kind FROM items WHERE id = $id LIMIT 1;";
+            kindCmd.Parameters.AddWithValue("$id", id);
+            var kindRaw = await kindCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (kindRaw is null or DBNull) return false;
+            effectiveKind = Enum.Parse<ItemKind>((string)kindRaw);
+        }
+
         var encoded = _serializer.Encode(newPayload);
 
+        var isTextLike = effectiveKind is ItemKind.Text or ItemKind.Html or ItemKind.Rtf;
+        // search_text mirrors the ingestion convention (Win32ClipboardReader stores the decoded
+        // text); the row VM's BuildPreview sanitizes any HTML/RTF markup at display time, so
+        // handing it the raw decoded payload here matches a freshly-captured item.
+        string? newSearchText = isTextLike ? DecodeUtf8(newPayload) : null;
+        byte[]? newThumbnail = effectiveKind is ItemKind.Image
+            ? ThumbnailGenerator.TryGenerate(newPayload, maxSide: 96)
+            : null;
+
+        // Compose the SET clause inline so the payload, an optional kind flip, and the derived-
+        // column refresh ride on a SINGLE UPDATE — one wire roundtrip and one Updated broadcast.
+        // The AFTER UPDATE trigger (items_au) re-syncs items_fts from the new search_text on its
+        // own, so we don't touch the FTS table directly.
+        var sets = new List<string> { "payload = $payload", "payload_size = $size" };
+        if (newKind is not null) sets.Add("kind = $kind");
+        if (isTextLike) sets.Add("search_text = $search");
+        if (effectiveKind is ItemKind.Image) sets.Add("thumbnail = $thumb");
+
         await using var cmd = conn.CreateCommand();
-        // Compose the SET clause inline so a kind change rides on the same UPDATE — half the
-        // wire cost vs two separate roundtrips, and we get a single Updated broadcast at the
-        // end instead of two stuttered ones.
-        cmd.CommandText = newKind is null
-            ? "UPDATE items SET payload = $payload, payload_size = $size WHERE id = $id;"
-            : "UPDATE items SET payload = $payload, payload_size = $size, kind = $kind WHERE id = $id;";
+        cmd.CommandText = $"UPDATE items SET {string.Join(", ", sets)} WHERE id = $id;";
         cmd.Parameters.AddWithValue("$payload", encoded);
         cmd.Parameters.AddWithValue("$size", newPayloadSize);
         cmd.Parameters.AddWithValue("$id", id);
-        if (newKind is { } k) cmd.Parameters.AddWithValue("$kind", (int)k);
+        // Kind is stored as its enum NAME everywhere else (AddAsync, the ListAsync filter, Map's
+        // Enum.Parse) — keep that convention here too. The previous (int)k cast wrote "0"/"1",
+        // which slipped past Map (Enum.Parse accepts numerics) but broke the kind = $kind filter
+        // in ListAsync for converted items.
+        if (newKind is { } k) cmd.Parameters.AddWithValue("$kind", k.ToString());
+        if (isTextLike) cmd.Parameters.AddWithValue("$search", (object?)newSearchText ?? DBNull.Value);
+        if (effectiveKind is ItemKind.Image) cmd.Parameters.AddWithValue("$thumb", (object?)newThumbnail ?? DBNull.Value);
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;
+    }
+
+    /// <summary>Decode payload bytes as UTF-8 for the refreshed <c>search_text</c>. Swallows a
+    /// malformed-byte decode by returning null (→ NULL search_text) rather than throwing inside
+    /// the UPDATE — a non-decodable text payload is degenerate but mustn't fail the save.</summary>
+    private static string? DecodeUtf8(ReadOnlyMemory<byte> payload)
+    {
+        if (payload.Length == 0) return null;
+        try { return Encoding.UTF8.GetString(payload.Span); }
+        catch { return null; }
     }
 
     /// <summary>Turn user-typed search text into an FTS5 query: split on whitespace, drop reserved

@@ -930,41 +930,60 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         await _items.SetCategoryAsync(itemId, category, CancellationToken.None).ConfigureAwait(true);
     }
 
-    /// <summary>Single-step chevron move on the pinned strip — swap the item with its
-    /// neighbour in the indicated direction (-1 = up, +1 = down). No-op when there's no
-    /// neighbour (top / bottom of the strip) or when the item isn't pinned. Snapshot the
-    /// current pinned order from <see cref="Rows"/>, apply the swap, persist the whole
-    /// sequence with <see cref="IItemStore.ReorderPinnedAsync"/>.</summary>
-    public async Task MovePinnedAsync(long itemId, int direction)
+    /// <summary>Single-step chevron move on the PINNED strip — swap the item with its pinned
+    /// neighbour in the indicated direction (-1 = up, +1 = down).</summary>
+    public Task MovePinnedAsync(long itemId, int direction) => MoveWithinStripAsync(itemId, direction, pinned: true);
+
+    /// <summary>Single-step chevron move on the UNPINNED strip. Same swap-with-neighbour logic
+    /// as <see cref="MovePinnedAsync"/> but scoped to the unpinned rows, so an unpinned item can
+    /// never jump above a pinned one — the two strips reorder independently and the SQL
+    /// <c>pinned DESC</c> sort always floats pinned rows on top.</summary>
+    public Task MoveUnpinnedAsync(long itemId, int direction) => MoveWithinStripAsync(itemId, direction, pinned: false);
+
+    /// <summary>Shared chevron-move implementation for both strips. Snapshots the current order of
+    /// the rows matching <paramref name="pinned"/> from <see cref="Rows"/>, swaps the target item
+    /// with its neighbour, and persists the whole sequence via <see cref="IItemStore.ReorderPinnedAsync"/>
+    /// (which renumbers <c>pin_sort_order</c> 1..N — pinned and unpinned share the column but never
+    /// collide because the list query orders by the pinned flag first). No-op at the strip
+    /// boundary or when the item isn't in this strip.</summary>
+    private async Task MoveWithinStripAsync(long itemId, int direction, bool pinned)
     {
         if (direction is not (-1 or 1)) return;
-        var pinnedIds = Rows.Where(r => r.Pinned).Select(r => r.Id).ToList();
-        var idx = pinnedIds.IndexOf(itemId);
+        var ids = Rows.Where(r => r.Pinned == pinned).Select(r => r.Id).ToList();
+        var idx = ids.IndexOf(itemId);
         if (idx < 0) return;
         var target = idx + direction;
-        if (target < 0 || target >= pinnedIds.Count) return;
-        (pinnedIds[idx], pinnedIds[target]) = (pinnedIds[target], pinnedIds[idx]);
-        await _items.ReorderPinnedAsync(pinnedIds, CancellationToken.None).ConfigureAwait(true);
+        if (target < 0 || target >= ids.Count) return;
+        (ids[idx], ids[target]) = (ids[target], ids[idx]);
+        await _items.ReorderPinnedAsync(ids, CancellationToken.None).ConfigureAwait(true);
     }
 
-    /// <summary>Drag-drop reorder on the pinned strip — move the source item to the
-    /// position currently held by the target (insert-before semantics). When source and
-    /// target are the same or both unpinned, no-op. Only operates within the pinned strip;
-    /// dropping an unpinned row on a pinned one is ignored upstream by the handler.</summary>
-    public async Task ReorderPinnedAsync(long sourceId, long targetId)
+    /// <summary>Drag-drop reorder on the PINNED strip — move the source item to the position
+    /// currently held by the target (insert-before semantics).</summary>
+    public Task ReorderPinnedAsync(long sourceId, long targetId) => ReorderWithinStripAsync(sourceId, targetId, pinned: true);
+
+    /// <summary>Drag-drop reorder on the UNPINNED strip — same insert-before logic as
+    /// <see cref="ReorderPinnedAsync(long, long)"/> scoped to unpinned rows. Cross-strip drags
+    /// (unpinned onto pinned or vice-versa) are rejected upstream by the drop handler.</summary>
+    public Task ReorderUnpinnedAsync(long sourceId, long targetId) => ReorderWithinStripAsync(sourceId, targetId, pinned: false);
+
+    /// <summary>Shared drag-reorder implementation for both strips. Snapshots the rows matching
+    /// <paramref name="pinned"/>, removes the source, re-inserts it at the target's slot, and
+    /// persists the sequence. See <see cref="MoveWithinStripAsync"/> for the shared-column note.</summary>
+    private async Task ReorderWithinStripAsync(long sourceId, long targetId, bool pinned)
     {
         if (sourceId == targetId) return;
-        var pinnedIds = Rows.Where(r => r.Pinned).Select(r => r.Id).ToList();
-        var sourceIdx = pinnedIds.IndexOf(sourceId);
-        var targetIdx = pinnedIds.IndexOf(targetId);
+        var ids = Rows.Where(r => r.Pinned == pinned).Select(r => r.Id).ToList();
+        var sourceIdx = ids.IndexOf(sourceId);
+        var targetIdx = ids.IndexOf(targetId);
         if (sourceIdx < 0 || targetIdx < 0) return;
-        pinnedIds.RemoveAt(sourceIdx);
+        ids.RemoveAt(sourceIdx);
         // After the remove the target index shifts down by 1 when source was earlier in the
         // list. Otherwise it stays put. Either way, sourceId lands AT the slot the target
         // visually occupies before the drop (insert-before semantics).
         var insertAt = sourceIdx < targetIdx ? targetIdx - 1 : targetIdx;
-        pinnedIds.Insert(insertAt, sourceId);
-        await _items.ReorderPinnedAsync(pinnedIds, CancellationToken.None).ConfigureAwait(true);
+        ids.Insert(insertAt, sourceId);
+        await _items.ReorderPinnedAsync(ids, CancellationToken.None).ConfigureAwait(true);
     }
 
     private bool HasSelection() => SelectedRow is not null;
