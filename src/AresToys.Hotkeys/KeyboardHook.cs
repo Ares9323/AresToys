@@ -211,7 +211,16 @@ public sealed class KeyboardHook : IDisposable
         // Track the suppressed KEYDOWN so the matching KEYUP also gets swallowed — see the
         // _suppressedKeyUps remark above for why this matters (VK_APPS on-release menu pop is
         // the headline case, modifier-only releases hit the start menu / taskbar focus too).
-        lock (_suppressedKeyUpsLock) _suppressedKeyUps.Add(data.vkCode);
+        // Guard on isKeyDown: SNAPSHOT and PAUSE deliver ONLY a KEYUP (Windows consumes their
+        // KEYDOWN before the hook sees it), so for those we matched on the keyup itself — there's
+        // no paired release left to swallow. Registering the vk here would make the NEXT genuine
+        // press's keyup get mistaken for that release and eaten, so PrintScreen / Pause would
+        // fire on every OTHER press only. The keyup we're on right now is already suppressed by
+        // the `return 1` below; that's all that's needed for these keyup-trigger keys.
+        if (isKeyDown)
+        {
+            lock (_suppressedKeyUpsLock) _suppressedKeyUps.Add(data.vkCode);
+        }
 
         // Some shortcuts (Win+Shift+S, Win+L, Win+G, …) are tracked by the Windows shell at a layer
         // that's NOT bypassed by simply returning 1 from this hook. Same fix PowerToys

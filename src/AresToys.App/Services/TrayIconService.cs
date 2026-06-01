@@ -144,6 +144,32 @@ public sealed class TrayIconService : IDisposable
         }
     }
 
+    /// <summary>Run a built-in pipeline profile by id straight through the shared executor. Used
+    /// by tray entries whose action IS a full workflow (e.g. Scan QR in region: region capture →
+    /// decode → history) rather than a single service call. Mirrors the executor path
+    /// <see cref="DispatchClick"/> takes, minus the settings indirection (the id is fixed).</summary>
+    private void RunProfile(string profileId)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var profile = await _profiles.GetAsync(profileId, CancellationToken.None).ConfigureAwait(false);
+                if (profile is null)
+                {
+                    _logger.LogWarning("Tray: profile '{Id}' not found", profileId);
+                    return;
+                }
+                var ctx = new PipelineContext(_services);
+                await _executor.RunAsync(profile, ctx, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Tray: profile {Id} failed", profileId);
+            }
+        });
+    }
+
     public void Attach(MainWindow window) => _mainWindow = window;
 
     private ContextMenu BuildMenu()
@@ -209,6 +235,12 @@ public sealed class TrayIconService : IDisposable
                 win.Show();
                 win.Activate();
             })))));
+        // Scan QR in region: region picker → ZXing decode → history + clipboard + toast. It's a
+        // full pipeline (not a single service call), so dispatch the built-in profile straight
+        // through the executor. Safe from the tray because the action starts with a region
+        // overlay — foreground doesn't matter, unlike "Active window" capture.
+        tools.Items.Add(BuildShortcutMenuItem(Strings.Tray_ScanQrInRegion, DefaultPipelineProfiles.QrReadFromRegionId,
+            () => RunProfile(DefaultPipelineProfiles.QrReadFromRegionId)));
         // Wormholes entry under Tools — gated on the module flag. Opens the NewWormholeDialog
         // (§8.4) so the user picks Data vs Portal + title + (for Portal) the source folder.
         // The dialog hands the choice back to the manager which materialises the record.

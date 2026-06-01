@@ -80,6 +80,7 @@
   <data name="Tray_ColorPicker" xml:space="preserve"><value>Selettore colore…</value></data>
   <data name="Tray_PinToScreen" xml:space="preserve"><value>Aggancia a schermo…</value></data>
   <data name="Tray_QrGenerator" xml:space="preserve"><value>Generatore QR…</value></data>
+  <data name="Tray_ScanQrInRegion" xml:space="preserve"><value>Scansiona QR in un'area</value></data>
   <data name="Tray_NewWormhole" xml:space="preserve"><value>Nuovo wormhole…</value></data>
   <data name="Tray_RecenterWormholes" xml:space="preserve"><value>Porta qui tutti i wormhole</value></data>
   <data name="Tray_ToggleHideWormholes" xml:space="preserve"><value>Mostra / nascondi tutti</value></data>

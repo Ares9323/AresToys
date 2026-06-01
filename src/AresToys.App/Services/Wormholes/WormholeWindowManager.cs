@@ -1,6 +1,8 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using AresToys.App.Services.Launcher;
 using AresToys.App.Views;
 
@@ -17,6 +19,13 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private readonly Dictionary<Guid, WormholeWindow> _live = new();
     private readonly Dictionary<Guid, FolderWatcher> _watchers = new();
     private bool _initialized;
+
+    /// <summary>Debounce timer for <see cref="OnDisplaySettingsChanged"/>. An RDP connect /
+    /// disconnect or a resolution swap fires DisplaySettingsChanged several times in a burst;
+    /// we restart this on each and only re-assert the layout once it's been quiet for the
+    /// interval. Created lazily on the UI thread (the handler marshals there) so the timer is
+    /// bound to the dispatcher the wormhole windows live on.</summary>
+    private DispatcherTimer? _displaySettleTimer;
 
     public WormholeWindowManager(
         IWormholeStore store,
@@ -48,6 +57,73 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _defaults.LineSpacingChanged    += (_, _) => RefreshAllLiveIconSize();
         _defaults.LabelFontSizeChanged  += (_, _) => RefreshAllLiveIconSize();
         _defaults.LabelMaxLinesChanged  += (_, _) => RefreshAllLiveIconSize();
+
+        // React to resolution / monitor / RDP display changes so Windows' automatic rescue of
+        // off-screen top-level windows doesn't corrupt the saved wormhole layout. App-lifetime
+        // singleton, so the subscription naturally lasts until process exit — no unsubscribe.
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+    }
+
+    /// <summary>Fired (on the SystemEvents helper thread) when the display configuration changes:
+    /// resolution swap, monitor hot-plug/disconnect, or an RDP session attaching a different-sized
+    /// screen. Freezes geometry persistence immediately so the cascade of LocationChanged events
+    /// Windows raises while rescuing off-screen windows can't overwrite the user's layout, then
+    /// arms a debounce; once the display has been quiet for the interval we re-assert the stored
+    /// layout (see <see cref="OnDisplaySettleTick"/>).</summary>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        var app = Application.Current;
+        if (app is null) return;
+        app.Dispatcher.BeginInvoke(() =>
+        {
+            WormholeWindow.SuppressGeometryPersist = true;
+            _displaySettleTimer ??= CreateDisplaySettleTimer();
+            _displaySettleTimer.Stop();
+            _displaySettleTimer.Start();
+        });
+    }
+
+    private DispatcherTimer CreateDisplaySettleTimer()
+    {
+        // 2 s after the LAST display event — long enough for Windows to finish its burst of
+        // monitor-arrival / work-area / DPI ticks (an RDP connect fires several back-to-back).
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        timer.Tick += OnDisplaySettleTick;
+        return timer;
+    }
+
+    private void OnDisplaySettleTick(object? sender, EventArgs e)
+    {
+        _displaySettleTimer?.Stop();
+
+        // Re-assert each window's stored position. ReapplyPersistedGeometry returns false when the
+        // saved coords don't fit the CURRENT virtual screen (e.g. a narrow RDP display) — in that
+        // case we leave the window at Windows' visible rescue spot AND keep persistence frozen, so
+        // the real layout isn't squashed. Once the original display returns, a fresh
+        // DisplaySettingsChanged runs this again, everything fits, and we restore + unfreeze.
+        var allFit = true;
+        foreach (var (id, window) in _live)
+        {
+            try
+            {
+                if (!window.ReapplyPersistedGeometry()) allFit = false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Re-apply geometry after display change failed for {Id}", id);
+                allFit = false;
+            }
+        }
+
+        if (allFit)
+        {
+            WormholeWindow.SuppressGeometryPersist = false;
+            _logger.LogInformation("Wormholes: display settled and the saved layout fits — geometry persistence resumed");
+        }
+        else
+        {
+            _logger.LogInformation("Wormholes: current display can't hold the saved layout — persistence stays frozen until it fits again");
+        }
     }
 
     /// <summary>See <see cref="IWormholeWindowManager.NotifyItemSelectionTaken"/>. Iterates the

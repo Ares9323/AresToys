@@ -491,7 +491,10 @@ public static class DefaultPipelineProfiles
                     Config: System.Text.Json.Nodes.JsonNode.Parse("{\"alsoCopyToWindows\":true,\"showNotification\":true,\"notificationMessage\":\"QR: {bag.qr_text}\"}"),
                     Id: "add-to-history"),
             ],
-            // No default hotkey — user binds in Settings if they want it on muscle memory.
+            // Win+Q — reserved by the shell for Search, but our low-level hook suppresses it the
+            // same way it does Win+V / Win+Z (dummy-key inject breaks the shell's combo tracking).
+            // Region picker means foreground doesn't matter, so it's safe to fire from anywhere.
+            Hotkey: new HotkeyBinding(Win, 0x51),  // Win+Q
             IsBuiltIn: true),
 
         new PipelineProfile(

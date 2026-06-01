@@ -5942,7 +5942,16 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Tray_QrGenerator", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Scan QR in region.
+        /// </summary>
+        public static string Tray_ScanQrInRegion {
+            get {
+                return ResourceManager.GetString("Tray_ScanQrInRegion", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Quit.
         /// </summary>
