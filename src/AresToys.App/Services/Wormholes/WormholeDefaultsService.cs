@@ -24,6 +24,7 @@ public sealed class WormholeDefaultsService
     public const string LabelFontSizeKey   = "app.wormholes.default_label_font_size_px";
     public const string LabelMaxLinesKey   = "app.wormholes.default_label_max_lines";
     public const string AutoDisableTopmostOnLaunchKey = "app.wormholes.auto_disable_topmost_on_launch";
+    public const string WebLinkFaviconsKey = "app.wormholes.web_link_favicons";
 
     private const int IconMin = 0;     // 0 has the special meaning "use DesktopIconSize.Get()"
     private const int IconMax = 256;
@@ -74,6 +75,10 @@ public sealed class WormholeDefaultsService
     // foreground". The auto-disable + post-launch backtrack flow in WormholeWindow is what
     // delivers that — opt-in would just hide the feature from users who'd benefit by default.
     private bool _autoDisableTopmostOnLaunch = true;
+    // Default ON: Windows never fetches real site favicons for .url links, so showing them is a
+    // strict visual upgrade. Off-switch exists for users who'd rather not make network calls or
+    // have their .url files stamped with IconFile=.
+    private bool _webLinkFaviconsEnabled = true;
 
     public WormholeDefaultsService(ISettingsStore store, ILogger<WormholeDefaultsService> logger)
     {
@@ -127,6 +132,11 @@ public sealed class WormholeDefaultsService
     /// who want the wormholes to stay above the launched app.</summary>
     public bool AutoDisableTopmostOnLaunch => _autoDisableTopmostOnLaunch;
 
+    /// <summary>When true, web links (<c>.url</c> files) in wormholes fetch and display the real
+    /// site favicon (and stamp it into the <c>.url</c> so it shows in Explorer too). Default true.
+    /// See <see cref="Favicons.FaviconService"/>.</summary>
+    public bool WebLinkFaviconsEnabled => _webLinkFaviconsEnabled;
+
     /// <summary>Raised when the default icon size changed. Subscribers must re-extract icons
     /// at the new size (expensive — IShellItemImageFactory call per item).</summary>
     public event EventHandler? IconSizeChanged;
@@ -156,6 +166,11 @@ public sealed class WormholeDefaultsService
     /// <summary>Raised when label max lines changed. Triggers VM rebuild (TileHeight reflects
     /// the new label area).</summary>
     public event EventHandler? LabelMaxLinesChanged;
+
+    /// <summary>Raised when the web-link favicons toggle changed. The manager rebuilds live item
+    /// lists so flipping it ON fetches favicons immediately (and flipping OFF stops further
+    /// fetches; already-stamped <c>.url</c> files keep their icon).</summary>
+    public event EventHandler? WebLinkFaviconsChanged;
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -192,6 +207,10 @@ public sealed class WormholeDefaultsService
             var autoTopmostRaw = await _store.GetAsync(AutoDisableTopmostOnLaunchKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(autoTopmostRaw, out var autoTopmost))
                 _autoDisableTopmostOnLaunch = autoTopmost;
+
+            var faviconsRaw = await _store.GetAsync(WebLinkFaviconsKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(faviconsRaw, out var favicons))
+                _webLinkFaviconsEnabled = favicons;
         }
         catch (Exception ex)
         {
@@ -279,5 +298,15 @@ public sealed class WormholeDefaultsService
             sensitive: false, cancellationToken).ConfigureAwait(true);
         // No event raised — the flag is read on demand at launch time (see
         // WormholeWindow.MaybeAutoDisableTopmost), no live UI reflects it.
+    }
+
+    public async Task SetWebLinkFaviconsEnabledAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _webLinkFaviconsEnabled) return;
+        _webLinkFaviconsEnabled = enabled;
+        await _store.SetAsync(WebLinkFaviconsKey,
+            enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        WebLinkFaviconsChanged?.Invoke(this, EventArgs.Empty);
     }
 }

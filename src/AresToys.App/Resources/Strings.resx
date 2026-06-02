@@ -377,6 +377,8 @@
   <data name="Wormhole_DefaultBorderOpacity" xml:space="preserve"><value>Border opacity (%)</value></data>
   <data name="Wormhole_AutoDisableTopmostOnLaunch" xml:space="preserve"><value>Auto-disable Topmost on launch</value></data>
   <data name="Wormhole_AutoDisableTopmostOnLaunchTooltip" xml:space="preserve"><value>When ON, any launch gesture inside a wormhole (double-click a tile, Enter, open folder, drop a file on an executable tile) flips Topmost OFF on every wormhole and sends them behind the foreground app. Lets you toggle wormholes above a fullscreen app, click to launch, and have them auto-drop behind the launched app without a second hotkey press.</value></data>
+  <data name="Wormhole_WebLinkFavicons" xml:space="preserve"><value>Favicons for web links</value></data>
+  <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>When ON, web links (.url files) show the real site favicon instead of the generic browser icon. The favicon is fetched once per site (directly from the site, falling back to a favicon service) and written into the .url so it also shows in Explorer. Turn OFF to make no network calls and leave .url files untouched.</value></data>
   <data name="Settings_ModuleKeySequences" xml:space="preserve"><value>Key Sequences</value></data>
   <data name="Settings_ModuleKeySequencesTooltip" xml:space="preserve"><value>Trigger paste / workflow via typed sequences (e.g. 'mpg@'). Installs a global keyboard stream listener.</value></data>
   <data name="Settings_KeySequencesPosition" xml:space="preserve"><value>Overlay position:</value></data>

@@ -2082,6 +2082,12 @@
                                       ToolTip="{Markup:Loc Wormhole_AutoDisableTopmostOnLaunchTooltip}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" />
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.WebLinkFaviconsEnabled, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_WebLinkFavicons}"
+                                      ToolTip="{Markup:Loc Wormhole_WebLinkFaviconsTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

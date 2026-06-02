@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -17,6 +18,29 @@ public sealed class IconService
     private readonly object _lock = new();
 
     public BitmapSource? GetIcon(string? rawPath) => GetIcon(rawPath, iconIndex: 0);
+
+    /// <summary>Evict every cached entry for a path (all sizes / indices). Needed when the icon
+    /// behind a path changes underneath us — e.g. the favicon write-through stamps a new
+    /// <c>IconFile=</c> into a <c>.url</c>, and without eviction we'd keep handing back the stale
+    /// pre-favicon bitmap for the rest of the process lifetime. Matches the path the same way the
+    /// cache keys are built: the expanded path, optionally suffixed with "|sz…" / "|index".</summary>
+    public void Invalidate(string? rawPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return;
+        string expanded;
+        try { expanded = Environment.ExpandEnvironmentVariables(rawPath).Trim(); }
+        catch { return; }
+        if (string.IsNullOrEmpty(expanded)) return;
+
+        lock (_lock)
+        {
+            var stale = _cache.Keys
+                .Where(k => k.Equals(expanded, StringComparison.OrdinalIgnoreCase)
+                         || k.StartsWith(expanded + "|", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var key in stale) _cache.Remove(key);
+        }
+    }
 
     /// <summary>High-resolution variant — asks the Windows shell for an icon at a specific pixel
     /// size via <c>IShellItemImageFactory::GetImage</c>. This is the same API Explorer uses for

@@ -67,6 +67,10 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// have the wormholes drop behind the launched app without a second hotkey press.</summary>
     [ObservableProperty] private bool _autoDisableTopmostOnLaunch;
 
+    /// <summary>When true, web links (<c>.url</c>) in wormholes show the real site favicon
+    /// (fetched on demand and stamped into the <c>.url</c> so Explorer shows it too). Default on.</summary>
+    [ObservableProperty] private bool _webLinkFaviconsEnabled = true;
+
     public WormholesViewModel(IWormholeStore store, IWormholeWindowManager manager, WormholeDefaultsService defaults)
     {
         _store = store;
@@ -83,6 +87,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         DefaultLabelFontSizePx = _defaults.DefaultLabelFontSizePx;
         DefaultLabelMaxLines = _defaults.DefaultLabelMaxLines;
         AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
+        WebLinkFaviconsEnabled = _defaults.WebLinkFaviconsEnabled;
         _suppressDefaultsPersist = false;
         // Live grid refresh: when the manager persists a record (user drag/resize on the live
         // chrome, lock toggle from chrome, hamburger rename, etc.), the matching row updates
@@ -143,6 +148,12 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetDefaultLabelMaxLinesAsync(value, CancellationToken.None);
     }
 
+    partial void OnWebLinkFaviconsEnabledChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetWebLinkFaviconsEnabledAsync(value, CancellationToken.None);
+    }
+
     partial void OnAutoDisableTopmostOnLaunchChanged(bool value)
     {
         if (_suppressDefaultsPersist) return;
@@ -178,6 +189,7 @@ public sealed partial class WormholesViewModel : ObservableObject
             DefaultLabelFontSizePx  = _defaults.DefaultLabelFontSizePx;
             DefaultLabelMaxLines    = _defaults.DefaultLabelMaxLines;
             AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
+            WebLinkFaviconsEnabled  = _defaults.WebLinkFaviconsEnabled;
         }
         finally { _suppressDefaultsPersist = false; }
 

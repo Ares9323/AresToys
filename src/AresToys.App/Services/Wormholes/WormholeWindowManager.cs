@@ -14,6 +14,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private readonly IconService _icons;
     private readonly DesktopLayerHost _desktopLayer;
     private readonly WormholeDefaultsService _defaults;
+    private readonly Favicons.FaviconService _favicons;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<WormholeWindowManager> _logger;
     private readonly Dictionary<Guid, WormholeWindow> _live = new();
@@ -32,6 +33,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         IconService icons,
         DesktopLayerHost desktopLayer,
         WormholeDefaultsService defaults,
+        Favicons.FaviconService favicons,
         ILoggerFactory loggerFactory,
         ILogger<WormholeWindowManager> logger)
     {
@@ -39,6 +41,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _icons = icons;
         _desktopLayer = desktopLayer;
         _defaults = defaults;
+        _favicons = favicons;
         _loggerFactory = loggerFactory;
         _logger = logger;
         // Two separate paths so the cheap slider (opacity) doesn't pay the expensive rebuild
@@ -57,6 +60,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _defaults.LineSpacingChanged    += (_, _) => RefreshAllLiveIconSize();
         _defaults.LabelFontSizeChanged  += (_, _) => RefreshAllLiveIconSize();
         _defaults.LabelMaxLinesChanged  += (_, _) => RefreshAllLiveIconSize();
+        // Toggling web-link favicons rebuilds item lists: ON kicks off favicon fetches for every
+        // live .url, OFF just stops new fetches (already-stamped .url files keep their icon).
+        _defaults.WebLinkFaviconsChanged += (_, _) => RefreshAllLiveIconSize();
 
         // React to resolution / monitor / RDP display changes so Windows' automatic rescue of
         // off-screen top-level windows doesn't corrupt the saved wormhole layout. App-lifetime
@@ -211,6 +217,42 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
                     record.Id, record.Title);
             }
         }
+
+        // Favicon cache hygiene, in the background so it never delays window spawn: gather every
+        // host referenced by a live .url (including hidden wormholes — their links still count)
+        // and purge cached favicons for hosts no longer present, plus any past the refresh age.
+        _ = Task.Run(() => PurgeFaviconCache(records), cancellationToken);
+    }
+
+    /// <summary>Collect the hosts of every <c>.url</c> across all wormhole sources and hand them
+    /// to the favicon service for cache cleanup. Fully defensive — a single unreadable folder or
+    /// file is skipped, and the whole sweep is wrapped so it can never crash startup.</summary>
+    private void PurgeFaviconCache(IReadOnlyList<WormholeRecord> records)
+    {
+        try
+        {
+            var hosts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var record in records)
+            {
+                var source = record.Portal?.SourcePath;
+                if (string.IsNullOrEmpty(source) || !Directory.Exists(source)) continue;
+                IEnumerable<string> urlFiles;
+                try { urlFiles = Directory.EnumerateFiles(source, "*.url"); }
+                catch { continue; }
+                foreach (var file in urlFiles)
+                {
+                    var url = Favicons.UrlShortcutFile.ReadUrl(file);
+                    if (url is not null && Favicons.FaviconService.TryGetHttpHost(url, out var host))
+                        hosts.Add(host);
+                }
+            }
+            _favicons.PurgeUnreferenced(hosts);
+            _logger.LogDebug("Favicon cache purge done; {Count} live host(s)", hosts.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Favicon cache purge failed");
+        }
     }
 
     public async Task<WormholeRecord> CreateAsync(string title, string sourceFolder, CancellationToken cancellationToken)
@@ -326,7 +368,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             defaults: _defaults,
             // Pass the manager so the window can notify it of item-selection events — the
             // manager fans out a ClearItemSelection() to every sibling wormhole.
-            manager: this);
+            manager: this,
+            // Favicon resolver for .url web-link tiles.
+            favicons: _favicons);
         window.DeleteRequested += async (_, id) =>
         {
             try { await DeleteAsync(id, CancellationToken.None).ConfigureAwait(true); }

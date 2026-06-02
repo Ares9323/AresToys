@@ -451,6 +451,11 @@ public partial class App : Application
                                       AresToys.App.Services.Wormholes.WormholeStoreJson>();
                 services.AddSingleton<AresToys.App.Services.Wormholes.DesktopLayerHost>();
                 services.AddSingleton<AresToys.App.Services.Wormholes.WormholeDefaultsService>();
+                // Favicon pipeline for wormhole web links (.url): cache → downloader → service.
+                services.AddSingleton<AresToys.App.Services.Wormholes.Favicons.FaviconCache>();
+                services.AddSingleton<AresToys.App.Services.Wormholes.Favicons.IFaviconDownloader,
+                                      AresToys.App.Services.Wormholes.Favicons.FaviconDownloader>();
+                services.AddSingleton<AresToys.App.Services.Wormholes.Favicons.FaviconService>();
                 services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeWindowManager,
                                       AresToys.App.Services.Wormholes.WormholeWindowManager>();
             })

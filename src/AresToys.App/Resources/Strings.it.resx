@@ -362,6 +362,8 @@
   <data name="Wormhole_DefaultBorderOpacity" xml:space="preserve"><value>Opacità bordo (%)</value></data>
   <data name="Wormhole_AutoDisableTopmostOnLaunch" xml:space="preserve"><value>Disattiva Topmost al lancio</value></data>
   <data name="Wormhole_AutoDisableTopmostOnLaunchTooltip" xml:space="preserve"><value>Se attivo, ogni gesto di apertura da un wormhole (doppio click su una tile, Enter, apri cartella, drop di un file su una tile eseguibile) disattiva Topmost su tutti i wormhole e li manda dietro l'app in primo piano. Comodo con la hotkey di toggle: la prima pressione porta i wormhole sopra un'app fullscreen, click su un'icona per lanciare, e i wormhole scendono automaticamente dietro l'app appena lanciata senza dover premere di nuovo la hotkey.</value></data>
+  <data name="Wormhole_WebLinkFavicons" xml:space="preserve"><value>Favicon per i link web</value></data>
+  <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>Se attivo, i link web (file .url) mostrano la favicon reale del sito invece dell'icona generica del browser. La favicon viene scaricata una volta per sito (direttamente dal sito, con fallback a un servizio di favicon) e scritta nel .url, così si vede anche in Esplora file. Disattiva per non fare alcuna chiamata di rete e lasciare i file .url intatti.</value></data>
   <data name="Settings_ModuleKeySequences" xml:space="preserve"><value>Key Sequences</value></data>
   <data name="Settings_ModuleKeySequencesTooltip" xml:space="preserve"><value>Attiva paste / workflow tramite sequenze digitate (es. 'mpg@'). Installa un listener globale degli eventi tastiera.</value></data>
   <data name="Settings_KeySequencesPosition" xml:space="preserve"><value>Posizione overlay:</value></data>

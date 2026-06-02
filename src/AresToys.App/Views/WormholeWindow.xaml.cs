@@ -42,6 +42,10 @@ public partial class WormholeWindow : Window
     /// wormholes. Null only on direct test construction; in normal app flow this is wired by
     /// <see cref="Services.Wormholes.WormholeWindowManager"/> at spawn time.</summary>
     private readonly Services.Wormholes.IWormholeWindowManager? _manager;
+    /// <summary>Resolves real site favicons for <c>.url</c> web-link tiles. Null on direct test
+    /// construction or when the Wormholes module wires the window without it; in normal app flow
+    /// it's injected by <see cref="Services.Wormholes.WormholeWindowManager"/>.</summary>
+    private readonly Services.Wormholes.Favicons.FaviconService? _favicons;
     private readonly ObservableCollection<WormholeItemViewModel> _items = new();
     private bool _isClosingFromManager;
     private bool _portalItemCapReached;
@@ -93,7 +97,8 @@ public partial class WormholeWindow : Window
         IconService icons,
         string wormholesRoot,
         Services.Wormholes.WormholeDefaultsService? defaults = null,
-        Services.Wormholes.IWormholeWindowManager? manager = null)
+        Services.Wormholes.IWormholeWindowManager? manager = null,
+        Services.Wormholes.Favicons.FaviconService? favicons = null)
     {
         _record = record;
         _onPersist = onPersist;
@@ -101,6 +106,7 @@ public partial class WormholeWindow : Window
         _wormholesRoot = wormholesRoot;
         _defaults = defaults;
         _manager = manager;
+        _favicons = favicons;
         InitializeComponent();
         DataContext = record;
         ItemsHost.ItemsSource = _items;
@@ -477,6 +483,34 @@ public partial class WormholeWindow : Window
     /// <summary>Re-enumerate the source folder and rebuild <see cref="_items"/>. Called from
     /// the manager's <c>FolderWatcher.Changed</c> handler (debounced 300 ms) and from the
     /// hamburger "Refresh" entry.</summary>
+    /// <summary>For a <c>.url</c> web link, asynchronously resolve its real site favicon (download
+    /// + stamp <c>IconFile=</c> into the <c>.url</c>) and swap the tile icon when it lands. The
+    /// placeholder is the shell icon already set by the VM ctor. No-op unless the favicon service
+    /// is wired and the toggle is on; non-<c>.url</c> paths are skipped. <c>async void</c> by
+    /// necessity (fire-and-forget UI update); all faults are swallowed so a refresh tick never
+    /// throws over a cosmetic icon.</summary>
+    private async void MaybeResolveFavicon(WormholeItemViewModel vm, string path)
+    {
+        if (_favicons is null) return;
+        if (_defaults?.WebLinkFaviconsEnabled != true) return;
+        if (!path.EndsWith(".url", StringComparison.OrdinalIgnoreCase)) return;
+        try
+        {
+            var changed = await _favicons.EnsureFaviconAsync(path, CancellationToken.None).ConfigureAwait(true);
+            if (!changed) return;
+            // The .url now carries IconFile= (or a cached .ico exists): drop the stale cached
+            // bitmap and re-resolve so IconService reads the favicon. ConfigureAwait(true) keeps
+            // us on the UI thread for the ObservableProperty assignment.
+            _icons.Invalidate(path);
+            var bmp = _icons.GetIconAtSize(path, EffectiveIconSize());
+            if (bmp is not null) vm.Icon = bmp;
+        }
+        catch
+        {
+            // Best-effort cosmetic — never disrupt the wormhole over a favicon.
+        }
+    }
+
     public void RefreshPortalItems()
     {
         var portal = _record.Portal;
@@ -515,10 +549,12 @@ public partial class WormholeWindow : Window
                     _portalItemCapReached = true;
                     break;
                 }
-                _items.Add(new WormholeItemViewModel(
+                var vm = new WormholeItemViewModel(
                     path, _icons,
                     EffectiveIconSize(), EffectiveTilePadding(), EffectiveLineSpacing(),
-                    EffectiveLabelFontSize(), EffectiveLabelMaxLines()));
+                    EffectiveLabelFontSize(), EffectiveLabelMaxLines());
+                _items.Add(vm);
+                MaybeResolveFavicon(vm, path);
             }
             // Re-apply the "cut" tint on the freshly-built VMs — the previous instances were
             // dropped along with their IsCutMarked flag, but the path set is still live as
