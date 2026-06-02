@@ -3,6 +3,47 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.25] — 2026-06-02
+
+Web-link favicons in wormholes, a QR-region tool in the tray, and three
+fixes (PrintScreen hotkey, wormhole layout under RDP, clipboard ordering).
+
+### Wormholes — real site favicons for web links
+- Web links (`.url` files) now show the actual site favicon instead of the
+  generic browser icon. The favicon is resolved on demand — direct from the
+  site first (`/favicon.ico`, then the page's `<link rel="icon">`), falling
+  back to Google's and DuckDuckGo's favicon services — wrapped to a valid
+  `.ico`, cached per-host under `%LocalAppData%\AresToys\favicons`, and
+  stamped into the `.url` via `IconFile=` so the nicer icon shows in
+  Explorer too.
+- Resolution is async with a live swap from the shell-icon placeholder, so
+  tiles never block. A per-host negative cache avoids re-hitting unreachable
+  sites every refresh.
+- Cache hygiene: a startup GC drops favicons for hosts no longer referenced
+  by any live link and refreshes ones older than 30 days.
+- New default-on toggle "Favicons for web links" under Settings → Wormholes.
+
+### Wormholes — saved layout survives RDP / display changes
+- Geometry persistence is now frozen around display-settings changes
+  (resolution swap, monitor hot-plug, RDP connect/disconnect). Windows'
+  automatic rescue of off-screen windows no longer overwrites the saved
+  wormhole layout, so reconnecting the full monitor restores positions
+  instead of leaving them bunched up on the narrow screen.
+
+### Tray — Scan QR in region + Win+Q default
+- The built-in "Scan QR in region" workflow now appears under tray
+  Tools and gets a default **Win+Q** hotkey (region picker → ZXing decode →
+  history + clipboard + toast).
+
+### Hotkeys — PrintScreen fix
+- Fixed PrintScreen (and Pause) firing only on every *other* press: the
+  keyup-only handling registered the key for keyup-suppression on the wrong
+  edge, swallowing alternate triggers. These keys now fire on every press.
+
+### Clipboard
+- Unpinned items reorder correctly and the short description updates after
+  an edit.
+
 ## [0.1.24] — 2026-05-28
 
 Wormhole Topmost: dedicated batch toggle, default Win+Shift+W hotkey,
