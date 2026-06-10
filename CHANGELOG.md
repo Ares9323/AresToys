@@ -3,6 +3,44 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.26] — 2026-06-10
+
+Three follow-up fixes for issues that survived 0.1.25: capture-region
+screenshots not pasting into Discord, the Print hotkey still being missed
+on quick taps, and the wormhole layout still getting corrupted on RDP /
+display-config changes.
+
+### Capture region → Discord paste works
+- The CF_BITMAP fallback was previously skipped on every RGBA-encoded PNG
+  (which is every screenshot the capture pipeline produces, since
+  System.Drawing.Bitmap is Format32bppArgb under the hood). The PNG-header
+  heuristic over-rejected fully-opaque-but-RGBA payloads, so Discord — which
+  doesn't read the registered "PNG" clipboard format — pasted nothing.
+- The publisher now does a real alpha scan when the header is ambiguous and
+  publishes CF_BITMAP for actually-opaque captures. Telegram + alpha-aware
+  consumers keep their PNG path; Discord + paste-into-Office now work for
+  screenshots.
+
+### Print hotkey: missed presses on quick taps
+- The keyboard hook's auto-repeat debounce (`_heldKeys`) used to register
+  VK_SNAPSHOT on KEYUP matches even though KEYUPs don't auto-repeat. That
+  left stale state that swallowed the next press's KEYDOWN as a "repeat" on
+  recent Windows 11 builds where the snipping shortcut state alternates the
+  KEYDOWN delivery. Fix skips `_heldKeys.Add` entirely on KEYUP matches.
+- The capture-region cold-start cooldown drops from 400 ms to 150 ms now
+  that the hook race is gone — the longer guard was just masking misfires.
+
+### Wormholes — per-monitor-setup layouts, original immutable
+- Wormhole positions are now stored per monitor configuration. Each unique
+  setup (RDP phone screen, plug-in 4K, home dual-monitor) gets its own
+  `Positions\<setupHash>.json`; the first-detected setup is marked
+  `.original` and its file is never overwritten by switches.
+- Setting up a new configuration clones the original's positions, clamps
+  them into the new virtual screen, and writes a brand-new file. The
+  original's layout survives untouched, so reconnecting the home monitor
+  restores the wormholes exactly as the user left them — the recurring
+  "RDP destroyed my layout" pain is gone.
+
 ## [0.1.25] — 2026-06-02
 
 Web-link favicons in wormholes, a QR-region tool in the tray, and three
