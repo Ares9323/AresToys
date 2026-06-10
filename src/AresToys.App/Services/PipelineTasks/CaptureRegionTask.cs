@@ -24,9 +24,12 @@ public sealed class CaptureRegionTask : IPipelineTask
     /// keydown event twice when the AresToys hotkey loop is initialising on the very first
     /// press after launch, which would otherwise spawn the overlay twice (the first instance
     /// covers the desktop with a phantom selection that the user has to Esc through).
-    /// 400 ms is short enough that a deliberate double-tap from the user can't realistically
-    /// hit it — nobody actually triggers a second region pick in under half a second.</summary>
-    private static readonly TimeSpan OverlayCooldown = TimeSpan.FromMilliseconds(400);
+    /// 150 ms tightens the previous 400 ms guard now that the hook itself no longer leaks
+    /// "held" state on KEYUP-matched keys (Print / Pause): the residual stale-state bug used
+    /// to drop alternate presses, which the longer cooldown was masking as "user pressed twice
+    /// too fast". 150 ms still catches a genuine intra-burst double-fire (sub-frame doubling
+    /// at cold start) but stops penalising a real second user press within half a second.</summary>
+    private static readonly TimeSpan OverlayCooldown = TimeSpan.FromMilliseconds(150);
 
     /// <summary>UTC timestamp of the most recent overlay open. Static so the cooldown is
     /// process-wide (every workflow pipeline shares the same hardware hotkey hook source).</summary>

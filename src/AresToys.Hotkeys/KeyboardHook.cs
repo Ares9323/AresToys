@@ -192,8 +192,22 @@ public sealed class KeyboardHook : IDisposable
         // this is a Windows-driven repeat — suppress the visual side-effects but DON'T fire the
         // callback. A genuine second press only happens after the user lets go and re-presses,
         // at which point we'll have cleared _heldKeys via WM_KEYUP above.
+        // Skip the held-keys bookkeeping entirely when matching on a KEYUP (SNAPSHOT / PAUSE):
+        // auto-repeat fires KEYDOWN repeats, never KEYUP repeats, so there's nothing to debounce
+        // here. Tracking the vk in _heldKeys on a keyup match would leave stale state — if
+        // Windows later starts delivering the KEYDOWN for this key too (Win11's PrintScreen
+        // behaviour flips between "consume KEYDOWN" and "deliver both" depending on the snipping
+        // shortcut setting and which background process has focus), that next KEYDOWN would be
+        // wrongly classified as a "repeat" and the press silently swallowed.
         bool firstPress;
-        lock (_heldKeysLock) firstPress = _heldKeys.Add(data.vkCode);
+        if (isKeyUp)
+        {
+            firstPress = true;
+        }
+        else
+        {
+            lock (_heldKeysLock) firstPress = _heldKeys.Add(data.vkCode);
+        }
 
         if (firstPress)
         {

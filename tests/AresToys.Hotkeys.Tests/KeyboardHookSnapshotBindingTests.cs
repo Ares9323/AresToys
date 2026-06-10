@@ -45,4 +45,39 @@ public class KeyboardHookSnapshotBindingTests
             $"callback should have fired on all 3 presses, fired {fires}");
         Assert.Equal(3, fires);
     }
+
+    /// <summary>Regression for the "Print sometimes ignored" report: Win11 alternates between
+    /// "consume KEYDOWN" (only KEYUP reaches the hook) and "deliver both" depending on the
+    /// snipping shortcut state and which background process has focus. Mixed delivery used to
+    /// leave the vk stale in <c>_heldKeys</c> after a KEYUP-match, then the next press's
+    /// KEYDOWN was wrongly debounced as a "repeat" and silently swallowed. Cover the canonical
+    /// flip: press 1 = KEYUP only, press 2 = KEYDOWN + KEYUP, press 3 = KEYUP only. All three
+    /// must fire.</summary>
+    [Fact]
+    public void KeyupOnlyKey_MixedWithKeydownDelivery_AllPressesFire()
+    {
+        using var hook = new KeyboardHook();
+        var fires = 0;
+        var third = new CountdownEvent(3);
+        hook.Register("snap", HotkeyModifiers.None, VK_SNAPSHOT, () =>
+        {
+            Interlocked.Increment(ref fires);
+            third.Signal();
+        }, suppress: true);
+
+        // Press 1 — KEYUP only (Windows consumed the KEYDOWN this time).
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYUP));
+
+        // Press 2 — both KEYDOWN and KEYUP arrive. KEYDOWN must fire (it's the leading edge);
+        // KEYUP must just be consumed without a second fire.
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYDOWN));
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYUP));
+
+        // Press 3 — back to KEYUP only.
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYUP));
+
+        Assert.True(third.Wait(DispatchTimeout),
+            $"all 3 presses must fire across mixed delivery, fired {fires}");
+        Assert.Equal(3, fires);
+    }
 }
