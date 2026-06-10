@@ -23,9 +23,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     /// <summary>Debounce timer for <see cref="OnDisplaySettingsChanged"/>. An RDP connect /
     /// disconnect or a resolution swap fires DisplaySettingsChanged several times in a burst;
-    /// we restart this on each and only re-assert the layout once it's been quiet for the
-    /// interval. Created lazily on the UI thread (the handler marshals there) so the timer is
-    /// bound to the dispatcher the wormhole windows live on.</summary>
+    /// we restart this on each and only switch the active monitor-setup once the burst has
+    /// been quiet for the interval. Created lazily on the UI thread (the handler marshals
+    /// there) so the timer is bound to the dispatcher the wormhole windows live on.</summary>
     private DispatcherTimer? _displaySettleTimer;
 
     public WormholeWindowManager(
@@ -74,14 +74,20 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     /// resolution swap, monitor hot-plug/disconnect, or an RDP session attaching a different-sized
     /// screen. Freezes geometry persistence immediately so the cascade of LocationChanged events
     /// Windows raises while rescuing off-screen windows can't overwrite the user's layout, then
-    /// arms a debounce; once the display has been quiet for the interval we re-assert the stored
-    /// layout (see <see cref="OnDisplaySettleTick"/>).</summary>
+    /// arms a debounce; once the display has been quiet for the interval we hand the new monitor
+    /// configuration to the store, which loads / clones the per-setup layout and returns the
+    /// snapshot we push onto the live windows (see <see cref="OnDisplaySettleTickAsync"/>).</summary>
     private void OnDisplaySettingsChanged(object? sender, EventArgs e)
     {
         var app = Application.Current;
         if (app is null) return;
         app.Dispatcher.BeginInvoke(() =>
         {
+            // Freeze geometry persistence DURING the burst — Windows yanks off-screen top-level
+            // windows back onto the visible area on resolution/monitor changes and fires
+            // LocationChanged per rescue. Without the freeze every rescue would persist into
+            // whichever positions file is currently active, corrupting the layout for the
+            // PREVIOUS setup (the one we're about to switch away from).
             WormholeWindow.SuppressGeometryPersist = true;
             _displaySettleTimer ??= CreateDisplaySettleTimer();
             _displaySettleTimer.Stop();
@@ -94,41 +100,79 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // 2 s after the LAST display event — long enough for Windows to finish its burst of
         // monitor-arrival / work-area / DPI ticks (an RDP connect fires several back-to-back).
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        timer.Tick += OnDisplaySettleTick;
+        timer.Tick += (s, ev) => _ = OnDisplaySettleTickAsync();
         return timer;
     }
 
-    private void OnDisplaySettleTick(object? sender, EventArgs e)
+    private async Task OnDisplaySettleTickAsync()
     {
         _displaySettleTimer?.Stop();
 
-        // Re-assert each window's stored position. ReapplyPersistedGeometry returns false when the
-        // saved coords don't fit the CURRENT virtual screen (e.g. a narrow RDP display) — in that
-        // case we leave the window at Windows' visible rescue spot AND keep persistence frozen, so
-        // the real layout isn't squashed. Once the original display returns, a fresh
-        // DisplaySettingsChanged runs this again, everything fits, and we restore + unfreeze.
-        var allFit = true;
-        foreach (var (id, window) in _live)
+        // Identify the new setup and ask the store to switch (loads existing positions file,
+        // or clones from the original clamped to the new virtual screen and saves as a brand-
+        // new file). The store mutates every record's in-memory Geometry to the resolved
+        // positions; the snapshot it returns is the dictionary we push onto the live windows.
+        var newSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+        IReadOnlyDictionary<Guid, WormholeGeometry> snapshot;
+        try
         {
-            try
-            {
-                if (!window.ReapplyPersistedGeometry()) allFit = false;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Re-apply geometry after display change failed for {Id}", id);
-                allFit = false;
-            }
+            snapshot = await _store.SwitchSetupAsync(newSetupHash, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wormholes: SwitchSetupAsync failed for new setup {Hash}", newSetupHash);
+            WormholeWindow.SuppressGeometryPersist = false;
+            return;
         }
 
-        if (allFit)
+        if (snapshot.Count == 0)
+        {
+            // Same setup as before — nothing to apply, just lift the freeze. Persists from any
+            // user-driven LocationChanged that fire after this point go straight to the active
+            // setup's positions file as usual.
+            WormholeWindow.SuppressGeometryPersist = false;
+            _logger.LogDebug("Wormholes: display settled, setup hash unchanged ({Hash})", newSetupHash);
+            return;
+        }
+
+        // Push the new geometry onto every live window. SuppressGeometryPersist stays true so
+        // the LocationChanged / SizeChanged events fired by the WPF assignments below don't
+        // immediately overwrite what we just resolved (they'd write the same values back, but
+        // the redundant disk writes during a setup switch are noise). Lifted in finally.
+        // Records lookup is needed for the IsRolled flag — rolled wormholes must keep their
+        // rolled height; pushing the stored Height onto a rolled window would visually unroll
+        // it. LoadAllAsync hits the store's in-memory cache (no disk read here).
+        IReadOnlyList<WormholeRecord> records;
+        try { records = await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wormholes: LoadAllAsync after SwitchSetupAsync failed; skipping window push");
+            WormholeWindow.SuppressGeometryPersist = false;
+            return;
+        }
+        var rolledById = records.ToDictionary(r => r.Id, r => r.IsRolled);
+        try
+        {
+            foreach (var (id, window) in _live)
+            {
+                if (!snapshot.TryGetValue(id, out var g)) continue;
+                try
+                {
+                    window.Left = g.X;
+                    window.Top = g.Y;
+                    window.Width = g.Width;
+                    if (!rolledById.GetValueOrDefault(id)) window.Height = g.Height;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Apply switched-setup geometry failed for {Id}", id);
+                }
+            }
+            _logger.LogInformation("Wormholes: applied {Count} window geometries for setup {Hash}", snapshot.Count, newSetupHash);
+        }
+        finally
         {
             WormholeWindow.SuppressGeometryPersist = false;
-            _logger.LogInformation("Wormholes: display settled and the saved layout fits — geometry persistence resumed");
-        }
-        else
-        {
-            _logger.LogInformation("Wormholes: current display can't hold the saved layout — persistence stays frozen until it fits again");
         }
     }
 

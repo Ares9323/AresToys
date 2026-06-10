@@ -87,10 +87,28 @@ public sealed class WormholeRecord
 /// <summary>Top-level container of <c>wormholes.json</c>. Carries an explicit
 /// <see cref="SchemaVersion"/> so future-format migrations (additive only, per the project
 /// convention — see <c>Migration002</c>/<c>Migration003</c> in Storage) can detect older files
-/// without parsing the body twice.</summary>
+/// without parsing the body twice. From v2 the per-record <c>Geometry</c> is no longer
+/// serialized into this file — it lives in <c>Positions\&lt;setupHash&gt;.json</c> so a
+/// different monitor configuration (RDP single-screen, plug-in external display) can have its
+/// own layout without rewriting the original setup's positions every time.</summary>
 public sealed class WormholeStoreFile
 {
     [JsonPropertyName("$schema_version")]
     public int SchemaVersion { get; set; } = 1;
     public List<WormholeRecord> Wormholes { get; set; } = new();
+}
+
+/// <summary>Persisted contents of a <c>Positions\&lt;setupHash&gt;.json</c> file: per-wormhole
+/// geometry pinned to one specific monitor configuration. The hash key in
+/// <see cref="Positions"/> matches the corresponding <see cref="WormholeRecord.Id"/>.
+/// <para>The "original" setup (first one detected after the per-setup feature lands; tracked
+/// via the <c>Positions\.original</c> marker) acts as the template for newly-encountered
+/// setups: its positions are clamped into the new virtual screen and written as a separate
+/// file. The original's file is never mutated by these clones — when the user reconnects the
+/// home monitor, the saved layout there is exactly as they left it.</para></summary>
+public sealed class WormholePositionsFile
+{
+    [JsonPropertyName("$schema_version")]
+    public int SchemaVersion { get; set; } = 1;
+    public Dictionary<Guid, WormholeGeometry> Positions { get; set; } = new();
 }

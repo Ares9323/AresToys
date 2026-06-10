@@ -42,4 +42,25 @@ public interface IWormholeStore
     /// <summary>Absolute path to the root <c>Wormholes\</c> folder. Exposed so callers (e.g. a
     /// future backup-import path) can address the folder as a unit.</summary>
     string WormholesRootPath { get; }
+
+    /// <summary>Hash of the monitor configuration currently driving the in-memory geometry on
+    /// every record. Updated by <see cref="SwitchSetupAsync"/>. Exposed so the window manager
+    /// can compare against a freshly-computed hash on display-change events and decide whether
+    /// a switch is needed.</summary>
+    string CurrentSetupHash { get; }
+
+    /// <summary>Switch the active monitor-setup. Loads the positions file for
+    /// <paramref name="newSetupHash"/> (creating it on first encounter by cloning the original
+    /// setup's positions clamped to the current virtual screen) and applies the resulting
+    /// geometry to every cached record's <c>Geometry</c> in-place. The "original" setup is the
+    /// first one detected after the per-setup feature lands; its positions file is never
+    /// overwritten by switches — visiting a new RDP / phone resolution writes a NEW file and
+    /// leaves the original intact, so reconnecting the home monitor restores the layout the
+    /// user set up there.
+    /// <para>No-op when <paramref name="newSetupHash"/> equals <see cref="CurrentSetupHash"/>.
+    /// Returns the snapshot the caller should push onto each live window (key = wormhole id,
+    /// value = the geometry now in <c>WormholeRecord.Geometry</c>) so the caller can update
+    /// the WPF Left/Top/Width/Height in a single dispatcher hop. Returned dictionary is empty
+    /// when the call was a no-op.</para></summary>
+    Task<IReadOnlyDictionary<Guid, WormholeGeometry>> SwitchSetupAsync(string newSetupHash, CancellationToken cancellationToken);
 }

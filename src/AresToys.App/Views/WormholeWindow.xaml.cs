@@ -84,11 +84,12 @@ public partial class WormholeWindow : Window
     /// (resolution swap, monitor hot-plug, RDP connect/disconnect): when the virtual screen
     /// shrinks, Windows automatically yanks off-screen top-level windows back onto the visible
     /// area, firing <c>LocationChanged</c> on each — which would otherwise persist those rescue
-    /// coordinates over the user's real layout, so reconnecting the full monitor leaves every
-    /// wormhole bunched up instead of where it was. While this is true the persist handlers
-    /// below early-return, leaving the stored geometry untouched; the manager re-applies it once
-    /// the display settles. Shared by all windows (one desktop, one display-change event) so a
-    /// static flag is the natural fit.</summary>
+    /// coordinates into whichever monitor-setup positions file is currently active, corrupting
+    /// the layout of the setup we're about to switch AWAY from. While this is true the persist
+    /// handlers below early-return; once the display burst settles the manager switches the
+    /// active setup file (loading or cloning positions for the new monitor configuration) and
+    /// pushes those geometries onto the windows, then clears the flag. Shared by all windows
+    /// (one desktop, one display-change event) so a static flag is the natural fit.</summary>
     internal static volatile bool SuppressGeometryPersist;
 
     public WormholeWindow(
@@ -437,45 +438,6 @@ public partial class WormholeWindow : Window
             }
             _onPersist();
         };
-    }
-
-    /// <summary>Push the persisted geometry from <see cref="_record"/> back onto the live window —
-    /// but only when that geometry actually fits the CURRENT virtual screen. Called by the manager
-    /// after a display-settings change settles, to undo Windows' automatic "rescue" repositioning
-    /// of off-screen windows. On a narrow display (e.g. RDP) where the saved full-desktop coords
-    /// would land the window off-screen we leave it at Windows' visible rescue spot and return
-    /// false, signalling the manager to keep persistence frozen so the real layout survives until
-    /// the original display returns. Mirrors the ctor's initial assignment; height is skipped
-    /// while rolled so we don't fight <see cref="ApplyRollState"/>. Runs while
-    /// <see cref="SuppressGeometryPersist"/> is still set, so the resulting LocationChanged /
-    /// SizeChanged don't re-persist these (already-stored) values.</summary>
-    /// <returns>true if the saved geometry fit the current screen and was applied; false if it
-    /// would be off-screen and was left untouched.</returns>
-    internal bool ReapplyPersistedGeometry()
-    {
-        if (!IsPersistedGeometryVisible()) return false;
-        Left = _record.Geometry.X;
-        Top = _record.Geometry.Y;
-        Width = _record.Geometry.Width;
-        if (!_record.IsRolled)
-            Height = _record.Geometry.Height;
-        return true;
-    }
-
-    /// <summary>Whether at least a small thumbnail of the persisted geometry overlaps the current
-    /// virtual-screen rect. Same 32×80 px threshold the manager's off-screen snap uses, read
-    /// against <see cref="_record"/>'s stored coords (not the live Left/Top, which after a Windows
-    /// rescue already point at the visible area).</summary>
-    private bool IsPersistedGeometryVisible()
-    {
-        var g = _record.Geometry;
-        var vLeft = SystemParameters.VirtualScreenLeft;
-        var vTop = SystemParameters.VirtualScreenTop;
-        var vRight = vLeft + SystemParameters.VirtualScreenWidth;
-        var vBottom = vTop + SystemParameters.VirtualScreenHeight;
-        var visW = Math.Max(0, Math.Min(vRight, g.X + g.Width) - Math.Max(vLeft, g.X));
-        var visH = Math.Max(0, Math.Min(vBottom, g.Y + g.Height) - Math.Max(vTop, g.Y));
-        return visW * visH >= 32 * 80;
     }
 
     public event EventHandler<Guid>? DeleteRequested;
