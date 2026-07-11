@@ -194,8 +194,12 @@ public static class WorkflowActionCatalog
             Outputs: new[] { WorkflowPort.Payload }),
 
         // Wormholes batch ops — one task class (WormholeBatchOpTask) routed by the "op" config
-        // value; six rows here so the workflow editor's "+ Add" menu lists each as a discrete
-        // entry. Same pattern as record-screen mp4 / gif.
+        // value; one row here per op so the workflow editor's "+ Add" menu lists each as a
+        // discrete entry AND LookupForStep can resolve an existing step's label by matching its
+        // "op". Every op WormholeBatchOpTask handles MUST have a row here — a missing one makes
+        // LookupForStep fall back to matches[0] ("Hide all"), which is exactly why the built-in
+        // "Toggle all Wormholes (Topmost/Normal)" profile rendered its three topmost steps all as
+        // "Hide all". Same one-task-many-rows pattern as record-screen mp4 / gif.
         new("arestoys.wormhole-batch-op",
             "Hide all",
             "Set IsHidden=true on every wormhole — closes their live windows but keeps the records.",
@@ -227,6 +231,16 @@ public static class WorkflowActionCatalog
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"uncollapse-all\"}"),
         new("arestoys.wormhole-batch-op",
+            "Topmost all",
+            "Bring every wormhole on top (always above other windows) until toggled off.",
+            "Wormholes",
+            DefaultConfigJson: "{\"op\":\"topmost-all\"}"),
+        new("arestoys.wormhole-batch-op",
+            "Untopmost all",
+            "Drop every wormhole back to normal z-order (no longer always-on-top).",
+            "Wormholes",
+            DefaultConfigJson: "{\"op\":\"untopmost-all\"}"),
+        new("arestoys.wormhole-batch-op",
             "Toggle hide / show",
             "If any wormhole is currently visible, hide them all; otherwise show them all. Single-key 'clean up the desktop / bring them back' gesture.",
             "Wormholes",
@@ -241,6 +255,11 @@ public static class WorkflowActionCatalog
             "If any wormhole is uncollapsed, collapse them all; otherwise uncollapse them all.",
             "Wormholes",
             DefaultConfigJson: "{\"op\":\"toggle-collapse\"}"),
+        new("arestoys.wormhole-batch-op",
+            "Toggle topmost / normal",
+            "If any wormhole isn't on top, bring them all on top; otherwise drop them all back to normal z-order. This is the op the built-in 'Toggle all Wormholes (Topmost/Normal)' profile runs.",
+            "Wormholes",
+            DefaultConfigJson: "{\"op\":\"toggle-topmost\"}"),
         new("arestoys.wormhole-create",
             "Create wormhole",
             "Create a new wormhole. If a single folder is selected in the foreground Explorer window, uses that folder automatically. Otherwise opens the New Wormhole dialog so the user picks a folder.",

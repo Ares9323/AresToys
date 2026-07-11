@@ -68,6 +68,14 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // off-screen top-level windows doesn't corrupt the saved wormhole layout. App-lifetime
         // singleton, so the subscription naturally lasts until process exit — no unsubscribe.
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        // Also listen for session changes (RDP connect/disconnect, console attach/detach, unlock).
+        // These fire EARLIER in the RDP handshake than the WM_DISPLAYCHANGE that
+        // DisplaySettingsChanged rides on — often before Windows has rescued the wormholes onto
+        // the smaller remote desktop — so arming the freeze here catches the window where the
+        // display event is still silent and rescue coordinates would otherwise be persisted into
+        // the physical setup's positions file, corrupting the home layout (the "RDP scrambles the
+        // wormholes and they never come back" report). See OnSessionSwitch.
+        SystemEvents.SessionSwitch += OnSessionSwitch;
     }
 
     /// <summary>Fired (on the SystemEvents helper thread) when the display configuration changes:
@@ -77,7 +85,36 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     /// arms a debounce; once the display has been quiet for the interval we hand the new monitor
     /// configuration to the store, which loads / clones the per-setup layout and returns the
     /// snapshot we push onto the live windows (see <see cref="OnDisplaySettleTickAsync"/>).</summary>
-    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => ArmDisplaySettleFreeze();
+
+    /// <summary>Fired on RDP connect/disconnect, console attach/detach and session lock/unlock.
+    /// These bracket the monitor-topology change and, crucially, land BEFORE the
+    /// WM_DISPLAYCHANGE that <see cref="OnDisplaySettingsChanged"/> depends on can fire — so on an
+    /// RDP handshake we get the geometry-persist freeze armed while Windows is still moving the
+    /// wormholes onto the remote desktop, instead of after (by which point the rescue coordinates
+    /// have already been written into the active positions file). Only the reasons that actually
+    /// swap the display are handled; SessionLogon / SessionLogoff etc. don't touch the topology.
+    /// The settle timer (re-armed on each subsequent DisplaySettingsChanged in the burst) does the
+    /// real hash recompute + per-setup switch once the display stops moving.</summary>
+    private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
+    {
+        switch (e.Reason)
+        {
+            case SessionSwitchReason.RemoteConnect:
+            case SessionSwitchReason.RemoteDisconnect:
+            case SessionSwitchReason.ConsoleConnect:
+            case SessionSwitchReason.ConsoleDisconnect:
+            case SessionSwitchReason.SessionUnlock:
+                ArmDisplaySettleFreeze();
+                break;
+        }
+    }
+
+    /// <summary>Freeze geometry persistence and (re)arm the settle-debounce timer. Shared by the
+    /// display-settings and session-switch handlers. Marshals to the UI thread because both
+    /// SystemEvents callbacks arrive on a helper thread while the timer + windows live on the
+    /// dispatcher. Idempotent: re-arming while already frozen just restarts the debounce.</summary>
+    private void ArmDisplaySettleFreeze()
     {
         var app = Application.Current;
         if (app is null) return;

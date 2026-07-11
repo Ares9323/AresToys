@@ -176,6 +176,13 @@ public partial class WormholeWindow : Window
         // Activated handler consumes the flag and re-issues SendToBack so the wormhole stays
         // submerged until the user explicitly hits the Topmost toggle hotkey again.
         Activated += OnActivatedPostLaunch;
+        // Re-apply a topmost that Windows refused while we were in the background. When a wormhole
+        // launches a console app (a .bat opening cmd/conhost), that app owns the foreground and
+        // Win32 silently drops SetWindowPos(HWND_TOPMOST) on our now-background window — the flag
+        // never lands (WS_EX_TOPMOST stays clear) even though WPF thinks Topmost=true. The moment
+        // the launched app closes we get Activated with the foreground back, and re-issuing the
+        // topmost insert then succeeds. See ApplyTopmostState / OnActivatedReapplyTopmost.
+        Activated += OnActivatedReapplyTopmost;
 
         // Edge-resize via WM_NCHITTEST. WindowStyle=None + AllowsTransparency=True kills WPF's
         // native resize border; we synthesise hit-zones manually so the cursor switches to the
@@ -740,8 +747,14 @@ public partial class WormholeWindow : Window
     private void OnActivatedPostLaunch(object? sender, EventArgs e)
     {
         if (!_pendingPostLaunchBacktrack) return;
-        _pendingPostLaunchBacktrack = false;
-        if (_record.IsTopmost) return;
+        // Stay armed across MULTIPLE activations. A launched app hands the foreground back more
+        // than once: a console flashes on launch (Windows briefly returns focus here), then hands
+        // it back again when it finally closes. A one-shot flag got consumed by that first flash,
+        // so the wormhole popped back to the foreground on the real close. We only disarm when the
+        // user explicitly brings the wormholes topmost again (ApplyTopmostState clears the flag on
+        // the IsTopmost=true transition). Until then, every time this non-topmost wormhole is handed
+        // the foreground by a launched app, tuck it straight back down.
+        if (_record.IsTopmost) { _pendingPostLaunchBacktrack = false; return; }
         SendToBack();
     }
 
@@ -1072,12 +1085,22 @@ public partial class WormholeWindow : Window
 
     private void OnItemDragEnter(object sender, DragEventArgs e)
     {
+        // Keep the right-button latch fresh even while the cursor is over a tile. The tile
+        // handlers set e.Handled = true, which stops the DragOver from bubbling up to the
+        // container's OnDragOver — so without sampling the button here too, a drop that starts
+        // on a tile and then bubbles to OnDrop (unknown-target fall-through) would read a STALE
+        // _lastDragWasRightButton left over from an earlier right-drag (e.g. one cancelled
+        // outside the window, which never runs OnDrop's reset). That stale true wrongly popped
+        // the "Create shortcut here" menu on a plain left-drag → the "-Shortcut.lnk was created"
+        // report. Re-sampling on every tile drag tick keeps the latch honest.
+        _lastDragWasRightButton = (e.KeyStates & DragDropKeyStates.RightMouseButton) != 0;
         e.Effects = ResolveItemDropEffect(sender, e);
         e.Handled = true;
     }
 
     private void OnItemDragOver(object sender, DragEventArgs e)
     {
+        _lastDragWasRightButton = (e.KeyStates & DragDropKeyStates.RightMouseButton) != 0;
         e.Effects = ResolveItemDropEffect(sender, e);
         e.Handled = true;
     }
@@ -2416,9 +2439,54 @@ public partial class WormholeWindow : Window
     {
         var wasTopmost = Topmost;
         Topmost = _record.IsTopmost;
+        // An explicit "bring wormholes on top" toggle must cancel any pending post-launch
+        // backtrack: the user asked to see them, so the wormhole they last clicked has to come
+        // back up like all the others. Left armed, a delayed Activated (foreground handed back
+        // when the launched app closes) would race the toggle and re-issue SendToBack on exactly
+        // that wormhole — the "all wormholes show except the one I clicked" report. Clearing the
+        // flag here (before the transition early-out below) closes that race regardless of event
+        // ordering.
+        if (_record.IsTopmost) _pendingPostLaunchBacktrack = false;
         if (wasTopmost == _record.IsTopmost) return;
-        if (_record.IsTopmost) BringToFront();
-        else SendToBack();
+        if (_record.IsTopmost)
+        {
+            BringToFront();
+            // If the topmost insert didn't take (background window while a launched console app
+            // owns the foreground), remember to retry on our next Activated — that fires when the
+            // launched app closes and hands the foreground back, at which point the insert works.
+            _topmostReapplyOnActivate = !IsWin32Topmost();
+        }
+        else
+        {
+            SendToBack();
+            _topmostReapplyOnActivate = false;
+        }
+    }
+
+    /// <summary>One-shot retry flag: set when <see cref="ApplyTopmostState"/> tried to go topmost
+    /// but Win32 refused the flag (we were a background window while a launched app owned the
+    /// foreground). Honoured by <see cref="OnActivatedReapplyTopmost"/> on the next activation.</summary>
+    private bool _topmostReapplyOnActivate;
+
+    /// <summary>True if the OS actually carries WS_EX_TOPMOST on our HWND right now — the real
+    /// z-order state, which can lag WPF's <see cref="Window.Topmost"/> when a background
+    /// SetWindowPos(HWND_TOPMOST) was dropped.</summary>
+    private bool IsWin32Topmost()
+    {
+        const int GWL_EXSTYLE = -20;
+        const int WS_EX_TOPMOST = 0x0008;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        return hwnd != IntPtr.Zero && (GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+    }
+
+    private void OnActivatedReapplyTopmost(object? sender, EventArgs e)
+    {
+        if (!_topmostReapplyOnActivate) return;
+        if (!_record.IsTopmost) { _topmostReapplyOnActivate = false; return; }
+        // We're being activated (typically because the launched app just closed and handed the
+        // foreground back). The topmost insert that failed in the background succeeds now.
+        BringToFront();
+        _topmostReapplyOnActivate = !IsWin32Topmost();
     }
 
     private void SendToBack()
@@ -2449,11 +2517,46 @@ public partial class WormholeWindow : Window
         const uint SWP_NOMOVE = 0x0002;
         const uint SWP_NOACTIVATE = 0x0010;
         const uint SWP_SHOWWINDOW = 0x0040;
-        SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        const uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW;
+        SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, flags);
+        if (IsWin32Topmost()) return; // insert took — done.
+
+        // Foreground lock: this wormhole launched a console app (a .bat → cmd/conhost) and so
+        // "ceded" the foreground to it. Win32 then refuses to let this now-background window
+        // re-insert itself above the new foreground — SetWindowPos(HWND_TOPMOST) silently no-ops,
+        // leaving the wormhole stuck at the bottom (the "only the one that opened the .bat stays
+        // behind everything" report). Every OTHER wormhole lifts fine because it never ceded the
+        // foreground. Attaching our input queue to the foreground thread lifts the restriction for
+        // the duration of the call — the standard SetForegroundWindow-helper trick. Best-effort:
+        // if the foreground belongs to a higher-integrity process AttachThreadInput just returns
+        // false and we leave the window where it is (the Activated retry still fixes it on close).
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero || fg == hwnd) return;
+        var fgThread = GetWindowThreadProcessId(fg, out _);
+        var ourThread = GetCurrentThreadId();
+        if (fgThread == 0 || fgThread == ourThread) return;
+        if (!AttachThreadInput(ourThread, fgThread, true)) return;
+        try { SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, flags); }
+        finally { AttachThreadInput(ourThread, fgThread, false); }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
 }

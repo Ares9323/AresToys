@@ -8,6 +8,15 @@ public sealed class HotkeyManager : IHotkeyManager
     private IntPtr _hwnd;
     private int _nextWmId = 0x9000;
 
+    /// <summary>Last <see cref="Dispatch"/> tick (ms) per WM hotkey id, for auto-repeat de-bounce.
+    /// RegisterHotKey re-delivers WM_HOTKEY for as long as the user holds the combo down (the
+    /// low-level KeyboardHook path de-bounces via physical KEYUP tracking; the RegisterHotKey path
+    /// gets no KEYUP, so we time-gate instead). Two triggers ~400ms apart on a toggle hotkey cancel
+    /// each other — the "toggle wormholes topmost" turning them on then straight back off, so the
+    /// user has to press twice. A genuine re-press comes after letting go, well past the window.</summary>
+    private readonly Dictionary<int, long> _lastDispatchTickByWmId = [];
+    private const long AutoRepeatDebounceMs = 500;
+
     public HotkeyManager(IHotkeyRegistrar registrar)
     {
         _registrar = registrar;
@@ -53,6 +62,21 @@ public sealed class HotkeyManager : IHotkeyManager
     public bool Dispatch(int wmHotkeyId)
     {
         if (!_defByWmId.TryGetValue(wmHotkeyId, out var def)) return false;
+
+        // Swallow OS auto-repeat: RegisterHotKey keeps firing WM_HOTKEY while the key is held.
+        // If this dispatch lands within the repeat window of the previous one for the SAME hotkey,
+        // treat it as a repeat and don't fire. Refresh the stamp even when swallowing so a long
+        // hold keeps suppressing (each repeat re-arms the window); the next real press, which only
+        // happens after the user releases and re-presses, falls outside the window and fires.
+        var now = Environment.TickCount64;
+        if (_lastDispatchTickByWmId.TryGetValue(wmHotkeyId, out var last)
+            && now - last < AutoRepeatDebounceMs)
+        {
+            _lastDispatchTickByWmId[wmHotkeyId] = now;
+            return false;
+        }
+        _lastDispatchTickByWmId[wmHotkeyId] = now;
+
         Triggered?.Invoke(this, new HotkeyTriggeredEventArgs(def));
         return true;
     }
