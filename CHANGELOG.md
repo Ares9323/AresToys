@@ -3,6 +3,42 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.27] — 2026-07-13
+
+Wormhole layout management moves from opaque per-monitor-setup auto-cloning to
+manual named presets, plus the round of wormhole interaction fixes that came
+out of daily use and a native-SQLite security bump.
+
+### Wormholes — named layout presets
+- The per-monitor-hash positions files (which cloned and clamped the layout
+  for every new monitor configuration, scrambling the home layout over RDP)
+  are replaced by manual named presets. Each preset is its own hand-editable
+  JSON file under `Wormholes\Presets\<name>.json`, carrying geometry plus
+  per-wormhole hidden / locked / rolled state and the list of monitor setups
+  it auto-applies for.
+- A preset auto-reapplies only when a genuine monitor-setup change brings back
+  a setup it's bound to; unknown setups (a fresh RDP resolution) map to no
+  preset and never overwrite a good layout.
+- Save / Restore / Update / Rename / Delete from both the tray (Wormhole
+  layout submenu) and Settings → Wormholes, with an overwrite confirmation on
+  save-over and an "Open presets folder" shortcut. A one-time migration lifts
+  the old per-setup positions into `positions.json` plus an "Original" preset.
+- New "Switch wormhole preset" workflow action (no default hotkey): restores a
+  preset by name, pickable from a dropdown of the saved presets.
+
+### Wormholes — interaction fixes
+- Dragging an item into a wormhole no longer wrongly materialises a
+  "-shortcut" copy.
+- The Toggle-topmost hotkey no longer leaves the just-clicked wormhole behind
+  the foreground app after a .bat launch; auto-repeat double-fires and the
+  post-launch foreground lock are both handled.
+- RDP connect / disconnect freezes geometry persistence during the display
+  burst so Windows' off-screen window rescue can't corrupt the saved layout.
+
+### Security
+- Native SQLite bumped to 3.53.3, clearing CVE-2025-6965 (also unblocked
+  `dotnet publish`).
+
 ## [0.1.26] — 2026-06-10
 
 Three follow-up fixes for issues that survived 0.1.25: capture-region
