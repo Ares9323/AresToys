@@ -312,6 +312,7 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, CaptureRegionTask>();
                 services.AddSingleton<IPipelineTask, WormholeBatchOpTask>();
                 services.AddSingleton<IPipelineTask, WormholeCreateTask>();
+                services.AddSingleton<IPipelineTask, WormholeRestorePresetTask>();
                 services.AddSingleton<IPipelineTask, CaptureActiveWindowTask>();
                 services.AddSingleton<IPipelineTask, CaptureActiveMonitorTask>();
                 services.AddSingleton<IPipelineTask, CaptureWebpageTask>();
@@ -553,6 +554,23 @@ public partial class App : Application
             {
                 var presets = presetStore.ListAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
                 return presets.Select(p => p.Name).ToList();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        };
+
+        // Wormhole-presets dropdown for the "Switch wormhole preset" step. Lists the saved
+        // layout preset names; the field stays editable so a name can be typed even if the
+        // preset doesn't exist yet (the task no-ops until it does). Sync lookup is safe — the
+        // JSON store's ListPresetNamesAsync runs off the file system with no SyncContext capture.
+        var wormholeManager = _host.Services.GetRequiredService<AresToys.App.Services.Wormholes.IWormholeWindowManager>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["wormhole_presets"] = () =>
+        {
+            try
+            {
+                return wormholeManager.ListPresetsAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult().ToList();
             }
             catch
             {

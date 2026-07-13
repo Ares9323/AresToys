@@ -232,13 +232,31 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
         // Reconcile each window to the (possibly changed) record state: spawn/close on hidden
         // flips, push geometry + refresh lock/roll otherwise. Iterate the snapshot list, not the
-        // live cache, since ReconcileAsync mutates _live.
-        foreach (var rec in records)
+        // live cache, since ReconcileAsync mutates _live. Marshalled onto the UI thread: wormhole
+        // windows have thread affinity (setting Left/Top/Width or RefreshFromRecord off the
+        // dispatcher throws), and this path runs on a thread-pool thread when a pipeline task
+        // fires it — the menu / Settings Restore already runs on the UI thread. Without the
+        // marshal the reconcile threw cross-thread and the live windows silently didn't move.
+        await RunOnUiAsync(async () =>
         {
-            try { await ReconcileAsync(rec, CancellationToken.None).ConfigureAwait(true); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Wormholes: reconcile during preset apply failed for {Id}", rec.Id); }
-        }
+            foreach (var rec in records)
+            {
+                try { await ReconcileAsync(rec, CancellationToken.None).ConfigureAwait(true); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Wormholes: reconcile during preset apply failed for {Id}", rec.Id); }
+            }
+        }).ConfigureAwait(true);
         return true;
+    }
+
+    /// <summary>Run <paramref name="action"/> on the WPF UI thread. Inline (no marshal) when the
+    /// caller is already on the dispatcher — the menu / Settings Restore path — so behaviour there
+    /// is unchanged; marshalled when invoked from a background thread, e.g. the pipeline executor
+    /// running the "Switch wormhole preset" task.</summary>
+    private static Task RunOnUiAsync(Func<Task> action)
+    {
+        var app = Application.Current;
+        if (app is null || app.Dispatcher.CheckAccess()) return action();
+        return app.Dispatcher.InvokeAsync(action).Task.Unwrap();
     }
 
     // ------------------------------------------------------------------------------------------
@@ -273,7 +291,13 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         await _store.AssociateCurrentSetupAsync(name, cancellationToken).ConfigureAwait(true);
         _lastSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
         var records = await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true);
-        foreach (var rec in records) RecordChanged?.Invoke(this, rec.Id);
+        // RecordChanged subscribers (the Wormholes Settings grid) mutate UI-bound state, so fire
+        // on the dispatcher — this can run off the UI thread when a pipeline task drives the restore.
+        await RunOnUiAsync(() =>
+        {
+            foreach (var rec in records) RecordChanged?.Invoke(this, rec.Id);
+            return Task.CompletedTask;
+        }).ConfigureAwait(true);
     }
 
     /// <summary>See <see cref="IWormholeWindowManager.NotifyItemSelectionTaken"/>. Iterates the

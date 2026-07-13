@@ -39,6 +39,7 @@ public static class DefaultPipelineProfiles
     public const string WormholesToggleCollapseId = "wormholes-toggle-collapse";
     public const string WormholesToggleTopmostId = "wormholes-toggle-topmost";
     public const string WormholesCreateId      = "wormholes-create";
+    public const string WormholesSwitchPresetId = "wormholes-switch-preset";
 
     // Task IDs whose implementations live in AresToys.App (resolved at runtime by the registry).
     public const string AddFileTaskId              = "arestoys.add-file";
@@ -78,6 +79,7 @@ public static class DefaultPipelineProfiles
     public const string PinToScreenTaskId          = "arestoys.pin-to-screen";
     public const string WormholeBatchOpTaskId      = "arestoys.wormhole-batch-op";
     public const string WormholeCreateTaskId       = "arestoys.wormhole-create";
+    public const string WormholeRestorePresetTaskId = "arestoys.wormhole-restore-preset";
 
     // Task IDs from AresToys.Plugins.
     public const string UploadTaskId = "arestoys.upload";
@@ -127,6 +129,7 @@ public static class DefaultPipelineProfiles
         [WormholesToggleCollapseId] = "Wormholes",
         [WormholesToggleTopmostId]  = "Wormholes",
         [WormholesCreateId]        = "Wormholes",
+        [WormholesSwitchPresetId]  = "Wormholes",
     };
 
     private static IReadOnlyList<PipelineProfile> BuildAll() =>
@@ -594,6 +597,14 @@ public static class DefaultPipelineProfiles
             DisplayName: "Create Wormhole",
             Trigger: "hotkey:wormholes-create",
             Steps: [new PipelineStep(WormholeCreateTaskId, Id: "create")],
+            IsBuiltIn: true),
+        // Restore a named layout preset. Ships with an empty "preset" — the user sets the target
+        // preset in the workflow editor. No default hotkey.
+        new PipelineProfile(
+            Id: WormholesSwitchPresetId,
+            DisplayName: "Switch wormhole preset",
+            Trigger: "hotkey:wormholes-switch-preset",
+            Steps: [new PipelineStep(WormholeRestorePresetTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"preset\":\"\"}"), Id: "restore")],
             IsBuiltIn: true),
     ];
 }

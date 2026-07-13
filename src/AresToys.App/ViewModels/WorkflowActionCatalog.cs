@@ -264,6 +264,13 @@ public static class WorkflowActionCatalog
             "Create wormhole",
             "Create a new wormhole. If a single folder is selected in the foreground Explorer window, uses that folder automatically. Otherwise opens the New Wormhole dialog so the user picks a folder.",
             "Wormholes"),
+        new("arestoys.wormhole-restore-preset",
+            "Switch wormhole preset",
+            "Restore a saved layout preset by name — moves every wormhole to the positions and hidden/locked/rolled state stored in that preset, and binds the current monitor setup to it. Pick a preset from the dropdown or type its name (case-insensitive). A blank or unknown name is a no-op.",
+            "Wormholes",
+            DefaultConfigJson: "{\"preset\":\"\"}",
+            StringParameters: [new StringParameter("preset", "Preset", string.Empty,
+                Placeholder: "(preset name)", OptionsKey: "wormhole_presets")]),
 
         new("arestoys.color-sampler",
             "Color sampler",
