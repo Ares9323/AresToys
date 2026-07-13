@@ -1053,4 +1053,24 @@
   <data name="Editor_Shape_Pixelate" xml:space="preserve"><value>Pixel</value></data>
   <data name="Editor_Shape_Spotlight" xml:space="preserve"><value>Riflettore</value></data>
   <data name="Editor_Shape_SmartEraser" xml:space="preserve"><value>Gomma intelligente</value></data>
+  <data name="Tray_WormholeLayout" xml:space="preserve"><value>Layout wormhole</value></data>
+  <data name="Tray_NoPresets" xml:space="preserve"><value>(nessun preset salvato)</value></data>
+  <data name="Tray_SaveLayoutAs" xml:space="preserve"><value>Salva layout attuale come...</value></data>
+  <data name="Tray_UpdateLayout" xml:space="preserve"><value>Aggiorna "{0}"</value></data>
+  <data name="Tray_OpenPresetsFolder" xml:space="preserve"><value>Apri cartella preset</value></data>
+  <data name="WormholePresets_Title" xml:space="preserve"><value>Preset di layout</value></data>
+  <data name="WormholePresets_Hint" xml:space="preserve"><value>Salva le posizioni attuali dei wormhole come preset con un nome e ripristinalo quando vuoi (ad esempio dopo che RDP ha scombinato il layout). Un preset si riapplica da solo quando torna il suo setup di monitor.</value></data>
+  <data name="WormholePresets_CurrentSetup" xml:space="preserve"><value>Automatico per questo setup di monitor:</value></data>
+  <data name="WormholePresets_None" xml:space="preserve"><value>nessuno</value></data>
+  <data name="WormholePresets_SaveAsButton" xml:space="preserve"><value>Salva layout attuale come...</value></data>
+  <data name="WormholePresets_Restore" xml:space="preserve"><value>Ripristina</value></data>
+  <data name="WormholePresets_Update" xml:space="preserve"><value>Aggiorna</value></data>
+  <data name="WormholePresets_Rename" xml:space="preserve"><value>Rinomina</value></data>
+  <data name="WormholePresets_Delete" xml:space="preserve"><value>Elimina</value></data>
+  <data name="WormholePresets_Empty" xml:space="preserve"><value>Ancora nessun preset. Sistema i wormhole, poi salvane uno.</value></data>
+  <data name="WormholePresets_SaveTitle" xml:space="preserve"><value>Salva preset di layout</value></data>
+  <data name="WormholePresets_RenameTitle" xml:space="preserve"><value>Rinomina preset</value></data>
+  <data name="WormholePresets_NameLabel" xml:space="preserve"><value>Nome preset</value></data>
+  <data name="WormholePresets_DeleteConfirm" xml:space="preserve"><value>Eliminare il preset di layout "{0}"?</value></data>
+  <data name="WormholePresets_OverwriteConfirm" xml:space="preserve"><value>Esiste già un preset chiamato "{0}". Sovrascriverlo?</value></data>
 </root>

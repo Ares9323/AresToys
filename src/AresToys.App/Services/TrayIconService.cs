@@ -280,6 +280,11 @@ public sealed class TrayIconService : IDisposable
                 () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => _ = m.ToggleAllRolledAsync(CancellationToken.None))));
             wormholes.Items.Add(BuildShortcutMenuItem(Strings.Tray_ToggleTopmostWormholes, DefaultPipelineProfiles.WormholesToggleTopmostId,
                 () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m => _ = m.ToggleAllTopmostAsync(CancellationToken.None))));
+
+            wormholes.Items.Add(new Separator());
+            wormholes.Items.Add(BuildWormholeLayoutSubmenu());
+            wormholes.Items.Add(BuildMenuItem(Strings.Tray_OpenPresetsFolder, OnOpenPresetsFolder));
+
             menu.Items.Add(wormholes);
         }
 
@@ -543,6 +548,105 @@ public sealed class TrayIconService : IDisposable
         var shortcut = LookupShortcut(profileId);
         var header = string.IsNullOrEmpty(shortcut) ? label : $"{label}\t{shortcut}";
         return BuildMenuItem(header, onClick);
+    }
+
+    /// <summary>"Wormhole layout" submenu, populated lazily on open (like the monitor submenu) so
+    /// it always reflects the current preset list + the preset auto-mapped to this monitor setup.
+    /// Clicking a preset restores it; "Save current layout as…" prompts for a name; when this
+    /// setup already maps to a preset an "Update ‹name›" entry re-snapshots it.</summary>
+    private MenuItem BuildWormholeLayoutSubmenu()
+    {
+        var item = new MenuItem { Header = Strings.Tray_WormholeLayout };
+        item.SubmenuOpened += (_, _) =>
+        {
+            item.Items.Clear();
+            Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m =>
+            {
+                var presets = m.ListPresetsAsync(CancellationToken.None).GetAwaiter().GetResult();
+                var current = m.CurrentSetupPresetAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+                if (presets.Count == 0)
+                {
+                    item.Items.Add(new MenuItem { Header = Strings.Tray_NoPresets, IsEnabled = false });
+                }
+                else
+                {
+                    foreach (var name in presets)
+                    {
+                        var captured = name;
+                        // Mark the preset auto-associated with the current setup with a dot.
+                        // Bullet (U+25CF) marks the preset auto-associated with this setup.
+                        // Escaped, not inline, to keep the source pure ASCII per project convention.
+                        var header = string.Equals(captured, current, StringComparison.OrdinalIgnoreCase)
+                            ? captured + "  " + char.ConvertFromUtf32(0x25CF)
+                            : captured;
+                        item.Items.Add(BuildMenuItem(header,
+                            () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(
+                                mm => _ = mm.RestorePresetAsync(captured, CancellationToken.None))));
+                    }
+                }
+
+                item.Items.Add(new Separator());
+                item.Items.Add(BuildMenuItem(Strings.Tray_SaveLayoutAs, PromptAndSaveWormholePreset));
+                if (!string.IsNullOrEmpty(current))
+                {
+                    var cur = current;
+                    item.Items.Add(BuildMenuItem(Strings.Tray_UpdateLayout.Replace("{0}", cur),
+                        () => Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(
+                            mm => _ = mm.SaveCurrentAsPresetAsync(cur, CancellationToken.None))));
+                }
+            });
+        };
+        // Placeholder so the chevron renders before the submenu is first opened.
+        item.Items.Add(new MenuItem { Header = "…", IsEnabled = false });
+        return item;
+    }
+
+    /// <summary>Prompt for a preset name and save the current wormhole layout under it. When the
+    /// typed name matches an existing preset (case-insensitive) it would silently overwrite it,
+    /// so confirm first — mirrors the Settings panel's "Save current layout as…" behaviour.</summary>
+    private void PromptAndSaveWormholePreset()
+    {
+        var dlg = new AresToys.App.Views.TextPromptDialog(Strings.WormholePresets_SaveTitle, Strings.WormholePresets_NameLabel);
+        if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.Result)) return;
+        var name = dlg.Result.Trim();
+        Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m =>
+        {
+            var existing = m.ListPresetsAsync(CancellationToken.None).GetAwaiter().GetResult();
+            if (existing.Any(p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                var confirm = MessageBox.Show(
+                    Strings.WormholePresets_OverwriteConfirm.Replace("{0}", name),
+                    "AresToys", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.Cancel);
+                if (confirm != MessageBoxResult.OK) return;
+            }
+            _ = m.SaveCurrentAsPresetAsync(name, CancellationToken.None);
+        });
+    }
+
+    /// <summary>Open the wormhole presets folder in Explorer. Creates it on demand (it may not
+    /// exist before the first preset is saved) so the click never dead-ends. Mirrors
+    /// <see cref="OnOpenScreenshotFolder"/>.</summary>
+    private void OnOpenPresetsFolder()
+    {
+        Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m =>
+        {
+            try
+            {
+                var folder = m.PresetsFolderPath;
+                System.IO.Directory.CreateDirectory(folder);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{folder}\"",
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Tray: failed to open presets folder");
+            }
+        });
     }
 
     /// <summary>Synchronous lookup of the effective hotkey for a pipeline profile id. The

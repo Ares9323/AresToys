@@ -2090,6 +2090,53 @@
                                       HorizontalAlignment="Left" />
                         </StackPanel>
                     </Border>
+
+                    <!-- Layout presets: named snapshots of every wormhole's geometry, saved and
+                         restored by hand. A preset auto-reapplies when its monitor setup returns;
+                         unknown setups (RDP) never overwrite a good layout. -->
+                    <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc WormholePresets_Title}" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Markup:Loc WormholePresets_Hint}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,4,0,8" />
+                            <TextBlock Margin="0,0,0,8" FontSize="12" Foreground="{DynamicResource AccentForegroundBrush}">
+                                <Run Text="{Markup:Loc WormholePresets_CurrentSetup}" />
+                                <Run Text=" " /><Run Text="{Binding Wormholes.Presets.CurrentSetupPresetDisplay, Mode=OneWay}" FontWeight="SemiBold" />
+                            </TextBlock>
+                            <ui:Button Content="{Markup:Loc WormholePresets_SaveAsButton}"
+                                       Command="{Binding Wormholes.Presets.SaveAsCommand}"
+                                       HorizontalAlignment="Left" Padding="12,4" Margin="0,0,0,8" />
+                            <ItemsControl ItemsSource="{Binding Wormholes.Presets.Presets}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding}" VerticalAlignment="Center"
+                                                       FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}" />
+                                            <ui:Button Grid.Column="1" Content="{Markup:Loc WormholePresets_Restore}" Margin="4,0,0,0" Padding="8,2"
+                                                       Command="{Binding DataContext.Wormholes.Presets.RestoreCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}" />
+                                            <ui:Button Grid.Column="2" Content="{Markup:Loc WormholePresets_Update}" Margin="4,0,0,0" Padding="8,2"
+                                                       Command="{Binding DataContext.Wormholes.Presets.UpdateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}" />
+                                            <ui:Button Grid.Column="3" Content="{Markup:Loc WormholePresets_Rename}" Margin="4,0,0,0" Padding="8,2"
+                                                       Command="{Binding DataContext.Wormholes.Presets.RenameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}" />
+                                            <ui:Button Grid.Column="4" Content="{Markup:Loc WormholePresets_Delete}" Margin="4,0,0,0" Padding="8,2"
+                                                       Command="{Binding DataContext.Wormholes.Presets.DeleteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                       CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 

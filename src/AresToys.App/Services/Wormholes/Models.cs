@@ -88,9 +88,9 @@ public sealed class WormholeRecord
 /// <see cref="SchemaVersion"/> so future-format migrations (additive only, per the project
 /// convention — see <c>Migration002</c>/<c>Migration003</c> in Storage) can detect older files
 /// without parsing the body twice. From v2 the per-record <c>Geometry</c> is no longer
-/// serialized into this file — it lives in <c>Positions\&lt;setupHash&gt;.json</c> so a
-/// different monitor configuration (RDP single-screen, plug-in external display) can have its
-/// own layout without rewriting the original setup's positions every time.</summary>
+/// serialized into this file: live geometry lives in <c>positions.json</c> and named layout
+/// snapshots in <c>presets.json</c> (see <see cref="WormholePositionsFile"/> /
+/// <see cref="WormholePresetsFile"/>).</summary>
 public sealed class WormholeStoreFile
 {
     [JsonPropertyName("$schema_version")]
@@ -98,17 +98,47 @@ public sealed class WormholeStoreFile
     public List<WormholeRecord> Wormholes { get; set; } = new();
 }
 
-/// <summary>Persisted contents of a <c>Positions\&lt;setupHash&gt;.json</c> file: per-wormhole
-/// geometry pinned to one specific monitor configuration. The hash key in
-/// <see cref="Positions"/> matches the corresponding <see cref="WormholeRecord.Id"/>.
-/// <para>The "original" setup (first one detected after the per-setup feature lands; tracked
-/// via the <c>Positions\.original</c> marker) acts as the template for newly-encountered
-/// setups: its positions are clamped into the new virtual screen and written as a separate
-/// file. The original's file is never mutated by these clones — when the user reconnects the
-/// home monitor, the saved layout there is exactly as they left it.</para></summary>
+/// <summary>Persisted contents of <c>positions.json</c>: the current live geometry of every
+/// wormhole, keyed by <see cref="WormholeRecord.Id"/>. This is the single source of truth for
+/// "where the wormholes are right now"; it is written whenever the user moves/resizes a
+/// wormhole and read back to restore exact positions on a plain restart. There is no per-monitor
+/// splitting and no clamping — a layout is never squashed to fit a smaller screen. Cross-setup
+/// layout management is done explicitly through named presets (see <see cref="WormholePreset"/>).</summary>
 public sealed class WormholePositionsFile
 {
     [JsonPropertyName("$schema_version")]
     public int SchemaVersion { get; set; } = 1;
     public Dictionary<Guid, WormholeGeometry> Positions { get; set; } = new();
+}
+
+/// <summary>Per-wormhole visual state captured in a preset alongside geometry: whether the
+/// wormhole is hidden, locked, and rolled up. Lets a preset restore "these wormholes are hidden
+/// on this setup, those are visible". Topmost is intentionally NOT captured — it is a global
+/// bring-to-front mode, not part of a spatial layout.</summary>
+public sealed class WormholePresetState
+{
+    public bool Hidden { get; set; }
+    public bool Locked { get; set; }
+    public bool Rolled { get; set; }
+}
+
+/// <summary>A named layout preset, persisted as its own file under <c>Presets\</c> (one JSON per
+/// preset, so the user can delete or hand-edit them in Explorer). Captures the geometry AND
+/// per-wormhole visual state (hidden / locked / rolled) of every wormhole at save time, plus the
+/// list of monitor fingerprints this preset auto-applies for. The <see cref="Positions"/> and
+/// <see cref="States"/> keys match the corresponding <see cref="WormholeRecord.Id"/>.
+/// <see cref="States"/> is empty on presets saved before state capture; restoring such a preset
+/// leaves hidden/locked/rolled as-is. <see cref="Name"/> is authoritative (the filename is a
+/// sanitized convenience). A fingerprint present in no preset's <see cref="Setups"/> is an
+/// "unknown" setup (typically RDP): nothing auto-applies, the live layout is left untouched.</summary>
+public sealed class WormholePreset
+{
+    [JsonPropertyName("$schema_version")]
+    public int SchemaVersion { get; set; } = 1;
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Monitor fingerprints (<see cref="MonitorSetupIdentifier"/> hashes) this preset
+    /// auto-reapplies for. Each fingerprint belongs to at most one preset.</summary>
+    public List<string> Setups { get; set; } = new();
+    public Dictionary<Guid, WormholeGeometry> Positions { get; set; } = new();
+    public Dictionary<Guid, WormholePresetState> States { get; set; } = new();
 }

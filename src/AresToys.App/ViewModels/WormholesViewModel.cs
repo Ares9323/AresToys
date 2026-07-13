@@ -20,6 +20,10 @@ public sealed partial class WormholesViewModel : ObservableObject
 
     public ObservableCollection<WormholeRowViewModel> Rows { get; } = new();
 
+    /// <summary>Layout presets sub-panel (save / restore / update / rename / delete named
+    /// layout snapshots, and the preset auto-mapped to the current monitor setup).</summary>
+    public WormholePresetsViewModel Presets { get; }
+
     [ObservableProperty] private bool _isEmpty = true;
 
     /// <summary>Id of the wormhole the user last interacted with (clicked / selected an item /
@@ -76,6 +80,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         _store = store;
         _manager = manager;
         _defaults = defaults;
+        Presets = new WormholePresetsViewModel(manager);
         // Hydrate the VM properties from the already-loaded service (App.xaml.cs LoadAsync at
         // startup). Subsequent slider drags flow OUT through the partial-method setters below.
         _suppressDefaultsPersist = true;
@@ -198,6 +203,8 @@ public sealed partial class WormholesViewModel : ObservableObject
         foreach (var r in records)
             Rows.Add(new WormholeRowViewModel(r, _store, _manager, this));
         IsEmpty = Rows.Count == 0;
+
+        await Presets.RefreshAsync().ConfigureAwait(true);
     }
 
     /// <summary>Called by a row's Delete command after the manager has removed the record.

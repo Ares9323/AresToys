@@ -1,48 +1,42 @@
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Logging;
-using AresToys.Capture;
 using AresToys.Storage.Paths;
 
 namespace AresToys.App.Services.Wormholes;
 
-/// <summary>JSON store for wormhole records, split across files so a different monitor
-/// configuration (RDP, plug-in display, phone screen) can have its own layout without
-/// corrupting the user's home-setup layout.
+/// <summary>JSON store for wormhole records and their layout.
 ///
 /// <para>Layout on disk:</para>
 /// <code>
 /// %LocalAppData%\AresToys-Data\Wormholes\
 ///   wormholes.json                            ← definitions + global flags (NO geometry)
+///   positions.json                            ← current live geometry {id → {X,Y,W,H,UnrolledHeight}}
+///   Presets\&lt;name&gt;.json                       ← one file per named layout preset (hand-editable)
 ///   Shortcuts\&lt;guid&gt;\                         ← Data-fence .lnk files (owned by DataDropPolicy)
-///   Positions\
-///     .original                               ← single-line text: hash of the "original" setup
-///     &lt;setupHash&gt;.json                        ← per-setup geometry: {id → {X,Y,W,H,UnrolledHeight}}
 /// </code>
 ///
-/// <para>The "original" setup is whichever setup is active the first time the per-setup
-/// feature loads. Its <c>Positions\&lt;hash&gt;.json</c> is never overwritten by switches —
-/// when a new (never-seen) setup is detected we clamp the original's coords into the new
-/// virtual screen and save that as a NEW file. Reconnecting to the original setup restores
-/// the layout from its untouched file.</para>
-///
-/// <para>In-memory: <see cref="WormholeRecord.Geometry"/> mirrors whichever setup is currently
-/// active. <see cref="SwitchSetupAsync"/> mutates those Geometry instances and returns the
-/// snapshot to the caller (who pushes Left/Top/Width/Height onto the WPF windows).</para></summary>
+/// <para>Each preset file carries its own geometry + per-wormhole state (hidden/locked/rolled) and
+/// the list of monitor fingerprints it auto-applies for, so a preset is fully self-contained: the
+/// user can delete or edit one in Explorer without touching the others. Unknown setups (RDP) map
+/// to no preset and never overwrite a good layout. The old opaque per-monitor-hash positions files
+/// (with clamping) are gone; a one-time migration lifts them into positions.json + an "Original"
+/// preset, and a single-file <c>presets.json</c> from the interim build is split into per-preset
+/// files.</para></summary>
 public sealed class WormholeStoreJson : IWormholeStore, IDisposable
 {
     private const string WormholesFolderName = "Wormholes";
     private const string ShortcutsFolderName = "Shortcuts";
-    private const string PositionsFolderName = "Positions";
     private const string StoreFileName = "wormholes.json";
-    private const string OriginalMarkerFileName = ".original";
+    private const string PositionsFileName = "positions.json";
+    private const string PresetsFolderName = "Presets";
+    private const string LegacyPositionsFolderName = "Positions";
+    private const string LegacyOriginalMarkerFileName = ".original";
+    private const string LegacyPresetsFileName = "presets.json";
 
-    // Read-side options accept legacy JSON that still carries the per-record geometry block
-    // (pre-multi-setup files) — JsonSerializer naturally ignores extra fields, but more
-    // importantly the WormholeRecord type itself still owns a Geometry property at runtime,
-    // so legacy values come back populated and we use them as the migration template.
     private static readonly JsonSerializerOptions ReadOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -50,11 +44,6 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
         Converters = { new JsonStringEnumConverter() },
     };
 
-    // Write-side options strip the per-record geometry — definitions live in wormholes.json,
-    // geometry lives in Positions\<hash>.json. Using a type-info resolver modifier is the
-    // System.Text.Json idiomatic way to omit a single property on serialize without forcing
-    // a second DTO type and a manual mapping layer; the read path still picks up Geometry
-    // when present so legacy files migrate cleanly.
     private static readonly JsonSerializerOptions WriteDefinitionOptions = new()
     {
         WriteIndented = true,
@@ -90,7 +79,6 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
     private readonly ILogger<WormholeStoreJson> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private List<WormholeRecord>? _cache;
-    private string _currentSetupHash = string.Empty;
 
     public WormholeStoreJson(IStoragePathResolver paths, ILogger<WormholeStoreJson> logger)
     {
@@ -100,12 +88,13 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
 
     public string WormholesRootPath => Path.Combine(_paths.ResolveRoot(), WormholesFolderName);
 
-    private string StoreFilePath => Path.Combine(WormholesRootPath, StoreFileName);
-    private string PositionsRootPath => Path.Combine(WormholesRootPath, PositionsFolderName);
-    private string PositionsFilePath(string setupHash) => Path.Combine(PositionsRootPath, setupHash + ".json");
-    private string OriginalMarkerPath => Path.Combine(PositionsRootPath, OriginalMarkerFileName);
+    public string PresetsFolderPath => PresetsRootPath;
 
-    public string CurrentSetupHash => _currentSetupHash;
+    private string StoreFilePath => Path.Combine(WormholesRootPath, StoreFileName);
+    private string PositionsFilePath => Path.Combine(WormholesRootPath, PositionsFileName);
+    private string PresetsRootPath => Path.Combine(WormholesRootPath, PresetsFolderName);
+    private string LegacyPositionsRootPath => Path.Combine(WormholesRootPath, LegacyPositionsFolderName);
+    private string LegacyPresetsFilePath => Path.Combine(WormholesRootPath, LegacyPresetsFileName);
 
     public string GetShortcutsDirectory(Guid wormholeId)
     {
@@ -180,9 +169,6 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
             var removed = _cache!.RemoveAll(r => r.Id == wormholeId);
             if (removed == 0) return;
 
-            // Clean up the wormhole's Shortcuts\{id}\ folder if it exists. Best-effort — a
-            // locked file (e.g. AV scan in progress) shouldn't block the record deletion in
-            // memory + JSON; the user can clean leftover .lnk files manually.
             try
             {
                 var shortcuts = Path.Combine(WormholesRootPath, ShortcutsFolderName, wormholeId.ToString("N"));
@@ -195,99 +181,289 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
 
             await FlushNoLockAsync(cancellationToken).ConfigureAwait(false);
 
-            // Sweep the deleted id out of every per-setup positions file too — otherwise the
-            // entry lingers as orphan JSON forever. Best-effort per file: if a setup file is
-            // unreadable we skip it; the orphan is harmless (no record id matches at load).
-            await RemovePositionEverywhereNoLockAsync(wormholeId, cancellationToken).ConfigureAwait(false);
+            // Sweep the deleted id out of every preset file so it doesn't linger as orphan JSON.
+            foreach (var (path, preset) in await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var touched = preset.Positions.Remove(wormholeId);
+                touched |= preset.States.Remove(wormholeId);
+                if (touched) await WritePresetFileNoLockAsync(path, preset, cancellationToken).ConfigureAwait(false);
+            }
         }
         finally { _gate.Release(); }
     }
 
-    public async Task<IReadOnlyDictionary<Guid, WormholeGeometry>> SwitchSetupAsync(string newSetupHash, CancellationToken cancellationToken)
+    // ------------------------------------------------------------------------------------------
+    // Preset API — one file per preset under Presets\.
+    // ------------------------------------------------------------------------------------------
+
+    public async Task<IReadOnlyList<string>> ListPresetNamesAsync(CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrEmpty(newSetupHash);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return (await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false))
+                .Select(p => p.Preset.Name).ToList();
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task SavePresetAsync(string name, CancellationToken cancellationToken)
+    {
+        var clean = (name ?? string.Empty).Trim();
+        if (clean.Length == 0) throw new ArgumentException("Preset name cannot be empty.", nameof(name));
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await EnsureCacheLoadedNoLockAsync(cancellationToken).ConfigureAwait(false);
-            if (string.Equals(_currentSetupHash, newSetupHash, StringComparison.Ordinal))
-                return EmptyGeometryMap;
+            var hash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+            var all = await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false);
 
-            // Load positions for the target setup. Three cases:
-            //  a) File exists → use it as-is. The setup was seen before, layout is preserved.
-            //  b) File missing AND original marker exists → clone from the original (clamped
-            //     to the current virtual screen) so the user lands in a usable layout instead
-            //     of every wormhole starting at the same default coords.
-            //  c) File missing AND no marker → treat this setup as the new original (covers
-            //     the post-upgrade boot case where a user changes monitor BEFORE the first
-            //     save flushes the original marker).
-            Directory.CreateDirectory(PositionsRootPath);
-            var targetFile = PositionsFilePath(newSetupHash);
-            WormholePositionsFile? loaded = null;
-            if (File.Exists(targetFile))
-            {
-                loaded = await TryReadPositionsFileAsync(targetFile, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (loaded is null)
-            {
-                var originalHash = await TryReadOriginalMarkerAsync(cancellationToken).ConfigureAwait(false);
-                if (!string.IsNullOrEmpty(originalHash) && originalHash != newSetupHash)
-                {
-                    var originalFile = PositionsFilePath(originalHash);
-                    var originalPositions = await TryReadPositionsFileAsync(originalFile, cancellationToken).ConfigureAwait(false);
-                    loaded = ClonePositionsClampedToVirtualScreen(originalPositions);
-                }
-                else
-                {
-                    // No reference template — start from whatever the records currently hold.
-                    // First run after the multi-setup upgrade lands here; the migration step
-                    // in EnsureCacheLoadedNoLockAsync will have stamped .original already.
-                    loaded = SnapshotGeometriesFromCache();
-                }
-
-                // Persist the freshly-computed positions so the next switch hit reads them
-                // straight from disk (and so a manual delete of wormholes.json doesn't lose
-                // the user's per-setup layout).
-                await WritePositionsFileNoLockAsync(newSetupHash, loaded, cancellationToken).ConfigureAwait(false);
-            }
-
-            // Apply the loaded geometry to each cached record in-place. Records with no entry
-            // (newly-created wormhole the user hasn't seen on this setup yet) keep their
-            // current in-memory geometry — that's whatever they had on the previous setup,
-            // which is at least a usable starting point.
             var snapshot = new Dictionary<Guid, WormholeGeometry>(_cache!.Count);
+            var states = new Dictionary<Guid, WormholePresetState>(_cache.Count);
             foreach (var rec in _cache)
             {
-                if (loaded.Positions.TryGetValue(rec.Id, out var g))
-                {
-                    rec.Geometry.X = g.X;
-                    rec.Geometry.Y = g.Y;
-                    rec.Geometry.Width = g.Width;
-                    rec.Geometry.Height = g.Height;
-                    rec.Geometry.UnrolledHeight = g.UnrolledHeight;
-                    rec.Geometry.MonitorId = g.MonitorId;
-                }
                 snapshot[rec.Id] = CloneGeometry(rec.Geometry);
+                states[rec.Id] = new WormholePresetState { Hidden = rec.IsHidden, Locked = rec.IsLocked, Rolled = rec.IsRolled };
             }
 
-            _currentSetupHash = newSetupHash;
-            _logger.LogInformation("Wormholes: active setup switched to {Hash} ({Count} record positions applied)", newSetupHash, snapshot.Count);
-            return snapshot;
+            var match = all.FirstOrDefault(p => string.Equals(p.Preset.Name, clean, StringComparison.OrdinalIgnoreCase));
+            WormholePreset preset;
+            string path;
+            if (match.Preset is not null)
+            {
+                preset = match.Preset;
+                path = match.Path;
+            }
+            else
+            {
+                preset = new WormholePreset { Name = clean };
+                path = UniquePresetPathNoLock(clean, all.Select(p => p.Path));
+            }
+            preset.Positions = snapshot;
+            preset.States = states;
+            if (!preset.Setups.Contains(hash, StringComparer.Ordinal)) preset.Setups.Add(hash);
+
+            // A fingerprint maps to at most one preset: drop this setup from every OTHER preset.
+            foreach (var (otherPath, other) in all)
+            {
+                if (ReferenceEquals(other, preset)) continue;
+                if (other.Setups.RemoveAll(h => string.Equals(h, hash, StringComparison.Ordinal)) > 0)
+                    await WritePresetFileNoLockAsync(otherPath, other, cancellationToken).ConfigureAwait(false);
+            }
+
+            await WritePresetFileNoLockAsync(path, preset, cancellationToken).ConfigureAwait(false);
         }
         finally { _gate.Release(); }
     }
+
+    public async Task DeletePresetAsync(string name, CancellationToken cancellationToken)
+    {
+        var clean = (name ?? string.Empty).Trim();
+        if (clean.Length == 0) return;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var match = (await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false))
+                .FirstOrDefault(p => string.Equals(p.Preset.Name, clean, StringComparison.OrdinalIgnoreCase));
+            if (match.Preset is null) return;
+            try { File.Delete(match.Path); }
+            catch (IOException ex) { _logger.LogWarning(ex, "Failed to delete preset file {Path}", match.Path); }
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task RenamePresetAsync(string oldName, string newName, CancellationToken cancellationToken)
+    {
+        var from = (oldName ?? string.Empty).Trim();
+        var to = (newName ?? string.Empty).Trim();
+        if (from.Length == 0) return;
+        if (to.Length == 0) throw new ArgumentException("New preset name cannot be empty.", nameof(newName));
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var all = await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false);
+            var match = all.FirstOrDefault(p => string.Equals(p.Preset.Name, from, StringComparison.OrdinalIgnoreCase));
+            if (match.Preset is null) return;
+            if (all.Any(p => !ReferenceEquals(p.Preset, match.Preset) && string.Equals(p.Preset.Name, to, StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException($"A preset named '{to}' already exists.", nameof(newName));
+
+            match.Preset.Name = to;
+            var newPath = UniquePresetPathNoLock(to, all.Where(p => !ReferenceEquals(p.Preset, match.Preset)).Select(p => p.Path));
+            await WritePresetFileNoLockAsync(newPath, match.Preset, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(newPath, match.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                try { File.Delete(match.Path); }
+                catch (IOException ex) { _logger.LogWarning(ex, "Failed to remove old preset file {Path} after rename", match.Path); }
+            }
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, WormholeGeometry>?> GetPresetPositionsAsync(string name, CancellationToken cancellationToken)
+    {
+        var clean = (name ?? string.Empty).Trim();
+        if (clean.Length == 0) return null;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var match = (await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false))
+                .FirstOrDefault(p => string.Equals(p.Preset.Name, clean, StringComparison.OrdinalIgnoreCase));
+            if (match.Preset is null) return null;
+            var copy = new Dictionary<Guid, WormholeGeometry>(match.Preset.Positions.Count);
+            foreach (var (id, g) in match.Preset.Positions) copy[id] = CloneGeometry(g);
+            return copy;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, WormholePresetState>> GetPresetStatesAsync(string name, CancellationToken cancellationToken)
+    {
+        var clean = (name ?? string.Empty).Trim();
+        var result = new Dictionary<Guid, WormholePresetState>();
+        if (clean.Length == 0) return result;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var match = (await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false))
+                .FirstOrDefault(p => string.Equals(p.Preset.Name, clean, StringComparison.OrdinalIgnoreCase));
+            if (match.Preset is null) return result;
+            foreach (var (id, s) in match.Preset.States)
+                result[id] = new WormholePresetState { Hidden = s.Hidden, Locked = s.Locked, Rolled = s.Rolled };
+            return result;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task AssociateCurrentSetupAsync(string name, CancellationToken cancellationToken)
+    {
+        var clean = (name ?? string.Empty).Trim();
+        if (clean.Length == 0) return;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var hash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+            var all = await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false);
+            var match = all.FirstOrDefault(p => string.Equals(p.Preset.Name, clean, StringComparison.OrdinalIgnoreCase));
+            if (match.Preset is null) return;
+
+            foreach (var (otherPath, other) in all)
+            {
+                if (ReferenceEquals(other, match.Preset)) continue;
+                if (other.Setups.RemoveAll(h => string.Equals(h, hash, StringComparison.Ordinal)) > 0)
+                    await WritePresetFileNoLockAsync(otherPath, other, cancellationToken).ConfigureAwait(false);
+            }
+            if (!match.Preset.Setups.Contains(hash, StringComparer.Ordinal))
+            {
+                match.Preset.Setups.Add(hash);
+                await WritePresetFileNoLockAsync(match.Path, match.Preset, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<string?> GetPresetNameForCurrentSetupAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var hash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+            var match = (await LoadAllPresetsNoLockAsync(cancellationToken).ConfigureAwait(false))
+                .FirstOrDefault(p => p.Preset.Setups.Contains(hash, StringComparer.Ordinal));
+            return match.Preset?.Name;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task ApplyPositionsAsync(IReadOnlyDictionary<Guid, WormholeGeometry> positions, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnsureCacheLoadedNoLockAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var rec in _cache!)
+            {
+                if (!positions.TryGetValue(rec.Id, out var g)) continue;
+                rec.Geometry.X = g.X;
+                rec.Geometry.Y = g.Y;
+                rec.Geometry.Width = g.Width;
+                rec.Geometry.Height = g.Height;
+                rec.Geometry.UnrolledHeight = g.UnrolledHeight;
+                rec.Geometry.MonitorId = g.MonitorId;
+            }
+            await FlushNoLockAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { _gate.Release(); }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Preset file helpers
+    // ------------------------------------------------------------------------------------------
+
+    private async Task<List<(string Path, WormholePreset Preset)>> LoadAllPresetsNoLockAsync(CancellationToken cancellationToken)
+    {
+        var list = new List<(string, WormholePreset)>();
+        if (!Directory.Exists(PresetsRootPath)) return list;
+        foreach (var file in Directory.EnumerateFiles(PresetsRootPath, "*.json"))
+        {
+            try
+            {
+                var raw = await File.ReadAllTextAsync(file, cancellationToken).ConfigureAwait(false);
+                var preset = JsonSerializer.Deserialize<WormholePreset>(raw, PositionsOptions);
+                if (preset is null) continue;
+                if (string.IsNullOrWhiteSpace(preset.Name))
+                    preset.Name = Path.GetFileNameWithoutExtension(file);
+                list.Add((file, preset));
+            }
+            catch (Exception ex) when (ex is IOException or JsonException)
+            {
+                _logger.LogWarning(ex, "Preset file {Path} unreadable — skipping", file);
+            }
+        }
+        return list;
+    }
+
+    private async Task WritePresetFileNoLockAsync(string path, WormholePreset preset, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(PresetsRootPath);
+        var json = JsonSerializer.Serialize(preset, PositionsOptions);
+        await WriteAtomicAsync(path, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Path for a new preset: <c>Presets\&lt;sanitized-name&gt;.json</c>, with a numeric
+    /// suffix if that file is already taken by a different preset (name-to-filename collision).</summary>
+    private string UniquePresetPathNoLock(string name, IEnumerable<string> existingPaths)
+    {
+        var taken = new HashSet<string>(existingPaths, StringComparer.OrdinalIgnoreCase);
+        var stem = SanitizeFileName(name);
+        var candidate = Path.Combine(PresetsRootPath, stem + ".json");
+        if (!taken.Contains(candidate) && !File.Exists(candidate)) return candidate;
+        for (var n = 2; n < 1000; n++)
+        {
+            candidate = Path.Combine(PresetsRootPath, $"{stem} ({n}).json");
+            if (!taken.Contains(candidate) && !File.Exists(candidate)) return candidate;
+        }
+        return Path.Combine(PresetsRootPath, $"{stem}-{Guid.NewGuid():N}.json");
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sb = new StringBuilder(name.Length);
+        foreach (var c in name) sb.Append(Array.IndexOf(invalid, c) >= 0 ? '_' : c);
+        var s = sb.ToString().Trim().TrimEnd('.');
+        return s.Length == 0 ? "preset" : s;
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Load / flush of records + positions
+    // ------------------------------------------------------------------------------------------
 
     private async Task EnsureCacheLoadedNoLockAsync(CancellationToken cancellationToken)
     {
         if (_cache is not null) return;
         Directory.CreateDirectory(WormholesRootPath);
-        Directory.CreateDirectory(PositionsRootPath);
 
-        // Step 1 — load record definitions + (legacy) embedded geometry from wormholes.json.
-        // The Geometry property on each record is still populated at runtime; the layered file
-        // step below either overrides it from the per-setup positions file or — on first-run
-        // migration — uses it as the template that founds the original setup.
         if (!File.Exists(StoreFilePath))
         {
             _cache = new List<WormholeRecord>();
@@ -309,66 +485,117 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
             }
         }
 
-        // Step 2 — pick the current monitor configuration as the active setup hash.
-        _currentSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
-
-        // Step 3 — layered positions file. If one exists for this setup hash, override the
-        // per-record geometry with it (the setup file is the source of truth post-migration).
-        // If none exists, run the migration / template-clone flow.
-        var setupFile = PositionsFilePath(_currentSetupHash);
-        if (File.Exists(setupFile))
+        // Geometry: positions.json is the source of truth. If absent, migrate from the legacy
+        // per-hash Positions\ layout (one-time); else keep the legacy embedded geometry.
+        if (File.Exists(PositionsFilePath))
         {
-            var loaded = await TryReadPositionsFileAsync(setupFile, cancellationToken).ConfigureAwait(false);
+            var loaded = await TryReadPositionsFileAsync(PositionsFilePath, cancellationToken).ConfigureAwait(false);
             if (loaded is not null) ApplyPositionsToCache(loaded);
+        }
+        else if (Directory.Exists(LegacyPositionsRootPath))
+        {
+            await MigrateFromLegacyPositionsNoLockAsync(cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            await MigrateOrCloneOnFirstHitNoLockAsync(cancellationToken).ConfigureAwait(false);
+            await WritePositionsFileNoLockAsync(SnapshotGeometriesFromCache(), cancellationToken).ConfigureAwait(false);
+        }
+
+        // Split a single-file presets.json (interim build) into per-preset files, one time.
+        if (File.Exists(LegacyPresetsFilePath))
+        {
+            await MigrateLegacyPresetsFileNoLockAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
-    /// <summary>First-run handler for a setup we haven't persisted positions for yet. Two
-    /// branches:
-    /// <list type="bullet">
-    /// <item>No <c>.original</c> marker: this is the very first launch with the multi-setup
-    /// feature. Stamp the current setup as the original and snapshot the records' Geometry
-    /// (which came from the legacy wormholes.json) as the original positions file.</item>
-    /// <item>Marker exists but no file for this hash: a brand-new setup (e.g. first RDP
-    /// connect). Clone the original's positions, clamp to the current virtual screen, and
-    /// write as the new setup file. Original file stays untouched.</item>
-    /// </list></summary>
-    private async Task MigrateOrCloneOnFirstHitNoLockAsync(CancellationToken cancellationToken)
+    private async Task MigrateFromLegacyPositionsNoLockAsync(CancellationToken cancellationToken)
     {
-        var originalHash = await TryReadOriginalMarkerAsync(cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrEmpty(originalHash))
+        try
         {
-            // First run with the feature. Promote the current setup to "original" and snapshot
-            // whatever geometries the records carry (legacy wormholes.json or empty defaults).
-            var snapshot = SnapshotGeometriesFromCache();
-            await WritePositionsFileNoLockAsync(_currentSetupHash, snapshot, cancellationToken).ConfigureAwait(false);
-            await File.WriteAllTextAsync(OriginalMarkerPath, _currentSetupHash, cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("Wormholes: marked setup {Hash} as the original layout (first-run migration)", _currentSetupHash);
-            return;
-        }
+            var currentHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+            var currentFile = Path.Combine(LegacyPositionsRootPath, currentHash + ".json");
 
-        // Marker present: clone the original's geometry into a fresh per-setup file. Clamp
-        // every position to the current virtual screen so the wormholes are at least visible
-        // on the smaller / repositioned displays.
-        var originalFile = PositionsFilePath(originalHash);
-        var originalPositions = await TryReadPositionsFileAsync(originalFile, cancellationToken).ConfigureAwait(false);
-        var cloned = ClonePositionsClampedToVirtualScreen(originalPositions);
-        ApplyPositionsToCache(cloned);
-        await WritePositionsFileNoLockAsync(_currentSetupHash, cloned, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("Wormholes: cloned original layout {OrigHash} → {NewHash} for new monitor setup", originalHash, _currentSetupHash);
+            string? originalHash = null;
+            var marker = Path.Combine(LegacyPositionsRootPath, LegacyOriginalMarkerFileName);
+            if (File.Exists(marker))
+            {
+                try { originalHash = (await File.ReadAllTextAsync(marker, cancellationToken).ConfigureAwait(false)).Trim(); }
+                catch (IOException) { /* best-effort */ }
+            }
+
+            var current = await TryReadPositionsFileAsync(currentFile, cancellationToken).ConfigureAwait(false);
+            WormholePositionsFile? original = null;
+            if (!string.IsNullOrEmpty(originalHash))
+                original = await TryReadPositionsFileAsync(Path.Combine(LegacyPositionsRootPath, originalHash + ".json"), cancellationToken).ConfigureAwait(false);
+
+            var live = current ?? original;
+            if (live is not null) ApplyPositionsToCache(live);
+            await WritePositionsFileNoLockAsync(live ?? SnapshotGeometriesFromCache(), cancellationToken).ConfigureAwait(false);
+
+            if (original is not null && original.Positions.Count > 0 && !string.IsNullOrEmpty(originalHash))
+            {
+                var pos = new Dictionary<Guid, WormholeGeometry>(original.Positions.Count);
+                foreach (var (id, g) in original.Positions) pos[id] = CloneGeometry(g);
+                var st = new Dictionary<Guid, WormholePresetState>();
+                foreach (var rec in _cache!) st[rec.Id] = new WormholePresetState { Hidden = rec.IsHidden, Locked = rec.IsLocked, Rolled = rec.IsRolled };
+                var preset = new WormholePreset { Name = "Original", Positions = pos, States = st, Setups = { originalHash } };
+                await WritePresetFileNoLockAsync(UniquePresetPathNoLock("Original", Array.Empty<string>()), preset, cancellationToken).ConfigureAwait(false);
+            }
+
+            try
+            {
+                var aside = LegacyPositionsRootPath + $".migrated-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                Directory.Move(LegacyPositionsRootPath, aside);
+            }
+            catch (IOException ex) { _logger.LogWarning(ex, "Could not archive legacy Positions folder"); }
+
+            _logger.LogInformation("Wormholes: migrated legacy per-setup positions to positions.json + Presets\\");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wormholes: legacy positions migration failed; starting from record geometry");
+            await WritePositionsFileNoLockAsync(SnapshotGeometriesFromCache(), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Split the interim single-file <c>presets.json</c> (a Presets list + a
+    /// fingerprint→name SetupMap) into one <c>Presets\&lt;name&gt;.json</c> per preset, then rename
+    /// the old file aside.</summary>
+    private async Task MigrateLegacyPresetsFileNoLockAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var raw = await File.ReadAllTextAsync(LegacyPresetsFilePath, cancellationToken).ConfigureAwait(false);
+            var legacy = JsonSerializer.Deserialize<LegacyPresetsFile>(raw, PositionsOptions);
+            if (legacy?.Presets is { Count: > 0 })
+            {
+                var takenPaths = new List<string>();
+                foreach (var p in legacy.Presets)
+                {
+                    if (string.IsNullOrWhiteSpace(p.Name)) continue;
+                    var setups = legacy.SetupMap
+                        .Where(kv => string.Equals(kv.Value, p.Name, StringComparison.OrdinalIgnoreCase))
+                        .Select(kv => kv.Key).ToList();
+                    var preset = new WormholePreset { Name = p.Name, Positions = p.Positions, States = p.States, Setups = setups };
+                    var path = UniquePresetPathNoLock(p.Name, takenPaths);
+                    takenPaths.Add(path);
+                    await WritePresetFileNoLockAsync(path, preset, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            try { File.Move(LegacyPresetsFilePath, LegacyPresetsFilePath + $".migrated-{DateTime.UtcNow:yyyyMMddHHmmss}", overwrite: false); }
+            catch (IOException) { /* best-effort */ }
+            _logger.LogInformation("Wormholes: split legacy presets.json into per-preset files");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Wormholes: presets.json split migration failed");
+        }
     }
 
     private WormholePositionsFile SnapshotGeometriesFromCache()
     {
         var file = new WormholePositionsFile { SchemaVersion = 1 };
-        foreach (var rec in _cache!)
-        {
-            file.Positions[rec.Id] = CloneGeometry(rec.Geometry);
-        }
+        foreach (var rec in _cache!) file.Positions[rec.Id] = CloneGeometry(rec.Geometry);
         return file;
     }
 
@@ -386,62 +613,13 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
         }
     }
 
-    /// <summary>Clamp every entry of <paramref name="source"/> into the current virtual screen
-    /// so the cloned layout is usable on the new (typically smaller) display. Returns a new
-    /// <see cref="WormholePositionsFile"/> — the input is left untouched, so the same
-    /// reference can serve multiple destination setups without aliasing bugs.</summary>
-    private static WormholePositionsFile ClonePositionsClampedToVirtualScreen(WormholePositionsFile? source)
+    private async Task FlushNoLockAsync(CancellationToken cancellationToken)
     {
-        var result = new WormholePositionsFile { SchemaVersion = 1 };
-        if (source is null) return result;
-
-        var (vsLeft, vsTop, vsW, vsH) = GetCurrentVirtualScreenBounds();
-        foreach (var (id, g) in source.Positions)
-        {
-            var clamped = CloneGeometry(g);
-            // Clamp width/height to fit if the new screen is smaller than the source coords.
-            clamped.Width = Math.Min(g.Width, Math.Max(120, vsW - 40));
-            var effHeight = Math.Min(g.Height, Math.Max(60, vsH - 40));
-            clamped.Height = effHeight;
-            // Snap top-left into the visible rect, leaving at least 40px of the chrome
-            // visible on the right/bottom edges (matches WormholeWindowManager's off-screen
-            // recovery threshold so the user can always grab the chrome to move it).
-            clamped.X = Math.Clamp(g.X, vsLeft, vsLeft + Math.Max(0, vsW - 40));
-            clamped.Y = Math.Clamp(g.Y, vsTop, vsTop + Math.Max(0, vsH - 40));
-            result.Positions[id] = clamped;
-        }
-        return result;
-    }
-
-    /// <summary>Bounds of the current virtual screen in physical pixels, derived from the
-    /// live monitor enumeration. Wrap because the WPF SystemParameters access would require
-    /// a UI-thread hop and this store is called from background tasks (save handlers fired
-    /// off LocationChanged on the dispatcher, but the locked code runs on whatever pool
-    /// thread System.Text.Json resumes on).</summary>
-    private static (int Left, int Top, int Width, int Height) GetCurrentVirtualScreenBounds()
-    {
-        var monitors = MonitorEnumeration.Enumerate();
-        if (monitors.Count == 0) return (0, 0, 1920, 1080);
-        var left = monitors.Min(m => m.X);
-        var top = monitors.Min(m => m.Y);
-        var right = monitors.Max(m => m.X + m.Width);
-        var bottom = monitors.Max(m => m.Y + m.Height);
-        return (left, top, right - left, bottom - top);
-    }
-
-    private async Task<string?> TryReadOriginalMarkerAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (!File.Exists(OriginalMarkerPath)) return null;
-            var text = await File.ReadAllTextAsync(OriginalMarkerPath, cancellationToken).ConfigureAwait(false);
-            return text.Trim();
-        }
-        catch (IOException ex)
-        {
-            _logger.LogWarning(ex, "Could not read original-setup marker");
-            return null;
-        }
+        var file = new WormholeStoreFile { SchemaVersion = 2, Wormholes = _cache! };
+        var json = JsonSerializer.Serialize(file, WriteDefinitionOptions);
+        Directory.CreateDirectory(WormholesRootPath);
+        await WriteAtomicAsync(StoreFilePath, json, cancellationToken).ConfigureAwait(false);
+        await WritePositionsFileNoLockAsync(SnapshotGeometriesFromCache(), cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<WormholePositionsFile?> TryReadPositionsFileAsync(string path, CancellationToken cancellationToken)
@@ -459,64 +637,20 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
         }
     }
 
-    private async Task WritePositionsFileNoLockAsync(string setupHash, WormholePositionsFile contents, CancellationToken cancellationToken)
+    private async Task WritePositionsFileNoLockAsync(WormholePositionsFile contents, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(PositionsRootPath);
-        var path = PositionsFilePath(setupHash);
         var json = JsonSerializer.Serialize(contents, PositionsOptions);
+        await WriteAtomicAsync(PositionsFilePath, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task WriteAtomicAsync(string path, string json, CancellationToken cancellationToken)
+    {
         var tmp = path + ".tmp";
         await File.WriteAllTextAsync(tmp, json, cancellationToken).ConfigureAwait(false);
         File.Move(tmp, path, overwrite: true);
     }
 
-    /// <summary>Strip the wormhole id from every per-setup positions file. Called from
-    /// <see cref="DeleteAsync"/> so the deleted record doesn't linger as orphan JSON keys
-    /// the next time the user revisits an older setup. Best-effort per file — one unreadable
-    /// or locked positions file doesn't block the rest.</summary>
-    private async Task RemovePositionEverywhereNoLockAsync(Guid wormholeId, CancellationToken cancellationToken)
-    {
-        if (!Directory.Exists(PositionsRootPath)) return;
-        foreach (var file in Directory.EnumerateFiles(PositionsRootPath, "*.json"))
-        {
-            try
-            {
-                var positions = await TryReadPositionsFileAsync(file, cancellationToken).ConfigureAwait(false);
-                if (positions is null) continue;
-                if (!positions.Positions.Remove(wormholeId)) continue;
-                var setupHash = Path.GetFileNameWithoutExtension(file);
-                await WritePositionsFileNoLockAsync(setupHash, positions, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to prune deleted wormhole {Id} from positions file {File}", wormholeId, file);
-            }
-        }
-    }
-
     public void Dispose() => _gate.Dispose();
-
-    /// <summary>Writes the current cache to <c>wormholes.json</c> (definitions + global flags,
-    /// no geometry — see <see cref="WriteDefinitionOptions"/>) AND mirrors the current Geometry
-    /// of every record into the active setup's positions file. Both writes go through the temp-
-    /// rename atomic-replace pattern so a crash mid-save never leaves a half-written file.</summary>
-    private async Task FlushNoLockAsync(CancellationToken cancellationToken)
-    {
-        var file = new WormholeStoreFile { SchemaVersion = 2, Wormholes = _cache! };
-        var json = JsonSerializer.Serialize(file, WriteDefinitionOptions);
-        Directory.CreateDirectory(WormholesRootPath);
-        var tmp = StoreFilePath + ".tmp";
-        await File.WriteAllTextAsync(tmp, json, cancellationToken).ConfigureAwait(false);
-        File.Move(tmp, StoreFilePath, overwrite: true);
-
-        // Mirror the live geometries into the active setup's positions file. Done after the
-        // definitions write so a partial failure leaves the definitions consistent (geometry
-        // is recoverable from the next user interaction; definitions aren't).
-        if (!string.IsNullOrEmpty(_currentSetupHash))
-        {
-            var positions = SnapshotGeometriesFromCache();
-            await WritePositionsFileNoLockAsync(_currentSetupHash, positions, cancellationToken).ConfigureAwait(false);
-        }
-    }
 
     private static WormholeGeometry CloneGeometry(WormholeGeometry source)
         => new()
@@ -529,6 +663,18 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
             MonitorId = source.MonitorId,
         };
 
-    private static readonly IReadOnlyDictionary<Guid, WormholeGeometry> EmptyGeometryMap
-        = new Dictionary<Guid, WormholeGeometry>();
+    /// <summary>Shape of the interim single-file <c>presets.json</c>, read only during the one-time
+    /// split into per-preset files. Not written anymore.</summary>
+    private sealed class LegacyPresetsFile
+    {
+        public List<LegacyPreset> Presets { get; set; } = new();
+        public Dictionary<string, string> SetupMap { get; set; } = new();
+    }
+
+    private sealed class LegacyPreset
+    {
+        public string Name { get; set; } = string.Empty;
+        public Dictionary<Guid, WormholeGeometry> Positions { get; set; } = new();
+        public Dictionary<Guid, WormholePresetState> States { get; set; } = new();
+    }
 }

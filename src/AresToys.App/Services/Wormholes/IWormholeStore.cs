@@ -43,24 +43,55 @@ public interface IWormholeStore
     /// future backup-import path) can address the folder as a unit.</summary>
     string WormholesRootPath { get; }
 
-    /// <summary>Hash of the monitor configuration currently driving the in-memory geometry on
-    /// every record. Updated by <see cref="SwitchSetupAsync"/>. Exposed so the window manager
-    /// can compare against a freshly-computed hash on display-change events and decide whether
-    /// a switch is needed.</summary>
-    string CurrentSetupHash { get; }
+    /// <summary>Absolute path to the <c>Presets\</c> folder holding one JSON per named layout
+    /// preset. May not exist yet if no preset was ever saved; callers that open it should create
+    /// it on demand.</summary>
+    string PresetsFolderPath { get; }
 
-    /// <summary>Switch the active monitor-setup. Loads the positions file for
-    /// <paramref name="newSetupHash"/> (creating it on first encounter by cloning the original
-    /// setup's positions clamped to the current virtual screen) and applies the resulting
-    /// geometry to every cached record's <c>Geometry</c> in-place. The "original" setup is the
-    /// first one detected after the per-setup feature lands; its positions file is never
-    /// overwritten by switches — visiting a new RDP / phone resolution writes a NEW file and
-    /// leaves the original intact, so reconnecting the home monitor restores the layout the
-    /// user set up there.
-    /// <para>No-op when <paramref name="newSetupHash"/> equals <see cref="CurrentSetupHash"/>.
-    /// Returns the snapshot the caller should push onto each live window (key = wormhole id,
-    /// value = the geometry now in <c>WormholeRecord.Geometry</c>) so the caller can update
-    /// the WPF Left/Top/Width/Height in a single dispatcher hop. Returned dictionary is empty
-    /// when the call was a no-op.</para></summary>
-    Task<IReadOnlyDictionary<Guid, WormholeGeometry>> SwitchSetupAsync(string newSetupHash, CancellationToken cancellationToken);
+    // ------------------------------------------------------------------------------------------
+    // Named layout presets + per-setup auto-apply map. Replaces the old per-monitor-hash layout
+    // files: instead of the store silently cloning + clamping a layout for every new monitor
+    // configuration (which destroyed the home layout over RDP), the user saves named presets and
+    // the store maps each known monitor fingerprint to the preset that should reapply for it.
+    // Unknown fingerprints (RDP) map to nothing: the live layout is left untouched.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>Names of all saved presets, in insertion order. Empty when none exist.</summary>
+    Task<IReadOnlyList<string>> ListPresetNamesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Snapshot the CURRENT live geometry of every record into a preset named
+    /// <paramref name="name"/> (creating it, or overwriting an existing one with the same name,
+    /// case-insensitive) AND associate the current monitor fingerprint with it so it auto-applies
+    /// when this setup returns. Whitespace-only names are rejected (ArgumentException).</summary>
+    Task SavePresetAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Delete the preset named <paramref name="name"/> and drop every setup-map entry
+    /// pointing at it. No-op if it doesn't exist.</summary>
+    Task DeletePresetAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Rename a preset, re-pointing any setup-map entries. No-op if <paramref name="oldName"/>
+    /// is missing; rejects a whitespace or colliding <paramref name="newName"/>.</summary>
+    Task RenamePresetAsync(string oldName, string newName, CancellationToken cancellationToken);
+
+    /// <summary>The stored geometry of the preset named <paramref name="name"/>, or null if it
+    /// doesn't exist. Read-only snapshot for a restore.</summary>
+    Task<IReadOnlyDictionary<Guid, WormholeGeometry>?> GetPresetPositionsAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>The stored per-wormhole hidden/locked/rolled state of the preset named
+    /// <paramref name="name"/>. Empty when the preset doesn't exist or predates state capture
+    /// (in which case the caller leaves those flags untouched on restore).</summary>
+    Task<IReadOnlyDictionary<Guid, WormholePresetState>> GetPresetStatesAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Point the current monitor fingerprint at the preset named <paramref name="name"/>
+    /// so it auto-applies for this setup from now on. Called after a manual Restore.</summary>
+    Task AssociateCurrentSetupAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Name of the preset mapped to the CURRENT monitor fingerprint, or null when the
+    /// current setup is unknown (nothing to auto-apply — e.g. an RDP resolution never saved).</summary>
+    Task<string?> GetPresetNameForCurrentSetupAsync(CancellationToken cancellationToken);
+
+    /// <summary>Push <paramref name="positions"/> into the matching records' <c>Geometry</c>
+    /// in-place (ids not present in the cache are ignored) and flush <c>positions.json</c>. Used
+    /// by restore / auto-apply. Records absent from the map keep their current geometry.</summary>
+    Task ApplyPositionsAsync(IReadOnlyDictionary<Guid, WormholeGeometry> positions, CancellationToken cancellationToken);
 }

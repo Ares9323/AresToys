@@ -8,16 +8,15 @@ using Xunit;
 namespace AresToys.App.Tests.Wormholes;
 
 /// <summary>
-/// Integration coverage for the per-monitor-setup split: the migration from a legacy
-/// wormholes.json that carried geometry inline, the original-setup marker, and the
-/// promise that switching to a never-seen setup never mutates the original's file.
+/// Coverage for the layout-presets store: single live positions.json, named preset CRUD, the
+/// per-setup auto-apply map, and the one-time migration off the legacy per-monitor-setup
+/// Positions\&lt;hash&gt;.json layout.
 ///
-/// Tests use a temp folder + a stub <see cref="IStoragePathResolver"/> so each fact runs
-/// against a clean disk state. The store derives the active setup hash from the real
-/// monitor enumeration at runtime — we can't override that here without touching the
-/// production API, so the hash that ends up in the marker is whatever the machine reports.
-/// That's fine: the assertions check structural invariants (file exists, contents match,
-/// other files untouched) rather than the specific hex digits.
+/// Tests use a temp folder + a stub <see cref="IStoragePathResolver"/> so each fact runs against
+/// a clean disk state. The store derives the current setup fingerprint from the real monitor
+/// enumeration; on a headless CI box that is a stable sentinel ("no-monitors"). We read the same
+/// value via <see cref="MonitorSetupIdentifier.ComputeCurrentSetupHash"/> so the assertions stay
+/// machine-independent.
 /// </summary>
 public class WormholeStoreJsonTests : IDisposable
 {
@@ -39,157 +38,216 @@ public class WormholeStoreJsonTests : IDisposable
     }
 
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private string WormholesDir => Path.Combine(_tempRoot, "Wormholes");
 
-    [Fact]
-    public async Task FirstRun_LegacyWormholesJsonWithGeometry_MigratesIntoPositionsFile()
+    private async Task<WormholeRecord> SeedRecordAsync(WormholeStoreJson store, double x, double y)
     {
-        // Stage a legacy wormholes.json containing a record with embedded geometry — exactly
-        // the shape pre-multi-setup builds wrote. The migration should produce a
-        // Positions\<currentHash>.json with the same X/Y/W/H and stamp .original with the hash.
-        var wormholesDir = Path.Combine(_tempRoot, "Wormholes");
-        Directory.CreateDirectory(wormholesDir);
-        var id = Guid.NewGuid();
-        var legacyJson = $$"""
-            {
-              "$schema_version": 1,
-              "wormholes": [
-                {
-                  "id": "{{id}}",
-                  "title": "Legacy",
-                  "geometry": { "x": 500, "y": 400, "width": 800, "height": 600, "unrolledHeight": 600 },
-                  "portal": { "sourcePath": "C:\\Temp" }
-                }
-              ]
-            }
-            """;
-        await File.WriteAllTextAsync(Path.Combine(wormholesDir, "wormholes.json"), legacyJson);
-
-        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
-        var records = await store.LoadAllAsync(CancellationToken.None);
-
-        // The record's Geometry must survive the round-trip.
-        var rec = Assert.Single(records);
-        Assert.Equal(500, rec.Geometry.X);
-        Assert.Equal(400, rec.Geometry.Y);
-        Assert.Equal(800, rec.Geometry.Width);
-        Assert.Equal(600, rec.Geometry.Height);
-
-        // .original must have been stamped with the current setup hash.
-        var positionsDir = Path.Combine(wormholesDir, "Positions");
-        var markerPath = Path.Combine(positionsDir, ".original");
-        Assert.True(File.Exists(markerPath));
-        var markerHash = (await File.ReadAllTextAsync(markerPath)).Trim();
-        Assert.Equal(store.CurrentSetupHash, markerHash);
-
-        // The per-setup positions file must exist and carry the migrated geometry.
-        var setupFile = Path.Combine(positionsDir, store.CurrentSetupHash + ".json");
-        Assert.True(File.Exists(setupFile));
-        var positionsRaw = await File.ReadAllTextAsync(setupFile);
-        var positions = JsonSerializer.Deserialize<WormholePositionsFile>(positionsRaw, ReadOptions);
-        Assert.NotNull(positions);
-        Assert.True(positions!.Positions.ContainsKey(id));
-        Assert.Equal(500, positions.Positions[id].X);
+        var rec = new WormholeRecord
+        {
+            Id = Guid.NewGuid(),
+            Title = "R",
+            Portal = new PortalWormholeConfig { SourcePath = @"C:\Temp" },
+        };
+        rec.Geometry.X = x;
+        rec.Geometry.Y = y;
+        await store.SaveAsync(rec, CancellationToken.None);
+        return rec;
     }
 
     [Fact]
-    public async Task SaveAsync_AfterMigration_DoesNotWriteGeometryIntoWormholesJson()
+    public async Task SaveAsync_WritesGeometryToPositionsFileNotWormholesJson()
     {
-        // The whole point of the split: wormholes.json must stop carrying per-record
-        // geometry. Saving any change should rewrite the file WITHOUT the "geometry" key
-        // (which lives in the per-setup file from now on).
+        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
+        await store.LoadAllAsync(CancellationToken.None);
+        var rec = await SeedRecordAsync(store, 123, 234);
+
+        var wormholesRaw = await File.ReadAllTextAsync(Path.Combine(WormholesDir, "wormholes.json"));
+        Assert.DoesNotContain("\"geometry\"", wormholesRaw);
+        Assert.Contains("R", wormholesRaw);
+
+        var positionsRaw = await File.ReadAllTextAsync(Path.Combine(WormholesDir, "positions.json"));
+        var positions = JsonSerializer.Deserialize<WormholePositionsFile>(positionsRaw, ReadOptions);
+        Assert.NotNull(positions);
+        Assert.Equal(123, positions!.Positions[rec.Id].X);
+    }
+
+    [Fact]
+    public async Task SavePreset_CreatesPresetAndAssociatesCurrentSetup()
+    {
+        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
+        await store.LoadAllAsync(CancellationToken.None);
+        var rec = await SeedRecordAsync(store, 500, 400);
+
+        await store.SavePresetAsync("Home", CancellationToken.None);
+
+        var names = await store.ListPresetNamesAsync(CancellationToken.None);
+        Assert.Contains("Home", names);
+
+        var forSetup = await store.GetPresetNameForCurrentSetupAsync(CancellationToken.None);
+        Assert.Equal("Home", forSetup);
+
+        var positions = await store.GetPresetPositionsAsync("Home", CancellationToken.None);
+        Assert.NotNull(positions);
+        Assert.Equal(500, positions![rec.Id].X);
+    }
+
+    [Fact]
+    public async Task SavePreset_CapturesHiddenLockedRolledState()
+    {
         using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
         await store.LoadAllAsync(CancellationToken.None);
         var rec = new WormholeRecord
         {
             Id = Guid.NewGuid(),
-            Title = "Fresh",
+            Title = "R",
             Portal = new PortalWormholeConfig { SourcePath = @"C:\Temp" },
+            IsHidden = true,
+            IsLocked = true,
         };
-        rec.Geometry.X = 123;
-        rec.Geometry.Y = 234;
         await store.SaveAsync(rec, CancellationToken.None);
 
-        var wormholesJsonPath = Path.Combine(_tempRoot, "Wormholes", "wormholes.json");
-        var raw = await File.ReadAllTextAsync(wormholesJsonPath);
-        // String-level assertion: the writer must omit the "geometry" property entirely so
-        // there's no risk of stale geometry leaking back via a re-load.
-        Assert.DoesNotContain("\"geometry\"", raw);
-        // Title (a non-geometry field) must still round-trip.
-        Assert.Contains("Fresh", raw);
+        await store.SavePresetAsync("Home", CancellationToken.None);
+
+        var states = await store.GetPresetStatesAsync("Home", CancellationToken.None);
+        Assert.True(states.ContainsKey(rec.Id));
+        Assert.True(states[rec.Id].Hidden);
+        Assert.True(states[rec.Id].Locked);
+        Assert.False(states[rec.Id].Rolled);
     }
 
     [Fact]
-    public async Task SwitchSetupAsync_NewHashNoMarker_PromotesItToOriginal()
+    public async Task SavePreset_SameName_OverwritesInsteadOfDuplicating()
     {
-        // No legacy file, no marker — first ever call after the feature lands. SwitchSetup
-        // should snapshot whatever in-memory geometry exists (empty cache here, just
-        // exercising the "no prior data" branch) and stamp .original.
         using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
         await store.LoadAllAsync(CancellationToken.None);
+        var rec = await SeedRecordAsync(store, 10, 10);
+        await store.SavePresetAsync("Home", CancellationToken.None);
 
-        var initialHash = store.CurrentSetupHash;
-        Assert.False(string.IsNullOrEmpty(initialHash));
+        // Move the wormhole and re-save under the same name.
+        rec.Geometry.X = 999;
+        await store.SaveAsync(rec, CancellationToken.None);
+        await store.SavePresetAsync("Home", CancellationToken.None);
 
-        var markerPath = Path.Combine(_tempRoot, "Wormholes", "Positions", ".original");
-        Assert.True(File.Exists(markerPath));
-        Assert.Equal(initialHash, (await File.ReadAllTextAsync(markerPath)).Trim());
+        var names = await store.ListPresetNamesAsync(CancellationToken.None);
+        Assert.Single(names, n => string.Equals(n, "Home", StringComparison.OrdinalIgnoreCase));
+        var positions = await store.GetPresetPositionsAsync("Home", CancellationToken.None);
+        Assert.Equal(999, positions![rec.Id].X);
     }
 
     [Fact]
-    public async Task SwitchSetupAsync_SameHashTwice_IsNoOpAndReturnsEmpty()
+    public async Task DeletePreset_RemovesPresetAndSetupMapping()
     {
-        // Calling SwitchSetupAsync with the hash that's already active must not rewrite the
-        // positions file or touch any in-memory state — return an empty snapshot so the
-        // caller can skip the dispatcher hop entirely.
         using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
         await store.LoadAllAsync(CancellationToken.None);
-        var sameHash = store.CurrentSetupHash;
+        await SeedRecordAsync(store, 1, 1);
+        await store.SavePresetAsync("Home", CancellationToken.None);
 
-        var snapshot = await store.SwitchSetupAsync(sameHash, CancellationToken.None);
-        Assert.Empty(snapshot);
+        await store.DeletePresetAsync("Home", CancellationToken.None);
+
+        Assert.Empty(await store.ListPresetNamesAsync(CancellationToken.None));
+        Assert.Null(await store.GetPresetNameForCurrentSetupAsync(CancellationToken.None));
     }
 
     [Fact]
-    public async Task SwitchSetupAsync_DifferentHashWithMarker_ClonesOriginalIntoNewFile()
+    public async Task RenamePreset_RenamesAndRepointsSetupMapping()
     {
-        // Stage a legacy file and run a load to stamp .original + create the original
-        // positions file. Then switch to a synthetic "different" hash; expect a NEW
-        // positions file to be created without touching the original one.
-        var wormholesDir = Path.Combine(_tempRoot, "Wormholes");
-        Directory.CreateDirectory(wormholesDir);
+        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
+        await store.LoadAllAsync(CancellationToken.None);
+        await SeedRecordAsync(store, 1, 1);
+        await store.SavePresetAsync("Home", CancellationToken.None);
+
+        await store.RenamePresetAsync("Home", "Casa", CancellationToken.None);
+
+        var names = await store.ListPresetNamesAsync(CancellationToken.None);
+        Assert.Contains("Casa", names);
+        Assert.DoesNotContain("Home", names);
+        Assert.Equal("Casa", await store.GetPresetNameForCurrentSetupAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RenamePreset_ToExistingName_Throws()
+    {
+        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
+        await store.LoadAllAsync(CancellationToken.None);
+        await SeedRecordAsync(store, 1, 1);
+        await store.SavePresetAsync("Home", CancellationToken.None);
+        await store.SavePresetAsync("Office", CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => store.RenamePresetAsync("Home", "Office", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ApplyPositions_UpdatesRecordGeometryAndPositionsFile()
+    {
+        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
+        await store.LoadAllAsync(CancellationToken.None);
+        var rec = await SeedRecordAsync(store, 100, 100);
+
+        var target = new Dictionary<Guid, WormholeGeometry>
+        {
+            [rec.Id] = new WormholeGeometry { X = 777, Y = 888, Width = 320, Height = 240, UnrolledHeight = 240 },
+        };
+        await store.ApplyPositionsAsync(target, CancellationToken.None);
+
+        var records = await store.LoadAllAsync(CancellationToken.None);
+        Assert.Equal(777, records.Single().Geometry.X);
+
+        var positionsRaw = await File.ReadAllTextAsync(Path.Combine(WormholesDir, "positions.json"));
+        var positions = JsonSerializer.Deserialize<WormholePositionsFile>(positionsRaw, ReadOptions);
+        Assert.Equal(777, positions!.Positions[rec.Id].X);
+    }
+
+    [Fact]
+    public async Task SavePreset_EmptyName_Throws()
+    {
+        using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
+        await store.LoadAllAsync(CancellationToken.None);
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => store.SavePresetAsync("   ", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FirstRun_MigratesLegacyPerSetupPositionsIntoPositionsAndOriginalPreset()
+    {
+        // Stage the legacy layout: wormholes.json (definitions), Positions\<currentHash>.json with
+        // geometry, and a .original marker naming that hash. Migration must produce positions.json
+        // with the same geometry, seed an "Original" preset, and archive the Positions folder.
+        Directory.CreateDirectory(WormholesDir);
         var id = Guid.NewGuid();
-        var legacyJson = $$"""
-            {
-              "$schema_version": 1,
-              "wormholes": [
-                { "id": "{{id}}", "title": "L", "geometry": { "x": 200, "y": 200, "width": 320, "height": 240, "unrolledHeight": 240 }, "portal": { "sourcePath": "C:\\Temp" } }
-              ]
-            }
+        var currentHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+
+        var wormholesJson = $$"""
+            { "$schema_version": 2, "wormholes": [ { "id": "{{id}}", "title": "L", "portal": { "sourcePath": "C:\\Temp" } } ] }
             """;
-        await File.WriteAllTextAsync(Path.Combine(wormholesDir, "wormholes.json"), legacyJson);
+        await File.WriteAllTextAsync(Path.Combine(WormholesDir, "wormholes.json"), wormholesJson);
+
+        var positionsDir = Path.Combine(WormholesDir, "Positions");
+        Directory.CreateDirectory(positionsDir);
+        var legacyPositions = $$"""
+            { "$schema_version": 1, "positions": { "{{id}}": { "x": 640, "y": 480, "width": 800, "height": 600, "unrolledHeight": 600 } } }
+            """;
+        await File.WriteAllTextAsync(Path.Combine(positionsDir, currentHash + ".json"), legacyPositions);
+        await File.WriteAllTextAsync(Path.Combine(positionsDir, ".original"), currentHash);
 
         using var store = new WormholeStoreJson(_paths, NullLogger<WormholeStoreJson>.Instance);
-        await store.LoadAllAsync(CancellationToken.None);
-        var originalHash = store.CurrentSetupHash;
-        var originalFile = Path.Combine(wormholesDir, "Positions", originalHash + ".json");
-        var originalBytes = await File.ReadAllBytesAsync(originalFile);
-        var originalLastWrite = File.GetLastWriteTimeUtc(originalFile);
+        var records = await store.LoadAllAsync(CancellationToken.None);
 
-        // Switch to a synthetic hash that can't collide with the real current setup hash.
-        const string fakeHash = "0000000000000000";
-        Assert.NotEqual(fakeHash, originalHash);
-        var snapshot = await store.SwitchSetupAsync(fakeHash, CancellationToken.None);
+        // Geometry migrated onto the record.
+        Assert.Equal(640, records.Single().Geometry.X);
 
-        // The switch must have created the new file.
-        var newFile = Path.Combine(wormholesDir, "Positions", fakeHash + ".json");
-        Assert.True(File.Exists(newFile));
-        // And populated the snapshot with the migrated id.
-        Assert.True(snapshot.ContainsKey(id));
+        // positions.json now exists with the geometry.
+        var positionsRaw = await File.ReadAllTextAsync(Path.Combine(WormholesDir, "positions.json"));
+        var positions = JsonSerializer.Deserialize<WormholePositionsFile>(positionsRaw, ReadOptions);
+        Assert.Equal(640, positions!.Positions[id].X);
 
-        // CRITICAL: the original positions file must NOT have been overwritten. Compare bytes
-        // (last-write-time alone isn't reliable on every filesystem; bytes are authoritative).
-        var afterBytes = await File.ReadAllBytesAsync(originalFile);
-        Assert.Equal(originalBytes, afterBytes);
+        // An "Original" preset was seeded and mapped to this setup.
+        var names = await store.ListPresetNamesAsync(CancellationToken.None);
+        Assert.Contains("Original", names);
+        Assert.Equal("Original", await store.GetPresetNameForCurrentSetupAsync(CancellationToken.None));
+
+        // The legacy Positions folder was archived (renamed aside), not left in place.
+        Assert.False(Directory.Exists(positionsDir));
     }
 
     private sealed class StubPaths(string root) : IStoragePathResolver

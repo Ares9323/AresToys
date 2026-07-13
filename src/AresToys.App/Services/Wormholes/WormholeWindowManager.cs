@@ -28,6 +28,12 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     /// there) so the timer is bound to the dispatcher the wormhole windows live on.</summary>
     private DispatcherTimer? _displaySettleTimer;
 
+    /// <summary>Monitor fingerprint the live layout currently reflects. Set once at startup and
+    /// updated only when a display settle detects a DIFFERENT fingerprint, so a spurious display
+    /// event (lock/unlock, DPI tick) on the same setup does NOT re-apply the preset and wipe the
+    /// user's un-saved live moves. A genuine setup change re-applies the mapped preset.</summary>
+    private string _lastSetupHash = string.Empty;
+
     public WormholeWindowManager(
         IWormholeStore store,
         IconService icons,
@@ -144,73 +150,130 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private async Task OnDisplaySettleTickAsync()
     {
         _displaySettleTimer?.Stop();
-
-        // Identify the new setup and ask the store to switch (loads existing positions file,
-        // or clones from the original clamped to the new virtual screen and saves as a brand-
-        // new file). The store mutates every record's in-memory Geometry to the resolved
-        // positions; the snapshot it returns is the dictionary we push onto the live windows.
-        var newSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
-        IReadOnlyDictionary<Guid, WormholeGeometry> snapshot;
         try
         {
-            snapshot = await _store.SwitchSetupAsync(newSetupHash, CancellationToken.None).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Wormholes: SwitchSetupAsync failed for new setup {Hash}", newSetupHash);
-            WormholeWindow.SuppressGeometryPersist = false;
-            return;
-        }
-
-        if (snapshot.Count == 0)
-        {
-            // Same setup as before — nothing to apply, just lift the freeze. Persists from any
-            // user-driven LocationChanged that fire after this point go straight to the active
-            // setup's positions file as usual.
-            WormholeWindow.SuppressGeometryPersist = false;
-            _logger.LogDebug("Wormholes: display settled, setup hash unchanged ({Hash})", newSetupHash);
-            return;
-        }
-
-        // Push the new geometry onto every live window. SuppressGeometryPersist stays true so
-        // the LocationChanged / SizeChanged events fired by the WPF assignments below don't
-        // immediately overwrite what we just resolved (they'd write the same values back, but
-        // the redundant disk writes during a setup switch are noise). Lifted in finally.
-        // Records lookup is needed for the IsRolled flag — rolled wormholes must keep their
-        // rolled height; pushing the stored Height onto a rolled window would visually unroll
-        // it. LoadAllAsync hits the store's in-memory cache (no disk read here).
-        IReadOnlyList<WormholeRecord> records;
-        try { records = await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true); }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Wormholes: LoadAllAsync after SwitchSetupAsync failed; skipping window push");
-            WormholeWindow.SuppressGeometryPersist = false;
-            return;
-        }
-        var rolledById = records.ToDictionary(r => r.Id, r => r.IsRolled);
-        try
-        {
-            foreach (var (id, window) in _live)
+            var newSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+            if (string.Equals(newSetupHash, _lastSetupHash, StringComparison.Ordinal))
             {
-                if (!snapshot.TryGetValue(id, out var g)) continue;
-                try
-                {
-                    window.Left = g.X;
-                    window.Top = g.Y;
-                    window.Width = g.Width;
-                    if (!rolledById.GetValueOrDefault(id)) window.Height = g.Height;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Apply switched-setup geometry failed for {Id}", id);
-                }
+                // Same monitor setup as before (a lock/unlock, DPI tick, or duplicate event).
+                // Do NOT re-apply a preset — that would wipe un-saved live moves. Just settle.
+                _logger.LogDebug("Wormholes: display settled, setup unchanged ({Hash})", newSetupHash);
+                return;
             }
-            _logger.LogInformation("Wormholes: applied {Count} window geometries for setup {Hash}", snapshot.Count, newSetupHash);
+
+            // Genuine setup change. Apply the preset mapped to the new setup, if any. Unknown
+            // setup (e.g. an RDP resolution never saved) → leave the live layout untouched, so a
+            // good layout is never overwritten. No clamping.
+            await ApplyLayoutForCurrentSetupAsync().ConfigureAwait(true);
+            _lastSetupHash = newSetupHash;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Wormholes: display settle handling failed");
         }
         finally
         {
             WormholeWindow.SuppressGeometryPersist = false;
         }
+    }
+
+    /// <summary>Look up the preset mapped to the current monitor fingerprint and, if there is one,
+    /// apply it (geometry + hidden/locked/rolled) to the store + live windows. Unknown setup →
+    /// no-op. No clamping.</summary>
+    private async Task ApplyLayoutForCurrentSetupAsync()
+    {
+        string? presetName;
+        try { presetName = await _store.GetPresetNameForCurrentSetupAsync(CancellationToken.None).ConfigureAwait(true); }
+        catch (Exception ex) { _logger.LogError(ex, "Wormholes: preset lookup for current setup failed"); return; }
+
+        if (string.IsNullOrEmpty(presetName))
+        {
+            _logger.LogDebug("Wormholes: current monitor setup has no associated preset; layout left as-is");
+            return;
+        }
+
+        if (await ApplyPresetToLiveAsync(presetName).ConfigureAwait(true))
+            _logger.LogInformation("Wormholes: auto-applied preset '{Name}' for current setup", presetName);
+    }
+
+    /// <summary>Apply a preset by name to the records + live windows: push each wormhole's saved
+    /// geometry and hidden/locked/rolled state, persist, then reconcile every window (spawn a
+    /// newly-visible wormhole, close a newly-hidden one, or refresh geometry + lock/roll in place).
+    /// Returns false if the preset doesn't exist. States absent from an older preset leave those
+    /// flags untouched. No clamping. Shared by manual Restore and the setup-change auto-apply.</summary>
+    private async Task<bool> ApplyPresetToLiveAsync(string name)
+    {
+        var geom = await _store.GetPresetPositionsAsync(name, CancellationToken.None).ConfigureAwait(true);
+        if (geom is null) return false;
+        var states = await _store.GetPresetStatesAsync(name, CancellationToken.None).ConfigureAwait(true);
+
+        var records = (await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true)).ToList();
+        foreach (var rec in records)
+        {
+            if (geom.TryGetValue(rec.Id, out var g))
+            {
+                rec.Geometry.X = g.X;
+                rec.Geometry.Y = g.Y;
+                rec.Geometry.Width = g.Width;
+                rec.Geometry.Height = g.Height;
+                rec.Geometry.UnrolledHeight = g.UnrolledHeight;
+                rec.Geometry.MonitorId = g.MonitorId;
+            }
+            if (states.TryGetValue(rec.Id, out var s))
+            {
+                rec.IsHidden = s.Hidden;
+                rec.IsLocked = s.Locked;
+                rec.IsRolled = s.Rolled;
+            }
+        }
+
+        try { await _store.FlushAsync(CancellationToken.None).ConfigureAwait(true); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Wormholes: flush during preset apply failed"); }
+
+        // Reconcile each window to the (possibly changed) record state: spawn/close on hidden
+        // flips, push geometry + refresh lock/roll otherwise. Iterate the snapshot list, not the
+        // live cache, since ReconcileAsync mutates _live.
+        foreach (var rec in records)
+        {
+            try { await ReconcileAsync(rec, CancellationToken.None).ConfigureAwait(true); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Wormholes: reconcile during preset apply failed for {Id}", rec.Id); }
+        }
+        return true;
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Layout presets (tray + Settings). Save snapshots current geometry + per-wormhole state and
+    // binds it to this monitor setup; Restore applies a preset to the live windows and re-binds
+    // this setup to it.
+    // ------------------------------------------------------------------------------------------
+
+    public Task<IReadOnlyList<string>> ListPresetsAsync(CancellationToken cancellationToken)
+        => _store.ListPresetNamesAsync(cancellationToken);
+
+    public string PresetsFolderPath => _store.PresetsFolderPath;
+
+    public Task<string?> CurrentSetupPresetAsync(CancellationToken cancellationToken)
+        => _store.GetPresetNameForCurrentSetupAsync(cancellationToken);
+
+    public async Task SaveCurrentAsPresetAsync(string name, CancellationToken cancellationToken)
+    {
+        await _store.SavePresetAsync(name, cancellationToken).ConfigureAwait(true);
+        _lastSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+    }
+
+    public async Task DeletePresetAsync(string name, CancellationToken cancellationToken)
+        => await _store.DeletePresetAsync(name, cancellationToken).ConfigureAwait(true);
+
+    public Task RenamePresetAsync(string oldName, string newName, CancellationToken cancellationToken)
+        => _store.RenamePresetAsync(oldName, newName, cancellationToken);
+
+    public async Task RestorePresetAsync(string name, CancellationToken cancellationToken)
+    {
+        if (!await ApplyPresetToLiveAsync(name).ConfigureAwait(true)) return;
+        await _store.AssociateCurrentSetupAsync(name, cancellationToken).ConfigureAwait(true);
+        _lastSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+        var records = await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true);
+        foreach (var rec in records) RecordChanged?.Invoke(this, rec.Id);
     }
 
     /// <summary>See <see cref="IWormholeWindowManager.NotifyItemSelectionTaken"/>. Iterates the
@@ -303,6 +366,13 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // host referenced by a live .url (including hidden wormholes — their links still count)
         // and purge cached favicons for hosts no longer present, plus any past the refresh age.
         _ = Task.Run(() => PurgeFaviconCache(records), cancellationToken);
+
+        // Record which monitor setup the just-spawned layout reflects. Startup deliberately does
+        // NOT auto-apply a preset: the windows spawn from positions.json (where the user left
+        // them), and SnapGeometryIfOffscreen already recovers any window whose stored coords are
+        // fully off the current virtual screen. A preset is auto-applied only when a genuine
+        // setup change is detected at runtime (see OnDisplaySettleTickAsync).
+        _lastSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
     }
 
     /// <summary>Collect the hosts of every <c>.url</c> across all wormhole sources and hand them

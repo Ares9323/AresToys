@@ -5919,6 +5919,15 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Open presets folder.
+        /// </summary>
+        public static string Tray_OpenPresetsFolder {
+            get {
+                return ResourceManager.GetString("Tray_OpenPresetsFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Open screenshot folder.
         /// </summary>
         public static string Tray_OpenScreenshotFolder {
@@ -7810,6 +7819,120 @@ namespace AresToys.App.Resources {
         public static string Wormholes_RefreshButton {
             get {
                 return ResourceManager.GetString("Wormholes_RefreshButton", resourceCulture);
+            }
+        }
+
+        public static string Tray_WormholeLayout {
+            get {
+                return ResourceManager.GetString("Tray_WormholeLayout", resourceCulture);
+            }
+        }
+
+        public static string Tray_NoPresets {
+            get {
+                return ResourceManager.GetString("Tray_NoPresets", resourceCulture);
+            }
+        }
+
+        public static string Tray_SaveLayoutAs {
+            get {
+                return ResourceManager.GetString("Tray_SaveLayoutAs", resourceCulture);
+            }
+        }
+
+        public static string Tray_UpdateLayout {
+            get {
+                return ResourceManager.GetString("Tray_UpdateLayout", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Title {
+            get {
+                return ResourceManager.GetString("WormholePresets_Title", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Hint {
+            get {
+                return ResourceManager.GetString("WormholePresets_Hint", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_CurrentSetup {
+            get {
+                return ResourceManager.GetString("WormholePresets_CurrentSetup", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_None {
+            get {
+                return ResourceManager.GetString("WormholePresets_None", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_SaveAsButton {
+            get {
+                return ResourceManager.GetString("WormholePresets_SaveAsButton", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Restore {
+            get {
+                return ResourceManager.GetString("WormholePresets_Restore", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Update {
+            get {
+                return ResourceManager.GetString("WormholePresets_Update", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Rename {
+            get {
+                return ResourceManager.GetString("WormholePresets_Rename", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Delete {
+            get {
+                return ResourceManager.GetString("WormholePresets_Delete", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_Empty {
+            get {
+                return ResourceManager.GetString("WormholePresets_Empty", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_SaveTitle {
+            get {
+                return ResourceManager.GetString("WormholePresets_SaveTitle", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_RenameTitle {
+            get {
+                return ResourceManager.GetString("WormholePresets_RenameTitle", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_NameLabel {
+            get {
+                return ResourceManager.GetString("WormholePresets_NameLabel", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_DeleteConfirm {
+            get {
+                return ResourceManager.GetString("WormholePresets_DeleteConfirm", resourceCulture);
+            }
+        }
+
+        public static string WormholePresets_OverwriteConfirm {
+            get {
+                return ResourceManager.GetString("WormholePresets_OverwriteConfirm", resourceCulture);
             }
         }
     }

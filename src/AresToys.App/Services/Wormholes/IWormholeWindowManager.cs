@@ -89,6 +89,37 @@ public interface IWormholeWindowManager
     /// otherwise turn topmost off everywhere.</summary>
     Task ToggleAllTopmostAsync(CancellationToken cancellationToken);
 
+    // ------------------------------------------------------------------------------------------
+    // Layout presets. Named snapshots of every wormhole's geometry that the user saves and
+    // restores from the tray / Settings. Saving or restoring also binds the current monitor
+    // setup to the preset so it auto-reapplies when that setup returns.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>Names of all saved layout presets, in insertion order.</summary>
+    Task<IReadOnlyList<string>> ListPresetsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Absolute path to the folder holding one JSON per named layout preset. Exposed so
+    /// the tray / Settings can open it in Explorer for hand-editing or deletion.</summary>
+    string PresetsFolderPath { get; }
+
+    /// <summary>Name of the preset auto-associated with the CURRENT monitor setup, or null when
+    /// this setup is unknown (nothing to auto-apply).</summary>
+    Task<string?> CurrentSetupPresetAsync(CancellationToken cancellationToken);
+
+    /// <summary>Snapshot the current live geometry into a preset named <paramref name="name"/>
+    /// (creating or overwriting it) and bind the current monitor setup to it.</summary>
+    Task SaveCurrentAsPresetAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Delete the preset named <paramref name="name"/> (and any setup bindings to it).</summary>
+    Task DeletePresetAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Rename a preset, keeping its setup bindings.</summary>
+    Task RenamePresetAsync(string oldName, string newName, CancellationToken cancellationToken);
+
+    /// <summary>Apply the preset named <paramref name="name"/> to the live windows + persist it as
+    /// the current layout, and bind the current monitor setup to it. No-op if it doesn't exist.</summary>
+    Task RestorePresetAsync(string name, CancellationToken cancellationToken);
+
     /// <summary>Called by a wormhole window when the user clicks/selects an item inside it
     /// (without Ctrl/Shift) — clears the item selection on every OTHER live wormhole, so the
     /// "selected" highlight is always single-wormhole. Mirrors Explorer's per-folder selection
