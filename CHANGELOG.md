@@ -3,6 +3,21 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.28] — 2026-07-15
+
+Recording hotkey reliability fix.
+
+### Screen recording
+- Pressing the recording hotkey a second time to stop no longer silently does
+  nothing. Both recording hotkeys are bound to PrintScreen (Shift for mp4,
+  Ctrl+Shift for gif). On Win11 the capture overlay opening on the first press
+  can make Windows drop the paired KEYUP, which left stale state in the
+  low-level keyboard hook and swallowed every following PrintScreen press. That
+  froze both the mp4 and gif stop hotkeys even though the overlay's own Stop
+  button kept working. PrintScreen and Pause are now handled by a self-healing
+  scheme: fire on the leading edge, then pair the trailing KEYUP by a short
+  time window, so a dropped KEYUP can no longer poison the next press.
+
 ## [0.1.27] — 2026-07-13
 
 Wormhole layout management moves from opaque per-monitor-setup auto-cloning to
