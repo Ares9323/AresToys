@@ -27,6 +27,26 @@ public sealed class KeyboardHook : IDisposable
     private readonly HashSet<uint> _suppressedKeyUps = [];
     private readonly object _suppressedKeyUpsLock = new();
 
+    /// <summary>PrintScreen / Pause are matched on their KEYUP edge because Windows usually
+    /// consumes their KEYDOWN before any low-level hook runs. On Win11 the delivery is
+    /// unreliable, though: it flips between "consume KEYDOWN" and "deliver both", and can DROP
+    /// the KEYUP entirely when a foreground change (e.g. our capture overlay opening on the
+    /// first press) races the keystroke. The generic <see cref="_heldKeys"/> auto-repeat guard
+    /// and <see cref="_suppressedKeyUps"/> pairing both left STALE state on a dropped KEYUP,
+    /// which then silently swallowed the NEXT press: both recording hotkeys are bound to
+    /// PrintScreen, so a single dropped KEYUP froze BOTH "start recording" and "stop recording".
+    /// These keys are handled by a self-healing scheme in <see cref="HookProc"/> instead — fire
+    /// on the leading edge, and swallow only a KEYUP that pairs with a KEYDOWN we fired within
+    /// <see cref="KeyUpPairWindowMs"/>. A dropped KEYUP can't poison anything because the pairing
+    /// window expires on its own. Maps vkCode → TickCount64 of the last KEYDOWN we fired for it.</summary>
+    private readonly Dictionary<uint, long> _keyUpTriggerArmTick = new();
+    private readonly object _keyUpTriggerLock = new();
+    /// <summary>How long after a fired KEYDOWN a matching KEYUP is treated as that same press's
+    /// trailing edge (swallowed, no second fire) rather than a fresh press. Comfortably longer
+    /// than the microsecond gap of a real KEYDOWN→KEYUP pair, far shorter than any deliberate
+    /// start/stop re-press.</summary>
+    private const long KeyUpPairWindowMs = 250;
+
     /// <summary>Pure-observer listeners notified of every non-injected key transition. Cannot
     /// suppress events — suppression is the exclusive concern of the atomic bindings in
     /// <see cref="_bindings"/>. Used by the Key Sequences module to feed its rolling buffer.</summary>
@@ -188,6 +208,39 @@ public sealed class KeyboardHook : IDisposable
 
         if (matched is null) return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
 
+        // ── Keyup-trigger special keys (PrintScreen / Pause) ──────────────────────────────
+        // Self-healing path that tolerates Win11's unreliable KEYDOWN/KEYUP delivery for these
+        // keys (see _keyUpTriggerArmTick remark). Always fire on the leading edge; swallow only
+        // a KEYUP that pairs with a KEYDOWN we just fired. Deliberately bypasses the _heldKeys
+        // auto-repeat guard and the _suppressedKeyUps pairing used for ordinary keys — both left
+        // stale state when a KEYUP was dropped, which silently ate the next press (the two
+        // recording hotkeys, both bound to PrintScreen, would freeze after the first press).
+        // PrintScreen / Pause have no on-release OS action to suppress, so a swallowed paired
+        // KEYUP is a pure de-dupe, not a suppression concern.
+        if (data.vkCode is VK_SNAPSHOT or VK_PAUSE)
+        {
+            var nowTick = Environment.TickCount64;
+            var shouldFire = true;
+            if (isKeyUp)
+            {
+                lock (_keyUpTriggerLock)
+                {
+                    // Trailing edge of the press we already fired on (its KEYDOWN) ⇒ swallow.
+                    // Consume the arm either way so a later genuine keyup-only press still fires.
+                    if (_keyUpTriggerArmTick.TryGetValue(data.vkCode, out var armed) && nowTick - armed < KeyUpPairWindowMs)
+                        shouldFire = false;
+                    _keyUpTriggerArmTick.Remove(data.vkCode);
+                }
+            }
+            else // leading-edge KEYDOWN — always a genuine press; arm the paired-keyup swallow.
+            {
+                lock (_keyUpTriggerLock) _keyUpTriggerArmTick[data.vkCode] = nowTick;
+            }
+
+            if (shouldFire) FireCallback(matched);
+            return matched.Suppress ? (IntPtr)1 : CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+        }
+
         // De-bounce auto-repeat: if the trigger key was already down (we never saw its keyup),
         // this is a Windows-driven repeat — suppress the visual side-effects but DON'T fire the
         // callback. A genuine second press only happens after the user lets go and re-presses,
@@ -211,13 +264,7 @@ public sealed class KeyboardHook : IDisposable
 
         if (firstPress)
         {
-            // Fire the callback off the hook thread so a slow callback doesn't trip the Windows
-            // hook timeout (which would cause the OS to silently uninstall us).
-            ThreadPool.QueueUserWorkItem(_ =>
-            {
-                try { matched.Callback(); }
-                catch { /* swallow — host should log inside the callback */ }
-            });
+            FireCallback(matched);
         }
 
         if (!matched.Suppress) return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
@@ -247,6 +294,16 @@ public sealed class KeyboardHook : IDisposable
         }
         return (IntPtr)1;
     }
+
+    /// <summary>Dispatch a matched binding's callback off the hook thread — a slow callback run
+    /// synchronously here would trip the Windows LowLevelHooksTimeout and get the hook silently
+    /// uninstalled. Exceptions are swallowed; the host is expected to log inside the callback.</summary>
+    private static void FireCallback(HookBinding binding)
+        => ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try { binding.Callback(); }
+            catch { /* swallow — host should log inside the callback */ }
+        });
 
     /// <summary>Snapshot the listener list under the lock, then dispatch each invocation on the
     /// thread pool — same pattern as <see cref="HookProc"/>'s atomic-binding callback dispatch.

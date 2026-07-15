@@ -80,4 +80,38 @@ public class KeyboardHookSnapshotBindingTests
             $"all 3 presses must fire across mixed delivery, fired {fires}");
         Assert.Equal(3, fires);
     }
+
+    /// <summary>The freeze behind "second Shift+PrintScreen does nothing while recording": on the
+    /// first press Windows delivered the KEYDOWN (which started the recording) but the paired
+    /// KEYUP never reached the hook — the capture overlay opening changed the foreground window
+    /// and ate it. The old code added the vk to <c>_heldKeys</c> on that KEYDOWN and, with no
+    /// KEYUP to clear it, debounced the NEXT KEYDOWN as an auto-repeat and swallowed it. Both
+    /// recording hotkeys are bound to PrintScreen (Shift+Print for mp4, Ctrl+Shift+Print for gif),
+    /// so BOTH "stop" presses froze while the overlay's own Stop button still worked. Pin the fix:
+    /// a KEYDOWN whose KEYUP is dropped must never block the following press.</summary>
+    [Theory]
+    [InlineData(VK_SNAPSHOT)]
+    [InlineData(VK_PAUSE)]
+    public void KeyupTriggerKey_KeydownWithDroppedKeyup_NextPressStillFires(uint vk)
+    {
+        using var hook = new KeyboardHook();
+        var fires = 0;
+        var second = new CountdownEvent(2);
+        hook.Register("snap", HotkeyModifiers.None, vk, () =>
+        {
+            Interlocked.Increment(ref fires);
+            second.Signal();
+        }, suppress: true);
+
+        // Press 1 — KEYDOWN arrives and fires (starts the recording). Its KEYUP is DROPPED
+        // (overlay-open foreground race), so the hook never sees it.
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYDOWN));
+
+        // Press 2 — user presses again to stop. Must fire despite press 1's lost KEYUP.
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYDOWN));
+
+        Assert.True(second.Wait(DispatchTimeout),
+            $"a press after a dropped keyup must still fire, fired {fires}");
+        Assert.Equal(2, fires);
+    }
 }
