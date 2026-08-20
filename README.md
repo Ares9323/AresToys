@@ -6,7 +6,7 @@
 
 > Modern productivity suite for Windows — unifies CopyQ (clipboard), ShareX (capture + upload), and MaxLauncher (keyboard launcher) into one app, plus tools none of them ship.
 
-**Status:** Alpha, actively shipped. Latest release: **v0.1.28** (2026-07-15). Velopack-driven installer + portable + delta updates flow through GitHub Releases on every tagged version.
+**Status:** Alpha, actively shipped. Latest release: **v0.1.29** (2026-08-20). Velopack-driven installer + portable + delta updates flow through GitHub Releases on every tagged version.
 
 ---
 

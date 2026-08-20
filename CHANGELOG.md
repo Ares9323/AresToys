@@ -3,6 +3,33 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.29] — 2026-08-20
+
+Image editor fixes plus a text outline option, and a clipboard fix so images
+paste into Discord.
+
+### Image editor
+- Moving a shape (drag) and resizing/rotating it via the grips now commit an
+  undo step on mouse-up, so Ctrl+Z reverts them. Previously the commit only
+  happened when the selection changed or the editor closed, so a move that
+  wasn't followed by a reselect never entered the undo stack.
+- Rectangles and ellipses with a transparent fill are now selectable across
+  their whole interior instead of only within a few pixels of the outline — a
+  large empty box was almost impossible to grab.
+- Text can have an outline (contour): a per-text outline colour and width, with
+  its own sticky text defaults kept separate from the global Outline/Fill/Stroke
+  (so "red arrows" and "white text with a thick black outline" coexist). The
+  Default properties panel swaps to the text defaults while the Text tool is
+  active, "Set as default" and "Apply to selected" handle them, and typing shows
+  a faithful live preview rendered with the same code as the committed text.
+
+### Clipboard
+- Copying an image now publishes CF_DIBV5 (an alpha-aware 32-bit DIB) alongside
+  the registered "PNG" format. Discord (and other Chromium/Electron apps) read
+  the raster path on paste rather than the "PNG" format, so transparent images
+  used to paste as nothing; they now appear. Windows synthesises CF_DIB and
+  CF_BITMAP from the DIBV5 for legacy consumers.
+
 ## [0.1.28] — 2026-07-15
 
 Recording hotkey reliability fix.
