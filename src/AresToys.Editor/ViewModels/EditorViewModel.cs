@@ -80,6 +80,20 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty]
     private TextStyle _currentTextStyle = TextStyle.Default;
 
+    /// <summary>Sticky text-outline defaults, kept SEPARATE from the global Outline/Stroke so the
+    /// user can run e.g. "red arrows" (global outline) and "white text with a thick black outline"
+    /// (text default) at the same time. New texts inherit these; the per-text outline controls and
+    /// "Set as default" write back here. The outline is "off" purely via width 0; the colour
+    /// defaults to opaque black (NOT transparent) so that raising the width from the swatch's
+    /// starting value produces a visible contour instead of a fully-transparent one — picking a hue
+    /// from a transparent swatch used to leave alpha at 0 and the outline invisible.
+    /// Persisted across sessions via EditorDefaults.</summary>
+    [ObservableProperty]
+    private ShapeColor _textOutlineColor = ShapeColor.Black;
+
+    [ObservableProperty]
+    private double _textOutlineWidth;
+
     /// <summary>Sticky default for the freehand tool's Smooth flag. New strokes inherit this;
     /// the per-shape Smooth toggle in the properties panel also writes back here so the next
     /// stroke gets whatever the user just chose. Persisted across sessions via EditorDefaults.</summary>

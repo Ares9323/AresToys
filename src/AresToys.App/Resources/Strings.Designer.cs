@@ -1723,7 +1723,25 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Editor_TextColor", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Outline color.
+        /// </summary>
+        public static string Editor_TextOutlineColor {
+            get {
+                return ResourceManager.GetString("Editor_TextOutlineColor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Outline width.
+        /// </summary>
+        public static string Editor_TextOutlineWidth {
+            get {
+                return ResourceManager.GetString("Editor_TextOutlineWidth", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Tip style.
         /// </summary>

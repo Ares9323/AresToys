@@ -285,7 +285,7 @@
             </UniformGrid>
             <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
 
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,0">
             <StackPanel x:Name="PropertyPanel">
                 <!-- Crop properties — visible only when the Crop tool is active and there are
                      pending crop rectangles. Hosts the global "Apply all crops" action so the
@@ -317,40 +317,76 @@
                      stacked underneath because the slider needs the full width. -->
                 <TextBlock x:Name="DefaultPropertiesTitle" Text="Default properties" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
                            Margin="0,0,0,8" />
-                <Grid Margin="0,0,0,10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                        <TextBlock x:Name="OutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                   HorizontalAlignment="Center" />
-                        <views:ColorSwatchButton x:Name="OutlineSwatch" HorizontalAlignment="Center" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                        <TextBlock x:Name="FillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                   HorizontalAlignment="Center" />
-                        <views:ColorSwatchButton x:Name="FillSwatch" HorizontalAlignment="Center" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                        <TextBlock x:Name="TextLabel" Text="Text" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                   HorizontalAlignment="Center" />
-                        <views:ColorSwatchButton x:Name="TextSwatch" HorizontalAlignment="Center" />
-                    </StackPanel>
-                </Grid>
-                <StackPanel Margin="0,0,0,8">
-                    <Grid Margin="0,0,0,4">
+
+                <!-- Shape defaults (Outline / Fill / Stroke) for the next drawn figure. Hidden when
+                     the Text tool is active — text has its own default group below so the panel only
+                     shows the knobs that actually affect what you're about to draw. -->
+                <StackPanel x:Name="DefaultShapeSection">
+                    <Grid Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="StrokeLabel" Grid.Column="0" Text="Stroke" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                        <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                   Text="{Binding ElementName=StrokeSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                            <TextBlock x:Name="OutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
+                                       HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="OutlineSwatch" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                            <TextBlock x:Name="FillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
+                                       HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="FillSwatch" HorizontalAlignment="Center" />
+                        </StackPanel>
                     </Grid>
-                    <Slider x:Name="StrokeSlider" Minimum="1" Maximum="20" Value="2"
-                            VerticalAlignment="Center" />
+                    <StackPanel Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="StrokeLabel" Grid.Column="0" Text="Stroke" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=StrokeSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        </Grid>
+                        <Slider x:Name="StrokeSlider" Minimum="1" Maximum="20" Value="2"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Text defaults (colour + outline colour + outline width) for the next text.
+                     Kept separate from the global Outline/Fill/Stroke so "red arrows + white text
+                     with a thick black outline" coexist. Visible only for the Text tool / a text
+                     selection. -->
+                <StackPanel x:Name="DefaultTextSection" Visibility="Collapsed">
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                            <TextBlock x:Name="TextLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
+                                       HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="TextSwatch" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                            <TextBlock x:Name="DefaultTextOutlineLabel" Text="Outline color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
+                                       HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="DefaultTextOutlineSwatch" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="DefaultTextOutlineWidthLabel" Grid.Column="0" Text="Outline width" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=DefaultTextOutlineSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        </Grid>
+                        <Slider x:Name="DefaultTextOutlineSlider" Minimum="0" Maximum="20"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
                 </StackPanel>
                 <!-- Apply the default outline/fill/stroke above to the currently selected
                      shape(s). Lives here in Default properties because it's the operation that
@@ -514,8 +550,32 @@
                     </StackPanel>
 
                     <StackPanel x:Name="SelTextStyleSection" Visibility="Collapsed" Margin="0,0,0,12">
-                        <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
-                        <views:ColorSwatchButton x:Name="SelTextColorSwatch" HorizontalAlignment="Left" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                                <views:ColorSwatchButton x:Name="SelTextColorSwatch" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="SelTextOutlineColorLabel" Text="Outline color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                                <views:ColorSwatchButton x:Name="SelTextOutlineSwatch" HorizontalAlignment="Left" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock x:Name="SelTextOutlineWidthLabel" Text="Outline width" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0" x:Name="SelTextOutlineSlider" Minimum="0" Maximum="20" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="SelTextOutlineBox"
+                                     Width="44" Margin="6,0,0,0" Padding="2"
+                                     VerticalAlignment="Center" TextAlignment="Right" IsReadOnly="True" />
+                        </Grid>
 
                         <TextBlock x:Name="SelFontLabel" Text="Font" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,8">

@@ -301,6 +301,8 @@ public sealed class EditorLauncher
             vm.ArrowStartCapDefault = defaults.ArrowStartCap;
             vm.ArrowEndCapDefault = defaults.ArrowEndCap;
             vm.LineTipStyleDefault = defaults.LineTipStyle;
+            vm.TextOutlineColor = defaults.TextOutlineColor ?? AresToys.Editor.Model.ShapeColor.Black;
+            vm.TextOutlineWidth = defaults.TextOutlineWidth;
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -325,7 +327,8 @@ public sealed class EditorLauncher
                     vm.FreehandStartCapDefault, vm.FreehandEndCapDefault,
                     vm.LineStartCapDefault, vm.LineEndCapDefault,
                     vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
-                    vm.LineTipStyleDefault);
+                    vm.LineTipStyleDefault,
+                    vm.TextOutlineColor, vm.TextOutlineWidth);
                 byte[]? png = null;
                 if (window.Saved)
                 {
@@ -450,6 +453,8 @@ public sealed class EditorLauncher
             vm.ArrowStartCapDefault = defaults.ArrowStartCap;
             vm.ArrowEndCapDefault = defaults.ArrowEndCap;
             vm.LineTipStyleDefault = defaults.LineTipStyle;
+            vm.TextOutlineColor = defaults.TextOutlineColor ?? AresToys.Editor.Model.ShapeColor.Black;
+            vm.TextOutlineWidth = defaults.TextOutlineWidth;
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -483,7 +488,8 @@ public sealed class EditorLauncher
                     vm.FreehandStartCapDefault, vm.FreehandEndCapDefault,
                     vm.LineStartCapDefault, vm.LineEndCapDefault,
                     vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
-                    vm.LineTipStyleDefault);
+                    vm.LineTipStyleDefault,
+                    vm.TextOutlineColor, vm.TextOutlineWidth);
                 byte[]? png = null;
                 int w = 0, h = 0;
                 if (window.Saved)
@@ -635,6 +641,8 @@ public sealed class EditorLauncher
             ["Text"]                    = Loc("Editor_Text"),
             ["Stroke"]                  = Loc("Editor_Stroke"),
             ["TextColor"]               = Loc("Editor_TextColor"),
+            ["TextOutlineColor"]        = Loc("Editor_TextOutlineColor"),
+            ["TextOutlineWidth"]        = Loc("Editor_TextOutlineWidth"),
             ["Font"]                    = Loc("Editor_Font"),
             ["Size"]                    = Loc("Editor_Size"),
             ["Bold"]                    = Loc("Editor_Bold"),

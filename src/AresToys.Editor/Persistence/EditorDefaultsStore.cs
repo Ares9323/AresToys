@@ -21,7 +21,11 @@ public sealed record EditorDefaults(
     bool LineEndCap = false,
     bool ArrowStartCap = false,
     bool ArrowEndCap = true,
-    LineTipStyle LineTipStyle = LineTipStyle.ShareXCurve);
+    LineTipStyle LineTipStyle = LineTipStyle.ShareXCurve,
+    // Text-outline defaults, independent from the global Outline/StrokeWidth. Null colour /
+    // width 0 means "no text outline" (the pre-existing behaviour for payloads without these).
+    ShapeColor? TextOutlineColor = null,
+    double TextOutlineWidth = 0);
 
 public sealed class EditorDefaultsStore
 {
@@ -60,6 +64,10 @@ public sealed class EditorDefaultsStore
             var tipStyle = Enum.IsDefined(typeof(LineTipStyle), dto.LineTipStyle)
                 ? (LineTipStyle)dto.LineTipStyle
                 : LineTipStyle.ShareXCurve;
+            // TextOutline colour absent (all-zero, pre-existing payloads) → null = "no text outline".
+            ShapeColor? textOutline = dto.TextOutlineA == 0 && dto.TextOutlineR == 0 && dto.TextOutlineG == 0 && dto.TextOutlineB == 0
+                ? null
+                : new ShapeColor(dto.TextOutlineA, dto.TextOutlineR, dto.TextOutlineG, dto.TextOutlineB);
             return new EditorDefaults(
                 new ShapeColor(dto.OutlineA, dto.OutlineR, dto.OutlineG, dto.OutlineB),
                 new ShapeColor(dto.FillA, dto.FillR, dto.FillG, dto.FillB),
@@ -73,7 +81,9 @@ public sealed class EditorDefaultsStore
                 LineEndCap: dto.LineEndCap,
                 ArrowStartCap: dto.ArrowStartCap,
                 ArrowEndCap: dto.ArrowEndCap,
-                LineTipStyle: tipStyle);
+                LineTipStyle: tipStyle,
+                TextOutlineColor: textOutline,
+                TextOutlineWidth: dto.TextOutlineWidth);
         }
         catch (JsonException)
         {
@@ -104,7 +114,12 @@ public sealed class EditorDefaultsStore
             defaults.LineEndCap,
             defaults.ArrowStartCap,
             defaults.ArrowEndCap,
-            (int)defaults.LineTipStyle);
+            (int)defaults.LineTipStyle,
+            (defaults.TextOutlineColor ?? ShapeColor.Transparent).A,
+            (defaults.TextOutlineColor ?? ShapeColor.Transparent).R,
+            (defaults.TextOutlineColor ?? ShapeColor.Transparent).G,
+            (defaults.TextOutlineColor ?? ShapeColor.Transparent).B,
+            defaults.TextOutlineWidth);
         var json = JsonSerializer.Serialize(dto);
         await _settings.SetAsync(SettingsKey, json, sensitive: false, cancellationToken).ConfigureAwait(false);
     }
@@ -134,5 +149,8 @@ public sealed class EditorDefaultsStore
         bool LineEndCap = false,
         bool ArrowStartCap = false,
         bool ArrowEndCap = true,
-        int LineTipStyle = 0);
+        int LineTipStyle = 0,
+        // Text-outline defaults. All-zero colour (pre-existing payloads) loads as "no text outline".
+        byte TextOutlineA = 0, byte TextOutlineR = 0, byte TextOutlineG = 0, byte TextOutlineB = 0,
+        double TextOutlineWidth = 0);
 }

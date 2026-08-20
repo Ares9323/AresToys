@@ -943,6 +943,8 @@
   <data name="Editor_Text" xml:space="preserve"><value>Testo</value></data>
   <data name="Editor_Stroke" xml:space="preserve"><value>Spessore</value></data>
   <data name="Editor_TextColor" xml:space="preserve"><value>Colore testo</value></data>
+  <data name="Editor_TextOutlineColor" xml:space="preserve"><value>Colore contorno</value></data>
+  <data name="Editor_TextOutlineWidth" xml:space="preserve"><value>Spessore contorno</value></data>
   <data name="Editor_Font" xml:space="preserve"><value>Carattere</value></data>
   <data name="Editor_Size" xml:space="preserve"><value>Dimensione</value></data>
   <data name="Editor_Bold" xml:space="preserve"><value>Grassetto</value></data>

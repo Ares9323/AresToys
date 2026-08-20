@@ -66,6 +66,10 @@ public partial class EditorWindow : FluentWindow
     // _editingTextShape is non-null only when modifying an existing TextShape.
     private System.Windows.Controls.TextBox? _activeTextBox;
     private TextShape? _editingTextShape;
+    // Live outline preview drawn behind the inline editor so "text with an outline" previews the
+    // real crisp geometry while typing, not just a soft glow. Built via the same CreateOutlinedText
+    // used for the committed shape, so preview == result. Rebuilt on every keystroke.
+    private System.Windows.UIElement? _activeTextOutlinePreview;
 
     // Text-frame drag state: when the user drags with the Text tool active we draw a marquee
     // and use its final bounds as the new TextShape's box. Mouse-up below the threshold falls
@@ -249,6 +253,10 @@ public partial class EditorWindow : FluentWindow
         var swatchColorDescAlt = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
             ColorSwatchButton.SelectedColorProperty, typeof(ColorSwatchButton));
         swatchColorDescAlt?.AddValueChanged(SelTextColorSwatch, (_, _) => OnSelTextStyleChanged());
+        swatchColorDescAlt?.AddValueChanged(SelTextOutlineSwatch, (_, _) => OnSelTextOutlineChanged());
+        SelTextOutlineSlider.ValueChanged += (_, _) => OnSelTextOutlineChanged();
+        swatchColorDescAlt?.AddValueChanged(DefaultTextOutlineSwatch, (_, _) => OnDefaultTextOutlineChanged());
+        DefaultTextOutlineSlider.ValueChanged += (_, _) => OnDefaultTextOutlineChanged();
 
         Loaded += (_, _) =>
         {
@@ -439,7 +447,11 @@ public partial class EditorWindow : FluentWindow
         if (_labels.TryGetValue("DefaultProperties", out var dp)) DefaultPropertiesTitle.Text = dp;
         if (_labels.TryGetValue("Outline", out var outl)) OutlineLabel.Text = outl;
         if (_labels.TryGetValue("Fill", out var fl)) FillLabel.Text = fl;
-        if (_labels.TryGetValue("Text", out var txtLbl)) TextLabel.Text = txtLbl;
+        // TextLabel is now the "Text color" default swatch header (moved into the contextual text
+        // default group), so it uses the TextColor string rather than the bare "Text" noun.
+        if (_labels.TryGetValue("TextColor", out var txtLbl)) TextLabel.Text = txtLbl;
+        if (_labels.TryGetValue("TextOutlineColor", out var dtoc)) DefaultTextOutlineLabel.Text = dtoc;
+        if (_labels.TryGetValue("TextOutlineWidth", out var dtow)) DefaultTextOutlineWidthLabel.Text = dtow;
         if (_labels.TryGetValue("Stroke", out var strk)) StrokeLabel.Text = strk;
         if (_labels.TryGetValue("ApplyToSelected", out var aps)) ApplyToSelectedBtn.Content = aps;
         if (_labels.TryGetValue("TooltipApplyToSelected", out var tAps)) ApplyToSelectedBtn.ToolTip = tAps;
@@ -454,6 +466,8 @@ public partial class EditorWindow : FluentWindow
         if (_labels.TryGetValue("Stroke", out var sStrk)) SelStrokeLabel.Text = sStrk;
         if (_labels.TryGetValue("Rotation", out var rot)) SelRotationLabel.Text = rot;
         if (_labels.TryGetValue("TextColor", out var tc)) SelTextColorLabel.Text = tc;
+        if (_labels.TryGetValue("TextOutlineColor", out var toc)) SelTextOutlineColorLabel.Text = toc;
+        if (_labels.TryGetValue("TextOutlineWidth", out var tow)) SelTextOutlineWidthLabel.Text = tow;
         if (_labels.TryGetValue("Font", out var fnt))
         {
             SelFontLabel.Text = fnt;
@@ -739,7 +753,7 @@ public partial class EditorWindow : FluentWindow
         var fontSize = _vm.CurrentTextStyle.FontSize;
         _vm.AddTextShape(new TextShape(x, y,
             TextShape.DefaultWidthFor(fontSize), TextShape.DefaultHeightFor(fontSize),
-            text, _vm.CurrentTextStyle, _vm.OutlineColor, ShapeColor.Transparent, _vm.StrokeWidth));
+            text, _vm.CurrentTextStyle, _vm.TextOutlineColor, ShapeColor.Transparent, _vm.TextOutlineWidth));
     }
 
     /// <summary>Ctrl+C / Ctrl+X — export the current selection. Two channels are populated in
@@ -2077,8 +2091,13 @@ public partial class EditorWindow : FluentWindow
                 _activeGrip = GripKind.None;
                 _gripStartShape = null;
                 DrawingCanvas.ReleaseMouseCapture();
-                // Grip drag commit happens via OnSelectionSetChanged → CommitPendingLiveEdit
-                // when selection changes, or via Closing.
+                // Commit the resize/rotate as its own undo step on mouse-up. Previously the commit
+                // only happened when the selection changed (OnSelectionSetChanged) or on Closing, so
+                // a grip drag that wasn't followed by a selection change never entered the undo stack
+                // and Ctrl+Z couldn't revert it. Re-seed the live-edit baseline afterwards so a second
+                // consecutive drag on the same selection is still undoable.
+                CommitPendingLiveEdit();
+                _liveEditOriginals = [.. _vm.SelectedShapes];
                 return;
             }
             if (_isMarqueeing && _marqueeRect is not null)
@@ -2119,8 +2138,13 @@ public partial class EditorWindow : FluentWindow
                 _isDraggingShape = false;
                 _moveStartShape = null;
                 _moveStartSnapshots = null;
-                // Move's commit happens via OnSelectedShapeChanged when the user changes selection
-                // or via Closing → CommitPendingLiveEdit.
+                // Commit the move as its own undo step on mouse-up. Previously the commit only
+                // happened when the user changed selection or on Closing, so a drag-move that wasn't
+                // followed by a selection change never made it onto the undo stack and Ctrl+Z did
+                // nothing. Re-seed the live-edit baseline so a second consecutive move on the same
+                // selection is still undoable.
+                CommitPendingLiveEdit();
+                _liveEditOriginals = [.. _vm.SelectedShapes];
             }
             return;
         }
@@ -2667,6 +2691,8 @@ public partial class EditorWindow : FluentWindow
         }
         DrawingCanvas.Children.Add(_activeTextBox);
         _activeTextBox.KeyDown += OnInlineTextBoxKeyDown;
+        _activeTextBox.TextChanged += (_, _) => RefreshInlineOutlinePreview();
+        RefreshInlineOutlinePreview();
         var tb = _activeTextBox;
         tb.Loaded += (_, _) =>
         {
@@ -2680,6 +2706,63 @@ public partial class EditorWindow : FluentWindow
 
         if (existing is not null) RedrawAll();
     }
+
+    /// <summary>While typing in the inline editor the TextShape itself is skipped in the render pass
+    /// (the TextBox stands in for it), so the crisp geometry outline the committed text will get
+    /// isn't drawn yet. Draw the real contour behind the editor: a stroke-only glyph geometry path
+    /// (same build as <see cref="CreateOutlinedText"/>) whose inner half is covered by the TextBox's
+    /// own glyphs on top — so the live preview matches the committed result instead of a soft glow.
+    /// The box background goes transparent while the contour shows through; it's restored otherwise.</summary>
+    private void RefreshInlineOutlinePreview()
+    {
+        if (_activeTextOutlinePreview is not null)
+        {
+            DrawingCanvas.Children.Remove(_activeTextOutlinePreview);
+            _activeTextOutlinePreview = null;
+        }
+        if (_activeTextBox is null) return;
+
+        var (color, width) = InlineEditOutline();
+        var style = _editingTextShape?.Style ?? _vm.CurrentTextStyle;
+        var active = width > 0 && !color.IsTransparent && !string.IsNullOrEmpty(_activeTextBox.Text);
+
+        // When previewing, the contour path draws BOTH the fill and the stroke (identical to the
+        // committed CreateOutlinedText), and the TextBox's own glyphs are hidden — otherwise the
+        // TextBox glyphs and the path glyphs use two slightly different layouts and the outline
+        // looks shifted. The TextBox stays for input + caret only. Restored when no outline.
+        _activeTextBox.Background = active
+            ? System.Windows.Media.Brushes.Transparent
+            : new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
+        _activeTextBox.Foreground = active ? System.Windows.Media.Brushes.Transparent : ToBrush(style.Color);
+        if (!active) return;
+
+        // Build the preview from a throwaway TextShape run through the exact same renderer as the
+        // committed text, so preview == result. Position + size it EXACTLY like CommitInlineTextEdit
+        // will (box top-left, box Width/ActualHeight — NOT inset by Border/Padding), otherwise the
+        // text visibly jumps by the padding when committed. The TextBox glyphs are hidden, so we
+        // don't need to register with them; the (slightly padding-offset) caret is close enough.
+        var px = Canvas.GetLeft(_activeTextBox);
+        var py = Canvas.GetTop(_activeTextBox);
+        var boxH = _editingTextShape?.Height
+            ?? (_activeTextBox.ActualHeight > 0 ? _activeTextBox.ActualHeight : _activeTextBox.MinHeight);
+        var rotation = _editingTextShape?.Rotation ?? 0;
+        var previewShape = new TextShape(px, py, Math.Max(1, _activeTextBox.Width), boxH,
+            _activeTextBox.Text, style, color, ShapeColor.Transparent, width, rotation);
+        var preview = CreateOutlinedText(previewShape);
+        preview.IsHitTestVisible = false;
+
+        var idx = DrawingCanvas.Children.IndexOf(_activeTextBox);
+        if (idx >= 0) DrawingCanvas.Children.Insert(idx, preview);
+        else DrawingCanvas.Children.Add(preview);
+        _activeTextOutlinePreview = preview;
+    }
+
+    /// <summary>Outline (colour + width) the text being edited will carry: the shape's own values
+    /// when editing an existing text, otherwise the sticky text-outline defaults for a new one.</summary>
+    private (ShapeColor Color, double Width) InlineEditOutline() =>
+        _editingTextShape is not null
+            ? (_editingTextShape.Outline, _editingTextShape.StrokeWidth)
+            : (_vm.TextOutlineColor, _vm.TextOutlineWidth);
 
     private void OnInlineTextBoxKeyDown(object sender, KeyEventArgs e)
     {
@@ -2714,6 +2797,7 @@ public partial class EditorWindow : FluentWindow
         var height = _activeTextBox.ActualHeight > 0 ? _activeTextBox.ActualHeight : TextShape.DefaultHeightFor(fontSize);
 
         DrawingCanvas.Children.Remove(_activeTextBox);
+        RemoveInlineOutlinePreview();
         var existing = _editingTextShape;
         var style = existing?.Style ?? _vm.CurrentTextStyle;
         _activeTextBox = null;
@@ -2725,14 +2809,16 @@ public partial class EditorWindow : FluentWindow
             return;
         }
 
-        // The TextShape's Outline is unused for rendering (foreground comes from Style.Color);
-        // we still set it for hit-testing parity with other shapes. Preserve rotation + size
-        // on edit; new shapes inherit the inline editor's working dimensions.
+        // Preserve rotation + size on edit; new shapes inherit the inline editor's working
+        // dimensions. When editing an existing text keep its own outline (colour + width); a
+        // brand-new text starts from the sticky outline defaults (off unless the user enabled it).
         var rotation = existing?.Rotation ?? 0;
         var finalWidth = existing?.Width ?? width;
         var finalHeight = existing?.Height ?? height;
+        var outlineColor = existing?.Outline ?? _vm.TextOutlineColor;
+        var outlineWidth = existing?.StrokeWidth ?? _vm.TextOutlineWidth;
         var shape = new TextShape(x, y, finalWidth, finalHeight,
-            text, style, style.Color, ShapeColor.Transparent, 1, rotation);
+            text, style, outlineColor, ShapeColor.Transparent, outlineWidth, rotation);
         if (existing is null)
         {
             _vm.AddTextShape(shape);
@@ -2751,9 +2837,17 @@ public partial class EditorWindow : FluentWindow
     {
         if (_activeTextBox is null) return;
         DrawingCanvas.Children.Remove(_activeTextBox);
+        RemoveInlineOutlinePreview();
         _activeTextBox = null;
         _editingTextShape = null;
         RedrawAll();
+    }
+
+    private void RemoveInlineOutlinePreview()
+    {
+        if (_activeTextOutlinePreview is null) return;
+        DrawingCanvas.Children.Remove(_activeTextOutlinePreview);
+        _activeTextOutlinePreview = null;
     }
 
     private double _currentTextSize = TextStyle.Default.FontSize;
@@ -2826,6 +2920,37 @@ public partial class EditorWindow : FluentWindow
         {
             _vm.LiveReplaceShape(s, s with { Style = newStyle });
         }
+    }
+
+    /// <summary>Apply the outline colour + width from the text panel to every selected TextShape and
+    /// remember them as the sticky defaults for new texts. The contour is stored on TextShape's
+    /// inherited Outline / StrokeWidth fields; rendering (CreateOutlinedText) only kicks in when
+    /// width &gt; 0 and the colour isn't transparent, so width 0 or a transparent swatch turns the
+    /// outline off. Live-edit commits happen on mouse-up / selection change, same as the other
+    /// panel knobs.</summary>
+    private void OnSelTextOutlineChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var color = SelTextOutlineSwatch.SelectedColor;
+        var width = SelTextOutlineSlider.Value;
+        SelTextOutlineBox.Text = ((int)Math.Round(width)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _vm.TextOutlineColor = color;
+        _vm.TextOutlineWidth = width;
+
+        foreach (var s in _vm.SelectedShapes.OfType<TextShape>().ToList())
+        {
+            _vm.LiveReplaceShape(s, s with { Outline = color, StrokeWidth = width });
+        }
+    }
+
+    /// <summary>Text-outline knobs in the (contextual) Default properties group: they set the sticky
+    /// text-outline default for the NEXT text, without touching any current selection. Mirrors how
+    /// OutlineSwatch/StrokeSlider feed the global defaults.</summary>
+    private void OnDefaultTextOutlineChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        _vm.TextOutlineColor = DefaultTextOutlineSwatch.SelectedColor;
+        _vm.TextOutlineWidth = DefaultTextOutlineSlider.Value;
     }
 
     /// <summary>Cached system font family names. Lazy-initialized once per process — enumerating
@@ -3223,6 +3348,9 @@ public partial class EditorWindow : FluentWindow
             SelBoldCheck.IsChecked = s.Bold;
             SelItalicCheck.IsChecked = s.Italic;
             SelTextColorSwatch.SelectedColor = s.Color;
+            SelTextOutlineSwatch.SelectedColor = _vm.TextOutlineColor;
+            SelTextOutlineSlider.Value = Math.Clamp(_vm.TextOutlineWidth, SelTextOutlineSlider.Minimum, SelTextOutlineSlider.Maximum);
+            SelTextOutlineBox.Text = ((int)Math.Round(_vm.TextOutlineWidth)).ToString(System.Globalization.CultureInfo.InvariantCulture);
             RefreshAlignToggles(s.Align);
         }
         finally { _suppressLiveUpdates = false; }
@@ -3242,8 +3370,23 @@ public partial class EditorWindow : FluentWindow
 
         foreach (var s in _vm.SelectedShapes.ToList())
         {
-            var updated = ApplyStrokeWidth(ApplyFillColor(ApplyOutlineColor(s, outline), fill), stroke);
-            updated = ApplyTextColor(updated, textColor);
+            Shape updated;
+            if (s is TextShape t)
+            {
+                // Text uses its own default group (text colour + separate text-outline colour/width),
+                // NOT the global Outline/Fill/Stroke — applying those here would paint the text with
+                // the arrows' outline instead of its own.
+                updated = t with
+                {
+                    Style = t.Style with { Color = textColor },
+                    Outline = _vm.TextOutlineColor,
+                    StrokeWidth = _vm.TextOutlineWidth
+                };
+            }
+            else
+            {
+                updated = ApplyStrokeWidth(ApplyFillColor(ApplyOutlineColor(s, outline), fill), stroke);
+            }
             _vm.LiveReplaceShape(s, updated);
         }
         RefreshPropertyPanel();
@@ -3268,6 +3411,10 @@ public partial class EditorWindow : FluentWindow
             // Mutate via record-with so OnCurrentTextStyleChanged fires, which refreshes the
             // TextTool factory and the text swatch through the PropertyChanged handler above.
             _vm.CurrentTextStyle = _vm.CurrentTextStyle with { Color = t.Style.Color };
+            // Text-outline defaults are separate from the global Outline/Stroke (which ShapeSupports*
+            // deliberately skip for text), so lift the text's own outline colour + width here.
+            _vm.TextOutlineColor = t.Outline;
+            _vm.TextOutlineWidth = t.StrokeWidth;
         }
         // Cap defaults: project the selected shape's caps onto the matching default slot. A
         // selected LineShape pushes into the Line OR Arrow slot based on the active tool —
@@ -3294,15 +3441,10 @@ public partial class EditorWindow : FluentWindow
             _vm.FreehandEndCapDefault = fh.EndCap;
             _vm.LineTipStyleDefault = fh.TipStyle;
         }
+        // Reflect the freshly-adopted defaults in the panel (e.g. the contextual text-default
+        // swatches) so the user sees the change land instead of it being a silent state update.
+        RefreshPropertyPanel();
     }
-
-    /// <summary>Project the default text colour onto a TextShape's Style.Color. Non-TextShapes
-    /// pass through unchanged so this can be called unconditionally inside the apply loop.</summary>
-    private static Shape ApplyTextColor(Shape s, ShapeColor c) => s switch
-    {
-        TextShape t => t with { Style = t.Style with { Color = c } },
-        _ => s,
-    };
 
     private static Shape ApplyOutlineColor(Shape s, ShapeColor c) => s switch
     {
@@ -3654,7 +3796,14 @@ public partial class EditorWindow : FluentWindow
         // applies uniformly and the action buttons are clickable. Redrawn after the standard
         // pass so it survives a full RedrawAll (e.g. after a shape edit while a crop is pending).
         RedrawPendingCrop();
-        if (_activeTextBox is not null) DrawingCanvas.Children.Add(_activeTextBox);
+        if (_activeTextBox is not null)
+        {
+            DrawingCanvas.Children.Add(_activeTextBox);
+            // RedrawAll cleared the canvas, so the outline-preview path (which sits just behind the
+            // editor) has to be rebuilt and re-inserted after the TextBox is back.
+            _activeTextOutlinePreview = null;
+            RefreshInlineOutlinePreview();
+        }
     }
 
     private static bool IsEffectShape(Shape s) =>
@@ -4438,8 +4587,16 @@ public partial class EditorWindow : FluentWindow
         return result;
     }
 
-    private static UIElement CreateText(TextShape t)
+    private UIElement CreateText(TextShape t)
     {
+        // Outline is opt-in: only when the user gave the text a stroke width AND a non-transparent
+        // outline colour. Without it we keep the plain TextBlock path (cheaper, pixel-identical to
+        // before). With it we render the glyph geometry so we can stroke the contour.
+        if (t.StrokeWidth > 0 && !t.Outline.IsTransparent)
+        {
+            return CreateOutlinedText(t);
+        }
+
         // Fixed-size box: explicit Width AND Height come from the shape; text wraps inside
         // and clips at the bottom edge if the user hasn't grown the box enough. TextAlignment
         // needs the explicit Width too — without it short lines collapse to their content
@@ -4464,6 +4621,60 @@ public partial class EditorWindow : FluentWindow
             tb.RenderTransform = new RotateTransform(t.Rotation, t.Width / 2, t.Height / 2);
         }
         return tb;
+    }
+
+    /// <summary>Render text with an outer contour. Builds the glyph geometry via
+    /// <see cref="FormattedText"/> (which mirrors the TextBlock's wrap / alignment / box so
+    /// toggling the outline doesn't reflow the text) and layers two Paths: an outline path whose
+    /// centred stroke is twice the requested width (the inner half is hidden by the fill on top),
+    /// and a fill path that paints the glyph interior with the text colour. <see cref="TextShape"/>
+    /// reuses the base <c>Outline</c> / <c>StrokeWidth</c> fields for the contour colour + width.</summary>
+    private UIElement CreateOutlinedText(TextShape t)
+    {
+        var typeface = new Typeface(
+            new FontFamily(t.Style.FontFamily),
+            t.Style.Italic ? FontStyles.Italic : FontStyles.Normal,
+            t.Style.Bold ? FontWeights.Bold : FontWeights.Normal,
+            FontStretches.Normal);
+        var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var ft = new FormattedText(
+            t.Text,
+            System.Globalization.CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            t.Style.FontSize,
+            ToBrush(t.Style.Color),
+            pixelsPerDip)
+        {
+            MaxTextWidth = Math.Max(1, t.Width),
+            MaxTextHeight = Math.Max(1, t.Height),
+            TextAlignment = ToTextAlignment(t.Style.Align)
+        };
+        var geometry = ft.BuildGeometry(new System.Windows.Point(0, 0));
+
+        var outlinePath = new System.Windows.Shapes.Path
+        {
+            Data = geometry,
+            Stroke = ToBrush(t.Outline),
+            StrokeThickness = t.StrokeWidth * 2,
+            StrokeLineJoin = PenLineJoin.Round
+        };
+        var fillPath = new System.Windows.Shapes.Path
+        {
+            Data = geometry,
+            Fill = ToBrush(t.Style.Color)
+        };
+
+        var host = new Canvas { Width = t.Width, Height = t.Height };
+        host.Children.Add(outlinePath);
+        host.Children.Add(fillPath);
+        Canvas.SetLeft(host, t.X);
+        Canvas.SetTop(host, t.Y);
+        if (t.Rotation != 0)
+        {
+            host.RenderTransform = new RotateTransform(t.Rotation, t.Width / 2, t.Height / 2);
+        }
+        return host;
     }
 
     private static System.Windows.TextAlignment ToTextAlignment(TextAlign a) => a switch
@@ -4832,9 +5043,31 @@ public partial class EditorWindow : FluentWindow
             ? (SolidColorBrush)System.Windows.Media.Brushes.Transparent
             : new SolidColorBrush(System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B));
 
+    /// <summary>Swap the "Default properties" group between the shape defaults (Outline / Fill /
+    /// Stroke) and the text defaults (Text colour / Outline colour / Outline width) depending on
+    /// context: the Text tool being active, or a text-only selection. Keeps "what affects my next
+    /// text" separate from "what affects my next arrow/rectangle".</summary>
+    private void RefreshDefaultPropertiesSection()
+    {
+        var sels = _vm.SelectedShapes;
+        var textContext = _vm.CurrentTool == EditorTool.Text
+            || (sels.Count > 0 && sels.All(s => s is TextShape));
+        DefaultShapeSection.Visibility = textContext ? Visibility.Collapsed : Visibility.Visible;
+        DefaultTextSection.Visibility = textContext ? Visibility.Visible : Visibility.Collapsed;
+        if (!textContext) return;
+        _suppressLiveUpdates = true;
+        try
+        {
+            DefaultTextOutlineSwatch.SelectedColor = _vm.TextOutlineColor;
+            DefaultTextOutlineSlider.Value = Math.Clamp(_vm.TextOutlineWidth, DefaultTextOutlineSlider.Minimum, DefaultTextOutlineSlider.Maximum);
+        }
+        finally { _suppressLiveUpdates = false; }
+    }
+
     private void RefreshPropertyPanel()
     {
         var sels = _vm.SelectedShapes;
+        RefreshDefaultPropertiesSection();
         // The "Apply to selected" button in the Default properties group is only meaningful
         // when there's at least one shape selected — anything else would be a no-op click.
         ApplyToSelectedBtn.IsEnabled = sels.Count > 0;
@@ -5030,6 +5263,8 @@ public partial class EditorWindow : FluentWindow
                 var allSameItalic = textShapes.All(t => t.Style.Italic == firstText.Style.Italic);
                 var allSameColor = textShapes.All(t => t.Style.Color == firstText.Style.Color);
                 var allSameAlign = textShapes.All(t => t.Style.Align == firstText.Style.Align);
+                var allSameOutlineColor = textShapes.All(t => t.Outline == firstText.Outline);
+                var allSameOutlineWidth = textShapes.All(t => Math.Abs(t.StrokeWidth - firstText.StrokeWidth) < 0.01);
 
                 _suppressFontInput = true;
                 try { if (allSameFamily) SelFontInput.Text = firstText.Style.FontFamily; }
@@ -5040,6 +5275,11 @@ public partial class EditorWindow : FluentWindow
                 SelBoldCheck.IsChecked = allSameBold && firstText.Style.Bold;
                 SelItalicCheck.IsChecked = allSameItalic && firstText.Style.Italic;
                 SelTextColorSwatch.SelectedColor = allSameColor ? firstText.Style.Color : ShapeColor.Red;
+                var outlineColor = allSameOutlineColor ? firstText.Outline : ShapeColor.Transparent;
+                var outlineWidth = allSameOutlineWidth ? firstText.StrokeWidth : 0;
+                SelTextOutlineSwatch.SelectedColor = outlineColor;
+                SelTextOutlineSlider.Value = Math.Clamp(outlineWidth, SelTextOutlineSlider.Minimum, SelTextOutlineSlider.Maximum);
+                SelTextOutlineBox.Text = ((int)Math.Round(outlineWidth)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 RefreshAlignToggles(allSameAlign ? firstText.Style.Align : TextAlign.Left);
             }
             else

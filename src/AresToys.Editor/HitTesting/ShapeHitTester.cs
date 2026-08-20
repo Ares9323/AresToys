@@ -99,15 +99,11 @@ public static class ShapeHitTester
 
     private static bool HitRect(RectangleShape r, double x, double y)
     {
-        var inside = x >= r.X && x <= r.X + r.Width && y >= r.Y && y <= r.Y + r.Height;
-        if (!inside) return false;
-        if (!r.Fill.IsTransparent) return true;
-        var distLeft = Math.Abs(x - r.X);
-        var distRight = Math.Abs(x - (r.X + r.Width));
-        var distTop = Math.Abs(y - r.Y);
-        var distBottom = Math.Abs(y - (r.Y + r.Height));
-        var tol = Math.Max(Tolerance, r.StrokeWidth / 2 + 2);
-        return distLeft < tol || distRight < tol || distTop < tol || distBottom < tol;
+        // Whole interior is hittable regardless of fill. A transparent-fill rectangle used to be
+        // grabbable only within a few px of its outline, which made a large empty rectangle almost
+        // impossible to select or drag (you had to land exactly on the thin border). Treat it like
+        // ImageShape's solid rect instead: click anywhere inside to grab it.
+        return x >= r.X && x <= r.X + r.Width && y >= r.Y && y <= r.Y + r.Height;
     }
 
     private static bool HitEllipse(EllipseShape e, double x, double y)
@@ -119,9 +115,9 @@ public static class ShapeHitTester
         if (rx <= 0 || ry <= 0) return false;
         var nx = (x - cx) / rx;
         var ny = (y - cy) / ry;
-        var d = nx * nx + ny * ny;
-        if (!e.Fill.IsTransparent) return d <= 1.0;
-        return Math.Abs(d - 1.0) < 0.15;
+        // Whole interior hittable regardless of fill, matching HitRect — a transparent-fill ellipse
+        // used to be grabbable only on its ~perimeter, same selection frustration as the rectangle.
+        return nx * nx + ny * ny <= 1.0;
     }
 
     private static bool HitSegment(double x1, double y1, double x2, double y2, double strokeWidth, double px, double py)

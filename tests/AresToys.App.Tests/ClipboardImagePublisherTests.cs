@@ -100,4 +100,35 @@ public class ClipboardImagePublisherTests
         // might mis-render an alpha image.
         Assert.True(ClipboardImagePublisher.PngHasAlphaFlag(new byte[] { 1, 2, 3 }));
     }
+
+    [Fact]
+    public void BuildDibV5_EmitsBottomUpBitfieldsHeaderWithAlphaMask()
+    {
+        // Discord paste fix: the DIBV5 blob must be a 124-byte BITMAPV5HEADER + 32-bit pixels,
+        // BI_BITFIELDS with an explicit alpha mask, and bottom-up (rows flipped). 2×2 with
+        // distinct bytes so the vertical flip is observable.
+        var topDown = new byte[]
+        {
+            10, 11, 12, 13,   20, 21, 22, 23,   // top row
+            30, 31, 32, 33,   40, 41, 42, 43,   // bottom row
+        };
+        var dib = ClipboardImagePublisher.BuildDibV5(2, 2, topDown);
+
+        Assert.Equal(124 + 2 * 2 * 4, dib.Length);
+        Assert.Equal(124, BitConverter.ToInt32(dib, 0));   // bV5Size
+        Assert.Equal(2, BitConverter.ToInt32(dib, 4));     // width
+        Assert.Equal(2, BitConverter.ToInt32(dib, 8));     // height (positive → bottom-up)
+        Assert.Equal((short)32, BitConverter.ToInt16(dib, 14)); // bit count
+        Assert.Equal(3, BitConverter.ToInt32(dib, 16));    // BI_BITFIELDS
+        Assert.Equal(0x00FF0000u, BitConverter.ToUInt32(dib, 40)); // red mask
+        Assert.Equal(0x0000FF00u, BitConverter.ToUInt32(dib, 44)); // green mask
+        Assert.Equal(0x000000FFu, BitConverter.ToUInt32(dib, 48)); // blue mask
+        Assert.Equal(0xFF000000u, BitConverter.ToUInt32(dib, 52)); // alpha mask
+
+        // Pixel bits start at offset 124. Bottom-up: the first stored row is the source's
+        // bottom row (bytes 8..16), then the top row (bytes 0..8).
+        var pixels = new byte[8];
+        Array.Copy(dib, 124, pixels, 0, 8);
+        Assert.Equal(new byte[] { 30, 31, 32, 33, 40, 41, 42, 43 }, pixels);
+    }
 }
