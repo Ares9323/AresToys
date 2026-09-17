@@ -989,6 +989,7 @@
   <data name="Editor_PixelBlockSize" xml:space="preserve"><value>Dimensione blocco pixel</value></data>
   <data name="Editor_SpotlightDim" xml:space="preserve"><value>Oscuramento riflettore (%)</value></data>
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Sfocatura riflettore (px)</value></data>
+  <data name="Editor_EffectWheelHint" xml:space="preserve"><value>La rotella sopra una regione selezionata la regola; Maiusc+rotella imposta l'oscuramento del riflettore. "Imposta come predefinito" adotta i valori della regione selezionata.</value></data>
   <data name="Editor_EdgeBlur" xml:space="preserve"><value>Sfocatura bordi (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Tratto fluido</value></data>
   <data name="Editor_StartCap" xml:space="preserve"><value>Punta inizio</value></data>

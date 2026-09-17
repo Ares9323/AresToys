@@ -105,6 +105,46 @@ public sealed partial class EditorViewModel : ObservableObject
         if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.SmoothStrokes = value;
     }
 
+    /// <summary>Sticky blur radius for new blur regions, in pixels. Same propagation rules as
+    /// <see cref="FreehandSmoothDefault"/>: the tool reads it when a region is drawn, the mouse
+    /// wheel over a selected blur and "Set as default" write back here, and it persists across
+    /// sessions via EditorDefaults.</summary>
+    [ObservableProperty]
+    private double _blurRadiusDefault = 12;
+
+    partial void OnBlurRadiusDefaultChanged(double value)
+    {
+        if (_tools.TryGetValue(EditorTool.Blur, out var t) && t is BlurTool b) b.Radius = value;
+    }
+
+    /// <summary>Sticky mosaic cell size for new pixelate regions, in pixels.</summary>
+    [ObservableProperty]
+    private int _pixelateBlockSizeDefault = 8;
+
+    partial void OnPixelateBlockSizeDefaultChanged(int value)
+    {
+        if (_tools.TryGetValue(EditorTool.Pixelate, out var t) && t is PixelateTool p) p.BlockSize = value;
+    }
+
+    /// <summary>Sticky dim amount (0..1) applied outside new spotlights.</summary>
+    [ObservableProperty]
+    private double _spotlightDimDefault = 0.5;
+
+    partial void OnSpotlightDimDefaultChanged(double value)
+    {
+        if (_tools.TryGetValue(EditorTool.Spotlight, out var t) && t is SpotlightTool s) s.Dim = value;
+    }
+
+    /// <summary>Sticky blur radius applied to a new spotlight's surroundings, in pixels.
+    /// 0 keeps the historical dim-only look.</summary>
+    [ObservableProperty]
+    private double _spotlightBlurDefault;
+
+    partial void OnSpotlightBlurDefaultChanged(double value)
+    {
+        if (_tools.TryGetValue(EditorTool.Spotlight, out var t) && t is SpotlightTool s) s.BlurRadius = value;
+    }
+
     /// <summary>Sticky cap defaults for the freehand "ShareX-style arrow" feature. Same
     /// propagation rules as <see cref="FreehandSmoothDefault"/>: tool reads on stroke start,
     /// per-shape toggle writes back, persisted across sessions via EditorDefaults.</summary>

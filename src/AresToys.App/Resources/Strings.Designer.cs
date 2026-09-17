@@ -1680,6 +1680,15 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Mouse wheel over a selected region adjusts it....
+        /// </summary>
+        public static string Editor_EffectWheelHint {
+            get {
+                return ResourceManager.GetString("Editor_EffectWheelHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Spotlight dim (%).
         /// </summary>
         public static string Editor_SpotlightDim {

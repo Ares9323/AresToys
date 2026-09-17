@@ -388,6 +388,67 @@
                                 VerticalAlignment="Center" />
                     </StackPanel>
                 </StackPanel>
+                <!-- Effect defaults (blur radius / pixel size / spotlight dim + blur) for the next
+                     region drawn with Blur, Pixelate or Spotlight. Those tools produce shapes with
+                     no outline, fill or stroke, so the shape group above says nothing about them;
+                     this group replaces it while one of the three is in play. Each row is also
+                     what the mouse wheel drives on a selected region. -->
+                <StackPanel x:Name="DefaultEffectSection" Visibility="Collapsed">
+                    <StackPanel x:Name="DefaultBlurRow" Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="DefaultBlurLabel" Grid.Column="0" Text="Blur radius" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=DefaultBlurSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        </Grid>
+                        <Slider x:Name="DefaultBlurSlider" Minimum="1" Maximum="60" Value="12" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="DefaultPixelateRow" Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="DefaultPixelateLabel" Grid.Column="0" Text="Pixel size" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=DefaultPixelateSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        </Grid>
+                        <Slider x:Name="DefaultPixelateSlider" Minimum="2" Maximum="60" Value="8" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="DefaultSpotlightRow" Margin="0,0,0,8">
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="DefaultSpotlightDimLabel" Grid.Column="0" Text="Dim outside" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=DefaultSpotlightDimSlider, Path=Value, StringFormat='{}{0:F0}%'}" />
+                        </Grid>
+                        <Slider x:Name="DefaultSpotlightDimSlider" Minimum="0" Maximum="100" Value="50" VerticalAlignment="Center" Margin="0,0,0,8" />
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="DefaultSpotlightBlurLabel" Grid.Column="0" Text="Blur outside" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=DefaultSpotlightBlurSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        </Grid>
+                        <Slider x:Name="DefaultSpotlightBlurSlider" Minimum="0" Maximum="60" Value="0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="DefaultEffectHint"
+                               Text="Wheel over a selected region adjusts it; Shift+wheel sets a spotlight's dim."
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="10"
+                               TextWrapping="Wrap" Margin="0,0,0,4" />
+                </StackPanel>
+
                 <!-- Apply the default outline/fill/stroke above to the currently selected
                      shape(s). Lives here in Default properties because it's the operation that
                      bridges defaults → selection. Disabled when nothing is selected; renamed

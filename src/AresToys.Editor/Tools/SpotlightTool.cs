@@ -4,7 +4,14 @@ namespace AresToys.Editor.Tools;
 
 public sealed class SpotlightTool : IDrawingTool
 {
-    private const double DefaultDim = 0.5;
+    /// <summary>Opacity of the dim applied OUTSIDE the spotlight, 0..1. Sticky default, adjusted
+    /// with Shift+wheel over a selected spotlight.</summary>
+    public double Dim { get; set; } = 0.5;
+
+    /// <summary>Blur applied to the dimmed surroundings, in pixels. 0 = dim only, which is what
+    /// spotlights did before the blur became adjustable. Adjusted with the plain wheel.</summary>
+    public double BlurRadius { get; set; }
+
     private double _startX, _startY;
     private bool _active;
 
@@ -35,6 +42,6 @@ public sealed class SpotlightTool : IDrawingTool
         var top = Math.Min(_startY, y);
         var width = Math.Abs(x - _startX);
         var height = Math.Abs(y - _startY);
-        return new SpotlightShape(left, top, width, height, DefaultDim);
+        return new SpotlightShape(left, top, width, height, Dim, BlurRadius);
     }
 }

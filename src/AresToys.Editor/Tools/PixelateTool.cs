@@ -4,7 +4,11 @@ namespace AresToys.Editor.Tools;
 
 public sealed class PixelateTool : IDrawingTool
 {
-    private const int DefaultBlockSize = 8;
+    /// <summary>Mosaic cell size every new pixelate region starts with, in pixels. Same sticky
+    /// lifecycle as <see cref="BlurTool.Radius"/> — the wheel adjusts it on a selection and
+    /// "Set as default" adopts it.</summary>
+    public int BlockSize { get; set; } = 8;
+
     private double _startX, _startY;
     private bool _active;
 
@@ -35,6 +39,6 @@ public sealed class PixelateTool : IDrawingTool
         var top = Math.Min(_startY, y);
         var width = Math.Abs(x - _startX);
         var height = Math.Abs(y - _startY);
-        return new PixelateShape(left, top, width, height, DefaultBlockSize);
+        return new PixelateShape(left, top, width, height, BlockSize);
     }
 }

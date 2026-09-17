@@ -4,7 +4,12 @@ namespace AresToys.Editor.Tools;
 
 public sealed class BlurTool : IDrawingTool
 {
-    private const double DefaultRadius = 12;
+    /// <summary>Radius every new blur region starts with, in pixels. Sticky default owned by
+    /// <see cref="ViewModels.EditorViewModel.BlurRadiusDefault"/>: the wheel over a selected blur
+    /// and "Set as default" both write back here, and it survives across sessions through
+    /// <c>EditorDefaults</c>.</summary>
+    public double Radius { get; set; } = 12;
+
     private double _startX, _startY;
     private bool _active;
 
@@ -35,6 +40,6 @@ public sealed class BlurTool : IDrawingTool
         var top = Math.Min(_startY, y);
         var width = Math.Abs(x - _startX);
         var height = Math.Abs(y - _startY);
-        return new BlurShape(left, top, width, height, DefaultRadius);
+        return new BlurShape(left, top, width, height, Radius);
     }
 }

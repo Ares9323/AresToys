@@ -25,7 +25,14 @@ public sealed record EditorDefaults(
     // Text-outline defaults, independent from the global Outline/StrokeWidth. Null colour /
     // width 0 means "no text outline" (the pre-existing behaviour for payloads without these).
     ShapeColor? TextOutlineColor = null,
-    double TextOutlineWidth = 0);
+    double TextOutlineWidth = 0,
+    // Effect-region defaults. These used to be constants inside the tools, so the values below
+    // reproduce exactly what those constants were: nothing changes for anyone who never touches
+    // the new controls.
+    double BlurRadius = 12,
+    int PixelateBlockSize = 8,
+    double SpotlightDim = 0.5,
+    double SpotlightBlur = 0);
 
 public sealed class EditorDefaultsStore
 {
@@ -83,7 +90,13 @@ public sealed class EditorDefaultsStore
                 ArrowEndCap: dto.ArrowEndCap,
                 LineTipStyle: tipStyle,
                 TextOutlineColor: textOutline,
-                TextOutlineWidth: dto.TextOutlineWidth);
+                TextOutlineWidth: dto.TextOutlineWidth,
+                // Clamped on the way in so a hand-edited or corrupted payload can't produce a
+                // blur that takes seconds to render or a mosaic with a zero-size cell.
+                BlurRadius: Math.Clamp(dto.BlurRadius, 1, 60),
+                PixelateBlockSize: Math.Clamp(dto.PixelateBlockSize, 2, 60),
+                SpotlightDim: Math.Clamp(dto.SpotlightDim, 0, 1),
+                SpotlightBlur: Math.Clamp(dto.SpotlightBlur, 0, 60));
         }
         catch (JsonException)
         {
@@ -119,7 +132,11 @@ public sealed class EditorDefaultsStore
             (defaults.TextOutlineColor ?? ShapeColor.Transparent).R,
             (defaults.TextOutlineColor ?? ShapeColor.Transparent).G,
             (defaults.TextOutlineColor ?? ShapeColor.Transparent).B,
-            defaults.TextOutlineWidth);
+            defaults.TextOutlineWidth,
+            defaults.BlurRadius,
+            defaults.PixelateBlockSize,
+            defaults.SpotlightDim,
+            defaults.SpotlightBlur);
         var json = JsonSerializer.Serialize(dto);
         await _settings.SetAsync(SettingsKey, json, sensitive: false, cancellationToken).ConfigureAwait(false);
     }
@@ -152,5 +169,11 @@ public sealed class EditorDefaultsStore
         int LineTipStyle = 0,
         // Text-outline defaults. All-zero colour (pre-existing payloads) loads as "no text outline".
         byte TextOutlineA = 0, byte TextOutlineR = 0, byte TextOutlineG = 0, byte TextOutlineB = 0,
-        double TextOutlineWidth = 0);
+        double TextOutlineWidth = 0,
+        // Effect defaults. The fallbacks are the values the tools used to hard-code, so a payload
+        // written before these existed loads with exactly the old behaviour.
+        double BlurRadius = 12,
+        int PixelateBlockSize = 8,
+        double SpotlightDim = 0.5,
+        double SpotlightBlur = 0);
 }

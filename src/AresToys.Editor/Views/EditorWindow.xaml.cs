@@ -257,6 +257,7 @@ public partial class EditorWindow : FluentWindow
         SelTextOutlineSlider.ValueChanged += (_, _) => OnSelTextOutlineChanged();
         swatchColorDescAlt?.AddValueChanged(DefaultTextOutlineSwatch, (_, _) => OnDefaultTextOutlineChanged());
         DefaultTextOutlineSlider.ValueChanged += (_, _) => OnDefaultTextOutlineChanged();
+        WireEffectDefaultSliders();
 
         Loaded += (_, _) =>
         {
@@ -445,6 +446,13 @@ public partial class EditorWindow : FluentWindow
 
         // Default properties block.
         if (_labels.TryGetValue("DefaultProperties", out var dp)) DefaultPropertiesTitle.Text = dp;
+        // Effect default rows reuse the very same label keys as the per-selection effect
+        // controls — same knob, same name, so the panel doesn't invent a second vocabulary.
+        if (_labels.TryGetValue("BlurRadius", out var dbr)) DefaultBlurLabel.Text = dbr;
+        if (_labels.TryGetValue("PixelBlockSize", out var dpb)) DefaultPixelateLabel.Text = dpb;
+        if (_labels.TryGetValue("SpotlightDim", out var dsd)) DefaultSpotlightDimLabel.Text = dsd;
+        if (_labels.TryGetValue("SpotlightBlur", out var dsb)) DefaultSpotlightBlurLabel.Text = dsb;
+        if (_labels.TryGetValue("EffectWheelHint", out var ewh)) DefaultEffectHint.Text = ewh;
         if (_labels.TryGetValue("Outline", out var outl)) OutlineLabel.Text = outl;
         if (_labels.TryGetValue("Fill", out var fl)) FillLabel.Text = fl;
         // TextLabel is now the "Text color" default swatch header (moved into the contextual text
@@ -1113,6 +1121,16 @@ public partial class EditorWindow : FluentWindow
             return;
         }
 
+        if (shift && SelectionHasSpotlight())
+        {
+            // Shift+wheel over a spotlight adjusts how dark its surroundings are. Takes priority
+            // over horizontal scroll, which is the generic fallback right below — with a
+            // spotlight selected the user is tuning the effect, not panning the canvas.
+            ApplySpotlightDimDelta(e.Delta > 0 ? 0.05 : -0.05);
+            e.Handled = true;
+            return;
+        }
+
         if (shift)
         {
             // Shift+wheel = horizontal scroll. Standard Windows convention (Edge/Chrome/VS).
@@ -1148,10 +1166,56 @@ public partial class EditorWindow : FluentWindow
         }
     }
 
+    /// <summary>True when the selection contains at least one spotlight, which is what makes
+    /// Shift+wheel mean "dim" instead of "scroll sideways".</summary>
+    private bool SelectionHasSpotlight()
+        => _vm.SelectedShapes.Any(s => s is AresToys.Editor.Model.SpotlightShape);
+
+    /// <summary>Shift+wheel on a spotlight: how dark everything outside it gets, 0..1.</summary>
+    private void ApplySpotlightDimDelta(double delta)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is not AresToys.Editor.Model.SpotlightShape sp) continue;
+            var next = Math.Clamp(sp.DimAmount + delta, 0.0, 1.0);
+            if (Math.Abs(next - sp.DimAmount) < 0.001) continue;
+            // Shape only: the wheel never rewrites the sticky default, exactly like the stroke
+            // and rotation gestures. "Set as default" is the explicit way to promote a value.
+            _vm.LiveReplaceShape(s, sp with { DimAmount = next });
+        }
+        RefreshPropertyPanel();
+    }
+
     private void ApplyStrokeDelta(int delta)
     {
         foreach (var s in _vm.SelectedShapes.ToList())
         {
+            // Effect regions have no stroke to speak of (they're drawn as filters, and their
+            // Outline/Fill are Transparent by construction). The wheel controls the knob that
+            // actually matters for each: blur radius, mosaic cell size, and a spotlight's blur —
+            // its dim lives on Shift+wheel.
+            switch (s)
+            {
+                case AresToys.Editor.Model.BlurShape blur:
+                {
+                    var next = Math.Clamp(blur.Radius + delta, 0.0, 60.0);
+                    if (Math.Abs(next - blur.Radius) > 0.001) _vm.LiveReplaceShape(s, blur with { Radius = next });
+                    continue;
+                }
+                case AresToys.Editor.Model.PixelateShape pix:
+                {
+                    var next = Math.Clamp(pix.BlockSize + delta, 2, 60);
+                    if (next != pix.BlockSize) _vm.LiveReplaceShape(s, pix with { BlockSize = next });
+                    continue;
+                }
+                case AresToys.Editor.Model.SpotlightShape spot:
+                {
+                    var next = Math.Clamp(spot.BlurRadius + delta, 0.0, 60.0);
+                    if (Math.Abs(next - spot.BlurRadius) > 0.001) _vm.LiveReplaceShape(s, spot with { BlurRadius = next });
+                    continue;
+                }
+            }
+
             // Text shapes have no meaningful stroke; the analogous "thickness" knob is the font
             // size. We adjust by 2pt per notch so each scroll feels tactile, clamped 6..200pt.
             if (s is AresToys.Editor.Model.TextShape t)
@@ -3383,6 +3447,19 @@ public partial class EditorWindow : FluentWindow
                     StrokeWidth = _vm.TextOutlineWidth
                 };
             }
+            // Effect regions take the effect defaults instead: outline/fill/stroke mean nothing
+            // to them, so applying those would be a no-op click on exactly the shapes whose
+            // defaults the panel is showing.
+            else if (s is BlurShape blur) updated = blur with { Radius = _vm.BlurRadiusDefault };
+            else if (s is PixelateShape pix) updated = pix with { BlockSize = _vm.PixelateBlockSizeDefault };
+            else if (s is SpotlightShape spot)
+            {
+                updated = spot with
+                {
+                    DimAmount = _vm.SpotlightDimDefault,
+                    BlurRadius = _vm.SpotlightBlurDefault,
+                };
+            }
             else
             {
                 updated = ApplyStrokeWidth(ApplyFillColor(ApplyOutlineColor(s, outline), fill), stroke);
@@ -3440,6 +3517,15 @@ public partial class EditorWindow : FluentWindow
             _vm.FreehandStartCapDefault = fh.StartCap;
             _vm.FreehandEndCapDefault = fh.EndCap;
             _vm.LineTipStyleDefault = fh.TipStyle;
+        }
+        // Effect regions: promote whatever the user dialled in with the wheel to the default for
+        // the next region of that kind.
+        else if (s is BlurShape blur) _vm.BlurRadiusDefault = blur.Radius;
+        else if (s is PixelateShape pix) _vm.PixelateBlockSizeDefault = pix.BlockSize;
+        else if (s is SpotlightShape spot)
+        {
+            _vm.SpotlightDimDefault = spot.DimAmount;
+            _vm.SpotlightBlurDefault = spot.BlurRadius;
         }
         // Reflect the freshly-adopted defaults in the panel (e.g. the contextual text-default
         // swatches) so the user sees the change land instead of it being a silent state update.
@@ -5052,8 +5138,21 @@ public partial class EditorWindow : FluentWindow
         var sels = _vm.SelectedShapes;
         var textContext = _vm.CurrentTool == EditorTool.Text
             || (sels.Count > 0 && sels.All(s => s is TextShape));
-        DefaultShapeSection.Visibility = textContext ? Visibility.Collapsed : Visibility.Visible;
+
+        // Effect context: one of the three effect tools is active, or the selection is entirely
+        // made of effect regions. Those shapes carry no outline/fill/stroke, so showing the shape
+        // defaults next to them would offer knobs that do nothing.
+        var effectTool = _vm.CurrentTool is EditorTool.Blur or EditorTool.Pixelate or EditorTool.Spotlight;
+        var effectSelection = sels.Count > 0
+            && sels.All(s => s is BlurShape or PixelateShape or SpotlightShape);
+        var effectContext = !textContext && (effectTool || effectSelection);
+
+        DefaultShapeSection.Visibility = textContext || effectContext ? Visibility.Collapsed : Visibility.Visible;
         DefaultTextSection.Visibility = textContext ? Visibility.Visible : Visibility.Collapsed;
+        DefaultEffectSection.Visibility = effectContext ? Visibility.Visible : Visibility.Collapsed;
+
+        if (effectContext) RefreshEffectDefaultRows(sels, effectSelection);
+
         if (!textContext) return;
         _suppressLiveUpdates = true;
         try
@@ -5062,6 +5161,57 @@ public partial class EditorWindow : FluentWindow
             DefaultTextOutlineSlider.Value = Math.Clamp(_vm.TextOutlineWidth, DefaultTextOutlineSlider.Minimum, DefaultTextOutlineSlider.Maximum);
         }
         finally { _suppressLiveUpdates = false; }
+    }
+
+    /// <summary>Show only the rows that belong to the effect in play, and sync the sliders to the
+    /// sticky defaults. Which effect is "in play" comes from the selection when there is one
+    /// (that's what the user is looking at) and from the active tool otherwise.</summary>
+    private void RefreshEffectDefaultRows(IReadOnlyList<Shape> sels, bool effectSelection)
+    {
+        var blur = effectSelection ? sels.Any(s => s is BlurShape) : _vm.CurrentTool == EditorTool.Blur;
+        var pixelate = effectSelection ? sels.Any(s => s is PixelateShape) : _vm.CurrentTool == EditorTool.Pixelate;
+        var spotlight = effectSelection ? sels.Any(s => s is SpotlightShape) : _vm.CurrentTool == EditorTool.Spotlight;
+
+        DefaultBlurRow.Visibility = blur ? Visibility.Visible : Visibility.Collapsed;
+        DefaultPixelateRow.Visibility = pixelate ? Visibility.Visible : Visibility.Collapsed;
+        DefaultSpotlightRow.Visibility = spotlight ? Visibility.Visible : Visibility.Collapsed;
+
+        _suppressLiveUpdates = true;
+        try
+        {
+            DefaultBlurSlider.Value = Math.Clamp(_vm.BlurRadiusDefault, DefaultBlurSlider.Minimum, DefaultBlurSlider.Maximum);
+            DefaultPixelateSlider.Value = Math.Clamp(_vm.PixelateBlockSizeDefault, DefaultPixelateSlider.Minimum, DefaultPixelateSlider.Maximum);
+            // Dim is stored 0..1 and shown as a percentage — the slider is the friendlier unit.
+            DefaultSpotlightDimSlider.Value = Math.Clamp(_vm.SpotlightDimDefault * 100.0, 0, 100);
+            DefaultSpotlightBlurSlider.Value = Math.Clamp(_vm.SpotlightBlurDefault, DefaultSpotlightBlurSlider.Minimum, DefaultSpotlightBlurSlider.Maximum);
+        }
+        finally { _suppressLiveUpdates = false; }
+    }
+
+    /// <summary>Wire the effect-default sliders back into the view-model. Called once from the
+    /// ctor's wiring pass, alongside the other default controls.</summary>
+    private void WireEffectDefaultSliders()
+    {
+        DefaultBlurSlider.ValueChanged += (_, e) =>
+        {
+            if (_suppressLiveUpdates) return;
+            _vm.BlurRadiusDefault = e.NewValue;
+        };
+        DefaultPixelateSlider.ValueChanged += (_, e) =>
+        {
+            if (_suppressLiveUpdates) return;
+            _vm.PixelateBlockSizeDefault = (int)Math.Round(e.NewValue);
+        };
+        DefaultSpotlightDimSlider.ValueChanged += (_, e) =>
+        {
+            if (_suppressLiveUpdates) return;
+            _vm.SpotlightDimDefault = e.NewValue / 100.0;
+        };
+        DefaultSpotlightBlurSlider.ValueChanged += (_, e) =>
+        {
+            if (_suppressLiveUpdates) return;
+            _vm.SpotlightBlurDefault = e.NewValue;
+        };
     }
 
     private void RefreshPropertyPanel()

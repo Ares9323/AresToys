@@ -1053,6 +1053,7 @@
   <data name="Editor_PixelBlockSize" xml:space="preserve"><value>Pixel block size</value></data>
   <data name="Editor_SpotlightDim" xml:space="preserve"><value>Spotlight dim (%)</value></data>
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Spotlight blur (px)</value></data>
+  <data name="Editor_EffectWheelHint" xml:space="preserve"><value>Mouse wheel over a selected region adjusts it; Shift+wheel sets a spotlight's dim. "Set as default" adopts the selected region's values.</value></data>
   <data name="Editor_EdgeBlur" xml:space="preserve"><value>Edge blur (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Smooth stroke</value></data>
   <data name="Editor_StartCap" xml:space="preserve"><value>Start cap</value></data>

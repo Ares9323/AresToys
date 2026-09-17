@@ -303,6 +303,10 @@ public sealed class EditorLauncher
             vm.LineTipStyleDefault = defaults.LineTipStyle;
             vm.TextOutlineColor = defaults.TextOutlineColor ?? AresToys.Editor.Model.ShapeColor.Black;
             vm.TextOutlineWidth = defaults.TextOutlineWidth;
+            vm.BlurRadiusDefault = defaults.BlurRadius;
+            vm.PixelateBlockSizeDefault = defaults.PixelateBlockSize;
+            vm.SpotlightDimDefault = defaults.SpotlightDim;
+            vm.SpotlightBlurDefault = defaults.SpotlightBlur;
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -328,7 +332,9 @@ public sealed class EditorLauncher
                     vm.LineStartCapDefault, vm.LineEndCapDefault,
                     vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
                     vm.LineTipStyleDefault,
-                    vm.TextOutlineColor, vm.TextOutlineWidth);
+                    vm.TextOutlineColor, vm.TextOutlineWidth,
+                    vm.BlurRadiusDefault, vm.PixelateBlockSizeDefault,
+                    vm.SpotlightDimDefault, vm.SpotlightBlurDefault);
                 byte[]? png = null;
                 if (window.Saved)
                 {
@@ -455,6 +461,10 @@ public sealed class EditorLauncher
             vm.LineTipStyleDefault = defaults.LineTipStyle;
             vm.TextOutlineColor = defaults.TextOutlineColor ?? AresToys.Editor.Model.ShapeColor.Black;
             vm.TextOutlineWidth = defaults.TextOutlineWidth;
+            vm.BlurRadiusDefault = defaults.BlurRadius;
+            vm.PixelateBlockSizeDefault = defaults.PixelateBlockSize;
+            vm.SpotlightDimDefault = defaults.SpotlightDim;
+            vm.SpotlightBlurDefault = defaults.SpotlightBlur;
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -489,7 +499,9 @@ public sealed class EditorLauncher
                     vm.LineStartCapDefault, vm.LineEndCapDefault,
                     vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
                     vm.LineTipStyleDefault,
-                    vm.TextOutlineColor, vm.TextOutlineWidth);
+                    vm.TextOutlineColor, vm.TextOutlineWidth,
+                    vm.BlurRadiusDefault, vm.PixelateBlockSizeDefault,
+                    vm.SpotlightDimDefault, vm.SpotlightBlurDefault);
                 byte[]? png = null;
                 int w = 0, h = 0;
                 if (window.Saved)
@@ -654,6 +666,7 @@ public sealed class EditorLauncher
             ["PixelBlockSize"]          = Loc("Editor_PixelBlockSize"),
             ["SpotlightDim"]            = Loc("Editor_SpotlightDim"),
             ["SpotlightBlur"]           = Loc("Editor_SpotlightBlur"),
+            ["EffectWheelHint"]         = Loc("Editor_EffectWheelHint"),
             ["EdgeBlur"]                = Loc("Editor_EdgeBlur"),
             ["SmoothStroke"]            = Loc("Editor_SmoothStroke"),
             ["StartCap"]                = Loc("Editor_StartCap"),
