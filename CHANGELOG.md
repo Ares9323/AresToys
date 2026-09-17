@@ -3,6 +3,70 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.30] — 2026-09-17
+
+Wormholes stop disappearing behind "Show desktop" and can find their folders
+again after a rename, the editor's blur / pixelate / spotlight became
+adjustable, notification lifetimes are configurable, and two colour-picker
+bugs are fixed.
+
+### Wormholes
+- "Show desktop" (Win+D, the taskbar's far-corner button) no longer buries the
+  wormholes. What Windows actually does to them was measured: it neither
+  minimizes nor hides them, it raises the desktop above them in the z-order.
+  They now join the desktop's z-order group, so the revealed desktop shows them
+  the way it shows the icons — while still going behind any app you bring to
+  the front. A setting in Settings → Wormholes turns it off.
+- Unchecking "Hidden" in Settings shows the wormhole again on the first click.
+  Hiding it from the chrome's menu left a dead window in the manager's cache, so
+  the checkbox needed the uncheck/check/uncheck dance to take effect.
+- New "hide the header until hovered" option: the strip is removed entirely, so
+  the tiles start at the top edge with no empty band above them. Hovering grows
+  the wormhole upwards by the strip height, revealing the header above the tiles
+  without covering them or pushing them down.
+- New snapping, each part independently toggleable: to a pixel grid, to the
+  other wormholes' edges and centre lines, and to the screen work area, plus a
+  gap kept on contact. It applies only while you drag or resize.
+- Renaming or moving a wormhole's source folder no longer breaks it. Each
+  wormhole remembers the folder's identity and finds it again at its new path,
+  even when the move happened with AresToys closed, as long as it stays on the
+  same drive. For what that can't cover there's a bulk relink in Settings and a
+  suggestion on the wormhole's "source unavailable" panel.
+- Settings can release the folder watchers for two minutes, so Explorer lets you
+  rename or move the folders while AresToys is running — an open watcher is what
+  makes Windows refuse to rename any folder above a watched one.
+
+### Editor
+- Blur, pixelate and spotlight regions are now adjustable: the mouse wheel over
+  a selected region changes its blur radius, mosaic cell size or outer blur, and
+  Shift+wheel sets a spotlight's dim. Default properties gained the matching
+  defaults for the next region, and "Set as default" adopts the selected one's
+  values. Previously every region came out with the same hard-coded numbers and
+  a spotlight's blur was unreachable.
+- Colours picked with the eyedropper land in "Recent colors". The screen sampler
+  never pushed them, and an already-open picker kept showing a stale list.
+  Dragging across the colour wheel no longer fills all 8 slots with near
+  identical shades either: only confirmed picks are recorded.
+
+### Colour picker
+- The magnifier no longer gets drawn past the screen edge near the bottom or
+  right of a monitor. It was tested against the full virtual screen rather than
+  the monitor under the cursor, and the label card's height wasn't counted at
+  all. It also stays on the side it flipped to instead of hopping back across
+  the cursor as soon as there's room.
+
+### Notifications
+- Two new settings control how long a notification lives: how long the popup
+  stays on screen (0 to 7 seconds, 0 meaning no popup at all) and how long it is
+  kept in the Windows Notification Center (-1 keeps it until you clear it, 0
+  never keeps one, any other value is a lifetime in seconds). Set the second to
+  0 and notifications stop piling up in the Center.
+
+### Updater
+- An update no longer fails quietly when another program holds a file in the
+  install folder open. The blocking processes are listed and you choose whether
+  to close them and continue or defer the update.
+
 ## [0.1.29] — 2026-08-20
 
 Image editor fixes plus a text outline option, and a clipboard fix so images

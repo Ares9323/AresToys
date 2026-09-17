@@ -137,6 +137,31 @@ jobs:
           -p:PublishReadyToRun=false
           -o publish
 
+      # --releaseNotes used to point straight at CHANGELOG.md, so every GitHub Release page and
+      # every in-app update prompt carried the WHOLE project history instead of the version being
+      # shipped. Pull out just this version's section — the next "## " heading (or EOF) ends it.
+      # A missing section is a hard failure on purpose: shipping a release whose notes silently
+      # describe something else is worse than stopping here.
+      - name: Extract release notes for this version
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_VERSION
+          $lines = @(Get-Content CHANGELOG.md)
+          $pattern = '^## \[' + [regex]::Escape($version) + '\]'
+          $start = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match $pattern) { $start = $i; break }
+          }
+          if ($start -lt 0) { throw "CHANGELOG.md has no '## [$version]' section — add it before tagging." }
+          $end = $lines.Count
+          for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^## ') { $end = $i; break }
+          }
+          $block = ($lines[$start..($end - 1)] -join "`n").TrimEnd()
+          Set-Content -Path release-notes.md -Value $block -Encoding UTF8
+          Write-Host "Release notes for $version ($($block.Length) chars):"
+          Write-Host $block
+
       # vpk pack produces:
       #   - AresToys-win-Setup.exe       — installer (self-extracting, installs to %LocalAppData%)
       #   - AresToys-win-Portable.zip    — portable extract-anywhere build
@@ -153,7 +178,7 @@ jobs:
           --mainExe AresToys.exe
           --packTitle "AresToys"
           --packAuthors "AresToys contributors"
-          --releaseNotes CHANGELOG.md
+          --releaseNotes release-notes.md
           --channel win
 
       # vpk upload github creates a draft Release on the supplied tag and uploads every artifact
