@@ -137,4 +137,55 @@ public interface IWormholeWindowManager
     /// <see cref="WormholeFocused"/> with the matching record id so the Settings panel can
     /// highlight the corresponding row. Idempotent: refiring with the same source is cheap.</summary>
     void NotifyWormholeFocused(System.Windows.Window source);
+
+    // ------------------------------------------------------------------------------------------
+    // Source folder recovery. A wormhole mirrors a folder by path, so renaming or moving that
+    // folder would normally break it. The manager stores each folder's NTFS identity and uses it
+    // to find the folder again; when that fails it falls back to name-based suggestions.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>Asked by a wormhole window that just found its source folder missing. Runs the
+    /// recovery chain in the background: resolve the folder by its stored NTFS id (covers rename
+    /// and move within the same volume, even when it happened while the app was closed) and, if
+    /// that lands, repoint the record and refresh the window. Otherwise compute a name-based
+    /// suggestion from the wormholes whose sources are still healthy and hand it to the window's
+    /// "source folder unavailable" panel. Fire-and-forget: never blocks the caller.</summary>
+    void RequestSourceRecovery(WormholeRecord record);
+
+    /// <summary>Point a wormhole at a different source folder: persists the new path, captures
+    /// its identity, restarts the folder watcher and refreshes the live window. Used by the
+    /// "relink" affordances and by the folder picker.</summary>
+    void RelinkSource(WormholeRecord record, string newSourcePath);
+
+    /// <summary>Records whose source folder currently doesn't resolve.</summary>
+    Task<IReadOnlyList<WormholeRecord>> MissingSourcesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Re-root every missing source under <paramref name="newBaseFolder"/> (see
+    /// <see cref="SourceRelinkPlanner"/>) and return how many were repaired.</summary>
+    Task<int> RelinkMissingSourcesAsync(string newBaseFolder, CancellationToken cancellationToken);
+
+    /// <summary>True while the folder watchers are released. Windows keeps an open handle on
+    /// every watched folder, and that handle is what stops Explorer from renaming or moving any
+    /// ANCESTOR of it ("the folder is open in another program"). Pausing drops those handles so
+    /// the user can reorganise their folders without closing AresToys.</summary>
+    bool WatchersPaused { get; }
+
+    /// <summary>Release every folder watcher. Wormholes keep working, they just stop noticing
+    /// file changes until <see cref="ResumeWatchers"/>.</summary>
+    void PauseWatchers();
+
+    /// <summary>Re-attach the watchers. Every source is recovered first, so a folder that was
+    /// renamed while paused is picked up at its new path instead of coming back broken.</summary>
+    void ResumeWatchers();
+
+    /// <summary>Raised when <see cref="WatchersPaused"/> flips, so the Settings panel can show
+    /// the paused state and its countdown.</summary>
+    event EventHandler? WatchersPausedChanged;
+
+    /// <summary>Window handles of every live wormhole. Used by the snap logic in a dragged
+    /// wormhole to read its neighbours' screen rects via <c>GetWindowRect</c> — handles rather
+    /// than WPF objects so the caller stays in physical-pixel space and never has to convert
+    /// DIPs across monitors with different scaling. Handles that haven't been created yet are
+    /// skipped.</summary>
+    IReadOnlyList<IntPtr> LiveWindowHandles();
 }

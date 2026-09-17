@@ -2088,6 +2088,132 @@
                                       ToolTip="{Markup:Loc Wormhole_WebLinkFaviconsTooltip}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" />
+
+                            <!-- Desktop-widget behaviour: "Show desktop" (Win+D, Win+M, the
+                                 taskbar's far-corner button) leaves the wormholes alone. ON by
+                                 default — a widget that lives ON the desktop shouldn't vanish
+                                 when the user asks to see the desktop. -->
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.KeepVisibleOnShowDesktop, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_KeepVisibleOnShowDesktop}"
+                                      ToolTip="{Markup:Loc Wormhole_KeepVisibleOnShowDesktopTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+
+                            <!-- Header chrome hidden until hover. Not an opacity fade: the strip's
+                                 content AND its Surface2 backdrop go to 0, while the 32 px row
+                                 stays reserved so the tiles don't shift. -->
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.HideHeaderChrome, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_HideHeaderChrome}"
+                                      ToolTip="{Markup:Loc Wormhole_HideHeaderChromeTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Source folders card: the two manual affordances around folder moves. The
+                         automatic recovery (folder identity → new path) needs no UI at all; these
+                         cover the two cases it can't: Windows refusing a rename while the
+                         watchers hold handles, and a move the identity can't follow. -->
+                    <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4"
+                            Padding="14" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc Wormhole_FoldersTitle}"
+                                       FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Text="{Markup:Loc Wormhole_FoldersHint}" />
+
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button Content="{Markup:Loc Wormhole_UnlockFolders}"
+                                           ToolTip="{Markup:Loc Wormhole_UnlockFoldersTooltip}"
+                                           Command="{Binding Wormholes.ToggleFolderUnlockCommand}"
+                                           Padding="10,4"
+                                           Visibility="{Binding Wormholes.FoldersUnlocked, Converter={StaticResource InverseBoolToVisibility}}" />
+                                <ui:Button Content="{Markup:Loc Wormhole_UnlockFoldersActive}"
+                                           ToolTip="{Markup:Loc Wormhole_UnlockFoldersTooltip}"
+                                           Command="{Binding Wormholes.ToggleFolderUnlockCommand}"
+                                           Padding="10,4"
+                                           Visibility="{Binding Wormholes.FoldersUnlocked, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock VerticalAlignment="Center" Margin="10,0,0,0"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                           Visibility="{Binding Wormholes.FoldersUnlocked, Converter={StaticResource BoolToVisibility}}">
+                                    <Run Text="{Markup:Loc Wormhole_UnlockFoldersCountdown}" />
+                                    <Run Text=" " /><Run Text="{Binding Wormholes.FoldersUnlockedCountdown, Mode=OneWay}" FontWeight="SemiBold" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <ui:Button Content="{Markup:Loc Wormhole_RelinkMissing}"
+                                       ToolTip="{Markup:Loc Wormhole_RelinkMissingTooltip}"
+                                       Command="{Binding Wormholes.RelinkMissingSourcesCommand}"
+                                       Padding="10,4" Margin="0,10,0,0"
+                                       HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Snapping card: the three independent attractors (grid / neighbours /
+                         screen edges) plus the gap kept on contact. All off by default so the
+                         drag feel doesn't change for anyone who didn't ask for it. -->
+                    <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4"
+                            Padding="14" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc Wormhole_SnapTitle}"
+                                       FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Text="{Markup:Loc Wormhole_SnapHint}" />
+
+                            <CheckBox IsChecked="{Binding Wormholes.SnapToGrid, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_SnapToGrid}"
+                                      ToolTip="{Markup:Loc Wormhole_SnapToGridTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+
+                            <Grid Margin="0,8,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="{Markup:Loc Wormhole_SnapGridSize}" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="2" Maximum="256" SmallChange="2"
+                                              ClearButtonEnabled="False"
+                                              IsEnabled="{Binding Wormholes.SnapToGrid}"
+                                              Value="{Binding Wormholes.SnapGridSizePx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <CheckBox IsChecked="{Binding Wormholes.SnapToWormholes, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_SnapToWormholes}"
+                                      ToolTip="{Markup:Loc Wormhole_SnapToWormholesTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.SnapToScreenEdges, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_SnapToScreenEdges}"
+                                      ToolTip="{Markup:Loc Wormhole_SnapToScreenEdgesTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="{Markup:Loc Wormhole_SnapGap}"
+                                           ToolTip="{Markup:Loc Wormhole_SnapGapTooltip}" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="0" Maximum="200" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              ToolTip="{Markup:Loc Wormhole_SnapGapTooltip}"
+                                              Value="{Binding Wormholes.SnapGapPx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 

@@ -56,8 +56,12 @@
                         IsHitTestVisible="False" />
 
             <!-- Header chrome. Layout: [chevron] [title] [search] [lock] [hamburger].
-                 Background=Transparent now — the visual fill lives on HeaderBackdrop above. -->
-            <Border Grid.Row="0" Height="32"
+                 Background=Transparent now — the visual fill lives on HeaderBackdrop above.
+                 x:Name so ApplyHeaderChrome() can fade the whole strip's content out when the
+                 "hide header" default is on (the Border itself keeps its size and its
+                 MouseDown handler, so the strip stays draggable while invisible). -->
+            <Border x:Name="HeaderChrome"
+                    Grid.Row="0" Height="32"
                     Background="Transparent"
                     MouseDown="OnHeaderMouseDown">
                 <Grid>
@@ -363,6 +367,25 @@
                                    MaxWidth="240"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,0,0,12" />
+                        <!-- Name-based suggestion. Shown only when the manager couldn't identify
+                             the folder for certain (that case is repaired silently) but the
+                             sibling wormholes point at a parent that contains a folder with this
+                             one's name. Confirmation is the user's, since a name match is a
+                             guess, not proof. -->
+                        <StackPanel x:Name="SourceSuggestionPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <TextBlock Text="Looks like it moved here:"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       FontSize="11" TextAlignment="Center" />
+                            <TextBlock x:Name="SourceSuggestionPath"
+                                       Foreground="{DynamicResource AccentForegroundBrush}"
+                                       FontSize="11" TextAlignment="Center" TextWrapping="Wrap"
+                                       MaxWidth="240" TextTrimming="CharacterEllipsis"
+                                       Margin="0,2,0,6" />
+                            <Button Content="Relink here"
+                                    Click="OnAcceptSourceSuggestionClicked"
+                                    Padding="12,4"
+                                    HorizontalAlignment="Center" />
+                        </StackPanel>
                         <Button Content="Pick a new folder…"
                                 Click="OnRelinkSourceClicked"
                                 Padding="12,4"

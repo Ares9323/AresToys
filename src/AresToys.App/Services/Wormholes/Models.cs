@@ -39,6 +39,17 @@ public sealed class PortalWormholeConfig
     /// breaking the persisted schema. Known values: <c>Name</c>, <c>Modified</c>, <c>Type</c>.
     /// Unknown values fall back to <c>Name</c> at load time.</summary>
     public string SortMode { get; set; } = "Name";
+
+    /// <summary>Serial number of the volume <see cref="SourcePath"/> lived on when it was last
+    /// seen. Together with <see cref="SourceFileId"/> this is the folder's identity, which
+    /// survives a rename or a move: when the path stops resolving we look the folder up by id
+    /// instead of asking the user where it went. 0 = never captured (pre-existing wormhole, or a
+    /// file system without stable ids); the app fills it in the first time the source resolves.</summary>
+    public ulong SourceVolumeSerial { get; set; }
+
+    /// <summary>NTFS 128-bit file id of <see cref="SourcePath"/>, as 32 hex chars. See
+    /// <see cref="SourceVolumeSerial"/>. Null when never captured.</summary>
+    public string? SourceFileId { get; set; }
 }
 
 /// <summary>Per-wormhole appearance overrides. Anything that's nullable / 0-sentinel means

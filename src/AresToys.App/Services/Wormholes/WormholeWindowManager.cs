@@ -69,6 +69,10 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // Toggling web-link favicons rebuilds item lists: ON kicks off favicon fetches for every
         // live .url, OFF just stops new fetches (already-stamped .url files keep their icon).
         _defaults.WebLinkFaviconsChanged += (_, _) => RefreshAllLiveIconSize();
+        // Header visibility is a pure opacity flip on two elements — cheapest refresh of the lot,
+        // no item rebuild.
+        _defaults.HeaderChromeChanged += (_, _) => RefreshAllLiveHeaderChrome();
+        _defaults.KeepVisibleOnShowDesktopChanged += (_, _) => RefreshAllLiveDesktopOwnership();
 
         // React to resolution / monitor / RDP display changes so Windows' automatic rescue of
         // off-screen top-level windows doesn't corrupt the saved wormhole layout. App-lifetime
@@ -331,12 +335,312 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         }
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Source folder recovery
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>See <see cref="IWormholeWindowManager.RequestSourceRecovery"/>.</summary>
+    public void RequestSourceRecovery(WormholeRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        _ = RecoverSourceAsync(record);
+    }
+
+    private async Task RecoverSourceAsync(WormholeRecord record)
+    {
+        try
+        {
+            var path = record.Portal?.SourcePath;
+            if (string.IsNullOrWhiteSpace(path)) return;
+            if (Directory.Exists(path)) { CaptureSourceIdentity(record); return; }
+
+            // 1. Identity lookup — authoritative. The folder proves it's the same one, so we
+            //    repoint without asking.
+            var resolved = await Task.Run(() => ResolveByIdentity(record)).ConfigureAwait(true);
+            if (resolved is not null)
+            {
+                _logger.LogInformation("Wormhole {Id}: source folder was moved, recovered by file id: '{Old}' → '{New}'",
+                    record.Id, path, resolved);
+                ApplyNewSource(record, resolved);
+                return;
+            }
+
+            // 2. Name-based guess — offered, never applied silently: matching by name is not
+            //    proof of identity, so the user confirms it from the wormhole's banner.
+            var suggestion = await SuggestSourceAsync(record).ConfigureAwait(true);
+            if (_live.TryGetValue(record.Id, out var window))
+            {
+                try { window.ApplySourceSuggestion(suggestion); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Applying source suggestion failed for {Id}", record.Id); }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Source recovery failed for wormhole {Id}", record.Id);
+        }
+    }
+
+    /// <summary>Resolve a record's source through the stored NTFS identity. Null when nothing was
+    /// captured, the volume is absent, or the folder is genuinely gone.</summary>
+    private static string? ResolveByIdentity(WormholeRecord record)
+    {
+        var portal = record.Portal;
+        if (portal is null) return null;
+        if (!FolderIdentity.TryParseFileId(portal.SourceFileId, out var high, out var low)) return null;
+        var identity = new FolderIdentity(portal.SourceVolumeSerial, high, low);
+        return FolderIdentityResolver.ResolvePath(identity);
+    }
+
+    /// <summary>Name-based suggestion for a missing source, derived from the wormholes whose
+    /// folders still resolve.</summary>
+    private async Task<string?> SuggestSourceAsync(WormholeRecord record)
+    {
+        var path = record.Portal?.SourcePath;
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        var records = await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true);
+        var healthy = records
+            .Where(r => r.Id != record.Id)
+            .Select(r => r.Portal?.SourcePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p) && Directory.Exists(p))
+            .Select(p => p!)
+            .ToList();
+        return SourceRelinkPlanner.Suggest(path, healthy, Directory.Exists);
+    }
+
+    /// <summary>See <see cref="IWormholeWindowManager.RelinkSource"/>.</summary>
+    public void RelinkSource(WormholeRecord record, string newSourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        if (string.IsNullOrWhiteSpace(newSourcePath) || !Directory.Exists(newSourcePath)) return;
+        ApplyNewSource(record, newSourcePath);
+    }
+
+    /// <summary>Write a new source path onto the record: capture the folder's identity, persist,
+    /// re-attach the watcher and refresh the live window.</summary>
+    private void ApplyNewSource(WormholeRecord record, string newPath)
+    {
+        if (record.Portal is null) return;
+        record.Portal.SourcePath = newPath;
+        CaptureSourceIdentity(record);
+        _ = PersistAndRefreshAsync(record);
+    }
+
+    private async Task PersistAndRefreshAsync(WormholeRecord record)
+    {
+        try { await _store.SaveAsync(record, CancellationToken.None).ConfigureAwait(true); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Persisting recovered source failed for {Id}", record.Id); }
+
+        RestartWatcher(record);
+        if (_live.TryGetValue(record.Id, out var window))
+        {
+            try { window.RebuildItems(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Refresh after source recovery failed for {Id}", record.Id); }
+        }
+        RecordChanged?.Invoke(this, record.Id);
+    }
+
+    /// <summary>Record the folder's NTFS identity so a later rename / move can be undone by
+    /// lookup instead of by asking the user. No-op when the volume has no stable ids (FAT, some
+    /// network shares) — the recovery chain then just falls through to the name-based path.</summary>
+    /// <param name="persist">False lets a caller batch several captures behind one flush — the
+    /// startup pass touches every record at once and would otherwise rewrite the whole JSON file
+    /// once per wormhole.</param>
+    /// <returns>True when the stored identity actually changed.</returns>
+    private bool CaptureSourceIdentity(WormholeRecord record, bool persist = true)
+    {
+        var portal = record.Portal;
+        if (portal is null || string.IsNullOrWhiteSpace(portal.SourcePath)) return false;
+        var identity = FolderIdentityResolver.Capture(portal.SourcePath);
+        if (identity is not { } id) return false;
+
+        var text = id.ToFileIdString();
+        if (portal.SourceVolumeSerial == id.VolumeSerialNumber
+            && string.Equals(portal.SourceFileId, text, StringComparison.Ordinal)) return false;
+
+        portal.SourceVolumeSerial = id.VolumeSerialNumber;
+        portal.SourceFileId = text;
+        if (persist) _ = SafeSaveAsync(record);
+        return true;
+    }
+
+    private async Task SafeSaveAsync(WormholeRecord record)
+    {
+        try { await _store.SaveAsync(record, CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Saving source identity failed for {Id}", record.Id); }
+    }
+
+    /// <summary>Dispose the watcher for a record and start a fresh one on its current source.</summary>
+    private void RestartWatcher(WormholeRecord record)
+    {
+        if (_watchers.Remove(record.Id, out var existing))
+        {
+            try { existing.Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Watcher dispose during restart failed for {Id}", record.Id); }
+        }
+        if (_watchersPaused) return;
+        if (!_live.TryGetValue(record.Id, out var window)) return;
+        if (record.Portal is not { SourcePath: { Length: > 0 } source }) return;
+        if (!Directory.Exists(source)) return;
+        _watchers[record.Id] = CreateWatcher(source, window);
+    }
+
+    /// <summary>See <see cref="IWormholeWindowManager.MissingSourcesAsync"/>.</summary>
+    public async Task<IReadOnlyList<WormholeRecord>> MissingSourcesAsync(CancellationToken cancellationToken)
+    {
+        var records = await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true);
+        return records
+            .Where(r => !string.IsNullOrWhiteSpace(r.Portal?.SourcePath) && !Directory.Exists(r.Portal!.SourcePath))
+            .ToList();
+    }
+
+    /// <summary>See <see cref="IWormholeWindowManager.RelinkMissingSourcesAsync"/>.</summary>
+    public async Task<int> RelinkMissingSourcesAsync(string newBaseFolder, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(newBaseFolder) || !Directory.Exists(newBaseFolder)) return 0;
+        var missing = await MissingSourcesAsync(cancellationToken).ConfigureAwait(true);
+        if (missing.Count == 0) return 0;
+
+        var plan = SourceRelinkPlanner.Plan(
+            missing.Select(r => (r.Id, r.Portal!.SourcePath)).ToList(),
+            newBaseFolder,
+            Directory.Exists);
+        if (plan.Count == 0) return 0;
+
+        foreach (var proposal in plan)
+        {
+            var record = missing.FirstOrDefault(r => r.Id == proposal.Id);
+            if (record?.Portal is null) continue;
+            record.Portal.SourcePath = proposal.NewPath;
+            CaptureSourceIdentity(record);
+            RestartWatcher(record);
+            if (_live.TryGetValue(record.Id, out var window))
+            {
+                try { window.RebuildItems(); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Refresh after bulk relink failed for {Id}", record.Id); }
+            }
+            _logger.LogInformation("Wormhole {Id}: source relinked '{Old}' → '{New}'",
+                record.Id, proposal.OldPath, proposal.NewPath);
+        }
+
+        try { await _store.FlushAsync(cancellationToken).ConfigureAwait(true); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Flush after bulk relink failed"); }
+        foreach (var proposal in plan) RecordChanged?.Invoke(this, proposal.Id);
+        return plan.Count;
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Watcher pause — lets the user rename / move source folders without closing the app
+    // ------------------------------------------------------------------------------------------
+
+    private bool _watchersPaused;
+
+    public bool WatchersPaused => _watchersPaused;
+
+    public event EventHandler? WatchersPausedChanged;
+
+    /// <summary>See <see cref="IWormholeWindowManager.PauseWatchers"/>. Measured behaviour: a
+    /// live FileSystemWatcher holds a handle on its folder, and Windows refuses to rename ANY
+    /// ancestor of a folder with an open handle inside it — which is exactly what happens when
+    /// the user tries to rename the folder that holds all their wormhole sources.</summary>
+    public void PauseWatchers()
+    {
+        if (_watchersPaused) return;
+        _watchersPaused = true;
+        foreach (var (id, watcher) in _watchers)
+        {
+            try { watcher.Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Watcher dispose during pause failed for {Id}", id); }
+        }
+        _watchers.Clear();
+        _logger.LogInformation("Wormholes: folder watchers paused ({Count} released)", _live.Count);
+        WatchersPausedChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>See <see cref="IWormholeWindowManager.ResumeWatchers"/>.</summary>
+    public void ResumeWatchers()
+    {
+        if (!_watchersPaused) return;
+        _watchersPaused = false;
+        _ = ResumeWatchersAsync();
+        WatchersPausedChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task ResumeWatchersAsync()
+    {
+        try
+        {
+            var records = await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true);
+            foreach (var record in records.ToList())
+            {
+                if (!_live.ContainsKey(record.Id)) continue;
+                // Recover BEFORE re-attaching: the whole point of the pause is that the user was
+                // reorganising folders, so the path on record may well be stale now.
+                var path = record.Portal?.SourcePath;
+                if (!string.IsNullOrWhiteSpace(path) && !Directory.Exists(path))
+                {
+                    var resolved = await Task.Run(() => ResolveByIdentity(record)).ConfigureAwait(true);
+                    if (resolved is not null)
+                    {
+                        _logger.LogInformation("Wormhole {Id}: source recovered after watcher pause: '{Old}' → '{New}'",
+                            record.Id, path, resolved);
+                        record.Portal!.SourcePath = resolved;
+                        CaptureSourceIdentity(record);
+                        try { await _store.SaveAsync(record, CancellationToken.None).ConfigureAwait(true); }
+                        catch (Exception ex) { _logger.LogWarning(ex, "Save after resume recovery failed for {Id}", record.Id); }
+                        RecordChanged?.Invoke(this, record.Id);
+                    }
+                }
+                RestartWatcher(record);
+                if (_live.TryGetValue(record.Id, out var window))
+                {
+                    try { window.RebuildItems(); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Refresh after watcher resume failed for {Id}", record.Id); }
+                }
+            }
+            _logger.LogInformation("Wormholes: folder watchers resumed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Resuming folder watchers failed");
+        }
+    }
+
+    /// <summary>See <see cref="IWormholeWindowManager.LiveWindowHandles"/>.</summary>
+    public IReadOnlyList<IntPtr> LiveWindowHandles()
+    {
+        var handles = new List<IntPtr>(_live.Count);
+        foreach (var (_, window) in _live)
+        {
+            var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            if (handle != IntPtr.Zero) handles.Add(handle);
+        }
+        return handles;
+    }
+
     private void RefreshAllLiveOpacity()
     {
         foreach (var (_, window) in _live)
         {
             try { window.RefreshOpacity(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshOpacity failed during defaults change"); }
+        }
+    }
+
+    private void RefreshAllLiveDesktopOwnership()
+    {
+        foreach (var (_, window) in _live)
+        {
+            try { window.RefreshDesktopOwnership(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "RefreshDesktopOwnership failed during defaults change"); }
+        }
+    }
+
+    private void RefreshAllLiveHeaderChrome()
+    {
+        foreach (var (_, window) in _live)
+        {
+            try { window.RefreshHeaderChrome(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "RefreshHeaderChrome failed during defaults change"); }
         }
     }
 
@@ -366,6 +670,19 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // unexpected schema drift, WPF window construction throwing) doesn't kill the rest of
         // the loop. The bad record stays in JSON for next restart; the user can delete it from
         // Settings → Wormholes once that lands.
+        // Source recovery runs for EVERY record, hidden ones included: a hidden wormhole whose
+        // folder was renamed while the app was closed should come back pointing at the right place
+        // the moment the user unhides it. This is also where the folder identity gets backfilled
+        // onto records created before the feature existed, which is what makes a FUTURE rename
+        // recoverable at all. One flush at the end rather than one save per record.
+        var sourcesChanged = false;
+        foreach (var record in records) sourcesChanged |= RecoverOrCaptureSourceAtStartup(record);
+        if (sourcesChanged)
+        {
+            try { await _store.FlushAsync(cancellationToken).ConfigureAwait(true); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Flush of recovered source paths failed"); }
+        }
+
         foreach (var record in records)
         {
             if (record.IsHidden)
@@ -397,6 +714,40 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // fully off the current virtual screen. A preset is auto-applied only when a genuine
         // setup change is detected at runtime (see OnDisplaySettleTickAsync).
         _lastSetupHash = MonitorSetupIdentifier.ComputeCurrentSetupHash();
+    }
+
+    /// <summary>Startup pass over one record's source folder: if the path resolves, record (or
+    /// refresh) its NTFS identity; if it doesn't, try to find the folder by that identity and
+    /// repoint the record before its window is spawned. Synchronous on purpose — it runs before
+    /// the windows exist, and a file-id lookup is a couple of handle opens.</summary>
+    /// <returns>True when the record was modified and the caller should flush.</returns>
+    private bool RecoverOrCaptureSourceAtStartup(WormholeRecord record)
+    {
+        try
+        {
+            var path = record.Portal?.SourcePath;
+            if (string.IsNullOrWhiteSpace(path)) return false;
+
+            if (Directory.Exists(path)) return CaptureSourceIdentity(record, persist: false);
+
+            var resolved = ResolveByIdentity(record);
+            if (resolved is null)
+            {
+                _logger.LogInformation("Wormhole {Id}: source folder '{Path}' is missing and couldn't be resolved by id",
+                    record.Id, path);
+                return false;
+            }
+            _logger.LogInformation("Wormhole {Id}: source folder moved while the app was closed, recovered by file id: '{Old}' → '{New}'",
+                record.Id, path, resolved);
+            record.Portal!.SourcePath = resolved;
+            CaptureSourceIdentity(record, persist: false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Startup source recovery failed for wormhole {Id}", record.Id);
+            return false;
+        }
     }
 
     /// <summary>Collect the hosts of every <c>.url</c> across all wormhole sources and hand them
@@ -465,6 +816,10 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         }
         record.Geometry.X = x;
         record.Geometry.Y = y;
+
+        // Capture the folder's identity up front so this wormhole survives a later rename / move
+        // of its source without the user having to point at it again.
+        CaptureSourceIdentity(record);
 
         await _store.SaveAsync(record, cancellationToken).ConfigureAwait(true);
         SpawnWindow(record);
@@ -551,37 +906,31 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             try { await DeleteAsync(id, CancellationToken.None).ConfigureAwait(true); }
             catch (Exception ex) { _logger.LogWarning(ex, "Wormhole delete from menu failed for {Id}", id); }
         };
+        // Drop the cache entry whenever the window goes away, no matter WHO closed it. Without
+        // this, the chrome's hamburger → "Hide this wormhole" (which closes the window directly)
+        // left a dead WormholeWindow in _live; the Settings checkbox then unchecked "Hidden",
+        // ReconcileAsync found that stale entry and took the "refresh the existing window" branch
+        // instead of spawning a new one, so nothing reappeared until the user toggled the box a
+        // second time. Guarded by the identity check so the close that FOLLOWS a respawn (same id,
+        // different window instance) can't evict the new window.
+        window.Closed += (_, _) => ForgetWindow(record.Id, window);
         _live[record.Id] = window;
 
         // FolderWatcher pinned to this wormhole's source. The watcher fires Changed events on
         // the dispatcher after a 300 ms quiet period; the window just re-enumerates its source
-        // folder each tick. Disposed in DeleteAsync / CloseAll.
-        if (record.Portal is { SourcePath: { Length: > 0 } sourcePath })
-        {
-            var watcher = new FolderWatcher(_loggerFactory.CreateLogger<FolderWatcher>());
-            watcher.Changed += (_, _) =>
-            {
-                if (Application.Current is { } app) app.Dispatcher.BeginInvoke(window.RefreshPortalItems);
-                else window.RefreshPortalItems();
-            };
-            watcher.FullRefreshRequested += (_, _) =>
-            {
-                if (Application.Current is { } app) app.Dispatcher.BeginInvoke(window.RefreshPortalItems);
-                else window.RefreshPortalItems();
-            };
-            watcher.Start(sourcePath);
-            _watchers[record.Id] = watcher;
-        }
+        // folder each tick. Disposed in DeleteAsync / CloseAll / the window's Closed handler.
+        if (!_watchersPaused && record.Portal is { SourcePath: { Length: > 0 } sourcePath })
+            _watchers[record.Id] = CreateWatcher(sourcePath, window);
 
-        // WorkerW / Progman parenting is temporarily disabled — see DesktopLayerHost.cs. The
-        // SetParent call succeeds on Win11 24H2+ via the Progman-child strategy, but the
-        // coordinate space of the reparented window shifts to the parent's client area which
-        // doesn't match WPF's screen-coord Left/Top from the persisted record. Result: every
-        // wormhole loads off-screen by the delta between virtual origin and Progman client
-        // origin. Until we add proper ScreenToClient conversion + persistence in client coords,
-        // wormholes ship as regular top-level WPF windows (not Topmost): they go behind every
-        // other app on click, and minimize on Win+D. Trade-off for the v1 — desktop-layer
-        // semantics (Win+D reveals, never minimized) come back once the coord conversion lands.
+        // WorkerW / Progman PARENTING (DesktopLayerHost.SetParent) stays disabled: it shifts the
+        // window's coordinate space to the parent's client area, which doesn't match the
+        // screen-coord Left/Top we persist, so every wormhole loaded off-screen by the delta
+        // between the virtual origin and Progman's client origin.
+        //
+        // Desktop-layer semantics are delivered instead by DesktopOwnership (see that file for
+        // the measurements): the wormhole becomes an OWNED window of Progman, which keeps it on
+        // top of the desktop when "Show desktop" raises it, while leaving it a normal top-level
+        // window in screen coordinates. Applied by the window itself at SourceInitialized.
         if (Application.Current is { } current)
             current.Dispatcher.Invoke(() => { window.Show(); window.Activate(); });
         else { window.Show(); window.Activate(); }
@@ -594,6 +943,39 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _logger.LogInformation("Wormhole {Id} window placed at Left={Left} Top={Top} (asked X={X} Y={Y}), Width={W} Height={H}, IsVisible={Visible}, IsActive={Active}",
             record.Id, window.Left, window.Top, record.Geometry.X, record.Geometry.Y,
             window.Width, window.Height, window.IsVisible, window.IsActive);
+    }
+
+    /// <summary>Build and start a folder watcher that refreshes <paramref name="window"/> on
+    /// every debounced batch of file-system events.</summary>
+    private FolderWatcher CreateWatcher(string sourcePath, WormholeWindow window)
+    {
+        var watcher = new FolderWatcher(_loggerFactory.CreateLogger<FolderWatcher>());
+        watcher.Changed += (_, _) =>
+        {
+            if (Application.Current is { } app) app.Dispatcher.BeginInvoke(window.RefreshPortalItems);
+            else window.RefreshPortalItems();
+        };
+        watcher.FullRefreshRequested += (_, _) =>
+        {
+            if (Application.Current is { } app) app.Dispatcher.BeginInvoke(window.RefreshPortalItems);
+            else window.RefreshPortalItems();
+        };
+        watcher.Start(sourcePath);
+        return watcher;
+    }
+
+    /// <summary>Remove a wormhole's live-window entry (and its folder watcher) from the caches,
+    /// but only if <paramref name="window"/> is still the instance we have on record — a respawn
+    /// can race a pending Closed callback from the previous instance.</summary>
+    private void ForgetWindow(Guid id, WormholeWindow window)
+    {
+        if (!_live.TryGetValue(id, out var current) || !ReferenceEquals(current, window)) return;
+        _live.Remove(id);
+        if (_watchers.Remove(id, out var watcher))
+        {
+            try { watcher.Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "FolderWatcher dispose after window close failed for {Id}", id); }
+        }
     }
 
     /// <summary>If the wormhole's persisted geometry would render mostly off-screen against the
@@ -663,11 +1045,14 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             // same value back to the record (idempotent — saves the value we just wrote). The
             // extra round-trip costs one SaveAsync but keeps the data flow simple (record is
             // always the source of truth; the live window mirrors it).
+            // LogicalTop / LogicalHeight rather than Top / Height: a wormhole whose header is
+            // revealed under the pointer is temporarily 32 px taller and higher than the record
+            // says, and pushing raw values would fight that offset.
             if (Math.Abs(window.Left - record.Geometry.X) > 0.5) window.Left = record.Geometry.X;
-            if (Math.Abs(window.Top - record.Geometry.Y) > 0.5) window.Top = record.Geometry.Y;
+            if (Math.Abs(window.LogicalTop - record.Geometry.Y) > 0.5) window.LogicalTop = record.Geometry.Y;
             if (Math.Abs(window.Width - record.Geometry.Width) > 0.5) window.Width = record.Geometry.Width;
-            if (!record.IsRolled && Math.Abs(window.Height - record.Geometry.Height) > 0.5)
-                window.Height = record.Geometry.Height;
+            if (!record.IsRolled && Math.Abs(window.LogicalHeight - record.Geometry.Height) > 0.5)
+                window.LogicalHeight = record.Geometry.Height;
             window.RefreshFromRecord();
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Window refresh during reconcile failed"); }
@@ -828,7 +1213,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             var x = Math.Max(20, (screenW - width) / 2 - 100 + i * cascadeStep);
             var y = Math.Max(20, (screenH - height) / 2 - 100 + i * cascadeStep);
             window.Left = x;
-            window.Top = y;
+            window.LogicalTop = y;
             window.Activate();
             i++;
         }

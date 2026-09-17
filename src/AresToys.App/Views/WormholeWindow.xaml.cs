@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -71,6 +72,10 @@ public partial class WormholeWindow : Window
     /// fire (after Interval ms of quiet) we refresh the CollectionView. Keeps re-filter cost
     /// off the typing path so even a folder with thousands of items doesn't lag the box.</summary>
     private readonly DispatcherTimer _searchDebounce;
+
+    /// <summary>Delays hiding the hover-revealed header (see the MouseLeave wiring) so a stray
+    /// leave event produced by the reveal's own resize doesn't make the strip flicker.</summary>
+    private readonly DispatcherTimer _headerHideDebounce;
 
     /// <summary>Drag-out gesture state. Captured on PreviewMouseLeftButtonDown over a tile,
     /// promoted to a real <c>DoDragDrop</c> on PreviewMouseMove once the OS drag threshold is
@@ -151,6 +156,26 @@ public partial class WormholeWindow : Window
             if (_isClosingFromManager) return;
             _onPersist();
         };
+        // Hover reveal for the "hide header" mode: the header comes back while the pointer is
+        // anywhere over the wormhole. Window-level (not header-level) because with the strip
+        // collapsed there is nothing to aim at — moving onto the wormhole at all is the gesture
+        // that means "I want the controls".
+        //
+        // Reveal is immediate; hiding waits out a short debounce. The reveal resizes the window
+        // under the pointer, and a resize can produce a stray MouseLeave/MouseEnter pair — acting
+        // on those straight away would make the header flicker, or oscillate at the edges.
+        _headerHideDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        _headerHideDebounce.Tick += (_, _) =>
+        {
+            _headerHideDebounce!.Stop();
+            if (IsMouseOver) return;   // pointer came back in the meantime — stay revealed
+            _pointerInside = false;
+            ApplyHeaderChrome();
+        };
+        MouseEnter += (_, _) => { _headerHideDebounce.Stop(); _pointerInside = true; ApplyHeaderChrome(); };
+        MouseLeave += (_, _) => { _headerHideDebounce.Stop(); _headerHideDebounce.Start(); };
+        Closed += (_, _) => _headerHideDebounce?.Stop();
+
         // Ctrl+MouseWheel zooms tile size like Explorer's icon view. Tunneling handler on the
         // window so it fires regardless of whether the cursor is over the ListBox or the empty
         // state — and we can mark e.Handled = true before the ListBox sees it (which would
@@ -192,6 +217,14 @@ public partial class WormholeWindow : Window
             var helper = new System.Windows.Interop.WindowInteropHelper(this);
             var src = System.Windows.Interop.HwndSource.FromHwnd(helper.Handle);
             src?.AddHook(WindowProcResizeHook);
+            // Desktop-widget behaviour (survives "Show desktop") + drag/resize snapping. The
+            // latter lives on WM_WINDOWPOSCHANGING, the only place that can steer the Win32
+            // move-size loop that DragMove() and the edge-resize run in.
+            src?.AddHook(WindowProcDesktopBehaviour);
+            // Join the desktop's z-order group so Show desktop reveals the wormhole instead of
+            // burying it. Done here, before the first Show, so there's never a frame where a
+            // wormhole is a plain top-level window.
+            RefreshDesktopOwnership();
             // Register for clipboard change notifications so we can clear the "cut" tint on
             // selected items when the clipboard's content stops being ours (the user pressed
             // Ctrl+X then copied/cut something else, or some other process took over). The
@@ -270,6 +303,199 @@ public partial class WormholeWindow : Window
         return new IntPtr(hit);
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Desktop-widget behaviour + snapping (WM_SYSCOMMAND / WM_WINDOWPOSCHANGING)
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE — i.e. while the user is
+    /// dragging or resizing this wormhole. Snapping only applies inside that window so a
+    /// programmatic move (preset restore, reconcile, off-screen rescue) lands exactly where it
+    /// was told to.</summary>
+    private bool _inMoveSizeLoop;
+
+    /// <summary>Rect the current move/size loop started from, in physical pixels. Diffing the
+    /// proposed rect against it tells us which edges the gesture is dragging.</summary>
+    private Services.Wormholes.SnapRect _moveSizeStartRect;
+
+    private bool KeepVisibleOnShowDesktop() => _defaults?.KeepVisibleOnShowDesktop ?? true;
+
+    /// <summary>Attach the wormhole to (or detach it from) the desktop's z-order group, per the
+    /// "Keep wormholes visible on Show desktop" setting. See <see cref="DesktopOwnership"/> for
+    /// why ownership — not message interception, not reparenting — is what actually works.</summary>
+    internal void RefreshDesktopOwnership()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        if (KeepVisibleOnShowDesktop()) DesktopOwnership.Attach(hwnd);
+        else DesktopOwnership.Detach(hwnd);
+    }
+
+    /// <summary>Handles the Win32 messages behind desktop-widget behaviour and drag/resize
+    /// snapping: <c>WM_ENTERSIZEMOVE</c>/<c>WM_EXITSIZEMOVE</c> bracket a user gesture,
+    /// <c>WM_WINDOWPOSCHANGING</c> is the choke point every geometry change flows through, and
+    /// <c>TaskbarCreated</c> tells us Explorer restarted and the desktop ownership has to be
+    /// re-established against the new Progman.</summary>
+    private IntPtr WindowProcDesktopBehaviour(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_ENTERSIZEMOVE    = 0x0231;
+        const int WM_EXITSIZEMOVE     = 0x0232;
+        const int WM_WINDOWPOSCHANGING = 0x0046;
+
+        if (msg != 0 && (uint)msg == DesktopOwnership.TaskbarCreatedMessage)
+        {
+            // Explorer just came back: the Progman we were owned by is gone. Re-own against the
+            // new one, on a dispatcher hop so the shell has finished creating its windows.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RefreshDesktopOwnership));
+            return IntPtr.Zero;
+        }
+
+        switch (msg)
+        {
+            case WM_ENTERSIZEMOVE:
+                _inMoveSizeLoop = true;
+                if (GetWindowRect(hwnd, out var startRect))
+                    _moveSizeStartRect = new Services.Wormholes.SnapRect(startRect.Left, startRect.Top, startRect.Right, startRect.Bottom);
+                return IntPtr.Zero;
+
+            case WM_EXITSIZEMOVE:
+                _inMoveSizeLoop = false;
+                return IntPtr.Zero;
+
+            case WM_WINDOWPOSCHANGING:
+                HandleWindowPosChanging(hwnd, lParam);
+                return IntPtr.Zero;
+        }
+        return IntPtr.Zero;
+    }
+
+    private void HandleWindowPosChanging(IntPtr hwnd, IntPtr lParam)
+    {
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOSIZE = 0x0001;
+
+        var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+        var mutated = false;
+
+        // Snapping: only while the user is actually dragging, and only when the message carries
+        // a real geometry change.
+        if (_inMoveSizeLoop && ((pos.flags & SWP_NOMOVE) == 0 || (pos.flags & SWP_NOSIZE) == 0))
+        {
+            var options = SnapOptionsFromDefaults();
+            if (options.AnyEnabled && !_record.IsLocked)
+            {
+                var proposed = Services.Wormholes.SnapRect.FromSize(pos.x, pos.y, pos.cx, pos.cy);
+                var edges = Services.Wormholes.WormholeSnapEngine.DetectEdges(_moveSizeStartRect, proposed);
+                var snapped = Services.Wormholes.WormholeSnapEngine.Snap(
+                    proposed, edges, NeighbourRects(hwnd), MonitorWorkArea(hwnd), options,
+                    minWidth: DipToPixels(MinWidth, hwnd), minHeight: DipToPixels(MinHeight, hwnd));
+                if (snapped != proposed)
+                {
+                    pos.x = snapped.Left;
+                    pos.y = snapped.Top;
+                    pos.cx = snapped.Width;
+                    pos.cy = snapped.Height;
+                    mutated = true;
+                }
+            }
+        }
+
+        if (mutated) Marshal.StructureToPtr(pos, lParam, fDeleteOld: false);
+    }
+
+    private Services.Wormholes.SnapOptions SnapOptionsFromDefaults()
+    {
+        var d = _defaults;
+        if (d is null) return new Services.Wormholes.SnapOptions();
+        return new Services.Wormholes.SnapOptions(
+            ToGrid: d.SnapToGrid,
+            GridSizePx: d.SnapGridSizePx,
+            ToWormholes: d.SnapToWormholes,
+            ToScreenEdges: d.SnapToScreenEdges,
+            GapPx: d.SnapGapPx);
+    }
+
+    /// <summary>Screen rects of every OTHER visible wormhole, in physical pixels. Empty when the
+    /// manager isn't wired (direct test construction) or neighbour snapping is off.</summary>
+    private IReadOnlyList<Services.Wormholes.SnapRect> NeighbourRects(IntPtr self)
+    {
+        if (_manager is null || _defaults?.SnapToWormholes != true) return [];
+        var rects = new List<Services.Wormholes.SnapRect>();
+        foreach (var handle in _manager.LiveWindowHandles())
+        {
+            if (handle == self || handle == IntPtr.Zero) continue;
+            if (!GetWindowRect(handle, out var r)) continue;
+            rects.Add(new Services.Wormholes.SnapRect(r.Left, r.Top, r.Right, r.Bottom));
+        }
+        return rects;
+    }
+
+    /// <summary>Work area (taskbar excluded) of the monitor this wormhole is mostly on, in
+    /// physical pixels. Falls back to the primary monitor's full rect if the query fails.</summary>
+    private static Services.Wormholes.SnapRect MonitorWorkArea(IntPtr hwnd)
+    {
+        const uint MONITOR_DEFAULTTONEAREST = 2;
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor != IntPtr.Zero)
+        {
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (GetMonitorInfo(monitor, ref info))
+                return new Services.Wormholes.SnapRect(info.rcWork.Left, info.rcWork.Top, info.rcWork.Right, info.rcWork.Bottom);
+        }
+        return new Services.Wormholes.SnapRect(
+            0, 0,
+            (int)SystemParameters.PrimaryScreenWidth,
+            (int)SystemParameters.PrimaryScreenHeight);
+    }
+
+    /// <summary>Convert a WPF device-independent length to physical pixels for this window's
+    /// monitor. Used to hand the snap engine the window's minimum size in the same units it
+    /// works in.</summary>
+    private static int DipToPixels(double dip, IntPtr hwnd)
+    {
+        if (double.IsNaN(dip) || dip <= 0) return 1;
+        var dpi = GetDpiForWindow(hwnd);
+        if (dpi == 0) dpi = 96;
+        return (int)Math.Round(dip * dpi / 96.0);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPOS
+    {
+        public IntPtr hwnd;
+        public IntPtr hwndInsertAfter;
+        public int x;
+        public int y;
+        public int cx;
+        public int cy;
+        public uint flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NATIVERECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public NATIVERECT rcMonitor;
+        public NATIVERECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NATIVERECT lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
     /// <summary>Effective tile icon size for this wormhole. Fallback chain:
     /// per-wormhole override (<see cref="WormholeRecord.IconSizePx"/> &gt; 0) →
     /// app-wide default (<see cref="Services.Wormholes.WormholeDefaultsService.DefaultIconSizePx"/> &gt; 0) →
@@ -327,7 +553,7 @@ public partial class WormholeWindow : Window
     {
         var op = EffectiveOpacity();
         BodyBackdrop.Opacity = op;
-        HeaderBackdrop.Opacity = op;
+        ApplyHeaderChrome();
 
         var borderOp = EffectiveBorderOpacity();
         if (Application.Current?.Resources["OuterBorderBrush"] is System.Windows.Media.SolidColorBrush themed)
@@ -344,6 +570,117 @@ public partial class WormholeWindow : Window
     /// <summary>Cheap path: only the opacity changed (Settings slider drag). Skips
     /// RebuildItems so the slider stays fluid even with many wormholes open.</summary>
     internal void RefreshOpacity() => ApplyAppearance();
+
+    /// <summary>Height of the header strip, matching the fixed Height on both header Borders in
+    /// the XAML. Also the amount the window grows by while the header is revealed on hover.</summary>
+    private const double HeaderStripHeight = 32;
+
+    /// <summary>Extra height the window currently carries to display the hover-revealed header
+    /// (0 or <see cref="HeaderStripHeight"/>). The persisted geometry is always the LOGICAL one,
+    /// i.e. without this offset — see <see cref="LogicalTop"/> / <see cref="LogicalHeight"/>.</summary>
+    private double _headerRevealOffset;
+
+    /// <summary>True when the reveal grew the window upwards (Top moved). False when there was no
+    /// room above and it grew downwards instead, leaving Top where it was.</summary>
+    private bool _headerRevealGrewUpwards;
+
+    /// <summary>Whether the pointer is currently over the wormhole, tracked from MouseEnter /
+    /// MouseLeave rather than read from <see cref="UIElement.IsMouseOver"/> on demand: the
+    /// property can report stale values when queried outside those events (observed while the
+    /// reveal resizes the window under the cursor), and a stale read here would collapse the
+    /// header from under the user's pointer.</summary>
+    private bool _pointerInside;
+
+    /// <summary>The window's Top as the record knows it: with the hover reveal undone. Everything
+    /// that persists or restores geometry goes through this, so a wormhole whose header happens
+    /// to be revealed can't save itself 32 px higher than it really lives.</summary>
+    internal double LogicalTop
+    {
+        get => Top + (_headerRevealGrewUpwards ? _headerRevealOffset : 0);
+        set => Top = value - (_headerRevealGrewUpwards ? _headerRevealOffset : 0);
+    }
+
+    /// <summary>The window's Height as the record knows it: with the hover reveal undone.</summary>
+    internal double LogicalHeight
+    {
+        get => Height - _headerRevealOffset;
+        set => Height = value + _headerRevealOffset;
+    }
+
+    /// <summary>Apply the "hide header until hovered" default. Hidden means the strip is
+    /// COLLAPSED, not just transparent: both header Borders go to Visibility.Collapsed, the Auto
+    /// row shrinks to nothing and the tiles start at the top edge — no reserved band of empty
+    /// backdrop. On hover the window grows by <see cref="HeaderStripHeight"/> UPWARDS, so the
+    /// header appears above the body instead of pushing the tiles down or covering them.
+    ///
+    /// Suspended while the wormhole is rolled up: rolled state shows nothing but the header, so
+    /// collapsing it would leave a bare 48 px sliver with no way back.</summary>
+    private void ApplyHeaderChrome()
+    {
+        var hideMode = _defaults?.HideHeaderChrome == true && !_record.IsRolled;
+        var revealed = !hideMode || _pointerInside;
+
+        SetHeaderRevealOffset(hideMode && revealed ? HeaderStripHeight : 0);
+
+        var visibility = revealed ? Visibility.Visible : Visibility.Collapsed;
+        HeaderChrome.Visibility = visibility;
+        HeaderBackdrop.Visibility = visibility;
+        HeaderBackdrop.Opacity = EffectiveOpacity();
+    }
+
+    /// <summary>Grow / shrink the window by the reveal offset, keeping the BODY still. Growing
+    /// upwards is preferred (the tiles never move); when the wormhole is already at the top of
+    /// its monitor there's nowhere to go, so it grows downwards instead and the tiles shift by
+    /// the strip height — still better than clipping the header off-screen.</summary>
+    private void SetHeaderRevealOffset(double offset)
+    {
+        if (Math.Abs(offset - _headerRevealOffset) < 0.5) return;
+
+        // The offset fields MUST be updated before Top / Height are touched. WPF raises
+        // LocationChanged and SizeChanged synchronously from those setters, and those handlers
+        // persist LogicalTop / LogicalHeight — computed from exactly these fields. Setting them
+        // afterwards made every reveal save the window 32 px off, and the drift accumulated on
+        // each hover (measured: Y 400 → 368 → 432).
+        if (offset > 0)
+        {
+            _headerRevealGrewUpwards = HasRoomAbove(offset);
+            _headerRevealOffset = offset;
+            if (_headerRevealGrewUpwards) Top -= offset;
+            Height += offset;
+        }
+        else
+        {
+            var previous = _headerRevealOffset;
+            var grewUpwards = _headerRevealGrewUpwards;
+            _headerRevealOffset = 0;
+            _headerRevealGrewUpwards = false;
+            // Shrink height first: doing it after moving Top would briefly leave the window
+            // overlapping whatever sits below it.
+            Height -= previous;
+            if (grewUpwards) Top += previous;
+        }
+    }
+
+    /// <summary>Undo the hover reveal without going through the hover state — used before the
+    /// roll-up path rewrites Height outright, so the offset can't be left stranded on a height
+    /// that no longer contains it.</summary>
+    private void CollapseHeaderReveal() => SetHeaderRevealOffset(0);
+
+    /// <summary>True when the window can move up by <paramref name="dip"/> and stay inside the
+    /// work area of its monitor. Measured in physical pixels (what the monitor APIs speak) and
+    /// converted once, so mixed-DPI setups answer correctly.</summary>
+    private bool HasRoomAbove(double dip)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return true; // no HWND yet — assume room, the reveal can't run anyway
+        if (!GetWindowRect(hwnd, out var rect)) return true;
+        var work = MonitorWorkArea(hwnd);
+        return rect.Top - DipToPixels(dip, hwnd) >= work.Top;
+    }
+
+    /// <summary>Re-apply the header-visibility default. Called by the manager when the user flips
+    /// the toggle in Settings → Wormholes so every open wormhole follows without a restart.</summary>
+    internal void RefreshHeaderChrome() => ApplyHeaderChrome();
 
     /// <summary>Expensive path: the icon size changed → every item VM has to be
     /// re-constructed so it asks <see cref="IconService.GetIconAtSize"/> for the new
@@ -426,22 +763,34 @@ public partial class WormholeWindow : Window
         // ContentRendered (after the first frame is shown) forces WPF to repaint the backdrops
         // with the right alpha BEFORE the user has to click to wake it up.
         Dispatcher.BeginInvoke(new Action(ApplyAppearance), System.Windows.Threading.DispatcherPriority.Render);
+        // Both handlers persist the LOGICAL geometry (see LogicalTop / LogicalHeight) and skip
+        // the write when nothing actually moved. That's what makes the hover header reveal free:
+        // growing the window by the strip height changes Top/Height but not the logical values,
+        // so no save — and no RecordChanged storm into the Settings grid — is triggered.
         LocationChanged += (_, _) =>
         {
             if (_isClosingFromManager || SuppressGeometryPersist) return;
-            _record.Geometry.X = Left;
-            _record.Geometry.Y = Top;
+            var x = Left;
+            var y = LogicalTop;
+            if (Math.Abs(_record.Geometry.X - x) < 0.5 && Math.Abs(_record.Geometry.Y - y) < 0.5) return;
+            _record.Geometry.X = x;
+            _record.Geometry.Y = y;
             _onPersist();
         };
         SizeChanged += (_, args) =>
         {
             if (_isClosingFromManager || SuppressGeometryPersist) return;
             if (!args.HeightChanged && !args.WidthChanged) return;
-            _record.Geometry.Width = Width;
-            if (!_record.IsRolled)
+            var w = Width;
+            var h = LogicalHeight;
+            var heightMatters = !_record.IsRolled;
+            if (Math.Abs(_record.Geometry.Width - w) < 0.5
+                && (!heightMatters || Math.Abs(_record.Geometry.Height - h) < 0.5)) return;
+            _record.Geometry.Width = w;
+            if (heightMatters)
             {
-                _record.Geometry.Height = Height;
-                _record.Geometry.UnrolledHeight = Height;
+                _record.Geometry.Height = h;
+                _record.Geometry.UnrolledHeight = h;
             }
             _onPersist();
         };
@@ -926,6 +1275,40 @@ public partial class WormholeWindow : Window
         SourceMissingPath.Text = string.IsNullOrEmpty(missingPath) ? "(no path set)" : missingPath;
         SourceMissingPanel.Visibility = Visibility.Visible;
         EmptyStateHint.Visibility = Visibility.Collapsed;
+        // Hide any stale suggestion from a previous failure until the manager comes back with a
+        // fresh one for THIS path.
+        SourceSuggestionPanel.Visibility = Visibility.Collapsed;
+        _suggestedSourcePath = null;
+
+        // Ask the manager to try to find the folder again: by NTFS identity first (a rename or a
+        // move is repaired silently), then by name (offered through the panel below).
+        _manager?.RequestSourceRecovery(_record);
+    }
+
+    /// <summary>Candidate path offered by <see cref="ApplySourceSuggestion"/>, applied when the
+    /// user clicks "relink".</summary>
+    private string? _suggestedSourcePath;
+
+    /// <summary>Show a "looks like it moved here" offer on the source-missing panel. Called by
+    /// the manager when the folder couldn't be identified for certain but a plausible match
+    /// exists — typically the sibling wormholes moved to a new parent and this one should follow.
+    /// Null hides the offer.</summary>
+    internal void ApplySourceSuggestion(string? candidate)
+    {
+        _suggestedSourcePath = candidate;
+        if (string.IsNullOrEmpty(candidate))
+        {
+            SourceSuggestionPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        SourceSuggestionPath.Text = candidate;
+        SourceSuggestionPanel.Visibility = Visibility.Visible;
+    }
+
+    private void OnAcceptSourceSuggestionClicked(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_suggestedSourcePath)) return;
+        _manager?.RelinkSource(_record, _suggestedSourcePath);
     }
 
     /// <summary>Re-link button on the source-missing error panel. Reuses the same folder-pick
@@ -944,11 +1327,16 @@ public partial class WormholeWindow : Window
                 : Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
         if (dlg.ShowDialog(this) != true) return;
+        if (_manager is not null)
+        {
+            // The manager owns the full swap: persist, capture the new folder's identity (so a
+            // later rename is recoverable), re-point the watcher at it and refresh. Before this
+            // existed the watcher kept listening to the OLD folder until the next app launch.
+            _manager.RelinkSource(_record, dlg.FolderName);
+            return;
+        }
         _record.Portal.SourcePath = dlg.FolderName;
         _onPersist();
-        // The manager listens for an explicit event to re-Start its watcher on the new path.
-        // For the MVP we just refresh once and let the user toggle Refresh manually; the
-        // watcher will reattach correctly on the next app launch. (Live watcher swap = polish.)
         RefreshPortalItems();
     }
 
@@ -2378,6 +2766,11 @@ public partial class WormholeWindow : Window
 
     private void ApplyRollState()
     {
+        // Both branches rewrite Height outright, so any hover-reveal offset has to be handed
+        // back first — otherwise the offset would stay booked against a height that no longer
+        // includes it and every later logical read would be 32 px short.
+        CollapseHeaderReveal();
+
         if (_record.IsRolled)
         {
             ContentArea.Visibility = Visibility.Collapsed;
@@ -2408,6 +2801,10 @@ public partial class WormholeWindow : Window
             ResizeMode = _record.IsLocked ? ResizeMode.NoResize : ResizeMode.CanResize;
             ChevronGlyph.Text = ChevronUpGlyph;
         }
+
+        // Re-evaluate the header: rolled up it must stay visible whatever the "hide header"
+        // default says, and unrolling under the pointer should reveal it again right away.
+        ApplyHeaderChrome();
     }
 
     private void ApplyLockState()

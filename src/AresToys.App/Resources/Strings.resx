@@ -379,6 +379,33 @@
   <data name="Wormhole_AutoDisableTopmostOnLaunchTooltip" xml:space="preserve"><value>When ON, any launch gesture inside a wormhole (double-click a tile, Enter, open folder, drop a file on an executable tile) flips Topmost OFF on every wormhole and sends them behind the foreground app. Lets you toggle wormholes above a fullscreen app, click to launch, and have them auto-drop behind the launched app without a second hotkey press.</value></data>
   <data name="Wormhole_WebLinkFavicons" xml:space="preserve"><value>Favicons for web links</value></data>
   <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>When ON, web links (.url files) show the real site favicon instead of the generic browser icon. The favicon is fetched once per site (directly from the site, falling back to a favicon service) and written into the .url so it also shows in Explorer. Turn OFF to make no network calls and leave .url files untouched.</value></data>
+  <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Keep wormholes visible on "Show desktop"</value></data>
+  <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>When ON, Win+D and the taskbar's far-corner "Show desktop" button no longer bury the wormholes: they stay on the revealed desktop like the icons do. Wormholes join the desktop's z-order group, so they still go behind any app you bring to the front. Turn OFF to make them disappear with the other windows.</value></data>
+  <data name="Wormhole_HideHeaderChrome" xml:space="preserve"><value>Hide the header until hovered</value></data>
+  <data name="Wormhole_HideHeaderChromeTooltip" xml:space="preserve"><value>The header strip is removed entirely — not faded — so the tiles start right at the top edge with no empty band above them. Hovering the wormhole grows it upwards by the height of the strip and the header appears above the tiles, without covering them or pushing them down. When the wormhole is already at the top of the screen it grows downwards instead. Drag it from any empty spot in the body, or from the header while it's showing.</value></data>
+  <data name="Wormhole_FoldersTitle" xml:space="preserve"><value>Source folders</value></data>
+  <data name="Wormhole_FoldersHint" xml:space="preserve"><value>Wormholes remember the identity of the folder they mirror, so renaming or moving it — even with AresToys closed — is picked up automatically as long as it stays on the same drive.</value></data>
+  <data name="Wormhole_UnlockFolders" xml:space="preserve"><value>Unlock folders for renaming</value></data>
+  <data name="Wormhole_UnlockFoldersTooltip" xml:space="preserve"><value>While a wormhole is open, Windows keeps a handle inside its folder to watch for changes, and that handle stops Explorer from renaming or moving any folder above it. This releases those handles for two minutes so you can reorganise freely; wormholes keep working, they just stop noticing file changes until the watchers come back. Any folder renamed in the meantime is found again automatically.</value></data>
+  <data name="Wormhole_UnlockFoldersActive" xml:space="preserve"><value>Re-lock now</value></data>
+  <data name="Wormhole_UnlockFoldersCountdown" xml:space="preserve"><value>Folders unlocked — watchers back in</value></data>
+  <data name="Wormhole_RelinkMissing" xml:space="preserve"><value>Relink missing folders…</value></data>
+  <data name="Wormhole_RelinkMissingTooltip" xml:space="preserve"><value>For wormholes whose folder can no longer be found: pick the folder that now holds them and each one is re-pointed at its match inside it. Only paths that actually exist are applied, so a wrong pick changes nothing. Needed only when the automatic recovery can't help — typically a move to another drive, or folders restored from a backup.</value></data>
+  <data name="Wormhole_RelinkPickFolderTitle" xml:space="preserve"><value>Pick the folder that now holds the wormhole folders</value></data>
+  <data name="Wormhole_RelinkNoneMissing" xml:space="preserve"><value>Every wormhole's source folder resolves. Nothing to relink.</value></data>
+  <data name="Wormhole_RelinkDone" xml:space="preserve"><value>Relinked {0} of {1} missing folders.</value></data>
+  <data name="Wormhole_RelinkNothingMatched" xml:space="preserve"><value>No match found inside that folder for any of the {1} missing sources. Pick the folder that contains them, not one of them.</value></data>
+  <data name="Wormhole_SnapTitle" xml:space="preserve"><value>Snapping</value></data>
+  <data name="Wormhole_SnapHint" xml:space="preserve"><value>Applies while you drag or resize a wormhole. Screen and wormhole snapping win over the grid when both are in range.</value></data>
+  <data name="Wormhole_SnapToGrid" xml:space="preserve"><value>Snap to a pixel grid</value></data>
+  <data name="Wormhole_SnapToGridTooltip" xml:space="preserve"><value>Position and size round to the nearest multiple of the grid step below, measured from the top-left of the monitor's work area.</value></data>
+  <data name="Wormhole_SnapGridSize" xml:space="preserve"><value>Grid step (px)</value></data>
+  <data name="Wormhole_SnapToWormholes" xml:space="preserve"><value>Snap to other wormholes</value></data>
+  <data name="Wormhole_SnapToWormholesTooltip" xml:space="preserve"><value>Edges and centre lines of the other open wormholes attract the one you're dragging, so they line up in tidy rows and columns.</value></data>
+  <data name="Wormhole_SnapToScreenEdges" xml:space="preserve"><value>Snap to screen edges</value></data>
+  <data name="Wormhole_SnapToScreenEdgesTooltip" xml:space="preserve"><value>Attracts the wormhole to the work area of the monitor it's on (the taskbar is excluded).</value></data>
+  <data name="Wormhole_SnapGap" xml:space="preserve"><value>Gap kept when snapping (px)</value></data>
+  <data name="Wormhole_SnapGapTooltip" xml:space="preserve"><value>Distance always left between a snapped wormhole and what it snapped onto — another wormhole or the screen edge. 0 means flush contact.</value></data>
   <data name="Settings_ModuleKeySequences" xml:space="preserve"><value>Key Sequences</value></data>
   <data name="Settings_ModuleKeySequencesTooltip" xml:space="preserve"><value>Trigger paste / workflow via typed sequences (e.g. 'mpg@'). Installs a global keyboard stream listener.</value></data>
   <data name="Settings_KeySequencesPosition" xml:space="preserve"><value>Overlay position:</value></data>

@@ -25,6 +25,13 @@ public sealed class WormholeDefaultsService
     public const string LabelMaxLinesKey   = "app.wormholes.default_label_max_lines";
     public const string AutoDisableTopmostOnLaunchKey = "app.wormholes.auto_disable_topmost_on_launch";
     public const string WebLinkFaviconsKey = "app.wormholes.web_link_favicons";
+    public const string KeepVisibleOnShowDesktopKey = "app.wormholes.keep_visible_on_show_desktop";
+    public const string HideHeaderChromeKey = "app.wormholes.hide_header_chrome";
+    public const string SnapToGridKey       = "app.wormholes.snap_to_grid";
+    public const string SnapGridSizeKey     = "app.wormholes.snap_grid_size_px";
+    public const string SnapToWormholesKey  = "app.wormholes.snap_to_wormholes";
+    public const string SnapToScreenEdgesKey = "app.wormholes.snap_to_screen_edges";
+    public const string SnapGapKey          = "app.wormholes.snap_gap_px";
 
     private const int IconMin = 0;     // 0 has the special meaning "use DesktopIconSize.Get()"
     private const int IconMax = 256;
@@ -60,6 +67,15 @@ public sealed class WormholeDefaultsService
     private const int LabelMaxLinesMin = 1;
     private const int LabelMaxLinesMax = 3;
     private const int LabelMaxLinesFallback = 2;
+    // Snap grid: 2 px is the smallest step that still reads as a grid, 256 covers "quarter of a
+    // 1080p screen" style coarse layouts. 16 is the default step — matches the tile rhythm.
+    private const int SnapGridMin = 2;
+    private const int SnapGridMax = 256;
+    private const int SnapGridFallback = 16;
+    // Gap kept between a snapped wormhole and its neighbour / the screen edge. 0 = flush.
+    private const int SnapGapMin = 0;
+    private const int SnapGapMax = 200;
+    private const int SnapGapFallback = 0;
 
     private readonly ISettingsStore _store;
     private readonly ILogger<WormholeDefaultsService> _logger;
@@ -79,6 +95,16 @@ public sealed class WormholeDefaultsService
     // strict visual upgrade. Off-switch exists for users who'd rather not make network calls or
     // have their .url files stamped with IconFile=.
     private bool _webLinkFaviconsEnabled = true;
+    // Default ON: a wormhole is a desktop widget, and "Show desktop" is the user asking to SEE
+    // the desktop — hiding the widgets that live on it is the opposite of what they meant. The
+    // off-switch restores the plain top-level-window behaviour (minimizes with everything else).
+    private bool _keepVisibleOnShowDesktop = true;
+    private bool _hideHeaderChrome;
+    private bool _snapToGrid;
+    private int _snapGridSizePx = SnapGridFallback;
+    private bool _snapToWormholes;
+    private bool _snapToScreenEdges;
+    private int _snapGapPx = SnapGapFallback;
 
     public WormholeDefaultsService(ISettingsStore store, ILogger<WormholeDefaultsService> logger)
     {
@@ -136,6 +162,43 @@ public sealed class WormholeDefaultsService
     /// site favicon (and stamp it into the <c>.url</c> so it shows in Explorer too). Default true.
     /// See <see cref="Favicons.FaviconService"/>.</summary>
     public bool WebLinkFaviconsEnabled => _webLinkFaviconsEnabled;
+
+    /// <summary>When true, "Show desktop" (Win+D, the taskbar's far-corner button, Win+M …) no
+    /// longer takes the wormholes down with every other window: the minimize is swallowed and a
+    /// hide request from the shell is vetoed, so the widgets stay put on the revealed desktop.
+    /// Read on demand by each live window — no event needed.</summary>
+    public bool KeepVisibleOnShowDesktop => _keepVisibleOnShowDesktop;
+
+    /// <summary>When true, the header strip of every wormhole renders empty: title, chevron,
+    /// search, lock and hamburger fade out and the strip's own backdrop goes transparent. The
+    /// 32 px row stays reserved (so the layout doesn't jump and the strip remains draggable);
+    /// moving the mouse over the wormhole brings the chrome back.</summary>
+    public bool HideHeaderChrome => _hideHeaderChrome;
+
+    /// <summary>Snap a dragged / resized wormhole's edges to a <see cref="SnapGridSizePx"/> grid.</summary>
+    public bool SnapToGrid => _snapToGrid;
+
+    /// <summary>Grid step in physical pixels used when <see cref="SnapToGrid"/> is on.</summary>
+    public int SnapGridSizePx => _snapGridSizePx;
+
+    /// <summary>Snap a dragged / resized wormhole's edges to the edges (and centre lines) of the
+    /// other open wormholes.</summary>
+    public bool SnapToWormholes => _snapToWormholes;
+
+    /// <summary>Snap a dragged / resized wormhole to the work area of the monitor it's on.</summary>
+    public bool SnapToScreenEdges => _snapToScreenEdges;
+
+    /// <summary>Gap in physical pixels always left between a snapped wormhole and whatever it
+    /// snapped against (another wormhole's edge, or the screen edge). 0 = flush contact.</summary>
+    public int SnapGapPx => _snapGapPx;
+
+    /// <summary>Raised when the header-chrome visibility default changed, so every live window
+    /// re-applies it without a restart.</summary>
+    public event EventHandler? HeaderChromeChanged;
+
+    /// <summary>Raised when the "keep visible on Show desktop" default changed. Live windows
+    /// join or leave the desktop's z-order group in response (see <see cref="DesktopOwnership"/>).</summary>
+    public event EventHandler? KeepVisibleOnShowDesktopChanged;
 
     /// <summary>Raised when the default icon size changed. Subscribers must re-extract icons
     /// at the new size (expensive — IShellItemImageFactory call per item).</summary>
@@ -211,6 +274,34 @@ public sealed class WormholeDefaultsService
             var faviconsRaw = await _store.GetAsync(WebLinkFaviconsKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(faviconsRaw, out var favicons))
                 _webLinkFaviconsEnabled = favicons;
+
+            var keepVisibleRaw = await _store.GetAsync(KeepVisibleOnShowDesktopKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(keepVisibleRaw, out var keepVisible))
+                _keepVisibleOnShowDesktop = keepVisible;
+
+            var hideHeaderRaw = await _store.GetAsync(HideHeaderChromeKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(hideHeaderRaw, out var hideHeader))
+                _hideHeaderChrome = hideHeader;
+
+            var snapGridRaw = await _store.GetAsync(SnapToGridKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(snapGridRaw, out var snapGrid))
+                _snapToGrid = snapGrid;
+
+            var gridSizeRaw = await _store.GetAsync(SnapGridSizeKey, cancellationToken).ConfigureAwait(false);
+            if (int.TryParse(gridSizeRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var gridSize))
+                _snapGridSizePx = Math.Clamp(gridSize, SnapGridMin, SnapGridMax);
+
+            var snapWormholesRaw = await _store.GetAsync(SnapToWormholesKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(snapWormholesRaw, out var snapWormholes))
+                _snapToWormholes = snapWormholes;
+
+            var snapEdgesRaw = await _store.GetAsync(SnapToScreenEdgesKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(snapEdgesRaw, out var snapEdges))
+                _snapToScreenEdges = snapEdges;
+
+            var gapRaw = await _store.GetAsync(SnapGapKey, cancellationToken).ConfigureAwait(false);
+            if (int.TryParse(gapRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var gap))
+                _snapGapPx = Math.Clamp(gap, SnapGapMin, SnapGapMax);
         }
         catch (Exception ex)
         {
@@ -298,6 +389,66 @@ public sealed class WormholeDefaultsService
             sensitive: false, cancellationToken).ConfigureAwait(true);
         // No event raised — the flag is read on demand at launch time (see
         // WormholeWindow.MaybeAutoDisableTopmost), no live UI reflects it.
+    }
+
+    public async Task SetKeepVisibleOnShowDesktopAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _keepVisibleOnShowDesktop) return;
+        _keepVisibleOnShowDesktop = enabled;
+        await _store.SetAsync(KeepVisibleOnShowDesktopKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        KeepVisibleOnShowDesktopChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetHideHeaderChromeAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _hideHeaderChrome) return;
+        _hideHeaderChrome = enabled;
+        await _store.SetAsync(HideHeaderChromeKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        HeaderChromeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetSnapToGridAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _snapToGrid) return;
+        _snapToGrid = enabled;
+        await _store.SetAsync(SnapToGridKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task SetSnapGridSizeAsync(int sizePx, CancellationToken cancellationToken)
+    {
+        var clamped = Math.Clamp(sizePx, SnapGridMin, SnapGridMax);
+        if (clamped == _snapGridSizePx) return;
+        _snapGridSizePx = clamped;
+        await _store.SetAsync(SnapGridSizeKey, clamped.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task SetSnapToWormholesAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _snapToWormholes) return;
+        _snapToWormholes = enabled;
+        await _store.SetAsync(SnapToWormholesKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task SetSnapToScreenEdgesAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _snapToScreenEdges) return;
+        _snapToScreenEdges = enabled;
+        await _store.SetAsync(SnapToScreenEdgesKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+    }
+
+    public async Task SetSnapGapAsync(int gapPx, CancellationToken cancellationToken)
+    {
+        var clamped = Math.Clamp(gapPx, SnapGapMin, SnapGapMax);
+        if (clamped == _snapGapPx) return;
+        _snapGapPx = clamped;
+        await _store.SetAsync(SnapGapKey, clamped.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task SetWebLinkFaviconsEnabledAsync(bool enabled, CancellationToken cancellationToken)

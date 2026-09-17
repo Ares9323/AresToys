@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using AresToys.App.Services.Wormholes;
@@ -75,6 +76,31 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// (fetched on demand and stamped into the <c>.url</c> so Explorer shows it too). Default on.</summary>
     [ObservableProperty] private bool _webLinkFaviconsEnabled = true;
 
+    /// <summary>When true (default), "Show desktop" — Win+D, Win+M, the taskbar's far-corner
+    /// button — leaves the wormholes on screen instead of minimising them with everything else.</summary>
+    [ObservableProperty] private bool _keepVisibleOnShowDesktop = true;
+
+    /// <summary>When true the header strip of every wormhole is invisible (chrome AND backdrop)
+    /// until the pointer moves over the wormhole. The strip keeps its height and stays draggable.</summary>
+    [ObservableProperty] private bool _hideHeaderChrome;
+
+    /// <summary>Snap drag / resize to a <see cref="SnapGridSizePx"/> lattice anchored to the
+    /// monitor's work area.</summary>
+    [ObservableProperty] private bool _snapToGrid;
+
+    /// <summary>Grid step in pixels used by <see cref="SnapToGrid"/>.</summary>
+    [ObservableProperty] private int _snapGridSizePx = 16;
+
+    /// <summary>Snap drag / resize to the edges and centre lines of the other open wormholes.</summary>
+    [ObservableProperty] private bool _snapToWormholes;
+
+    /// <summary>Snap drag / resize to the work area of the monitor the wormhole is on.</summary>
+    [ObservableProperty] private bool _snapToScreenEdges;
+
+    /// <summary>Pixels always left between a snapped wormhole and its target (another wormhole or
+    /// the screen edge). 0 = flush.</summary>
+    [ObservableProperty] private int _snapGapPx;
+
     public WormholesViewModel(IWormholeStore store, IWormholeWindowManager manager, WormholeDefaultsService defaults)
     {
         _store = store;
@@ -93,6 +119,13 @@ public sealed partial class WormholesViewModel : ObservableObject
         DefaultLabelMaxLines = _defaults.DefaultLabelMaxLines;
         AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
         WebLinkFaviconsEnabled = _defaults.WebLinkFaviconsEnabled;
+        KeepVisibleOnShowDesktop = _defaults.KeepVisibleOnShowDesktop;
+        HideHeaderChrome = _defaults.HideHeaderChrome;
+        SnapToGrid = _defaults.SnapToGrid;
+        SnapGridSizePx = _defaults.SnapGridSizePx;
+        SnapToWormholes = _defaults.SnapToWormholes;
+        SnapToScreenEdges = _defaults.SnapToScreenEdges;
+        SnapGapPx = _defaults.SnapGapPx;
         _suppressDefaultsPersist = false;
         // Live grid refresh: when the manager persists a record (user drag/resize on the live
         // chrome, lock toggle from chrome, hamburger rename, etc.), the matching row updates
@@ -165,6 +198,48 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetAutoDisableTopmostOnLaunchAsync(value, CancellationToken.None);
     }
 
+    partial void OnKeepVisibleOnShowDesktopChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetKeepVisibleOnShowDesktopAsync(value, CancellationToken.None);
+    }
+
+    partial void OnHideHeaderChromeChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetHideHeaderChromeAsync(value, CancellationToken.None);
+    }
+
+    partial void OnSnapToGridChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetSnapToGridAsync(value, CancellationToken.None);
+    }
+
+    partial void OnSnapGridSizePxChanged(int value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetSnapGridSizeAsync(value, CancellationToken.None);
+    }
+
+    partial void OnSnapToWormholesChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetSnapToWormholesAsync(value, CancellationToken.None);
+    }
+
+    partial void OnSnapToScreenEdgesChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetSnapToScreenEdgesAsync(value, CancellationToken.None);
+    }
+
+    partial void OnSnapGapPxChanged(int value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetSnapGapAsync(value, CancellationToken.None);
+    }
+
     private void OnManagerRecordChanged(object? sender, Guid id)
     {
         var row = Rows.FirstOrDefault(r => r.Id == id);
@@ -195,6 +270,13 @@ public sealed partial class WormholesViewModel : ObservableObject
             DefaultLabelMaxLines    = _defaults.DefaultLabelMaxLines;
             AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
             WebLinkFaviconsEnabled  = _defaults.WebLinkFaviconsEnabled;
+            KeepVisibleOnShowDesktop = _defaults.KeepVisibleOnShowDesktop;
+            HideHeaderChrome        = _defaults.HideHeaderChrome;
+            SnapToGrid              = _defaults.SnapToGrid;
+            SnapGridSizePx          = _defaults.SnapGridSizePx;
+            SnapToWormholes         = _defaults.SnapToWormholes;
+            SnapToScreenEdges       = _defaults.SnapToScreenEdges;
+            SnapGapPx               = _defaults.SnapGapPx;
         }
         finally { _suppressDefaultsPersist = false; }
 
@@ -247,4 +329,108 @@ public sealed partial class WormholesViewModel : ObservableObject
 
     [RelayCommand]
     private async Task RefreshAsync() => await ReloadAsync().ConfigureAwait(true);
+
+    // ── Source folder maintenance ────────────────────────────────────────────────────────
+
+    /// <summary>How long the watchers stay released before re-attaching on their own. Long enough
+    /// to rename a folder or drag it somewhere else in Explorer; short enough that a user who
+    /// forgets about it doesn't lose live refresh for the rest of the session.</summary>
+    private static readonly TimeSpan UnlockDuration = TimeSpan.FromMinutes(2);
+
+    private DispatcherTimer? _unlockTimer;
+    private DateTime _unlockEndsAt;
+
+    /// <summary>True while the folder watchers are released, i.e. while source folders can be
+    /// renamed or moved from Explorer.</summary>
+    [ObservableProperty] private bool _foldersUnlocked;
+
+    /// <summary>Countdown label shown next to the unlock button ("1:42 left"), empty when the
+    /// watchers are attached.</summary>
+    [ObservableProperty] private string _foldersUnlockedCountdown = string.Empty;
+
+    /// <summary>Release the folder watchers so Windows lets the user rename / move the folders
+    /// the wormholes mirror, or re-attach them immediately if they're already released. A live
+    /// watcher keeps a handle open inside the folder, and Windows refuses to rename any ancestor
+    /// of a folder with an open handle in it.</summary>
+    [RelayCommand]
+    private void ToggleFolderUnlock()
+    {
+        if (_manager.WatchersPaused)
+        {
+            _manager.ResumeWatchers();
+            StopUnlockCountdown();
+            return;
+        }
+
+        _manager.PauseWatchers();
+        FoldersUnlocked = true;
+        _unlockEndsAt = DateTime.UtcNow + UnlockDuration;
+        _unlockTimer ??= CreateUnlockTimer();
+        UpdateUnlockCountdown();
+        _unlockTimer.Start();
+    }
+
+    private DispatcherTimer CreateUnlockTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        timer.Tick += (_, _) =>
+        {
+            if (DateTime.UtcNow >= _unlockEndsAt)
+            {
+                _manager.ResumeWatchers();
+                StopUnlockCountdown();
+                return;
+            }
+            UpdateUnlockCountdown();
+        };
+        return timer;
+    }
+
+    private void UpdateUnlockCountdown()
+    {
+        var left = _unlockEndsAt - DateTime.UtcNow;
+        if (left < TimeSpan.Zero) left = TimeSpan.Zero;
+        FoldersUnlockedCountdown = $"{(int)left.TotalMinutes}:{left.Seconds:D2}";
+    }
+
+    private void StopUnlockCountdown()
+    {
+        _unlockTimer?.Stop();
+        FoldersUnlocked = false;
+        FoldersUnlockedCountdown = string.Empty;
+    }
+
+    /// <summary>Repair every wormhole whose source folder no longer resolves, by pointing at the
+    /// folder that now holds them. Each missing path is re-rooted under the chosen folder and only
+    /// applied when the resulting path actually exists, so a wrong pick changes nothing.</summary>
+    [RelayCommand]
+    private async Task RelinkMissingSourcesAsync()
+    {
+        var missing = await _manager.MissingSourcesAsync(CancellationToken.None).ConfigureAwait(true);
+        if (missing.Count == 0)
+        {
+            System.Windows.MessageBox.Show(
+                AresToys.App.Resources.Strings.Wormhole_RelinkNoneMissing,
+                "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = AresToys.App.Resources.Strings.Wormhole_RelinkPickFolderTitle,
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var repaired = await _manager.RelinkMissingSourcesAsync(dlg.FolderName, CancellationToken.None)
+            .ConfigureAwait(true);
+
+        System.Windows.MessageBox.Show(
+            string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                repaired > 0 ? AresToys.App.Resources.Strings.Wormhole_RelinkDone
+                             : AresToys.App.Resources.Strings.Wormhole_RelinkNothingMatched,
+                repaired, missing.Count),
+            "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+
+        await ReloadAsync().ConfigureAwait(true);
+    }
 }
