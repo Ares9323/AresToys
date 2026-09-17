@@ -76,6 +76,18 @@ public partial class ColorPickerWindow : Wpf.Ui.Controls.FluentWindow
             LoadPalette();
             UpdateAllUi();
         };
+        // Repaint the Recent grid while the picker is open. The host pushes a colour into the
+        // recents store from the eyedropper (and from other pickers / the tray flow); without
+        // this subscription the palette kept showing the snapshot taken at LoadPalette time and
+        // the user's fresh pick only appeared after closing and reopening the dialog.
+        ColorSwatchButton.RecentsChanged += OnRecentsChanged;
+        Closed += (_, _) => ColorSwatchButton.RecentsChanged -= OnRecentsChanged;
+    }
+
+    private void OnRecentsChanged(object? sender, IReadOnlyList<ShapeColor> recents)
+    {
+        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(RebuildPalette); return; }
+        RebuildPalette();
     }
 
     /// <summary>Apply the immersive dark-mode title bar attribute as soon as the HWND exists,

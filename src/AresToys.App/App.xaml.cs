@@ -521,6 +521,19 @@ public partial class App : Application
             });
         }
 
+        // "Recent colors" plumbing. The store is the single writer; every surface that shows the
+        // palette reads ColorSwatchButton.CurrentRecents. Wiring Changed → CurrentRecents once
+        // here means an eyedropper sample, a picker OK or a Theme-tab pick all refresh the grid
+        // in every open picker, instead of each host having to remember to re-push the snapshot.
+        var colorRecents = _host.Services.GetRequiredService<AresToys.Editor.Persistence.ColorRecentsStore>();
+        colorRecents.Changed += (_, list) =>
+        {
+            if (Dispatcher.CheckAccess()) AresToys.Editor.Views.ColorSwatchButton.CurrentRecents = list;
+            else Dispatcher.BeginInvoke(() => AresToys.Editor.Views.ColorSwatchButton.CurrentRecents = list);
+        };
+        AresToys.Editor.Views.ColorSwatchButton.CurrentRecents =
+            await colorRecents.LoadAsync(CancellationToken.None);
+
         // Apply the user's theme BEFORE any window resolves: ThemeService writes to App.Resources
         // and to WPF-UI's accent manager, both of which are read at control-template instantiation
         // time. Loading after MainWindow would cause a one-frame flash of the default blue accent.

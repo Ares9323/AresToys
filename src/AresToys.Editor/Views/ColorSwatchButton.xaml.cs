@@ -8,12 +8,33 @@ namespace AresToys.Editor.Views;
 
 public partial class ColorSwatchButton : UserControl
 {
+    private static IReadOnlyList<ShapeColor> _currentRecents = [];
+
     /// <summary>Set by the host (App.xaml.cs) before showing the editor; can be empty.
     /// Pre-populates the Recent palette inside <see cref="ColorPickerWindow"/> so the user
-    /// sees their previous picks the moment they open it from any swatch.</summary>
-    public static IReadOnlyList<ShapeColor> CurrentRecents { get; set; } = [];
+    /// sees their previous picks the moment they open it from any swatch. Assigning raises
+    /// <see cref="RecentsChanged"/> so a picker that's ALREADY open repaints its palette —
+    /// without that an eyedropper / OK pick during the session only showed up the next time
+    /// the picker was reopened.</summary>
+    public static IReadOnlyList<ShapeColor> CurrentRecents
+    {
+        get => _currentRecents;
+        set
+        {
+            _currentRecents = value ?? [];
+            RecentsChanged?.Invoke(null, _currentRecents);
+        }
+    }
 
-    /// <summary>Hook fired when a color is picked. Used by host to persist recents.</summary>
+    /// <summary>Raised whenever <see cref="CurrentRecents"/> is replaced. Static because the
+    /// recents list itself is app-wide; <see cref="ColorPickerWindow"/> subscribes while open.</summary>
+    public static event EventHandler<IReadOnlyList<ShapeColor>>? RecentsChanged;
+
+    /// <summary>Hook fired when a color is COMMITTED (picker OK, or a rollback to the pre-edit
+    /// value on Cancel). Used by the host to persist recents. Deliberately not fired on the
+    /// live-preview <see cref="ColorPickerWindow.ColorChanged"/> ticks: those arrive on every
+    /// wheel/slider pixel and would fill the 8-slot recents ring with near-identical shades
+    /// from a single drag.</summary>
     public static Action<ShapeColor>? OnColorPicked { get; set; }
 
     public static readonly DependencyProperty SelectedColorProperty = DependencyProperty.Register(
@@ -77,7 +98,6 @@ public partial class ColorSwatchButton : UserControl
         dlg.ColorChanged += (_, c) =>
         {
             SelectedColor = c;
-            OnColorPicked?.Invoke(c);
         };
         // Eyedropper: just hand off to the host's handler with a continuation that pushes the
         // sampled colour back into the picker via ApplySampledColor. We DON'T Hide/Show the
@@ -108,8 +128,9 @@ public partial class ColorSwatchButton : UserControl
         else if (!SelectedColor.Equals(originalColor))
         {
             // Cancel / Esc — wind back the previews so the canvas matches the pre-edit state.
+            // No OnColorPicked here: the user explicitly discarded the pick, so nothing should
+            // reach the recents ring (the pre-edit colour is already whatever it was).
             SelectedColor = originalColor;
-            OnColorPicked?.Invoke(originalColor);
         }
     }
 }

@@ -102,19 +102,23 @@ public sealed class ColorWheelLauncher
         // interactive while the user is in the color picker — only the wheel's owner gets
         // disabled. Same pattern fixes the icon picker → editor freeze.
         if (dlg.ShowOwnerScopedDialog() != true) return null;
+        // Push here, not only in ShowAsync: PickAsync is also the pipeline entry point, and a
+        // colour the user confirmed with OK belongs in the recents ring no matter which surface
+        // asked for it.
+        await _recents.PushAsync(dlg.PickedColor, CancellationToken.None).ConfigureAwait(true);
         return dlg.PickedColor;
     }
 
-    /// <summary>Tray flow: opens the picker, copies hex to clipboard, pushes to recents.</summary>
+    /// <summary>Tray flow: opens the picker and copies the hex to the clipboard. The recents push
+    /// already happened inside <see cref="PickAsync"/>.</summary>
     public async Task ShowAsync()
     {
         var picked = await PickAsync().ConfigureAwait(true);
         if (picked is null) return;
         var hex = $"#{picked.R:X2}{picked.G:X2}{picked.B:X2}";
         try { System.Windows.Clipboard.SetText(hex); }
-        catch { /* clipboard locked — recents push below still happens */ }
+        catch { /* clipboard occasionally locked by another app; the pick itself still stands */ }
         _logger.LogInformation("Color wheel: picked {Hex}, copied to clipboard", hex);
-        await _recents.PushAsync(picked, CancellationToken.None).ConfigureAwait(false);
     }
 
     private static bool TryParseHex(string hex, out ShapeColor color)

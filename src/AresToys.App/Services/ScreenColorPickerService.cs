@@ -9,12 +9,17 @@ namespace AresToys.App.Services;
 public sealed class ScreenColorPickerService
 {
     private readonly IToastNotifier _notifier;
+    private readonly AresToys.Editor.Persistence.ColorRecentsStore _recents;
     private readonly ILogger<ScreenColorPickerService> _logger;
     private bool _busy;
 
-    public ScreenColorPickerService(IToastNotifier notifier, ILogger<ScreenColorPickerService> logger)
+    public ScreenColorPickerService(
+        IToastNotifier notifier,
+        AresToys.Editor.Persistence.ColorRecentsStore recents,
+        ILogger<ScreenColorPickerService> logger)
     {
         _notifier = notifier;
+        _recents = recents;
         _logger = logger;
     }
 
@@ -48,6 +53,10 @@ public sealed class ScreenColorPickerService
             });
             if (hex is null) { _logger.LogInformation("ScreenColorPicker: cancelled"); return null; }
             _logger.LogInformation("ScreenColorPicker: picked {Hex}", hex);
+            // Every eyedropper sample lands in the shared "Recent colors" ring — this is the
+            // single choke point for all sampler flows (tray hotkey, pipeline task, and the 🔍
+            // button inside the colour picker), so one push here covers them all.
+            PushToRecents(hex);
             return hex;
         }
         catch (Exception ex)
@@ -56,6 +65,35 @@ public sealed class ScreenColorPickerService
             return null;
         }
         finally { _busy = false; }
+    }
+
+    /// <summary>Fire-and-forget push of a sampled "#RRGGBB" into the recents ring. Faults are
+    /// swallowed: a settings-store hiccup must never take down the pick itself (the user still
+    /// gets the hex on the clipboard / in the pipeline bag).</summary>
+    private void PushToRecents(string hex)
+    {
+        if (!TryParseHex(hex, out var color)) return;
+        _ = Task.Run(async () =>
+        {
+            try { await _recents.PushAsync(color, CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception ex) { _logger.LogWarning(ex, "ScreenColorPicker: recents push failed"); }
+        });
+    }
+
+    private static bool TryParseHex(string hex, out AresToys.Editor.Model.ShapeColor color)
+    {
+        color = AresToys.Editor.Model.ShapeColor.Black;
+        var s = hex.Trim().TrimStart('#');
+        if (s.Length != 6) return false;
+        try
+        {
+            var r = byte.Parse(s.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+            var g = byte.Parse(s.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+            var b = byte.Parse(s.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+            color = new AresToys.Editor.Model.ShapeColor(255, r, g, b);
+            return true;
+        }
+        catch (FormatException) { return false; }
     }
 
     private static void CopyHexToClipboard(string hex)

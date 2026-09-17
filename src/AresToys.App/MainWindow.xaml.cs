@@ -900,7 +900,9 @@ public partial class MainWindow : FluentWindow
 
         // Pre-populate the Recent palette inside the picker so the user sees their previous
         // accent picks. Without this each Theme picker session starts with an empty Recent grid.
-        ColorSwatchButton.CurrentRecents = _colorRecents.LoadAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+        // Read the in-memory mirror (primed at startup, kept fresh by every push) instead of
+        // blocking the UI thread on a settings round-trip just to open the picker.
+        ColorSwatchButton.CurrentRecents = _colorRecents.Current;
 
         if (dialog.ShowDialog() != true) return;
         var picked = dialog.PickedColor;
