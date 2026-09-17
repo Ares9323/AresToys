@@ -765,7 +765,7 @@ public partial class App : Application
                     {
                         try
                         {
-                            await updater.DownloadAndRestartAsync(args.Info, CancellationToken.None).ConfigureAwait(false);
+                            await updater.DownloadAndRestartAsync(args.Info, ConfirmCloseLockersAsync, CancellationToken.None).ConfigureAwait(false);
                             // ApplyUpdatesAndRestart exits the process before this line — if we
                             // do reach it, something completed without restarting (rare; usually
                             // an internal Velopack early-out).
@@ -1312,12 +1312,32 @@ public partial class App : Application
             MessageBoxImage.Information,
             MessageBoxResult.OK);
         if (choice != MessageBoxResult.OK) return;
-        try { await updater.DownloadAndRestartAsync(info, CancellationToken.None).ConfigureAwait(true); }
+        try { await updater.DownloadAndRestartAsync(info, ConfirmCloseLockersAsync, CancellationToken.None).ConfigureAwait(true); }
         catch (Exception ex)
         {
             MessageBox.Show($"Update failed:\n{ex.Message}", "AresToys",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>Callback passed to <see cref="AresToys.Updater.UpdaterService.DownloadAndRestartAsync"/>:
+    /// when processes are locking the install folder, list them and let the user choose to close them
+    /// and continue, or cancel (deferring the update). Runs on the UI thread — MessageBox requires it.</summary>
+    private static Task<bool> ConfirmCloseLockersAsync(IReadOnlyList<AresToys.Updater.LockingProcess> lockers)
+    {
+        var app = Current;
+        if (app is null) return Task.FromResult(false);
+        var result = app.Dispatcher.Invoke(() =>
+        {
+            var list = string.Join("\n", lockers.Select(l => $"  • {l.AppName} ({l.ProcessName}, PID {l.Pid})"));
+            return MessageBox.Show(
+                $"These programs are keeping AresToys files open and must be closed to finish the update:\n\n{list}\n\nClose them and continue?",
+                "Update blocked",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning,
+                MessageBoxResult.OK);
+        });
+        return Task.FromResult(result == MessageBoxResult.OK);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

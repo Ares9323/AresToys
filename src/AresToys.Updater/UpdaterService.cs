@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -100,17 +102,37 @@ public sealed class UpdaterService
         }
     }
 
-    /// <summary>Download + apply + restart. Used when the user clicks "Install now" on the toast
-    /// or in the Settings dialog. Velopack writes the new files to a staging dir, then the
-    /// restart relauches into the new version. We do NOT call this from the silent flow — the
-    /// user always confirms.</summary>
-    public async Task DownloadAndRestartAsync(UpdateInfo info, CancellationToken cancellationToken)
+    /// <summary>Download + (close blocking processes) + apply + restart. Used when the user clicks
+    /// "Install now" on the toast or in the Settings dialog. Between download and apply we query the
+    /// Restart Manager for processes locking the install folder; if any are found,
+    /// <paramref name="confirmCloseLockers"/> decides whether to close them and continue. On decline
+    /// we return without applying (the update is simply deferred — no restart loop).</summary>
+    public async Task DownloadAndRestartAsync(
+        UpdateInfo info,
+        Func<IReadOnlyList<LockingProcess>, Task<bool>> confirmCloseLockers,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(info);
+        ArgumentNullException.ThrowIfNull(confirmCloseLockers);
         if (!IsAvailable) throw new InvalidOperationException("Updater not available — cannot apply update.");
-        // Forward the caller's token — a slow GitHub download is the most likely place a user
-        // hits Cancel on a "this is taking forever" dialog.
+
         await _manager!.DownloadUpdatesAsync(info, progress: null, ignoreDeltas: false, cancelToken: cancellationToken).ConfigureAwait(false);
+
+        var installDir = Path.GetDirectoryName(Environment.ProcessPath);
+        var lockers = string.IsNullOrEmpty(installDir)
+            ? (IReadOnlyList<LockingProcess>)Array.Empty<LockingProcess>()
+            : InstallLockGuard.FindLockers(installDir, _logger);
+        if (lockers.Count > 0)
+        {
+            var proceed = await confirmCloseLockers(lockers).ConfigureAwait(false);
+            if (!proceed)
+            {
+                _logger.LogInformation("UpdaterService: user declined to close {Count} locking process(es); update deferred", lockers.Count);
+                return;
+            }
+            InstallLockGuard.CloseLockers(lockers, TimeSpan.FromSeconds(5), _logger);
+        }
+
         // ApplyUpdatesAndRestart exits the process; we don't return from this call.
         _manager.ApplyUpdatesAndRestart(info);
     }
