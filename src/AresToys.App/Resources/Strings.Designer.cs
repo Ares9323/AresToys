@@ -3117,6 +3117,12 @@ namespace AresToys.App.Resources {
         public static string Wormhole_KeepVisibleOnShowDesktopTooltip => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktopTooltip", resourceCulture);
         public static string Wormhole_HideHeaderChrome => ResourceManager.GetString("Wormhole_HideHeaderChrome", resourceCulture);
         public static string Wormhole_HideHeaderChromeTooltip => ResourceManager.GetString("Wormhole_HideHeaderChromeTooltip", resourceCulture);
+        public static string Settings_NotificationsTitle => ResourceManager.GetString("Settings_NotificationsTitle", resourceCulture);
+        public static string Settings_ToastPopupSeconds => ResourceManager.GetString("Settings_ToastPopupSeconds", resourceCulture);
+        public static string Settings_ToastPopupSecondsTooltip => ResourceManager.GetString("Settings_ToastPopupSecondsTooltip", resourceCulture);
+        public static string Settings_ToastCenterSeconds => ResourceManager.GetString("Settings_ToastCenterSeconds", resourceCulture);
+        public static string Settings_ToastCenterSecondsTooltip => ResourceManager.GetString("Settings_ToastCenterSecondsTooltip", resourceCulture);
+        public static string Settings_ToastLifetimeHint => ResourceManager.GetString("Settings_ToastLifetimeHint", resourceCulture);
         public static string Wormhole_FoldersTitle => ResourceManager.GetString("Wormhole_FoldersTitle", resourceCulture);
         public static string Wormhole_FoldersHint => ResourceManager.GetString("Wormhole_FoldersHint", resourceCulture);
         public static string Wormhole_UnlockFolders => ResourceManager.GetString("Wormhole_UnlockFolders", resourceCulture);

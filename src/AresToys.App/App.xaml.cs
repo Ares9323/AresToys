@@ -366,6 +366,7 @@ public partial class App : Application
                 services.AddSingleton<AresToys.Pipeline.Tasks.IItemClipboardPublisher, WpfItemClipboardPublisher>();
                 services.AddSingleton<CaptureCoordinator>();
                 services.AddSingleton<ManualUploadService>();
+                services.AddSingleton<AresToys.App.Services.Notifications.ToastLifetimeService>();
                 services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
                 services.AddSingleton<AresToys.Core.Imaging.IImageEncoder, WpfImageEncoder>();
                 services.AddSingleton<CaptureImageOutputService>();
@@ -520,6 +521,12 @@ public partial class App : Application
                 }
             });
         }
+
+        // Toast lifetimes (how long the popup shows, how long the Notification Center keeps it).
+        // Loaded before anything can raise a toast so the very first notification of the session
+        // already honours the user's choice.
+        await _host.Services.GetRequiredService<AresToys.App.Services.Notifications.ToastLifetimeService>()
+            .LoadAsync(CancellationToken.None);
 
         // "Recent colors" plumbing. The store is the single writer; every surface that shows the
         // palette reads ColorSwatchButton.CurrentRecents. Wiring Changed → CurrentRecents once

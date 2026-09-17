@@ -2416,7 +2416,47 @@
                                       IsEnabled="{Binding CheckUpdatesAtStartup}"
                                       ToolTip="{Markup:Loc Settings_AutoInstallUpdatesTooltip}" />
 
-                            <!-- In-card divider between the boolean toggles above and the tray
+                            <Border Height="1" Background="{DynamicResource AccentForegroundDarkBrush}" Opacity="0.3" Margin="0,0,0,12" />
+
+                            <!-- Notification lifetimes. Two independent durations: the popup on
+                                 screen, and how long the entry lingers in Windows' Notification
+                                 Center afterwards. Both default to 0 = stock Windows behaviour,
+                                 so nothing changes for anyone who doesn't touch them. -->
+                            <TextBlock Text="{Markup:Loc Settings_NotificationsTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Text="{Markup:Loc Settings_ToastLifetimeHint}" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="{Markup:Loc Settings_ToastPopupSeconds}"
+                                           ToolTip="{Markup:Loc Settings_ToastPopupSecondsTooltip}" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="0" Maximum="7" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              ToolTip="{Markup:Loc Settings_ToastPopupSecondsTooltip}"
+                                              Value="{Binding ToastPopupSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                           Text="{Markup:Loc Settings_ToastCenterSeconds}"
+                                           ToolTip="{Markup:Loc Settings_ToastCenterSecondsTooltip}" />
+                                <ui:NumberBox Grid.Column="1" Width="120"
+                                              Minimum="-1" Maximum="2147483647" SmallChange="1"
+                                              ClearButtonEnabled="False"
+                                              ToolTip="{Markup:Loc Settings_ToastCenterSecondsTooltip}"
+                                              Value="{Binding ToastCenterSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+
+                            <!-- In-card divider between the settings above and the tray
                                  click-routing matrix below. Same Surface3 thickness/opacity as
                                  the other in-card separators across the app so the visual
                                  weight stays consistent. -->

@@ -17,6 +17,7 @@ namespace AresToys.App.Services;
 /// EXE path — fine for testing, slightly ugly in the UI.</summary>
 public sealed class WindowsToastNotifier : IToastNotifier
 {
+    private readonly Notifications.ToastLifetimeService _lifetime;
     private readonly ILogger<WindowsToastNotifier> _logger;
     /// <summary>Per-toast callback set, keyed by the unique tag we attach as a toast argument.
     /// Each entry holds the optional body-click handler plus a button-index → handler map; the
@@ -32,8 +33,9 @@ public sealed class WindowsToastNotifier : IToastNotifier
         public Dictionary<string, Action> Buttons { get; } = new(StringComparer.Ordinal);
     }
 
-    public WindowsToastNotifier(ILogger<WindowsToastNotifier> logger)
+    public WindowsToastNotifier(Notifications.ToastLifetimeService lifetime, ILogger<WindowsToastNotifier> logger)
     {
+        _lifetime = lifetime;
         _logger = logger;
 
         // Single global activation handler. The toolkit dispatches every click here; we route
@@ -49,6 +51,14 @@ public sealed class WindowsToastNotifier : IToastNotifier
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
         ArgumentNullException.ThrowIfNull(message);
+
+        // "No popup AND no Notification Center entry" is a toast nobody could ever see. Doing the
+        // work anyway would only cost a round-trip through the OS notification service.
+        if (_lifetime.NotificationsEffectivelyInvisible)
+        {
+            _logger.LogDebug("Toast suppressed: lifetime settings ask for neither a popup nor a Center entry");
+            return;
+        }
 
         try
         {
@@ -113,11 +123,46 @@ public sealed class WindowsToastNotifier : IToastNotifier
             // values appear as separate groups, distinct Tag values keep each toast from
             // replacing a sibling. Net effect is every toast sits on its own line in
             // Notification Center, which is what the user wants for chronological history.
+            var popupSeconds = _lifetime.PopupSeconds;
+            var centerSeconds = _lifetime.CenterSeconds;
+
+            // One absolute instant, computed once and reused if the toast has to be re-issued
+            // below — otherwise a re-issue would silently extend the Center lifetime.
+            DateTimeOffset? expiresAt = centerSeconds > 0
+                ? DateTimeOffset.Now.AddSeconds(centerSeconds)
+                : null;
+            Windows.UI.Notifications.ToastNotification? shown = null;
+
             builder.Show(toast =>
             {
                 toast.Tag = uid;
                 toast.Group = uid;
+                shown = toast;
+
+                // Popup = 0: nothing on screen, straight into the Notification Center.
+                if (popupSeconds == Notifications.ToastLifetimeService.PopupNone) toast.SuppressPopup = true;
+
+                // Center = N seconds: Windows drops the entry itself at that moment, whether or
+                // not AresToys is still running. Center = -1 (unlimited) sets no expiry at all.
+                if (expiresAt is { } expiry) toast.ExpirationTime = expiry;
+
+                // Center = 0: the popup closing is exactly when the entry should go.
+                if (centerSeconds == Notifications.ToastLifetimeService.CenterNone)
+                    toast.Dismissed += (_, _) => RemoveFromHistory(uid);
             });
+
+            // Only when the user asked for a popup SHORTER than Windows' own duration. At the
+            // ceiling we leave the OS alone so a longer "show notifications for" accessibility
+            // setting keeps working.
+            if (_lifetime.ClosesPopupEarly && shown is not null)
+                ScheduleEarlyPopupClose(builder, shown, uid, popupSeconds, centerSeconds, expiresAt);
+
+            // Belt and braces on the Center lifetime. ExpirationTime alone is accurate (measured
+            // to a tenth of a second) but it is the OS quietly dropping the entry, and the
+            // Notification Center's own list doesn't necessarily redraw until it's reopened. An
+            // explicit Remove at the same moment is a second, louder signal — it costs nothing
+            // and only runs while AresToys is alive; ExpirationTime still covers the rest.
+            if (expiresAt is { } dropAt) ScheduleCenterRemoval(uid, dropAt);
         }
         catch (Exception ex)
         {
@@ -127,6 +172,67 @@ public sealed class WindowsToastNotifier : IToastNotifier
             // move on.
             _logger.LogWarning(ex, "Windows toast notification failed; capture pipeline continues");
         }
+    }
+
+    /// <summary>Close the popup after <paramref name="popupSeconds"/> instead of letting Windows
+    /// decide. There's no API for "show this popup for N seconds", so we call
+    /// <c>ToastNotifier.Hide</c> — which, measured, also drops the Notification Center entry. When
+    /// the user still wants a Center entry we immediately re-issue the same content with
+    /// <c>SuppressPopup</c>, which lands in the Center without flashing a second popup.</summary>
+    private void ScheduleEarlyPopupClose(
+        ToastContentBuilder builder,
+        Windows.UI.Notifications.ToastNotification shown,
+        string uid,
+        int popupSeconds,
+        int centerSeconds,
+        DateTimeOffset? expiresAt)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(popupSeconds)).ConfigureAwait(false);
+                ToastNotificationManagerCompat.CreateToastNotifier().Hide(shown);
+
+                // Center = 0 ("don't keep") → Hide already did the whole job.
+                if (centerSeconds == Notifications.ToastLifetimeService.CenterNone) return;
+                // Expiry already passed while the popup was up → nothing to put back.
+                if (expiresAt is { } expiry && expiry <= DateTimeOffset.Now) return;
+
+                builder.Show(toast =>
+                {
+                    toast.Tag = uid;
+                    toast.Group = uid;
+                    toast.SuppressPopup = true;
+                    if (expiresAt is { } e) toast.ExpirationTime = e;
+                });
+            }
+            catch (Exception ex)
+            {
+                // A toast that outlives its configured popup duration is a cosmetic problem; it
+                // must never surface as an unhandled exception on a background thread.
+                _logger.LogDebug(ex, "Early popup close failed for toast {Uid}", uid);
+            }
+        });
+    }
+
+    /// <summary>Remove the Center entry ourselves when its configured lifetime runs out, rather
+    /// than relying solely on the OS honouring <c>ExpirationTime</c>.</summary>
+    private void ScheduleCenterRemoval(string uid, DateTimeOffset dropAt)
+    {
+        _ = Task.Run(async () =>
+        {
+            var wait = dropAt - DateTimeOffset.Now;
+            if (wait > TimeSpan.Zero) await Task.Delay(wait).ConfigureAwait(false);
+            RemoveFromHistory(uid);
+        });
+    }
+
+    /// <summary>Drop a toast from the Notification Center by tag+group.</summary>
+    private void RemoveFromHistory(string uid)
+    {
+        try { ToastNotificationManagerCompat.History.Remove(uid, uid); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Removing toast {Uid} from the Notification Center failed", uid); }
     }
 
     private void OnToastActivated(ToastNotificationActivatedEventArgsCompat e)

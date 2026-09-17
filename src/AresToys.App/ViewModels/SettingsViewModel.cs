@@ -24,6 +24,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly AutostartService _autostart;
     private readonly ElevationService _elevation;
     private readonly ISettingsStore _settingsStore;
+    private readonly AresToys.App.Services.Notifications.ToastLifetimeService _toastLifetime;
     private readonly PopupWindowViewModel _clipboardVm;
     private readonly AresToys.App.Services.KeySequences.KeySequenceModuleSettings _keySequencesSettings;
 
@@ -41,13 +42,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         DebugViewModel debug,
         WormholesViewModel wormholes,
         PopupWindowViewModel clipboardVm,
-        AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings)
+        AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings,
+        AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime)
     {
         _autostart = autostart;
         _elevation = elevation;
         _settingsStore = settingsStore;
         _clipboardVm = clipboardVm;
         _keySequencesSettings = keySequencesSettings;
+        _toastLifetime = toastLifetime;
         Theme = theme;
         Categories = categories;
         Debug = debug;
@@ -293,8 +296,43 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _suppressKeySequencesModulePersist;
     private bool _suppressKeySequencesPositionPersist;
 
+    /// <summary>Seconds the toast popup stays on screen. 0 = whatever Windows does (~7 s),
+    /// a positive value closes it after exactly that long, -1 = no popup at all (the toast goes
+    /// straight to the Notification Center). Bound to the Settings-tab number box; the service
+    /// owns persistence and the notifier reads it on every toast.</summary>
+    [ObservableProperty] private int _toastPopupSeconds;
+
+    /// <summary>Seconds the toast stays in the Notification Center after the popup closes.
+    /// 0 = until the user clears it (stock Windows behaviour), a positive value lets Windows
+    /// drop it by itself, -1 = never kept, so notifications don't pile up in the Center.</summary>
+    [ObservableProperty] private int _toastCenterSeconds;
+
+    private bool _suppressToastLifetimePersist;
+
+    partial void OnToastPopupSecondsChanged(int value)
+    {
+        if (_suppressToastLifetimePersist) return;
+        _ = _toastLifetime.SetPopupSecondsAsync(value, CancellationToken.None);
+    }
+
+    partial void OnToastCenterSecondsChanged(int value)
+    {
+        if (_suppressToastLifetimePersist) return;
+        _ = _toastLifetime.SetCenterSecondsAsync(value, CancellationToken.None);
+    }
+
     private async Task LoadPersistedSettingsAsync()
     {
+        // The lifetime service is hydrated by App.OnStartup before any window resolves, so this
+        // just mirrors it onto the bound properties.
+        _suppressToastLifetimePersist = true;
+        try
+        {
+            ToastPopupSeconds = _toastLifetime.PopupSeconds;
+            ToastCenterSeconds = _toastLifetime.CenterSeconds;
+        }
+        finally { _suppressToastLifetimePersist = false; }
+
         var rawMin = await _settingsStore.GetAsync(StartMinimizedKey, CancellationToken.None).ConfigureAwait(true);
         _suppressStartMinimizedPersist = true;
         try { StartMinimized = string.Equals(rawMin, "true", StringComparison.OrdinalIgnoreCase); }
