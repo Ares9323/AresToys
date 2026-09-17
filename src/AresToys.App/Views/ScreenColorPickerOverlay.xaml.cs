@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using AresToys.App.Services;
 using AresToys.Capture;
 
 namespace AresToys.App.Views;
@@ -25,6 +26,10 @@ public partial class ScreenColorPickerOverlay : Window
     private DispatcherTimer? _tickTimer;
     private System.Windows.Point _lastCursorInWindow;
     private bool _haveCursor;
+    /// <summary>Side of the cursor the magnifier block currently sits on, per axis. Carried
+    /// across frames so the placement is sticky: it only moves to the other side when the
+    /// current one stops fitting on the monitor.</summary>
+    private bool _magnifierFlippedX, _magnifierFlippedY;
     /// <summary>Frozen virtual-screen capture taken ONCE in the constructor, before the
     /// overlay paints. Sampling from this in-memory bitmap (via <see cref="CroppedBitmap"/>)
     /// instead of doing a fresh <c>CopyFromScreen</c> per frame is what eliminates two
@@ -168,32 +173,71 @@ public partial class ScreenColorPickerOverlay : Window
         MagnifierCrosshair.Width = pixSize;
         MagnifierCrosshair.Height = pixSize;
 
-        PositionMagnifierNearCursor(cursorInWindow);
+        PositionMagnifierNearCursor(cursorInWindow, screenX, screenY);
         _lastSampledX = screenX;
         _lastSampledY = screenY;
         _lastSampledHalf = _magnifierHalf;
     }
 
-    private void PositionMagnifierNearCursor(System.Windows.Point cursor)
+    /// <summary>Place the magnifier circle + its label card near the cursor, flipping and clamping
+    /// against the CURRENT MONITOR's work area. The overlay window spans the whole virtual screen,
+    /// so testing against the window's own bounds (the old behaviour) never triggered a flip at
+    /// the bottom / right edge of any monitor except the last one, and the label card — whose
+    /// height wasn't counted at all — got drawn past the screen edge.</summary>
+    private void PositionMagnifierNearCursor(System.Windows.Point cursor, int screenX, int screenY)
     {
-        const double margin = 8;
         var w = MagnifierGroup.ActualWidth > 0 ? MagnifierGroup.ActualWidth : MagnifierBoxPx;
         var h = MagnifierGroup.ActualHeight > 0 ? MagnifierGroup.ActualHeight : MagnifierBoxPx;
-
-        // Default: bottom-right of cursor; flip to other side near edges.
-        var x = cursor.X + MagnifierCursorOffset;
-        var y = cursor.Y + MagnifierCursorOffset;
-        if (x + w + margin > ActualWidth) x = cursor.X - MagnifierCursorOffset - w;
-        if (y + h + margin > ActualHeight) y = cursor.Y - MagnifierCursorOffset - h;
-        if (x < margin) x = margin;
-        if (y < margin) y = margin;
-        Canvas.SetLeft(MagnifierGroup, x);
-        Canvas.SetTop(MagnifierGroup, y);
-
-        // Labels border sits centred just below the circle.
         var labelW = MagnifierLabelsBorder.ActualWidth > 0 ? MagnifierLabelsBorder.ActualWidth : 130;
-        Canvas.SetLeft(MagnifierLabelsBorder, x + (w - labelW) / 2);
-        Canvas.SetTop(MagnifierLabelsBorder, y + h + 4);
+        var labelH = MagnifierLabelsBorder.ActualHeight > 0 ? MagnifierLabelsBorder.ActualHeight : 92;
+
+        // Feed the previous frame's sides back in: the block then stays put instead of hopping
+        // back across the cursor the moment there's room again (issue #11 follow-up).
+        var placement = MagnifierPlacement.Compute(
+            cursor.X, cursor.Y,
+            w, h, labelW, labelH,
+            CurrentMonitorBoundsInWindow(screenX, screenY),
+            wasFlippedX: _magnifierFlippedX,
+            wasFlippedY: _magnifierFlippedY,
+            cursorOffset: MagnifierCursorOffset);
+        _magnifierFlippedX = placement.FlippedX;
+        _magnifierFlippedY = placement.FlippedY;
+
+        Canvas.SetLeft(MagnifierGroup, placement.CircleX);
+        Canvas.SetTop(MagnifierGroup, placement.CircleY);
+        Canvas.SetLeft(MagnifierLabelsBorder, placement.LabelsX);
+        Canvas.SetTop(MagnifierLabelsBorder, placement.LabelsY);
+    }
+
+    /// <summary>Work area of the monitor under the cursor, expressed in the overlay's own
+    /// coordinate space (DIPs relative to the window's top-left). The device→DIP scale is derived
+    /// from the snapshot (whose pixel width covers exactly the virtual screen the window is sized
+    /// to) rather than from a DPI query, so it stays consistent with the coordinates WPF hands us
+    /// for the cursor. Falls back to the full window rect if the monitor query fails.</summary>
+    private MagnifierPlacement.Rect CurrentMonitorBoundsInWindow(int screenX, int screenY)
+    {
+        var fallback = new MagnifierPlacement.Rect(0, 0, ActualWidth, ActualHeight);
+        var snap = _screenSnapshot;
+        if (snap is null || ActualWidth <= 0) return fallback;
+
+        var monitor = MonitorFromPoint(new POINT { X = screenX, Y = screenY }, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return fallback;
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref info)) return fallback;
+
+        // Device pixels per DIP. snap.PixelWidth is the virtual screen in physical pixels and the
+        // window's ActualWidth is that same span in DIPs.
+        var scale = snap.PixelWidth / ActualWidth;
+        if (scale <= 0 || double.IsNaN(scale) || double.IsInfinity(scale)) return fallback;
+
+        // Work area (rcWork), not the full monitor rect: keeps the block clear of the taskbar,
+        // which is where the report's "cropped at the bottom" case actually lands.
+        var left   = (info.rcWork.Left   - _screenSnapshotLeft) / scale;
+        var top    = (info.rcWork.Top    - _screenSnapshotTop)  / scale;
+        var right  = (info.rcWork.Right  - _screenSnapshotLeft) / scale;
+        var bottom = (info.rcWork.Bottom - _screenSnapshotTop)  / scale;
+        if (right <= left || bottom <= top) return fallback;
+        return new MagnifierPlacement.Rect(left, top, right - left, bottom - top);
     }
 
     /// <summary>Read the colour of a single pixel out of the frozen snapshot. CopyPixels on
@@ -220,7 +264,28 @@ public partial class ScreenColorPickerOverlay : Window
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int X; public int Y; }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 }
