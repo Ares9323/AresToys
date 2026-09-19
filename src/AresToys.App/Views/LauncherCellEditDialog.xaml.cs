@@ -88,15 +88,34 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
             Multiselect = false,
         };
         SeedDirectory(s => dlg.InitialDirectory = s);
-        if (dlg.ShowDialog() == true)
+        if (dlg.ShowDialog() != true) return;
+
+        // Same treatment a drop on the cell gets: a .lnk is unwrapped into the target it points
+        // at plus the settings it carries, so the cell doesn't break when the shortcut moves and
+        // its arguments stay visible and editable here.
+        var target = LauncherDropTarget.Resolve(dlg.FileName);
+        PathBox.Text = target.Path;
+
+        // Auto-fill the Label from the filename if it's still empty — common case "I just
+        // picked notepad.exe, the cell should say Notepad" without an extra typing step.
+        if (string.IsNullOrWhiteSpace(LabelBox.Text)) LabelBox.Text = target.Label;
+
+        // Only fill what the source actually declared: a shortcut without arguments mustn't wipe
+        // arguments the user typed here a moment ago.
+        if (!string.IsNullOrEmpty(target.Arguments)) ArgsBox.Text = target.Arguments;
+        if (!string.IsNullOrEmpty(target.IconPath))
         {
-            PathBox.Text = dlg.FileName;
-            // Auto-fill the Label from the filename if it's still empty — common case "I just
-            // dropped notepad.exe, the cell should say Notepad" without an extra typing step.
-            if (string.IsNullOrWhiteSpace(LabelBox.Text))
-            {
-                LabelBox.Text = Path.GetFileNameWithoutExtension(dlg.FileName);
-            }
+            IconBox.Text = target.IconPath;
+            IconIndexBox.Text = target.IconIndex == 0
+                ? string.Empty
+                : target.IconIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        if (target.RunAsAdmin) RunAsAdminBox.IsChecked = true;
+        if (target.WindowMode != LauncherWindowMode.Normal
+            && WindowModeBox.ItemsSource is IEnumerable<WindowModeOption> options)
+        {
+            WindowModeBox.SelectedItem = options.FirstOrDefault(o => o.Value == target.WindowMode)
+                                         ?? WindowModeBox.SelectedItem;
         }
     }
 

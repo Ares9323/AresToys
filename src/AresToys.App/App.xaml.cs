@@ -621,6 +621,13 @@ public partial class App : Application
                 "rgb", "rgba", "hsb", "cmyk", "decimal", "linear", "bgra",
             };
 
+        // Window-state dropdown for Launch app's "windowMode". Raw values are LauncherWindowMode
+        // names so the task can Enum.TryParse them, and so a workflow step and a launcher cell
+        // describe "start this minimized" the same way. Labels come from the EnumValue_<name>
+        // resx keys via LocalizeOptionsAsEnum.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["window_modes"] = () =>
+            Enum.GetNames<AresToys.App.Services.Launcher.LauncherWindowMode>();
+
         // Settings-tab dropdown for OpenSettings's "tab" parameter. Raw values match the
         // SettingsTab enum lowercased so OpenSettingsTask can Enum.TryParse them straight into
         // SettingsViewModel.SelectedTab. Display labels live in Services.SettingsTabLabels and

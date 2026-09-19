@@ -19,6 +19,31 @@ public sealed class IconService
 
     public BitmapSource? GetIcon(string? rawPath) => GetIcon(rawPath, iconIndex: 0);
 
+    /// <summary>Single place where a caller-supplied path becomes the string we hand the shell
+    /// (and key the cache on): env-vars expanded, trimmed, and packaged-app AppUserModelIDs
+    /// rewritten to their <c>shell:AppsFolder\</c> parsing name. Without that last step a UWP
+    /// target dropped from the Start menu gets ERROR_FILE_NOT_FOUND out of
+    /// <c>SHCreateItemFromParsingName</c> and the tile falls back to a generic glyph — see
+    /// <see cref="PackagedAppPath"/>. No-op for every ordinary path, so it's safe on this
+    /// service's whole surface.</summary>
+    private static string Normalize(string rawPath) =>
+        PackagedAppPath.Normalize(Environment.ExpandEnvironmentVariables(rawPath).Trim());
+
+    /// <summary>Pixel size requested for shell-parsing-name icons in the size-less
+    /// <see cref="GetIcon(string?, int)"/> path. The filesystem route it replaces hands back a
+    /// 32-px icon (SHGFI_LARGEICON); 64 costs nothing extra, leaves headroom for the launcher's
+    /// larger cell sizes, and stays below the point where a small source asset gets upscaled into
+    /// mush.</summary>
+    private const int ShellItemIconSizePx = 64;
+
+    /// <summary>Is this a shell parsing name rather than a filesystem path? Covers both the
+    /// <c>shell:…</c> monikers (AppsFolder, RecycleBinFolder, …) and raw CLSID folder paths.
+    /// Those need <see cref="ExtractViaShellItemImageFactory"/>; the SHGetFileInfo-based paths
+    /// silently degrade to the generic icon for them.</summary>
+    private static bool IsShellParsingName(string path) =>
+        path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("::{", StringComparison.Ordinal);
+
     /// <summary>Evict every cached entry for a path (all sizes / indices). Needed when the icon
     /// behind a path changes underneath us — e.g. the favicon write-through stamps a new
     /// <c>IconFile=</c> into a <c>.url</c>, and without eviction we'd keep handing back the stale
@@ -28,7 +53,7 @@ public sealed class IconService
     {
         if (string.IsNullOrWhiteSpace(rawPath)) return;
         string expanded;
-        try { expanded = Environment.ExpandEnvironmentVariables(rawPath).Trim(); }
+        try { expanded = Normalize(rawPath); }
         catch { return; }
         if (string.IsNullOrEmpty(expanded)) return;
 
@@ -54,7 +79,7 @@ public sealed class IconService
         if (string.IsNullOrWhiteSpace(rawPath)) return null;
         if (sizePx <= 0) return GetIcon(rawPath, iconIndex: 0);
         string expanded;
-        try { expanded = Environment.ExpandEnvironmentVariables(rawPath).Trim(); }
+        try { expanded = Normalize(rawPath); }
         catch { return null; }
         if (string.IsNullOrEmpty(expanded)) return null;
 
@@ -93,7 +118,7 @@ public sealed class IconService
     {
         if (string.IsNullOrWhiteSpace(rawPath)) return null;
         string expanded;
-        try { expanded = Environment.ExpandEnvironmentVariables(rawPath).Trim(); }
+        try { expanded = Normalize(rawPath); }
         catch { return null; }
         if (string.IsNullOrEmpty(expanded)) return null;
 
@@ -103,8 +128,16 @@ public sealed class IconService
             if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
         }
 
+        // Shell parsing names (a packaged app's shell:AppsFolder\<AUMID>, and the other shell:
+        // locations) only resolve through IShellItemImageFactory. SHGetFileInfo — the path
+        // ExtractIcon takes — can't see them at all: it falls back to looking the string up as a
+        // filename and answers with the generic unknown-file glyph, which is what made Store apps
+        // render blank in the launcher. Tried before ExtractIcon, which stays as the last resort.
         var bmp = LoadFromImageFile(expanded)
                   ?? (iconIndex > 0 ? ExtractIconAt(expanded, iconIndex) : null)
+                  ?? (IsShellParsingName(expanded)
+                        ? ExtractViaShellItemImageFactory(expanded, ShellItemIconSizePx)
+                        : null)
                   ?? ExtractIcon(expanded);
         lock (_lock)
         {

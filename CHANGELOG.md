@@ -3,6 +3,41 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Launcher
+- Dropping a shortcut on a cell now stores what the shortcut points at, not the
+  shortcut ([#12](https://github.com/Ares9323/AresToys/issues/12)). Its
+  arguments land in the cell's Args field where they're visible and editable,
+  its "run as administrator" and window state come across too, and a custom
+  icon is kept rather than lost to the target's default. The cell keeps the
+  shortcut's name ("Google Chrome", not "chrome"). A shortcut that can't be
+  unwrapped — corrupt, or pointing at something that isn't installed — is left
+  alone, since it still launches. Picking a .lnk from the cell's edit dialog
+  does the same thing.
+- Store / Microsoft Store apps (WhatsApp, Calculator, Claude…) dragged onto a
+  cell from the Start menu now launch. Windows hands those over as an
+  AppUserModelID (`5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App`) instead of a
+  path, and the cell stored it verbatim: Windows then refused to open it with
+  "file not found", showed a generic glyph instead of the app's icon, and
+  labelled the cell with a fragment of the publisher id. Such a target is now
+  recognised on the spot and stored in the form the shell can actually run, with
+  the app's own name on the cell. Cells already saved the broken way are
+  translated when fired, so they start working without being dropped again —
+  their label stays whatever was saved, rename or re-drop them to fix it.
+- "Open file location" on a Store app opens the Applications view rather than an
+  empty Explorer window (a packaged app's install folder is locked away).
+
+### Workflows
+- "Launch application" gained a Window setting (normal / maximized / minimized /
+  hidden) and a "Run as administrator" toggle, the same two the launcher's cells
+  have. Hidden is the one worth knowing about: it runs a console tool or script
+  without a window flashing up mid-workflow.
+- Browsing to a .lnk in that step fills the whole step in from the shortcut:
+  real target in Path, its arguments in Args, its window state and its elevation
+  setting in the new fields. Previously the step stored the shortcut and its
+  arguments stayed invisible.
+
 ## [0.1.30] — 2026-09-17
 
 Wormholes stop disappearing behind "Show desktop" and can find their folders

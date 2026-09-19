@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -1608,34 +1608,7 @@ public partial class WormholeWindow : Window
     /// vs-folder branching downstream (a broken .lnk falls through to the "unknown" branch
     /// and goes via container drop).</summary>
     private static string ResolveShellTarget(string path)
-    {
-        if (string.IsNullOrEmpty(path)) return path;
-        if (!string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase))
-            return path;
-        try
-        {
-            var link = (IShellLinkW)new CShellLink();
-            try
-            {
-                ((IPersistFile)link).Load(path, 0);
-                var buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(260 * 2); // MAX_PATH wide
-                try
-                {
-                    link.GetPath(buffer, 260, IntPtr.Zero, 0);
-                    var resolved = System.Runtime.InteropServices.Marshal.PtrToStringUni(buffer);
-                    return string.IsNullOrEmpty(resolved) ? path : resolved;
-                }
-                finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer); }
-            }
-            finally { System.Runtime.InteropServices.Marshal.ReleaseComObject(link); }
-        }
-        catch
-        {
-            // Broken .lnk / COM unavailable → return the raw path. Lets the caller decide
-            // the fallback (unknown target type → bubble to container drop).
-            return path;
-        }
-    }
+        => string.IsNullOrEmpty(path) ? path : Services.ShellShortcut.ResolveTargetPath(path);
 
     private void OnDrop(object sender, DragEventArgs e)
     {
@@ -2589,80 +2562,13 @@ public partial class WormholeWindow : Window
     [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
 
-    // -----------------------------------------------------------------------------------------
-    // IShellLink / IPersistFile — used by the right-button drag "Create shortcut here" path.
-    // Two COM interfaces give us everything we need: IShellLinkW.SetPath fills the target,
-    // IPersistFile.Save writes the .lnk to disk. No third-party deps, ~25 lines of marshalling.
-    // -----------------------------------------------------------------------------------------
-
-    [System.Runtime.InteropServices.ComImport]
-    [System.Runtime.InteropServices.Guid("00021401-0000-0000-C000-000000000046")]
-    private class CShellLink { }
-
-    [System.Runtime.InteropServices.ComImport]
-    [System.Runtime.InteropServices.Guid("000214F9-0000-0000-C000-000000000046")]
-    [System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IShellLinkW
-    {
-        // Declared in vtable order; only SetPath / SetIconLocation are called below but the
-        // earlier slots must be present so the indices line up. Using IntPtr for unused
-        // out-parameter buffers keeps the marshalling cheap and self-contained.
-        void GetPath(IntPtr pszFile, int cch, IntPtr pfd, uint fFlags);
-        void GetIDList(out IntPtr ppidl);
-        void SetIDList(IntPtr pidl);
-        void GetDescription(IntPtr pszName, int cch);
-        void SetDescription([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszName);
-        void GetWorkingDirectory(IntPtr pszDir, int cch);
-        void SetWorkingDirectory([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszDir);
-        void GetArguments(IntPtr pszArgs, int cch);
-        void SetArguments([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszArgs);
-        void GetHotkey(out ushort pwHotkey);
-        void SetHotkey(ushort wHotkey);
-        void GetShowCmd(out int piShowCmd);
-        void SetShowCmd(int iShowCmd);
-        void GetIconLocation(IntPtr pszIconPath, int cch, out int piIcon);
-        void SetIconLocation([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
-        void SetRelativePath([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszPathRel, uint dwReserved);
-        void Resolve(IntPtr hwnd, uint fFlags);
-        void SetPath([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszFile);
-    }
-
-    [System.Runtime.InteropServices.ComImport]
-    [System.Runtime.InteropServices.Guid("0000010B-0000-0000-C000-000000000046")]
-    [System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IPersistFile
-    {
-        void GetClassID(out Guid pClassID);
-        [System.Runtime.InteropServices.PreserveSig] int IsDirty();
-        void Load([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszFileName, uint dwMode);
-        void Save([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszFileName, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)] bool fRemember);
-        void SaveCompleted([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszFileName);
-        void GetCurFile([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] out string ppszFileName);
-    }
-
     /// <summary>Write a Windows .lnk shortcut at <paramref name="shortcutPath"/> pointing at
     /// <paramref name="targetPath"/>. Mirrors what Explorer does when the user picks
     /// "Create shortcut here" from the right-button drag menu — same icon, same working
-    /// directory (the target's parent).</summary>
+    /// directory (the target's parent). The COM plumbing lives in Services.ShellShortcut,
+    /// shared with the launcher (which reads shortcuts rather than writing them).</summary>
     private static void CreateShellShortcut(string targetPath, string shortcutPath)
-    {
-        var link = (IShellLinkW)new CShellLink();
-        try
-        {
-            link.SetPath(targetPath);
-            var workingDir = System.IO.Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrEmpty(workingDir)) link.SetWorkingDirectory(workingDir);
-            // Inherit the target's icon — Explorer's default for .lnk creation. Index 0 picks
-            // the first icon from the target's icon resource (or the file-type association for
-            // non-PE files / folders).
-            link.SetIconLocation(targetPath, 0);
-            ((IPersistFile)link).Save(shortcutPath, true);
-        }
-        finally
-        {
-            System.Runtime.InteropServices.Marshal.ReleaseComObject(link);
-        }
-    }
+        => Services.ShellShortcut.Create(targetPath, shortcutPath);
 
     /// <summary>Allocate an unmanaged double-NUL-terminated UTF-16 path list in the format
     /// SHFileOperation expects: <c>path1\0path2\0…\0pathN\0\0</c>. Caller MUST free with

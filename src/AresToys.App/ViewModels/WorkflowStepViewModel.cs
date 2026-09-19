@@ -96,10 +96,79 @@ public sealed partial class WorkflowStepViewModel : ObservableObject
                 StringParameters.Add(new StringParameterEntry(sp.Key, sp.Label, sp.Placeholder, initial,
                     sp.Picker, options, sp.IsEditable, sp.LocalizeOptionsAsEnum, sp.LocalizeOptionsAsLauncherKey,
                     sp.LocalizeOptionsAsColorFormat, sp.LocalizeOptionsAsSettingsTab,
-                    (key, value) => _onStringParameterChanged?.Invoke(this, key, value)));
+                    (key, value) => _onStringParameterChanged?.Invoke(this, key, value),
+                    sp.UnwrapShortcut ? UnwrapShortcutInto : null));
             }
         }
         _suppress = false;
+    }
+
+    /// <summary>Unwrap a picked <c>.lnk</c> across this step's parameters: the picked parameter
+    /// gets the shortcut's real target (returned), and the siblings the step declares get what
+    /// the shortcut carried with it. A shortcut is a bundle of "what to run and how" — storing
+    /// only its path would leave the arguments invisible and uneditable, and would break the
+    /// step the day the .lnk is moved.
+    ///
+    /// Anything that isn't a readable shortcut, or one whose target no longer exists (MSI-
+    /// advertised shortcuts resolve to nothing), is returned untouched: the .lnk still launches
+    /// through the shell, so storing it verbatim remains the better outcome.</summary>
+    private string UnwrapShortcutInto(string pickedPath)
+    {
+        var link = Services.ShellShortcut.TryRead(pickedPath);
+        if (link is null || string.IsNullOrWhiteSpace(link.TargetPath)) return pickedPath;
+
+        string target;
+        try
+        {
+            target = Environment.ExpandEnvironmentVariables(link.TargetPath);
+            if (!System.IO.File.Exists(target) && !System.IO.Directory.Exists(target)) return pickedPath;
+        }
+        catch
+        {
+            return pickedPath;
+        }
+
+        if (!string.IsNullOrEmpty(link.Arguments)) SetStringParameter("args", link.Arguments);
+
+        // Only carry a working directory that says something the default wouldn't: the task
+        // already falls back to the target's own folder, which is what most shortcuts store.
+        if (!string.IsNullOrWhiteSpace(link.WorkingDirectory))
+        {
+            string? targetDir = null;
+            try { targetDir = System.IO.Path.GetDirectoryName(target); } catch { /* keep null */ }
+            if (!string.Equals(link.WorkingDirectory, targetDir, StringComparison.OrdinalIgnoreCase))
+                SetStringParameter("workingDir", link.WorkingDirectory);
+        }
+
+        SetStringParameter("windowMode",
+            Services.Launcher.LauncherDropTarget.WindowModeFromShowCommand(link.ShowCommand).ToString());
+
+        if (link.RunAsAdministrator) SetBoolParameter("runAsAdmin", true);
+
+        return target;
+    }
+
+    /// <summary>Set a sibling string parameter by key, if this step declares one. Assigning to
+    /// Value runs the same change pipeline a manual edit does, so the new value is persisted
+    /// into step.Config and shown in the editor without any extra plumbing.</summary>
+    private void SetStringParameter(string key, string value)
+    {
+        foreach (var entry in StringParameters)
+        {
+            if (!string.Equals(entry.Key, key, StringComparison.Ordinal)) continue;
+            entry.Value = value;
+            return;
+        }
+    }
+
+    private void SetBoolParameter(string key, bool value)
+    {
+        foreach (var entry in BoolParameters)
+        {
+            if (!string.Equals(entry.Key, key, StringComparison.Ordinal)) continue;
+            entry.IsChecked = value;
+            return;
+        }
     }
 
     /// <summary>Index of this step in the underlying profile.Steps list (mutated as steps are
@@ -305,6 +374,11 @@ public sealed partial class BoolParameterEntry : ObservableObject
 public sealed partial class StringParameterEntry : ObservableObject
 {
     private readonly Action<string, string> _onChanged;
+    /// <summary>Optional post-processing for a path chosen through Browse… — returns the value to
+    /// actually store. Used by parameters that unwrap shortcuts, where picking "Chrome.lnk" has
+    /// to store chrome.exe and fan the shortcut's other settings out to sibling parameters.
+    /// Applied before the value is committed, so the step is persisted once, already unwrapped.</summary>
+    private readonly Func<string, string>? _onPathPicked;
     private bool _suppress;
 
     public StringParameterEntry(
@@ -319,8 +393,10 @@ public sealed partial class StringParameterEntry : ObservableObject
         bool localizeOptionsAsLauncherKey,
         bool localizeOptionsAsColorFormat,
         bool localizeOptionsAsSettingsTab,
-        Action<string, string> onChanged)
+        Action<string, string> onChanged,
+        Func<string, string>? onPathPicked = null)
     {
+        _onPathPicked = onPathPicked;
         Key = key;
         Label = label;
         Placeholder = placeholder;
@@ -412,7 +488,7 @@ public sealed partial class StringParameterEntry : ObservableObject
         SeedInitialDirectory(dlg);
         if (dlg.ShowDialog() == true)
         {
-            Value = dlg.FileName;
+            Value = _onPathPicked is null ? dlg.FileName : _onPathPicked(dlg.FileName);
         }
     }
 

@@ -2758,6 +2758,42 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("EnumValue_Inside", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Normal.
+        /// </summary>
+        public static string EnumValue_Normal {
+            get {
+                return ResourceManager.GetString("EnumValue_Normal", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Maximized.
+        /// </summary>
+        public static string EnumValue_Maximized {
+            get {
+                return ResourceManager.GetString("EnumValue_Maximized", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Minimized.
+        /// </summary>
+        public static string EnumValue_Minimized {
+            get {
+                return ResourceManager.GetString("EnumValue_Minimized", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Hidden.
+        /// </summary>
+        public static string EnumValue_Hidden {
+            get {
+                return ResourceManager.GetString("EnumValue_Hidden", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Middle center.

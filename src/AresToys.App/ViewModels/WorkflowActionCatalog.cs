@@ -67,6 +67,13 @@ public sealed record StringParameter(
     /// committing. Raw value persisted in step.Config stays the compact lookup key so the
     /// ConvertColorTask format switch keeps working without a parse step.</summary>
     bool LocalizeOptionsAsColorFormat = false,
+    /// <summary>When true, picking a <c>.lnk</c> with this parameter's Browse… button unwraps the
+    /// shortcut: the parameter receives the shortcut's real target, and its siblings receive what
+    /// the shortcut carried alongside it — <c>args</c>, <c>workingDir</c>, <c>windowMode</c>,
+    /// <c>runAsAdmin</c>, by those key names, each only when the step declares it. Selecting a
+    /// shortcut should configure the step the way the shortcut is configured, rather than hiding
+    /// its arguments behind a path the user can't see into.</summary>
+    bool UnwrapShortcut = false,
     /// <summary>When true, dropdown labels render as Settings sidebar section names via
     /// <see cref="Services.SettingsTabLabels.LabelFor"/>: <c>"hotkeys"</c> shows as
     /// <c>"Hotkeys &amp; workflows"</c>, matching the sidebar entries. Used by OpenSettingsTask's
@@ -644,14 +651,20 @@ public static class WorkflowActionCatalog
         // a document and let Windows pick the handler"; Run command for shell pipelines.
         new("arestoys.launch-app",
             "Launch app",
-            "Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Working dir defaults to the path's folder. Leave the Path field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Launch app'); a value in Path always wins so a workflow with a pinned target isn't redirected by stray bag content.",
+            "Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Working dir defaults to the path's folder. Browsing to a .lnk fills the step in from the shortcut — real target, its arguments, its window state and its 'run as administrator' setting — instead of storing the shortcut itself. Window picks the state the app starts in (Hidden suits background tools); Run as administrator raises the UAC prompt. Leave the Path field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Launch app'); a value in Path always wins so a workflow with a pinned target isn't redirected by stray bag content.",
             "Actions",
-            DefaultConfigJson: "{\"path\":\"\",\"args\":\"\",\"workingDir\":\"\"}",
+            DefaultConfigJson: "{\"path\":\"\",\"args\":\"\",\"workingDir\":\"\",\"windowMode\":\"Normal\",\"runAsAdmin\":false}",
+            BoolParameters: new[]
+            {
+                new BoolParameter("runAsAdmin", "Run as administrator", false),
+            },
             StringParameters: new[]
             {
-                new StringParameter("path",       "Path",        "", "(uses bag.text when empty)", StringPickerKind.File),
+                new StringParameter("path",       "Path",        "", "(uses bag.text when empty)", StringPickerKind.File, UnwrapShortcut: true),
                 new StringParameter("args",       "Args",        "", "--flag value"),
                 new StringParameter("workingDir", "Working dir", "", "(defaults to app's folder)",   StringPickerKind.Folder),
+                new StringParameter("windowMode", "Window", "Normal",
+                    OptionsKey: "window_modes", IsEditable: false, LocalizeOptionsAsEnum: true),
             },
             Inputs: new[] { WorkflowPort.Text }),
 

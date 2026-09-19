@@ -63,10 +63,16 @@ public sealed class LauncherActionService
                 return true;
             }
 
-            var path = Environment.ExpandEnvironmentVariables(cell.Path);
+            // Same packaged-app normalisation the window's fire path applies: a bare
+            // AppUserModelID only launches through its shell:AppsFolder parsing name. See
+            // PackagedAppPath.
+            var path = PackagedAppPath.Normalize(Environment.ExpandEnvironmentVariables(cell.Path));
             var args = Environment.ExpandEnvironmentVariables(cell.Args ?? string.Empty);
             string workingDir = string.Empty;
-            try { workingDir = Path.GetDirectoryName(path) ?? string.Empty; } catch { /* ignore */ }
+            if (!PackagedAppPath.IsAppsFolderPath(path))
+            {
+                try { workingDir = Path.GetDirectoryName(path) ?? string.Empty; } catch { /* ignore */ }
+            }
 
             var psi = new ProcessStartInfo
             {

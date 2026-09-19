@@ -619,11 +619,16 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0) return;
 
-        var dropped = paths[0];   // first item only — multi-file drop on a single cell would be ambiguous
-        var label = TryDeriveLabel(dropped);
-        var updated = new LauncherCell(existing.TabKey, existing.KeyChar, label, dropped, string.Empty);
-        _logger.LogInformation("Launcher: dropped {Path} onto {Key} → label '{Label}'",
-            dropped, existing.ComposedKey, label);
+        // First item only — a multi-file drop on a single cell would be ambiguous. What lands in
+        // the cell isn't always what was dropped: a .lnk is unwrapped to its target and arguments,
+        // and a Start-menu packaged app arrives as a bare AppUserModelID. See LauncherDropTarget.
+        var target = LauncherDropTarget.Resolve(paths[0]);
+        var updated = new LauncherCell(
+            existing.TabKey, existing.KeyChar, target.Label, target.Path, target.Arguments,
+            RunAsAdmin: target.RunAsAdmin, WindowMode: target.WindowMode,
+            IconPath: target.IconPath, IconIndex: target.IconIndex);
+        _logger.LogInformation("Launcher: dropped {Dropped} onto {Key} → path '{Path}' args '{Args}' label '{Label}'",
+            paths[0], existing.ComposedKey, target.Path, target.Arguments, target.Label);
         _ = PersistCellAndReloadAsync(updated);
         e.Handled = true;
     }
@@ -654,22 +659,6 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     private static Brush DefaultCellBorderBrush()
         => Application.Current?.Resources["AccentBackgroundDarkBorderBrush"] as Brush
            ?? new SolidColorBrush(Color.FromRgb(0x40, 0x40, 0x40));
-
-    /// <summary>Pick a sensible label from a dropped path: filename without extension for
-    /// files, the directory name for folders. The user can always rename via the cell edit
-    /// dialog later if they want something different.</summary>
-    private static string TryDeriveLabel(string path)
-    {
-        try
-        {
-            if (System.IO.Directory.Exists(path)) return new System.IO.DirectoryInfo(path).Name;
-            return System.IO.Path.GetFileNameWithoutExtension(path);
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
 
     private void SwitchTab(string tabKey)
     {
@@ -755,8 +744,15 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         if (cell is null || !cell.IsConfigured) return;
         try
         {
-            var path = Environment.ExpandEnvironmentVariables(cell.Path);
-            if (Directory.Exists(path))
+            var path = PackagedAppPath.Normalize(Environment.ExpandEnvironmentVariables(cell.Path));
+            if (PackagedAppPath.IsAppsFolderPath(path))
+            {
+                // Packaged app: there's no folder to reveal (the install lives under WindowsApps,
+                // which is ACL'd off). Open the Applications view instead — the shell's own
+                // equivalent of "here's where this app lives".
+                Process.Start(new ProcessStartInfo { FileName = "shell:AppsFolder", UseShellExecute = true });
+            }
+            else if (Directory.Exists(path))
             {
                 // Folder: open the folder itself.
                 Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
@@ -893,10 +889,18 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
                 return;
             }
 
-            var path = Environment.ExpandEnvironmentVariables(cell.Path);
+            // Normalise packaged-app targets here as well as at drop time: cells persisted by an
+            // earlier build hold the raw AppUserModelID, which ShellExecute rejects outright
+            // (ERROR_FILE_NOT_FOUND). Rewriting at launch makes them work without a re-drop.
+            var path = PackagedAppPath.Normalize(Environment.ExpandEnvironmentVariables(cell.Path));
             var args = Environment.ExpandEnvironmentVariables(cell.Args ?? string.Empty);
             string workingDir = string.Empty;
-            try { workingDir = Path.GetDirectoryName(path) ?? string.Empty; } catch { /* ignore */ }
+            // A shell parsing name has no parent directory on disk — GetDirectoryName would hand
+            // ShellExecute a bogus "shell:AppsFolder" working directory for the child process.
+            if (!PackagedAppPath.IsAppsFolderPath(path))
+            {
+                try { workingDir = Path.GetDirectoryName(path) ?? string.Empty; } catch { /* ignore */ }
+            }
 
             var psi = new ProcessStartInfo
             {
