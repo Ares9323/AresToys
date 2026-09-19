@@ -1,4 +1,4 @@
-namespace AresToys.App.Services.Wormholes;
+﻿namespace AresToys.App.Services.Wormholes;
 
 /// <summary>Lifecycle of the WPF wormhole windows. Owns the mapping <c>WormholeRecord.Id →
 /// live WormholeWindow</c>: hydrates one window per persisted record on startup, spawns a new
@@ -25,6 +25,42 @@ public interface IWormholeWindowManager
     /// <summary>Removes the wormhole record (its on-disk folder content is owned by the user
     /// and stays put) and closes the open window if any.</summary>
     Task DeleteAsync(Guid wormholeId, CancellationToken cancellationToken);
+
+    // ------------------------------------------------------------------------------------------
+    // Tab groups. Several wormholes shown as tabs of one window. Membership is persisted in its
+    // own groups.json, and each tab remains a complete wormhole in wormholes.json / positions.json
+    // — so a build that doesn't know about grouping opens them as the separate wormholes they are.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>The group a wormhole belongs to, or null when it stands alone.</summary>
+    WormholeGroup? GroupFor(Guid wormholeId);
+
+    /// <summary>Records behind a wormhole's tabs in display order; empty when it isn't grouped.</summary>
+    IReadOnlyList<WormholeRecord> TabsFor(Guid wormholeId);
+
+    /// <summary>Fold <paramref name="dragged"/> into the window hosting <paramref name="target"/>.
+    /// The target keeps its position and size — the group takes its shape — and the dragged
+    /// wormhole's own geometry is left untouched for when it's pulled back out.</summary>
+    Task MergeAsync(Guid dragged, Guid target, CancellationToken cancellationToken);
+
+    /// <summary>Pull a tab back out into its own window, at its own saved geometry.</summary>
+    Task DetachAsync(Guid wormholeId, CancellationToken cancellationToken);
+
+    /// <summary>Bring a tab to the front and remember it as the group's active one.</summary>
+    Task SetActiveTabAsync(Guid wormholeId, CancellationToken cancellationToken);
+
+    /// <summary>Which wormhole's header is under a screen point (physical pixels), ignoring the
+    /// window being dragged. Used at the end of a drag to decide whether the user dropped one
+    /// wormhole onto another's header, which is the gesture that merges them.</summary>
+    Guid? FindHeaderTargetAt(int screenX, int screenY, Views.WormholeWindow exclude);
+
+    /// <summary>Light up a wormhole's header as the target a dragged wormhole would merge into.
+    /// Null clears it. Called continuously during a drag, so it no-ops when the target hasn't
+    /// changed.</summary>
+    void HighlightMergeTarget(Guid? wormholeId);
+
+    /// <summary>Clear any merge cue. Called when a drag ends, whatever its outcome.</summary>
+    void ClearMergeHighlight();
 
     /// <summary>Closes every live wormhole window without removing records — used by the module
     /// teardown path (Settings → toggle Wormholes OFF) and by app shutdown.</summary>

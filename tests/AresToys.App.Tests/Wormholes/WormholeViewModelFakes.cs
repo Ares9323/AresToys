@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -62,6 +62,14 @@ internal sealed class FakeWormholeStore : IWormholeStore
 
     public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public WormholeGroups Groups { get; set; } = new();
+    public Task<WormholeGroups> LoadGroupsAsync(CancellationToken cancellationToken) => Task.FromResult(Groups);
+    public Task SaveGroupsAsync(WormholeGroups groups, CancellationToken cancellationToken)
+    {
+        Groups = groups;
+        return Task.CompletedTask;
+    }
+
     public string WormholesRootPath => Path.Combine(Path.GetTempPath(), "arestoys-fake-wormholes");
     public string PresetsFolderPath => Path.Combine(WormholesRootPath, "presets");
     public string GetShortcutsDirectory(Guid wormholeId) => Path.Combine(WormholesRootPath, wormholeId.ToString("N"));
@@ -105,6 +113,15 @@ internal sealed class FakeWormholeWindowManager : IWormholeWindowManager
         RecordDeleted?.Invoke(this, wormholeId);
         return Task.CompletedTask;
     }
+
+    public WormholeGroup? GroupFor(Guid wormholeId) => null;
+    public IReadOnlyList<WormholeRecord> TabsFor(Guid wormholeId) => [];
+    public Task MergeAsync(Guid dragged, Guid target, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DetachAsync(Guid wormholeId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task SetActiveTabAsync(Guid wormholeId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Guid? FindHeaderTargetAt(int screenX, int screenY, AresToys.App.Views.WormholeWindow exclude) => null;
+    public void HighlightMergeTarget(Guid? wormholeId) { }
+    public void ClearMergeHighlight() { }
 
     public Task<IReadOnlyList<string>> ListPresetsAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<string>>([]);

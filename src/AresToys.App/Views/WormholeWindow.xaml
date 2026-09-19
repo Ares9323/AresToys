@@ -111,6 +111,63 @@
                              KeyDown="OnTitleEditorKeyDown"
                              LostFocus="OnTitleEditorLostFocus" />
 
+                    <!-- Tab strip: replaces the title when this window hosts a group. The active
+                         tab is filled and lit, the others are quiet text — the same reading order
+                         as the reference. Each tab drags out of the header to become its own
+                         wormhole again. -->
+                    <!-- UniformGrid, not a StackPanel: the tabs share the header's width evenly
+                         instead of huddling at the left edge, which is what the strip is for. -->
+                    <!-- UniformGrid, not a StackPanel: the tabs share the header's width evenly
+                         instead of huddling at the left edge. Stretched in both directions and
+                         with no margins, so each tab's colour fills its slice of the strip edge to
+                         edge rather than floating as a pill inside it. -->
+                    <!-- Margins left and right are the grab area: without them the strip covers the
+                         whole header and every press lands on a tab, so there'd be nowhere to take
+                         hold of the window itself — dragging it to move, or onto another wormhole
+                         to merge, would instead pull a tab out of the group. -->
+                    <ItemsControl x:Name="TabStrip"
+                                  Grid.Column="1"
+                                  Visibility="Collapsed"
+                                  Margin="16,0,16,0"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Stretch"
+                                  VerticalAlignment="Stretch">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                <Setter Property="VerticalAlignment" Value="Stretch" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Background}"
+                                        Padding="8,0"
+                                        Margin="0"
+                                        Cursor="Hand"
+                                        Tag="{Binding Id}"
+                                        ToolTip="{Binding Title}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        MouseLeftButtonDown="OnTabMouseDown"
+                                        MouseMove="OnTabMouseMove"
+                                        MouseLeftButtonUp="OnTabMouseUp">
+                                    <TextBlock Text="{Binding Title}"
+                                               Foreground="{Binding Foreground}"
+                                               FontSize="12"
+                                               FontWeight="{Binding Weight}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
                     <!-- Search slot: a Grid that hosts both the icon-mode Button and the
                          active TextBox in the same cell, toggling Visibility. When the user
                          clicks the magnifying-glass the icon collapses and a TextBox expands

@@ -11,6 +11,15 @@ public interface IWormholeStore
     /// after enabling the module).</summary>
     Task<IReadOnlyList<WormholeRecord>> LoadAllAsync(CancellationToken cancellationToken);
 
+    /// <summary>Which wormholes are shown as tabs of a single window. Lives in its own
+    /// <c>groups.json</c> so grouping stays additive: ignore the file and every tab is still a
+    /// complete wormhole with its own geometry and settings in the other two. Members that no
+    /// longer exist are pruned on read.</summary>
+    Task<WormholeGroups> LoadGroupsAsync(CancellationToken cancellationToken);
+
+    /// <summary>Persist the tab groups.</summary>
+    Task SaveGroupsAsync(WormholeGroups groups, CancellationToken cancellationToken);
+
     /// <summary>Upserts the record (matched by <see cref="WormholeRecord.Id"/>) and flushes the
     /// whole file. Writes atomically via a temp-file rename so a crash mid-save never leaves a
     /// half-written JSON behind.</summary>

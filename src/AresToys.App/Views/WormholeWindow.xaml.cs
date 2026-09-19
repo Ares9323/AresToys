@@ -31,6 +31,23 @@ public partial class WormholeWindow : Window
     private const int PortalItemCap = 500;
 
     private readonly WormholeRecord _record;
+
+    /// <summary>The tab currently on show. Same object as <see cref="_record"/> for an ungrouped
+    /// wormhole; in a tab group the window belongs to the parent — geometry, collapsed / hidden /
+    /// topmost / locked all live there — while the folder being listed, the accent colour, the icon
+    /// zoom and the title come from whichever tab is active. That split is the whole trick: the
+    /// window is one wormhole's, the contents are another's.</summary>
+    private WormholeRecord _active;
+
+    /// <summary>Header height in DIPs, matching the fixed Height on both header Borders in the
+    /// XAML. Doubles as the distance a tab has to be dragged vertically to count as "pulled out
+    /// of the strip".</summary>
+    private const double HeaderStripHeight = 32;
+
+    /// <summary>Anchor + id of a tab being dragged out of the header, set on mouse-down and
+    /// consumed once the pointer has travelled clear of the strip.</summary>
+    private System.Windows.Point? _tabDragStart;
+    private Guid? _tabDragId;
     private readonly Action _onPersist;
     private readonly IconService _icons;
     private readonly string _wormholesRoot;
@@ -119,6 +136,7 @@ public partial class WormholeWindow : Window
         Services.ColorWheelLauncher? colors = null)
     {
         _record = record;
+        _active = record;
         _onPersist = onPersist;
         _icons = icons;
         _wormholesRoot = wormholesRoot;
@@ -129,6 +147,7 @@ public partial class WormholeWindow : Window
         InitializeComponent();
         DataContext = record;
         ItemsHost.ItemsSource = _items;
+        TabStrip.ItemsSource = _tabs;
 
         // Wire the default CollectionView's predicate so SearchBox filters the visible tiles
         // without rebuilding the ObservableCollection. WPF's GetDefaultView returns the same
@@ -380,6 +399,7 @@ public partial class WormholeWindow : Window
 
             case WM_EXITSIZEMOVE:
                 _inMoveSizeLoop = false;
+                TryMergeOntoDropTarget();
                 return IntPtr.Zero;
 
             case WM_WINDOWPOSCHANGING:
@@ -401,6 +421,10 @@ public partial class WormholeWindow : Window
         // a real geometry change.
         if (_inMoveSizeLoop && ((pos.flags & SWP_NOMOVE) == 0 || (pos.flags & SWP_NOSIZE) == 0))
         {
+            // Same moment, same question: is the pointer over another wormhole's header? If so,
+            // light it up so the merge is announced before the button comes up.
+            UpdateMergeHighlightWhileDragging();
+
             var options = SnapOptionsFromDefaults();
             if (options.AnyEnabled && !_record.IsLocked)
             {
@@ -524,7 +548,7 @@ public partial class WormholeWindow : Window
     /// what the Settings → Wormholes "Default icon size" slider drives.</summary>
     private int EffectiveIconSize()
     {
-        if (_record.IconSizePx > 0) return _record.IconSizePx;
+        if (_active.IconSizePx > 0) return _active.IconSizePx;
         if (_defaults is { DefaultIconSizePx: > 0 } d) return d.DefaultIconSizePx;
         return DesktopIconSize.Get();
     }
@@ -551,7 +575,7 @@ public partial class WormholeWindow : Window
     /// somehow didn't wire a defaults service.</summary>
     private double EffectiveOpacity()
     {
-        if (_record.Appearance.OpacityOverride is { } v) return v;
+        if (_active.Appearance.OpacityOverride is { } v) return v;
         return _defaults?.DefaultOpacity ?? 0.70;
     }
 
@@ -583,7 +607,7 @@ public partial class WormholeWindow : Window
         // a fully saturated body would drown them. Without an override everything follows the theme
         // exactly as before. Brushes are per-window: mutating the shared theme brush would recolour
         // every wormhole at once, and anything else bound to that resource.
-        var custom = WormholeAccent.TryParse(_record.Appearance.AccentOverride);
+        var custom = WormholeAccent.TryParse(_active.Appearance.AccentOverride);
 
         // A recoloured wormhole rings itself in the header's shade, not the raw accent, so the
         // frame belongs to the window instead of outshining it. No override: the theme, as before.
@@ -597,6 +621,7 @@ public partial class WormholeWindow : Window
 
         ApplyBackdrop(BodyBackdrop, custom, "Surface1Brush", WormholeAccent.BodyShade);
         ApplyBackdrop(HeaderBackdrop, custom, "Surface2Brush", WormholeAccent.HeaderShade);
+        RefreshTabs();
         if (OuterShadow is not null) OuterShadow.Opacity = 0.45 * borderOp;
     }
 
@@ -626,6 +651,7 @@ public partial class WormholeWindow : Window
             WormholeAccent.Shade(colour, WormholeAccent.RingShade)) { Opacity = EffectiveBorderOpacity() };
         ApplyBackdrop(BodyBackdrop, colour, "Surface1Brush", WormholeAccent.BodyShade);
         ApplyBackdrop(HeaderBackdrop, colour, "Surface2Brush", WormholeAccent.HeaderShade);
+        RefreshTabs(previewForActive: colour);
     }
 
     /// <summary>Cheap path: only the opacity changed (Settings slider drag). Skips
@@ -710,7 +736,7 @@ public partial class WormholeWindow : Window
         var next = e.Delta > 0 ? current + step : current - step;
         next = Math.Clamp(next, min, max);
         if (next == current) { e.Handled = true; return; }
-        _record.IconSizePx = next;
+        _active.IconSizePx = next;
         _onPersist();
         RebuildItems();
         e.Handled = true; // prevent ListBox from scrolling while the user is zooming
@@ -808,6 +834,244 @@ public partial class WormholeWindow : Window
 
     public event EventHandler<Guid>? DeleteRequested;
 
+    /// <summary>Which wormhole's contents this window is currently showing. Equal to the window's
+    /// own record unless it's hosting a tab group.</summary>
+    internal WormholeRecord ActiveRecord => _active;
+
+    /// <summary>One entry of the tab strip. Carries its own brushes rather than relying on a style
+    /// trigger, because "which tab is active" is group state the manager owns, not something the
+    /// visual tree can work out on its own.
+    ///
+    /// Mutable and observable on purpose: the strip is refreshed on every appearance change, and
+    /// while the colour picker is open that's many times a second. Replacing the collection's
+    /// contents each time would make WPF rebuild every tab's visual, which reads as the whole
+    /// strip flickering even though only one tab's colour is moving.</summary>
+    private sealed class TabViewModel : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _title = string.Empty;
+        private Brush _background = Brushes.Transparent;
+        private Brush _foreground = Brushes.White;
+        private FontWeight _weight = FontWeights.Normal;
+
+        public TabViewModel(Guid id) { Id = id; }
+
+        public Guid Id { get; }
+
+        public string Title { get => _title; set => Set(ref _title, value); }
+        public Brush Background { get => _background; set => Set(ref _background, value); }
+        public Brush Foreground { get => _foreground; set => Set(ref _foreground, value); }
+        public FontWeight Weight { get => _weight; set => Set(ref _weight, value); }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        private void Set<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value)) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+        }
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<TabViewModel> _tabs = [];
+
+    /// <summary>Rebuild the tab strip from the group this window hosts. A window that isn't hosting
+    /// a group shows its title as before — one tab is not a tab strip, it's a wormhole.</summary>
+    /// <param name="previewForActive">Colour to show on the active tab instead of the one stored
+    /// on its record. Used while the colour picker is open, so the strip previews the change with
+    /// the rest of the window rather than lagging a step behind it.</param>
+    internal void RefreshTabs(Color? previewForActive = null)
+    {
+        var records = _manager?.TabsFor(_record.Id) ?? [];
+
+        if (records.Count < 2)
+        {
+            _tabs.Clear();
+            TabStrip.Visibility = Visibility.Collapsed;
+            TitleText.Visibility = TitleEditor.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            return;
+        }
+
+        // Rebuild the collection only when the membership itself changed (a tab merged in, pulled
+        // out, deleted). For a plain restyle the entries are updated in place, so WPF re-renders
+        // the one brush that moved instead of every tab.
+        var sameStrip = _tabs.Count == records.Count;
+        if (sameStrip)
+        {
+            for (var i = 0; i < records.Count; i++)
+            {
+                if (_tabs[i].Id == records[i].Id) continue;
+                sameStrip = false;
+                break;
+            }
+        }
+        if (!sameStrip)
+        {
+            _tabs.Clear();
+            foreach (var rec in records) _tabs.Add(new TabViewModel(rec.Id));
+        }
+
+        // Each tab wears its OWN wormhole's colour, selected or not: the strip then reads as the
+        // wormholes it stands for, and the tab you're on matches the header it opens into. Which
+        // one is active is carried by the weight alone — highlighting it with the theme accent
+        // would paint every group the same colour and bury the one piece of information the
+        // colours are there to give.
+        var fg = Application.Current?.Resources["AccentForegroundBrush"] as Brush ?? Brushes.White;
+        var themed = Application.Current?.Resources["Surface2Brush"] as Brush ?? Brushes.Transparent;
+
+        for (var i = 0; i < records.Count; i++)
+        {
+            var rec = records[i];
+            var isActive = rec.Id == _active.Id;
+            var custom = isActive && previewForActive is { } preview
+                ? preview
+                : WormholeAccent.TryParse(rec.Appearance.AccentOverride);
+
+            var tab = _tabs[i];
+            tab.Title = string.IsNullOrWhiteSpace(rec.Title) ? "Wormhole" : rec.Title;
+            tab.Background = custom is { } colour
+                ? new SolidColorBrush(WormholeAccent.Shade(colour, WormholeAccent.HeaderShade))
+                : themed;
+            tab.Foreground = fg;
+            tab.Weight = isActive ? FontWeights.Bold : FontWeights.Normal;
+        }
+
+        TabStrip.Visibility = Visibility.Visible;
+        TitleText.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>True when a screen point (physical pixels) is over this window's header strip.
+    /// Asked of every other wormhole when a drag ends, to decide whether the user meant to drop
+    /// one wormhole onto another's header and merge them. Physical pixels rather than DIPs because
+    /// that's what the cursor and the window rect speak, and mixed-DPI setups make converting in
+    /// the caller a source of quiet errors.</summary>
+    internal bool HeaderHitTest(int screenX, int screenY)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return false;
+        if (!GetWindowRect(hwnd, out var rect)) return false;
+        if (screenX < rect.Left || screenX > rect.Right) return false;
+        var headerBottom = rect.Top + DipToPixels(HeaderStripHeight, hwnd);
+        return screenY >= rect.Top && screenY <= headerBottom;
+    }
+
+    /// <summary>End of a window drag: if it finished with the pointer over another wormhole's
+    /// header, fold this one into that one as a tab. Dropping anywhere else is just a move, which
+    /// is what it has always been.</summary>
+    private void TryMergeOntoDropTarget()
+    {
+        if (_manager is null) return;
+        _manager.ClearMergeHighlight();
+        if (!GetCursorPos(out var cursor)) return;
+
+        var target = _manager.FindHeaderTargetAt(cursor.X, cursor.Y, this);
+        if (target is not { } targetId) return;
+        _ = _manager.MergeAsync(_record.Id, targetId, CancellationToken.None);
+    }
+
+    /// <summary>While dragging, light up the header this wormhole would merge into if dropped now.
+    /// Merging is a destructive-looking gesture — two windows become one — so it has to announce
+    /// itself before the mouse button comes up, not after.</summary>
+    private void UpdateMergeHighlightWhileDragging()
+    {
+        if (_manager is null || !_inMoveSizeLoop) return;
+        if (!GetCursorPos(out var cursor)) return;
+        _manager.HighlightMergeTarget(_manager.FindHeaderTargetAt(cursor.X, cursor.Y, this));
+    }
+
+    /// <summary>Show or clear the "drop here to add a tab" cue on this window's header.</summary>
+    internal void ShowMergeTargetHint(bool on)
+    {
+        if (_mergeHintShown == on) return;
+        _mergeHintShown = on;
+        if (on)
+        {
+            var accent = Application.Current?.Resources["AccentBackgroundBrush"] as Brush;
+            HeaderBackdrop.Background = accent ?? Brushes.SteelBlue;
+        }
+        else
+        {
+            ApplyAppearance();   // back to the theme, or to this wormhole's accent override
+        }
+    }
+
+    private bool _mergeHintShown;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    private void OnTabMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not Guid id) return;
+        _tabDragStart = e.GetPosition(this);
+        _tabDragId = id;
+
+        // The header's handler normally does this; we're about to stop the event reaching it.
+        _manager?.NotifyWormholeFocused(this);
+
+        // Stop here. The header's own MouseDown handler starts DragMove(), which enters a modal
+        // move-size loop that swallows the move and up events — so without this the tab's click
+        // never completes and its drag-out never begins; you just drag the window by its tab.
+        e.Handled = true;
+
+        // Capture, or the pointer leaving this small Border ends the gesture — and leaving the
+        // Border is exactly what detaching a tab is.
+        fe.CaptureMouse();
+    }
+
+    /// <summary>A tab dragged clear of the header leaves the group and becomes its own wormhole
+    /// again, at the geometry it had before it was folded in.</summary>
+    private void OnTabMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_tabDragStart is null || _tabDragId is not { } id) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { ReleaseTabDrag(sender); return; }
+
+        var pos = e.GetPosition(this);
+        // Vertical distance only: dragging sideways along the strip is how you reach another tab,
+        // so only pulling clear of the strip counts as taking the tab out.
+        if (Math.Abs(pos.Y - _tabDragStart.Value.Y) < HeaderStripHeight) return;
+
+        ReleaseTabDrag(sender);
+        if (_manager is not null) _ = _manager.DetachAsync(id, CancellationToken.None);
+    }
+
+    private void OnTabMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        var id = _tabDragId;
+        ReleaseTabDrag(sender);
+        e.Handled = true;
+        if (id is not { } tabId || _manager is null) return;
+        if (tabId == _active.Id) return;   // already showing
+        _ = _manager.SetActiveTabAsync(tabId, CancellationToken.None);
+    }
+
+    private void ReleaseTabDrag(object sender)
+    {
+        _tabDragStart = null;
+        _tabDragId = null;
+        if (sender is FrameworkElement fe && fe.IsMouseCaptured) fe.ReleaseMouseCapture();
+    }
+
+    /// <summary>Show a different tab: swap in its folder, colour, zoom and title. Only the contents
+    /// change — the window keeps the parent's position, size and collapsed/hidden/topmost state, so
+    /// switching tabs never moves or resizes anything.</summary>
+    internal void SetActiveRecord(WormholeRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        if (ReferenceEquals(_active, record)) return;
+        _active = record;
+        // The header title binds through DataContext, so it has to follow the active tab too.
+        DataContext = record;
+        RefreshPortalItems();
+        ApplyAppearance();
+        RefreshTabs();
+    }
+
     /// <summary>Re-enumerate the source folder and rebuild <see cref="_items"/>. Called from
     /// the manager's <c>FolderWatcher.Changed</c> handler (debounced 300 ms) and from the
     /// hamburger "Refresh" entry.</summary>
@@ -841,7 +1105,7 @@ public partial class WormholeWindow : Window
 
     public void RefreshPortalItems()
     {
-        var portal = _record.Portal;
+        var portal = _active.Portal;
         if (portal is null) return;
 
         _items.Clear();
@@ -1056,7 +1320,7 @@ public partial class WormholeWindow : Window
     /// the user already sees the folder-missing chrome in that case.</summary>
     private void OpenSourceFolder()
     {
-        var folder = _record.Portal?.SourcePath;
+        var folder = _active.Portal?.SourcePath;
         if (string.IsNullOrWhiteSpace(folder)) return;
         try
         {
@@ -1188,12 +1452,12 @@ public partial class WormholeWindow : Window
         // (Ctrl+Wheel was used at some point). Clearing it falls back through the chain
         // to the app-wide default + DesktopIconSize, which the user can read off the
         // Settings → Wormholes panel.
-        if (_record.IconSizePx > 0)
+        if (_active.IconSizePx > 0)
         {
             var resetZoom = new System.Windows.Controls.MenuItem { Header = "Reset zoom to default" };
             resetZoom.Click += (_, _) =>
             {
-                _record.IconSizePx = 0;
+                _active.IconSizePx = 0;
                 _onPersist();
                 RebuildItems();
             };
@@ -1215,7 +1479,7 @@ public partial class WormholeWindow : Window
             {
                 // Seed the dialog with the colour this wormhole already has, so opening the picker
                 // on a coloured wormhole starts from it rather than from an unrelated recent.
-                var current = WormholeAccent.TryParse(_record.Appearance.AccentOverride);
+                var current = WormholeAccent.TryParse(_active.Appearance.AccentOverride);
                 var seed = current is { } c
                     ? new AresToys.Editor.Model.ShapeColor(c.A, c.R, c.G, c.B)
                     : null;
@@ -1231,19 +1495,19 @@ public partial class WormholeWindow : Window
                     ApplyAppearance();   // cancelled — put the previous colour back
                     return;
                 }
-                _record.Appearance.AccentOverride = WormholeAccent.Format(
+                _active.Appearance.AccentOverride = WormholeAccent.Format(
                     System.Windows.Media.Color.FromArgb(picked.A, picked.R, picked.G, picked.B));
                 _onPersist();
                 ApplyAppearance();
             };
             menu.Items.Add(accent);
 
-            if (WormholeAccent.TryParse(_record.Appearance.AccentOverride) is not null)
+            if (WormholeAccent.TryParse(_active.Appearance.AccentOverride) is not null)
             {
                 var resetAccent = new System.Windows.Controls.MenuItem { Header = "Reset accent colour" };
                 resetAccent.Click += (_, _) =>
                 {
-                    _record.Appearance.AccentOverride = null;
+                    _active.Appearance.AccentOverride = null;
                     _onPersist();
                     ApplyAppearance();
                 };
@@ -1266,7 +1530,7 @@ public partial class WormholeWindow : Window
         delete.Click += (_, _) =>
         {
             var confirm = MessageBox.Show(OwnerForDialogs(),
-                $"Delete wormhole \"{_record.Title}\"?\n\nThe source folder on disk is NOT touched.",
+                $"Delete wormhole \"{_active.Title}\"?\n\nThe source folder on disk is NOT touched.",
                 "AresToys",
                 MessageBoxButton.OKCancel, MessageBoxImage.Question,
                 MessageBoxResult.Cancel);
@@ -1276,7 +1540,7 @@ public partial class WormholeWindow : Window
             // Never auto-delete a folder with content — that's the user's data and the first
             // dialog promised we wouldn't touch it. Empty folders are a common leftover after a
             // "create wormhole, move stuff elsewhere, delete wormhole" workflow.
-            if (_record.Portal is { SourcePath: { Length: > 0 } src }
+            if (_active.Portal is { SourcePath: { Length: > 0 } src }
                 && Directory.Exists(src) && IsEmptyDirectory(src))
             {
                 var alsoDelete = MessageBox.Show(OwnerForDialogs(),
@@ -1306,7 +1570,7 @@ public partial class WormholeWindow : Window
 
     private void OpenAssociatedFolder()
     {
-        var folder = _record.Portal?.SourcePath;
+        var folder = _active.Portal?.SourcePath;
         if (string.IsNullOrWhiteSpace(folder))
         {
             MessageBox.Show(OwnerForDialogs(),"No folder is associated with this wormhole.", "AresToys",
@@ -1378,12 +1642,12 @@ public partial class WormholeWindow : Window
 
     private void OnChangeFolder()
     {
-        if (_record.Portal is null) return;
+        if (_active.Portal is null) return;
         var dlg = new Microsoft.Win32.OpenFolderDialog
         {
             Title = "Pick the new source folder for this wormhole",
-            InitialDirectory = Directory.Exists(_record.Portal.SourcePath)
-                ? _record.Portal.SourcePath
+            InitialDirectory = Directory.Exists(_active.Portal.SourcePath)
+                ? _active.Portal.SourcePath
                 : Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
         if (dlg.ShowDialog(this) != true) return;
@@ -1395,7 +1659,7 @@ public partial class WormholeWindow : Window
             _manager.RelinkSource(_record, dlg.FolderName);
             return;
         }
-        _record.Portal.SourcePath = dlg.FolderName;
+        _active.Portal.SourcePath = dlg.FolderName;
         _onPersist();
         RefreshPortalItems();
     }
@@ -1406,7 +1670,7 @@ public partial class WormholeWindow : Window
 
     private void BeginInlineRename()
     {
-        TitleEditor.Text = _record.Title;
+        TitleEditor.Text = _active.Title;
         TitleEditor.Visibility = Visibility.Visible;
         TitleText.Visibility = Visibility.Collapsed;
         TitleEditor.Focus();
@@ -1416,9 +1680,9 @@ public partial class WormholeWindow : Window
     private void CommitInlineRename()
     {
         var next = (TitleEditor.Text ?? string.Empty).Trim();
-        if (!string.IsNullOrEmpty(next) && next != _record.Title)
+        if (!string.IsNullOrEmpty(next) && next != _active.Title)
         {
-            _record.Title = next;
+            _active.Title = next;
             DataContext = null;
             DataContext = _record;
             _onPersist();
@@ -1489,7 +1753,7 @@ public partial class WormholeWindow : Window
 
         var paths = (string[]?)e.Data.GetData(DataFormats.FileDrop);
         if (paths is null || paths.Length == 0) return DragDropEffects.Copy;
-        return IsSameVolume(paths[0], _record.Portal?.SourcePath)
+        return IsSameVolume(paths[0], _active.Portal?.SourcePath)
             ? DragDropEffects.Move
             : DragDropEffects.Copy;
     }
@@ -1735,8 +1999,8 @@ public partial class WormholeWindow : Window
 
     private void DropOntoPortal(string[] paths, RightDragChoice choice, bool ctrl, bool shift)
     {
-        if (_record.Portal is null || string.IsNullOrWhiteSpace(_record.Portal.SourcePath)) return;
-        var dest = _record.Portal.SourcePath;
+        if (_active.Portal is null || string.IsNullOrWhiteSpace(_active.Portal.SourcePath)) return;
+        var dest = _active.Portal.SourcePath;
         if (!Directory.Exists(dest))
         {
             MessageBox.Show(OwnerForDialogs(),"The Portal source folder isn't currently available.",
@@ -1876,12 +2140,12 @@ public partial class WormholeWindow : Window
     // Sort by — hamburger menu + persistence
     // -----------------------------------------------------------------------------------------
 
-    private string GetCurrentSortMode() => _record.Portal?.SortMode ?? "Name";
+    private string GetCurrentSortMode() => _active.Portal?.SortMode ?? "Name";
 
     private void SetSortMode(string mode)
     {
-        if (string.IsNullOrEmpty(mode) || _record.Portal is null) return;
-        _record.Portal.SortMode = mode;
+        if (string.IsNullOrEmpty(mode) || _active.Portal is null) return;
+        _active.Portal.SortMode = mode;
         _onPersist();
         RefreshPortalItems();
     }
@@ -2566,7 +2830,7 @@ public partial class WormholeWindow : Window
     /// Explorer's behaviour (the cut source disappears from the clipboard after the move).</summary>
     private void PasteFromClipboard()
     {
-        if (_record.Portal?.SourcePath is not { } dest) return;
+        if (_active.Portal?.SourcePath is not { } dest) return;
         if (!Directory.Exists(dest)) return;
         if (!System.Windows.Clipboard.ContainsFileDropList()) return;
 

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,6 +15,9 @@ namespace AresToys.App.Services.Wormholes;
 /// %LocalAppData%\AresToys-Data\Wormholes\
 ///   wormholes.json                            ← definitions + global flags (NO geometry)
 ///   positions.json                            ← current live geometry {id → {X,Y,W,H,UnrolledHeight}}
+///   groups.json                               ← tab groups: which wormholes share one window
+///                                               (purely additive — ignore it and every tab is
+///                                               still a complete wormhole in the two files above)
 ///   Presets\&lt;name&gt;.json                       ← one file per named layout preset (hand-editable)
 ///   Shortcuts\&lt;guid&gt;\                         ← Data-fence .lnk files (owned by DataDropPolicy)
 /// </code>
@@ -32,6 +35,7 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
     private const string ShortcutsFolderName = "Shortcuts";
     private const string StoreFileName = "wormholes.json";
     private const string PositionsFileName = "positions.json";
+    private const string GroupsFileName = "groups.json";
     private const string PresetsFolderName = "Presets";
     private const string LegacyPositionsFolderName = "Positions";
     private const string LegacyOriginalMarkerFileName = ".original";
@@ -92,6 +96,7 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
 
     private string StoreFilePath => Path.Combine(WormholesRootPath, StoreFileName);
     private string PositionsFilePath => Path.Combine(WormholesRootPath, PositionsFileName);
+    private string GroupsFilePath => Path.Combine(WormholesRootPath, GroupsFileName);
     private string PresetsRootPath => Path.Combine(WormholesRootPath, PresetsFolderName);
     private string LegacyPositionsRootPath => Path.Combine(WormholesRootPath, LegacyPositionsFolderName);
     private string LegacyPresetsFilePath => Path.Combine(WormholesRootPath, LegacyPresetsFileName);
@@ -101,6 +106,52 @@ public sealed class WormholeStoreJson : IWormholeStore, IDisposable
         var dir = Path.Combine(WormholesRootPath, ShortcutsFolderName, wormholeId.ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
+    }
+
+    /// <summary>Read the tab groups. Members naming wormholes that no longer exist are pruned, and
+    /// a group left with fewer than two tabs is dropped: groups.json is a separate file, so it can
+    /// outlive the records it points at after a rollback or a hand edit.</summary>
+    public async Task<WormholeGroups> LoadGroupsAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await EnsureCacheLoadedNoLockAsync(cancellationToken).ConfigureAwait(false);
+
+            var groups = new WormholeGroups();
+            if (File.Exists(GroupsFilePath))
+            {
+                try
+                {
+                    var raw = await File.ReadAllTextAsync(GroupsFilePath, cancellationToken).ConfigureAwait(false);
+                    var parsed = JsonSerializer.Deserialize<WormholeGroupsFile>(raw, ReadOptions);
+                    if (parsed?.Groups is { Count: > 0 }) groups = new WormholeGroups(parsed.Groups);
+                }
+                catch (JsonException ex)
+                {
+                    // Grouping is cosmetic on top of wormholes that all still work on their own,
+                    // so a broken file costs the tab layout and nothing else. Start without groups
+                    // rather than refusing to open the wormholes.
+                    _logger.LogWarning(ex, "groups.json is malformed — starting without tab groups");
+                }
+            }
+            groups.PruneTo(_cache!.Select(r => r.Id));
+            return groups;
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task SaveGroupsAsync(WormholeGroups groups, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var file = new WormholeGroupsFile { Groups = [.. groups.All] };
+            var json = JsonSerializer.Serialize(file, PositionsOptions);
+            await WriteAtomicAsync(GroupsFilePath, json, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<IReadOnlyList<WormholeRecord>> LoadAllAsync(CancellationToken cancellationToken)

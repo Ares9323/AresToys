@@ -64,6 +64,19 @@ versions follow [SemVer](https://semver.org/).
   yesterday's hour, off by the machine's UTC offset.
 
 ### Wormholes
+- Wormholes can be grouped into tabs. Drag one onto another's header and they
+  become one window with a tab strip: the header you dropped onto lights up
+  first, so the merge is announced before you let go. The group takes the shape
+  of the wormhole you dropped onto; each tab keeps its own folder, colour and
+  icon zoom. Click a tab to switch, drag one clear of the header to pull it back
+  out at the size it had before. Hidden, collapsed and topmost apply to the
+  whole group, and a collapsed group reveals whichever tab was last used.
+- Grouping is stored in its own `groups.json`, which nothing else reads: every
+  tab stays a complete wormhole in `wormholes.json` and keeps its own geometry
+  in `positions.json`. A build without grouping, or a rollback, opens them as
+  the separate wormholes they still are. A group naming a wormhole that no
+  longer exists is pruned on load, and one left with a single tab stops being a
+  group.
 - "Hide the header until hovered" is gone, replaced by "Show collapsed wormholes
   on hover": hovering a collapsed wormhole opens it, and it rolls back up when
   the pointer leaves. The expansion is visual only, so the wormhole is still

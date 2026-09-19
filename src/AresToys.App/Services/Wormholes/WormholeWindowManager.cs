@@ -18,7 +18,24 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private readonly ColorWheelLauncher _colors;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<WormholeWindowManager> _logger;
+    /// <summary>Wormhole id → the window showing it. In a tab group every member maps to the SAME
+    /// window instance, so a lookup by any member's id finds the window that hosts it. Iterate
+    /// <see cref="LiveWindows"/> rather than this dictionary's values: a grouped window appears
+    /// once per tab here, and applying a window-level operation once per tab is at best wasted
+    /// work and at worst wrong (a roll toggled three times).</summary>
     private readonly Dictionary<Guid, WormholeWindow> _live = new();
+
+    /// <summary>Each live window exactly once, however many tabs it hosts.</summary>
+    private IEnumerable<WormholeWindow> LiveWindows => _live.Values.Distinct();
+
+    /// <summary>Which wormholes share a window. Loaded once at startup from groups.json and kept
+    /// in step as the user merges and detaches tabs.</summary>
+    private WormholeGroups _groups = new();
+
+    /// <summary>Every known record by id. A grouped window needs its siblings' records — for the
+    /// tab strip and to switch what's on show — and those lookups happen from synchronous UI paths
+    /// that can't await the store.</summary>
+    private readonly Dictionary<Guid, WormholeRecord> _records = new();
     private readonly Dictionary<Guid, FolderWatcher> _watchers = new();
     private bool _initialized;
 
@@ -319,7 +336,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     /// because if the user just clicked an item, they've focused that wormhole.</summary>
     public void NotifyItemSelectionTaken(System.Windows.Window source)
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             if (ReferenceEquals(window, source)) continue;
             try { window.ClearItemSelection(); }
@@ -338,6 +355,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         foreach (var (id, window) in _live)
         {
             if (!ReferenceEquals(window, source)) continue;
+            // For a grouped window, the row to highlight is the tab on show, not whichever member
+            // happens to come first in the dictionary.
+            if (window.ActiveRecord.Id != id) continue;
             WormholeFocused?.Invoke(this, id);
             return;
         }
@@ -617,7 +637,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     public IReadOnlyList<IntPtr> LiveWindowHandles()
     {
         var handles = new List<IntPtr>(_live.Count);
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
             if (handle != IntPtr.Zero) handles.Add(handle);
@@ -627,7 +647,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     private void RefreshAllLiveOpacity()
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.RefreshOpacity(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshOpacity failed during defaults change"); }
@@ -636,7 +656,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     private void RefreshAllLiveDesktopOwnership()
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.RefreshDesktopOwnership(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshDesktopOwnership failed during defaults change"); }
@@ -645,7 +665,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     private void RefreshAllLiveCollapsedHover()
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.RefreshCollapsedHover(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshCollapsedHover failed during defaults change"); }
@@ -654,7 +674,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     private void RefreshAllLiveIconSize()
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.RefreshIconSize(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshIconSize failed during defaults change"); }
@@ -663,7 +683,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     private void RefreshAllLiveItemCursor()
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.RefreshItemCursor(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshItemCursor failed during defaults change"); }
@@ -672,7 +692,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     private void RefreshAllLivePortalItems()
     {
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.RefreshPortalItems(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshPortalItems failed during defaults change"); }
@@ -691,6 +711,23 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // underlying cache mid-foreach. Iterating a snapshot makes the iterator immune to that.
         var records = (await _store.LoadAllAsync(cancellationToken).ConfigureAwait(true)).ToList();
         _logger.LogInformation("Hydrated {Count} wormhole record(s)", records.Count);
+
+        _records.Clear();
+        foreach (var r in records) _records[r.Id] = r;
+
+        // Tab groups come from their own file and may name wormholes that no longer exist; the
+        // store prunes those on read, so what lands here is already consistent with the records.
+        try
+        {
+            _groups = await _store.LoadGroupsAsync(cancellationToken).ConfigureAwait(true);
+            if (_groups.All.Count > 0)
+                _logger.LogInformation("Hydrated {Count} wormhole tab group(s)", _groups.All.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Loading wormhole tab groups failed — carrying on without them");
+            _groups = new WormholeGroups();
+        }
 
         // Per-record try/catch so a broken record (e.g. Portal pointing at a deleted folder,
         // unexpected schema drift, WPF window construction throwing) doesn't kill the rest of
@@ -853,6 +890,172 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         return record;
     }
 
+    public WormholeGroup? GroupFor(Guid wormholeId) => _groups.FindFor(wormholeId);
+
+    /// <summary>Window currently lit up as a merge target, so the cue can be cleared when the
+    /// pointer moves off it or the drag ends.</summary>
+    private WormholeWindow? _mergeHintWindow;
+
+    public void HighlightMergeTarget(Guid? wormholeId)
+    {
+        WormholeWindow? next = null;
+        if (wormholeId is { } id) _live.TryGetValue(id, out next);
+        if (ReferenceEquals(next, _mergeHintWindow)) return;
+
+        try { _mergeHintWindow?.ShowMergeTargetHint(false); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Clearing the merge hint failed"); }
+        _mergeHintWindow = next;
+        try { _mergeHintWindow?.ShowMergeTargetHint(true); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Showing the merge hint failed"); }
+    }
+
+    public void ClearMergeHighlight() => HighlightMergeTarget(null);
+
+    /// <summary>Which wormhole's header sits under a screen point, ignoring <paramref name="exclude"/>
+    /// (the one being dragged). Returns the id of the tab currently on show there, so dropping onto
+    /// a group joins the group rather than trying to merge with a tab that isn't visible.</summary>
+    public Guid? FindHeaderTargetAt(int screenX, int screenY, WormholeWindow exclude)
+    {
+        foreach (var window in LiveWindows)
+        {
+            if (ReferenceEquals(window, exclude)) continue;
+            try
+            {
+                if (window.HeaderHitTest(screenX, screenY)) return window.ActiveRecord.Id;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Header hit-test failed while looking for a merge target");
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The records behind a wormhole's tabs, in display order. Empty when it isn't
+    /// grouped — a lone wormhole has no tab strip to draw.</summary>
+    public IReadOnlyList<WormholeRecord> TabsFor(Guid wormholeId)
+    {
+        var group = _groups.FindFor(wormholeId);
+        if (group is null) return [];
+        var tabs = new List<WormholeRecord>(group.Members.Count);
+        foreach (var member in group.Members)
+        {
+            if (_records.TryGetValue(member, out var rec)) tabs.Add(rec);
+        }
+        return tabs;
+    }
+
+    /// <summary>Make <paramref name="dragged"/> a tab of the window hosting
+    /// <paramref name="target"/>. The target's window stays exactly where it is and keeps its size;
+    /// the dragged wormhole's window closes, and its record — geometry included — is left untouched
+    /// so detaching later restores it at the size it had.</summary>
+    public async Task MergeAsync(Guid dragged, Guid target, CancellationToken cancellationToken)
+    {
+        var group = _groups.Merge(dragged, target);
+        if (group is null) return;
+        await SaveGroupsAsync(cancellationToken).ConfigureAwait(true);
+
+        if (!_live.TryGetValue(group.ParentId, out var host))
+        {
+            // Parent isn't on screen (hidden wormhole): nothing to fold into yet, the grouping is
+            // recorded and takes effect when it next opens.
+            return;
+        }
+
+        // Close whatever other windows the new members were living in, then point their ids at the
+        // host. ForgetWindow (on Closed) clears the old registrations, so this order matters.
+        foreach (var member in group.Members.ToList())
+        {
+            if (!_live.TryGetValue(member, out var other) || ReferenceEquals(other, host)) continue;
+            try { other.CloseFromManager(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Closing {Id}'s window while merging failed", member); }
+        }
+        foreach (var member in group.Members) _live[member] = host;
+
+        if (_records.TryGetValue(group.ActiveId, out var active)) host.SetActiveRecord(active);
+        host.RefreshTabs();
+        RepinWatcher(group.ParentId, host);
+        _logger.LogInformation("Wormholes: {Dragged} merged into {Target} ({Count} tabs)",
+            dragged, target, group.Members.Count);
+    }
+
+    /// <summary>Pull a tab out into a window of its own. It reappears at its own saved geometry:
+    /// nothing overwrote it while it was a tab, because the hosting window only ever persisted the
+    /// parent's.</summary>
+    public async Task DetachAsync(Guid wormholeId, CancellationToken cancellationToken)
+    {
+        var group = _groups.FindFor(wormholeId);
+        if (group is null) return;
+        var wasParent = group.ParentId == wormholeId;
+        var siblings = group.Members.Where(m => m != wormholeId).ToList();
+
+        _groups.Detach(wormholeId);
+        await SaveGroupsAsync(cancellationToken).ConfigureAwait(true);
+
+        _live.TryGetValue(wormholeId, out var host);
+        _live.Remove(wormholeId);
+
+        if (host is not null && wasParent)
+        {
+            // The window was the parent's; the remaining tabs need one built on their new parent.
+            try { host.CloseFromManager(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Closing the old parent window while detaching failed"); }
+            var newParentId = _groups.FindFor(siblings.FirstOrDefault())?.ParentId ?? siblings.FirstOrDefault();
+            if (newParentId is { } id && _records.TryGetValue(id, out var newParent)) SpawnWindow(newParent);
+        }
+        else if (host is not null && host.ActiveRecord.Id == wormholeId && siblings.Count > 0
+                 && _records.TryGetValue(siblings[0], out var nextTab))
+        {
+            host.SetActiveRecord(nextTab);   // it was the tab on show
+            RepinWatcher(nextTab.Id, host);
+        }
+        host?.RefreshTabs();
+
+        if (_records.TryGetValue(wormholeId, out var detached)) SpawnWindow(detached);
+        _logger.LogInformation("Wormholes: {Id} detached from its group", wormholeId);
+    }
+
+    /// <summary>Bring a tab to the front. Remembered, so a collapsed group reveals this one.</summary>
+    public async Task SetActiveTabAsync(Guid wormholeId, CancellationToken cancellationToken)
+    {
+        var group = _groups.FindFor(wormholeId);
+        if (group is null || group.ActiveId == wormholeId) return;
+        _groups.SetActive(wormholeId);
+        await SaveGroupsAsync(cancellationToken).ConfigureAwait(true);
+
+        if (!_live.TryGetValue(wormholeId, out var host)) return;
+        if (_records.TryGetValue(wormholeId, out var record))
+        {
+            host.SetActiveRecord(record);
+            host.RefreshTabs();
+            RepinWatcher(wormholeId, host);
+        }
+    }
+
+    private async Task SaveGroupsAsync(CancellationToken cancellationToken)
+    {
+        try { await _store.SaveGroupsAsync(_groups, cancellationToken).ConfigureAwait(true); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Saving wormhole tab groups failed"); }
+    }
+
+    /// <summary>Move the folder watcher onto whatever the window is now showing. Only one watcher
+    /// per window: the tabs you can't see aren't listing anything.</summary>
+    private void RepinWatcher(Guid key, WormholeWindow window)
+    {
+        // A watcher belongs to a window through the id it was filed under, and every id mapped to
+        // this window is a candidate — the watcher may have been created under the parent's id or
+        // under a tab's, depending on which path opened the window.
+        foreach (var stale in _live.Where(kv => ReferenceEquals(kv.Value, window)).Select(kv => kv.Key).ToList())
+        {
+            if (!_watchers.Remove(stale, out var watcher)) continue;
+            try { watcher.Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Disposing a watcher while re-pinning failed"); }
+        }
+        if (_watchersPaused) return;
+        var source = window.ActiveRecord.Portal?.SourcePath;
+        if (!string.IsNullOrWhiteSpace(source)) _watchers[key] = CreateWatcher(source, window);
+    }
+
     public async Task DeleteAsync(Guid wormholeId, CancellationToken cancellationToken)
     {
         if (_watchers.TryGetValue(wormholeId, out var watcher))
@@ -861,12 +1064,53 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             try { watcher.Dispose(); }
             catch (Exception ex) { _logger.LogWarning(ex, "FolderWatcher dispose failed for {Id}", wormholeId); }
         }
+        // Deleting a tab out of a group: the group loses a member (and dissolves if that leaves one
+        // tab, which is just a wormhole again). Taken before the window handling below, because
+        // whether the window survives depends on what's left of the group.
+        var group = _groups.FindFor(wormholeId);
+        var wasParent = group is not null && group.ParentId == wormholeId;
+        if (group is not null)
+        {
+            _groups.Forget(wormholeId);
+            try { await _store.SaveGroupsAsync(_groups, cancellationToken).ConfigureAwait(true); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Saving tab groups after a delete failed"); }
+        }
+
         if (_live.TryGetValue(wormholeId, out var window))
         {
             _live.Remove(wormholeId);
-            try { window.CloseFromManager(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Failed to close wormhole window {Id}", wormholeId); }
+            _records.Remove(wormholeId);
+
+            // Survivors still mapped to this window — the other tabs.
+            var survivors = _live.Where(kv => ReferenceEquals(kv.Value, window)).Select(kv => kv.Key).ToList();
+
+            // The window is built on the parent's record: geometry and the window-level flags are
+            // read and written there. If the parent is the one going away the window has to be
+            // rebuilt on whoever inherited the role, otherwise it would keep persisting itself
+            // into a record that no longer exists.
+            if (survivors.Count == 0 || wasParent)
+            {
+                try { window.CloseFromManager(); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to close wormhole window {Id}", wormholeId); }
+
+                if (survivors.Count > 0
+                    && _groups.FindFor(survivors[0]) is { } reformed
+                    && _records.TryGetValue(reformed.ParentId, out var newParent))
+                {
+                    SpawnWindow(newParent);
+                }
+                else if (survivors.Count == 1 && _records.TryGetValue(survivors[0], out var loneSurvivor))
+                {
+                    SpawnWindow(loneSurvivor);   // no group left: back to being its own wormhole
+                }
+            }
+            else if (window.ActiveRecord.Id == wormholeId
+                     && _records.TryGetValue(survivors[0], out var nextTab))
+            {
+                window.SetActiveRecord(nextTab);   // the deleted tab was the one on show
+            }
         }
+        _records.Remove(wormholeId);
         await _store.DeleteAsync(wormholeId, cancellationToken).ConfigureAwait(true);
         // Tell whoever is listening that this record no longer exists. An open Settings →
         // Wormholes panel uses it to drop the row; before this it only learned about deletions it
@@ -884,7 +1128,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             catch (Exception ex) { _logger.LogWarning(ex, "FolderWatcher dispose failed during CloseAll"); }
         }
         _watchers.Clear();
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             try { window.CloseFromManager(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to close wormhole window during CloseAll"); }
@@ -895,6 +1139,29 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private void SpawnWindow(WormholeRecord record)
     {
         if (_live.ContainsKey(record.Id)) return;
+        _records[record.Id] = record;
+
+        // Tab group: one window for the whole group, owned by the parent. Whichever member the
+        // caller happened to hand us, the window is built from the parent — that's where the
+        // geometry and the window-level flags live — and every member is registered against it, so
+        // a later lookup by any tab's id finds it.
+        if (_groups.FindFor(record.Id) is { } group)
+        {
+            foreach (var member in group.Members)
+            {
+                if (!_live.TryGetValue(member, out var hosting)) continue;
+                _live[record.Id] = hosting;   // the group's window already exists
+                return;
+            }
+
+            if (record.Id != group.ParentId
+                && _records.TryGetValue(group.ParentId, out var parent))
+            {
+                SpawnWindow(parent);          // build it from the parent instead
+                if (_live.TryGetValue(group.ParentId, out var spawned)) _live[record.Id] = spawned;
+                return;
+            }
+        }
         // Recover wormholes whose persisted geometry sits off the visible virtual screen — can
         // happen after a monitor disconnect, a DPI-aware coord drift, or (the recent regression)
         // a SetParent that shifted positions out of the visible range. Snap to primary monitor
@@ -950,10 +1217,23 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         window.Closed += (_, _) => ForgetWindow(record.Id, window);
         _live[record.Id] = window;
 
-        // FolderWatcher pinned to this wormhole's source. The watcher fires Changed events on
-        // the dispatcher after a 300 ms quiet period; the window just re-enumerates its source
-        // folder each tick. Disposed in DeleteAsync / CloseAll / the window's Closed handler.
-        if (!_watchersPaused && record.Portal is { SourcePath: { Length: > 0 } sourcePath })
+        // Hosting a group: point every member's id at this window and show the tab that was active
+        // when the app last closed. Done before the watcher below, so the watcher follows the tab
+        // actually on screen rather than the parent's folder.
+        if (_groups.FindFor(record.Id) is { } hosted)
+        {
+            foreach (var member in hosted.Members) _live[member] = window;
+            if (_records.TryGetValue(hosted.ActiveId, out var active)) window.SetActiveRecord(active);
+            window.RefreshTabs();
+        }
+
+        // FolderWatcher pinned to the source of the tab currently on show. The watcher fires
+        // Changed events on the dispatcher after a 300 ms quiet period; the window just
+        // re-enumerates its source folder each tick. Disposed in DeleteAsync / CloseAll / the
+        // window's Closed handler. A group needs only one: the tabs you can't see aren't listing
+        // anything, and switching tabs re-pins it.
+        var watched = window.ActiveRecord;
+        if (!_watchersPaused && watched.Portal is { SourcePath: { Length: > 0 } sourcePath })
             _watchers[record.Id] = CreateWatcher(sourcePath, window);
 
         // WorkerW / Progman PARENTING (DesktopLayerHost.SetParent) stays disabled: it shifts the
@@ -1004,11 +1284,17 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private void ForgetWindow(Guid id, WormholeWindow window)
     {
         if (!_live.TryGetValue(id, out var current) || !ReferenceEquals(current, window)) return;
-        _live.Remove(id);
-        if (_watchers.Remove(id, out var watcher))
+
+        // A window hosting a group is registered under every tab's id. Closing it has to clear all
+        // of them: leaving a sibling pointing at a dead window is exactly the stale-cache bug that
+        // made "Hidden" need three clicks, one tab removed from being enough to repeat it.
+        var owned = _live.Where(kv => ReferenceEquals(kv.Value, window)).Select(kv => kv.Key).ToList();
+        foreach (var ownedId in owned)
         {
-            try { watcher.Dispose(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "FolderWatcher dispose after window close failed for {Id}", id); }
+            _live.Remove(ownedId);
+            if (!_watchers.Remove(ownedId, out var w)) continue;
+            try { w.Dispose(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "FolderWatcher dispose after window close failed for {Id}", ownedId); }
         }
     }
 
@@ -1241,7 +1527,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         var screenH = SystemParameters.PrimaryScreenHeight;
         const double cascadeStep = 32;
         var i = 0;
-        foreach (var (_, window) in _live)
+        foreach (var window in LiveWindows)
         {
             var width = double.IsNaN(window.Width) ? 320 : window.Width;
             var height = double.IsNaN(window.Height) ? 240 : window.Height;
