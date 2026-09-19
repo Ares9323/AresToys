@@ -1,5 +1,6 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace AresToys.App.Services.Launcher;
@@ -16,11 +17,19 @@ namespace AresToys.App.Services.Launcher;
 public sealed class LauncherActionService
 {
     private readonly LauncherStore _store;
+    /// <summary>Resolves <see cref="WorkflowRunner"/> at fire time rather than taking it as a
+    /// dependency. This service sits inside the pipeline task graph (LauncherTriggerKeyTask needs
+    /// it), and WorkflowRunner needs the PipelineExecutor, which is built from that same task
+    /// graph — asking for it in the constructor is a dependency cycle the container refuses to
+    /// build, taking the whole app down at startup. Resolving on use breaks the loop.</summary>
+    private readonly IServiceProvider _services;
     private readonly ILogger<LauncherActionService> _logger;
 
-    public LauncherActionService(LauncherStore store, ILogger<LauncherActionService> logger)
+    public LauncherActionService(LauncherStore store, IServiceProvider services,
+        ILogger<LauncherActionService> logger)
     {
         _store = store;
+        _services = services;
         _logger = logger;
     }
 
@@ -48,6 +57,18 @@ public sealed class LauncherActionService
         {
             _logger.LogInformation("LauncherActionService: cell {Tab}:{Key} is empty, nothing to fire", effectiveTab, keyChar);
             return false;
+        }
+
+        // Workflow cells run a pipeline profile instead of starting a program. Checked before
+        // everything else: the launch-shaped settings (path, args, elevation, window mode,
+        // activate-if-running) describe how to start an executable and say nothing about a
+        // workflow. Same precedence as LauncherWindow.FireCell.
+        if (cell.HasWorkflow)
+        {
+            _logger.LogInformation("LauncherActionService: firing workflow {Workflow} for {Key}",
+                cell.WorkflowId, cell.ComposedKey);
+            _services.GetRequiredService<WorkflowRunner>().RunDetached(cell.WorkflowId);
+            return true;
         }
 
         try

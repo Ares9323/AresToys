@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AresToys.Storage.Settings;
 using Microsoft.Extensions.Logging;
 
@@ -26,7 +26,9 @@ public sealed class WormholeDefaultsService
     public const string AutoDisableTopmostOnLaunchKey = "app.wormholes.auto_disable_topmost_on_launch";
     public const string WebLinkFaviconsKey = "app.wormholes.web_link_favicons";
     public const string KeepVisibleOnShowDesktopKey = "app.wormholes.keep_visible_on_show_desktop";
-    public const string HideHeaderChromeKey = "app.wormholes.hide_header_chrome";
+    public const string ExpandCollapsedOnHoverKey = "app.wormholes.expand_collapsed_on_hover";
+    public const string OpenWithOneClickKey = "app.wormholes.open_with_one_click";
+    public const string HideServiceFilesKey = "app.wormholes.hide_service_files";
     public const string SnapToGridKey       = "app.wormholes.snap_to_grid";
     public const string SnapGridSizeKey     = "app.wormholes.snap_grid_size_px";
     public const string SnapToWormholesKey  = "app.wormholes.snap_to_wormholes";
@@ -99,7 +101,9 @@ public sealed class WormholeDefaultsService
     // the desktop — hiding the widgets that live on it is the opposite of what they meant. The
     // off-switch restores the plain top-level-window behaviour (minimizes with everything else).
     private bool _keepVisibleOnShowDesktop = true;
-    private bool _hideHeaderChrome;
+    private bool _expandCollapsedOnHover;
+    private bool _openWithOneClick;
+    private bool _hideServiceFiles = true;
     private bool _snapToGrid;
     private int _snapGridSizePx = SnapGridFallback;
     private bool _snapToWormholes;
@@ -169,11 +173,23 @@ public sealed class WormholeDefaultsService
     /// Read on demand by each live window — no event needed.</summary>
     public bool KeepVisibleOnShowDesktop => _keepVisibleOnShowDesktop;
 
-    /// <summary>When true, the header strip of every wormhole renders empty: title, chevron,
-    /// search, lock and hamburger fade out and the strip's own backdrop goes transparent. The
-    /// 32 px row stays reserved (so the layout doesn't jump and the strip remains draggable);
-    /// moving the mouse over the wormhole brings the chrome back.</summary>
-    public bool HideHeaderChrome => _hideHeaderChrome;
+    /// <summary>When true, moving the pointer over a collapsed (rolled-up) wormhole expands it for
+    /// as long as the pointer stays on it, and it rolls back up on the way out. The expansion is
+    /// only visual: the record stays collapsed, so the wormhole is still collapsed after a restart
+    /// and its saved height is never overwritten by a peek.</summary>
+    public bool ExpandCollapsedOnHover => _expandCollapsedOnHover;
+
+    /// <summary>When true a single click on a tile opens it, and the tiles show the hand cursor
+    /// that promises exactly that. When false (the default) opening takes the usual double click
+    /// and the tiles show the ordinary arrow, so the cursor stops implying a single click will do
+    /// something. Either way a click that turns into a drag never opens anything.</summary>
+    public bool OpenWithOneClick => _openWithOneClick;
+
+    /// <summary>When true (the default) the OS's own bookkeeping files are kept out of the
+    /// wormhole — <c>desktop.ini</c>, <c>Thumbs.db</c> and friends, see
+    /// <see cref="WormholeServiceFileFilter"/>. Explorer hides them too; a wormhole enumerates the
+    /// folder itself, so it has to be asked.</summary>
+    public bool HideServiceFiles => _hideServiceFiles;
 
     /// <summary>Snap a dragged / resized wormhole's edges to a <see cref="SnapGridSizePx"/> grid.</summary>
     public bool SnapToGrid => _snapToGrid;
@@ -192,9 +208,17 @@ public sealed class WormholeDefaultsService
     /// snapped against (another wormhole's edge, or the screen edge). 0 = flush contact.</summary>
     public int SnapGapPx => _snapGapPx;
 
-    /// <summary>Raised when the header-chrome visibility default changed, so every live window
-    /// re-applies it without a restart.</summary>
-    public event EventHandler? HeaderChromeChanged;
+    /// <summary>Raised when the expand-on-hover default changed, so every live window re-applies it
+    /// without a restart (and any wormhole currently peeked open rolls back up).</summary>
+    public event EventHandler? ExpandCollapsedOnHoverChanged;
+
+    /// <summary>Raised when the one-click-open default changed. Live windows swap their tile
+    /// cursor in response; the click handling itself reads the flag at the moment of the click.</summary>
+    public event EventHandler? OpenWithOneClickChanged;
+
+    /// <summary>Raised when the service-file filter was toggled, so every live window
+    /// re-enumerates its source and the tiles appear or disappear without a restart.</summary>
+    public event EventHandler? ServiceFilesVisibilityChanged;
 
     /// <summary>Raised when the "keep visible on Show desktop" default changed. Live windows
     /// join or leave the desktop's z-order group in response (see <see cref="DesktopOwnership"/>).</summary>
@@ -279,9 +303,17 @@ public sealed class WormholeDefaultsService
             if (bool.TryParse(keepVisibleRaw, out var keepVisible))
                 _keepVisibleOnShowDesktop = keepVisible;
 
-            var hideHeaderRaw = await _store.GetAsync(HideHeaderChromeKey, cancellationToken).ConfigureAwait(false);
-            if (bool.TryParse(hideHeaderRaw, out var hideHeader))
-                _hideHeaderChrome = hideHeader;
+            var expandOnHoverRaw = await _store.GetAsync(ExpandCollapsedOnHoverKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(expandOnHoverRaw, out var expandOnHover))
+                _expandCollapsedOnHover = expandOnHover;
+
+            var oneClickRaw = await _store.GetAsync(OpenWithOneClickKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(oneClickRaw, out var oneClick))
+                _openWithOneClick = oneClick;
+
+            var hideServiceRaw = await _store.GetAsync(HideServiceFilesKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(hideServiceRaw, out var hideService))
+                _hideServiceFiles = hideService;
 
             var snapGridRaw = await _store.GetAsync(SnapToGridKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(snapGridRaw, out var snapGrid))
@@ -400,13 +432,31 @@ public sealed class WormholeDefaultsService
         KeepVisibleOnShowDesktopChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public async Task SetHideHeaderChromeAsync(bool enabled, CancellationToken cancellationToken)
+    public async Task SetExpandCollapsedOnHoverAsync(bool enabled, CancellationToken cancellationToken)
     {
-        if (enabled == _hideHeaderChrome) return;
-        _hideHeaderChrome = enabled;
-        await _store.SetAsync(HideHeaderChromeKey, enabled.ToString(CultureInfo.InvariantCulture),
+        if (enabled == _expandCollapsedOnHover) return;
+        _expandCollapsedOnHover = enabled;
+        await _store.SetAsync(ExpandCollapsedOnHoverKey, enabled.ToString(CultureInfo.InvariantCulture),
             sensitive: false, cancellationToken).ConfigureAwait(true);
-        HeaderChromeChanged?.Invoke(this, EventArgs.Empty);
+        ExpandCollapsedOnHoverChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetOpenWithOneClickAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _openWithOneClick) return;
+        _openWithOneClick = enabled;
+        await _store.SetAsync(OpenWithOneClickKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        OpenWithOneClickChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetHideServiceFilesAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _hideServiceFiles) return;
+        _hideServiceFiles = enabled;
+        await _store.SetAsync(HideServiceFilesKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        ServiceFilesVisibilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task SetSnapToGridAsync(bool enabled, CancellationToken cancellationToken)

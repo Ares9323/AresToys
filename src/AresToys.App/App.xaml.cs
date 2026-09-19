@@ -387,6 +387,7 @@ public partial class App : Application
                 services.AddSingleton<Services.Recording.ScreenRecordingService>();
                 services.AddSingleton<Services.Recording.RecordingCoordinator>();
                 services.AddSingleton<Services.Recording.VideoThumbnailService>();
+                services.AddSingleton<Services.Recording.VideoTrimService>();
                 services.AddSingleton<AresToys.Editor.Persistence.ColorRecentsStore>();
                 services.AddSingleton<AresToys.Editor.Persistence.EditorDefaultsStore>();
                 services.AddSingleton<AresToys.AI.IImageTracer, AresToys.AI.PotraceImageTracer>();

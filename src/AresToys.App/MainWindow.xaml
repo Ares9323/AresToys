@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="AresToys.App.MainWindow"
+﻿<ui:FluentWindow x:Class="AresToys.App.MainWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -2100,13 +2100,30 @@
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" />
 
-                            <!-- Header chrome hidden until hover. Not an opacity fade: the strip's
-                                 content AND its Surface2 backdrop go to 0, while the 32 px row
-                                 stays reserved so the tiles don't shift. -->
+                            <!-- Collapsed wormholes open while the pointer is on them. Visual
+                                 only: the record stays collapsed, so nothing is persisted and the
+                                 saved height can't be overwritten by a peek. -->
                             <CheckBox Margin="0,8,0,0"
-                                      IsChecked="{Binding Wormholes.HideHeaderChrome, Mode=TwoWay}"
-                                      Content="{Markup:Loc Wormhole_HideHeaderChrome}"
-                                      ToolTip="{Markup:Loc Wormhole_HideHeaderChromeTooltip}"
+                                      IsChecked="{Binding Wormholes.ExpandCollapsedOnHover, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_ExpandCollapsedOnHover}"
+                                      ToolTip="{Markup:Loc Wormhole_ExpandCollapsedOnHoverTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+
+                            <!-- Single-click open. Also drives the tile cursor: hand when on,
+                                 arrow when off, so the pointer never promises a click that
+                                 wouldn't open anything. -->
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.OpenWithOneClick, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_OpenWithOneClick}"
+                                      ToolTip="{Markup:Loc Wormhole_OpenWithOneClickTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.HideServiceFiles, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_HideServiceFiles}"
+                                      ToolTip="{Markup:Loc Wormhole_HideServiceFilesTooltip}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" />
                         </StackPanel>

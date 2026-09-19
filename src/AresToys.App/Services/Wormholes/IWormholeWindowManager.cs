@@ -53,6 +53,14 @@ public interface IWormholeWindowManager
     /// UI dispatcher thread.</summary>
     event EventHandler<Guid>? RecordChanged;
 
+    /// <summary>Raised after a wormhole record has been removed, whatever asked for it — the
+    /// chrome's "Delete wormhole…" menu, the Settings grid's own Delete button, a future workflow
+    /// task. An open Settings panel subscribes to drop the matching row: without this, deleting
+    /// from the chrome left the row in the grid until the user re-clicked the sidebar entry,
+    /// because <see cref="RecordChanged"/> means "this record was updated, refresh its row" and
+    /// carries no way to express "this record is gone". Fires on the UI dispatcher thread.</summary>
+    event EventHandler<Guid>? RecordDeleted;
+
     /// <summary>Flip <see cref="WormholeRecord.IsHidden"/> on every persisted record. Hidden
     /// wormholes have their live window closed (record stays); un-hidden wormholes get a fresh
     /// window spawned. Used by the workflow "Hide all / Show all" tasks and by the future

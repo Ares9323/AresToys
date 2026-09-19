@@ -315,8 +315,16 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:ItemRowViewModel}">
+                                        <!-- MinHeight is derived from the hover chevrons, not chosen by eye: they
+                                             stack to 18 + 1 + 18 = 37 px, and the row adds 6+6 of Padding plus
+                                             2+2 of BorderThickness, so 53 is the smallest height at which they
+                                             fit without pushing the row taller the moment the pointer arrives.
+                                             Single-line rows are shorter than that on their own, which is why
+                                             hovering one used to make it visibly grow. Rows with a thumbnail or
+                                             wrapped text are already taller and ignore this. -->
                                         <Border x:Name="RowBorder"
                                                 Padding="8,6" Margin="0,2"
+                                                MinHeight="53"
                                                 CornerRadius="4"
                                                 BorderThickness="2"
                                                 AllowDrop="True"
@@ -373,6 +381,11 @@
                                                     <MenuItem Header="{Markup:Loc Clipboard_MenuGenerateQr}"
                                                               Click="OnGenerateQrFromItemClicked"
                                                               Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}" />
+                                                    <!-- Trim: same handler as the toolbar button, hidden on anything
+                                                         that isn't a recording we can re-encode. -->
+                                                    <MenuItem Header="{Markup:Loc Clipboard_MenuTrimVideo}"
+                                                              Click="OnTrimVideoClicked"
+                                                              Visibility="{Binding IsTrimmableVideoSelected, Converter={StaticResource BoolToVisibility}}" />
                                                     <Separator />
                                                     <MenuItem Header="{Markup:Loc Common_Delete}"
                                                               Command="{Binding DeleteSelectedCommand}" />
@@ -503,7 +516,7 @@
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>
-                                                    <Button Width="22" Height="20" Padding="0" Margin="0,0,0,2"
+                                                    <Button Width="22" Height="18" Padding="0" Margin="0,0,0,1"
                                                             Background="Transparent" BorderThickness="0"
                                                             Click="OnRowMoveUpClicked"
                                                             ToolTip="{Markup:Loc Clipboard_TooltipMoveUp}">
@@ -511,7 +524,7 @@
                                                                    FontSize="11" Foreground="{DynamicResource AccentForegroundBrush}"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Button>
-                                                    <Button Width="22" Height="20" Padding="0"
+                                                    <Button Width="22" Height="18" Padding="0"
                                                             Background="Transparent" BorderThickness="0"
                                                             Click="OnRowMoveDownClicked"
                                                             ToolTip="{Markup:Loc Clipboard_TooltipMoveDown}">
@@ -861,6 +874,16 @@
                                        Command="{Binding OpenInEditorCommand}"
                                        Visibility="{Binding IsImageSelected, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
+                            </ui:Button>
+                            <!-- Trim (video): same slot images use for "Open in editor", since it's
+                                 the same idea applied to a recording. Only appears for the H.264
+                                 containers the recorder writes and whose file is still on disk. -->
+                            <ui:Button Width="32" Height="32" Padding="0" Style="{StaticResource ToolbarIconBtn}"
+                                       Margin="0,0,0,4"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipTrimVideo}"
+                                       Click="OnTrimVideoClicked"
+                                       Visibility="{Binding IsTrimmableVideoSelected, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="&#xE78A;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                             <!-- Edit (text / HTML / RTF): external editor — VSCode / Notepad /
                                  whatever's set in Settings → Capture → External editor command,

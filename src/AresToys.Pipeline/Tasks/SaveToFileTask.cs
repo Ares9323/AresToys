@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using AresToys.Core.Imaging;
@@ -111,7 +111,10 @@ public sealed class SaveToFileTask : IPipelineTask
         }
         Directory.CreateDirectory(folder);
 
-        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
+        // Local time, not UTC: this stamp is what the user reads in the filename, and it has to
+        // agree with the clock on their wall — and with the date sub-folder two lines up, which
+        // has always used local time. UTC put every name up to a full day and several hours off.
+        var stamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
         var titleSlug = context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) && rawTitle is string title
             ? SanitizeForFilename(title)
             : string.Empty;

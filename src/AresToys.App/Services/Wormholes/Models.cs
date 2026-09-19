@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace AresToys.App.Services.Wormholes;
 
@@ -57,8 +57,10 @@ public sealed class PortalWormholeConfig
 /// overrides win when present.</summary>
 public sealed class WormholeAppearance
 {
-    /// <summary>Reserved for the future "per-wormhole accent" feature: hex string like
-    /// <c>#80E1A0</c>. Null = use the global accent.</summary>
+    /// <summary>Colour of this wormhole's outer ring, overriding the theme accent. Stored as
+    /// <c>#AARRGGBB</c> (older or hand-written <c>#RRGGBB</c> is read too, see
+    /// <see cref="WormholeAccent"/>); null = use the theme. Set from the chrome's hamburger →
+    /// "Accent colour…".</summary>
     public string? AccentOverride { get; set; }
 
     /// <summary>Per-wormhole opacity override. <c>null</c> = use the app-wide default from

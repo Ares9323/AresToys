@@ -41,4 +41,27 @@ public sealed class WorkflowRunner
         var ctx = new PipelineContext(_services);
         await _executor.RunAsync(profile, ctx, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Start a workflow and return immediately, swallowing whatever it throws into the
+    /// log. For callers that have nowhere to put an exception and can't wait for the run: the
+    /// launcher dismisses itself the moment a key is pressed, so it can't sit blocked on a workflow
+    /// that takes seconds or opens UI of its own. An empty id is ignored, and a workflow deleted
+    /// after it was wired up is a warning rather than a crash.</summary>
+    public void RunDetached(string? workflowId)
+    {
+        if (string.IsNullOrWhiteSpace(workflowId)) return;
+        var id = workflowId.Trim();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunAsync(id, CancellationToken.None).ConfigureAwait(false);
+                _logger.LogInformation("WorkflowRunner: ran workflow {Id} (detached)", id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "WorkflowRunner: detached workflow {Id} failed", id);
+            }
+        });
+    }
 }

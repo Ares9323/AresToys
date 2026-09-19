@@ -264,8 +264,11 @@
                                      all coexist without one swallowing the other. Tile size +
                                      icon size are driven by the VM so Ctrl+Wheel zoom propagates
                                      by rebuilding the items collection with new VM instances. -->
+                                <!-- Cursor follows the "open with one click" setting: a hand only
+                                     when a single click opens the tile, otherwise the plain arrow
+                                     (see WormholeWindow.ItemCursor). -->
                                 <Border Background="Transparent"
-                                        Cursor="Hand"
+                                        Cursor="{Binding ItemCursor, RelativeSource={RelativeSource AncestorType=Window}}"
                                         Width="{Binding TileWidth}"
                                         Height="{Binding TileHeight}"
                                         Opacity="{Binding IsCutMarked, Converter={StaticResource BoolToOpacity}}"

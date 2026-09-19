@@ -715,6 +715,114 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Clipboard_TooltipOpenEditor", resourceCulture);
             }
         }
+
+        public static string Clipboard_MenuTrimVideo {
+            get {
+                return ResourceManager.GetString("Clipboard_MenuTrimVideo", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TooltipTrimVideo {
+            get {
+                return ResourceManager.GetString("Clipboard_TooltipTrimVideo", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_Title {
+            get {
+                return ResourceManager.GetString("VideoTrim_Title", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_SetStart {
+            get {
+                return ResourceManager.GetString("VideoTrim_SetStart", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_SetStartTooltip {
+            get {
+                return ResourceManager.GetString("VideoTrim_SetStartTooltip", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_SetEnd {
+            get {
+                return ResourceManager.GetString("VideoTrim_SetEnd", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_SetEndTooltip {
+            get {
+                return ResourceManager.GetString("VideoTrim_SetEndTooltip", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_StopTooltip {
+            get {
+                return ResourceManager.GetString("VideoTrim_StopTooltip", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_StartHandleTooltip {
+            get {
+                return ResourceManager.GetString("VideoTrim_StartHandleTooltip", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_EndHandleTooltip {
+            get {
+                return ResourceManager.GetString("VideoTrim_EndHandleTooltip", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_PlayPauseTooltip {
+            get {
+                return ResourceManager.GetString("VideoTrim_PlayPauseTooltip", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_Selection {
+            get {
+                return ResourceManager.GetString("VideoTrim_Selection", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_NothingSelected {
+            get {
+                return ResourceManager.GetString("VideoTrim_NothingSelected", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_Trim {
+            get {
+                return ResourceManager.GetString("VideoTrim_Trim", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_Cancel {
+            get {
+                return ResourceManager.GetString("VideoTrim_Cancel", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_Working {
+            get {
+                return ResourceManager.GetString("VideoTrim_Working", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_Failed {
+            get {
+                return ResourceManager.GetString("VideoTrim_Failed", resourceCulture);
+            }
+        }
+
+        public static string VideoTrim_PlaybackFailed {
+            get {
+                return ResourceManager.GetString("VideoTrim_PlaybackFailed", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Open URL in browser.
@@ -3160,8 +3268,12 @@ namespace AresToys.App.Resources {
         public static string Wormhole_WebLinkFaviconsTooltip => ResourceManager.GetString("Wormhole_WebLinkFaviconsTooltip", resourceCulture);
         public static string Wormhole_KeepVisibleOnShowDesktop => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktop", resourceCulture);
         public static string Wormhole_KeepVisibleOnShowDesktopTooltip => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktopTooltip", resourceCulture);
-        public static string Wormhole_HideHeaderChrome => ResourceManager.GetString("Wormhole_HideHeaderChrome", resourceCulture);
-        public static string Wormhole_HideHeaderChromeTooltip => ResourceManager.GetString("Wormhole_HideHeaderChromeTooltip", resourceCulture);
+        public static string Wormhole_ExpandCollapsedOnHover => ResourceManager.GetString("Wormhole_ExpandCollapsedOnHover", resourceCulture);
+        public static string Wormhole_ExpandCollapsedOnHoverTooltip => ResourceManager.GetString("Wormhole_ExpandCollapsedOnHoverTooltip", resourceCulture);
+        public static string Wormhole_OpenWithOneClick => ResourceManager.GetString("Wormhole_OpenWithOneClick", resourceCulture);
+        public static string Wormhole_OpenWithOneClickTooltip => ResourceManager.GetString("Wormhole_OpenWithOneClickTooltip", resourceCulture);
+        public static string Wormhole_HideServiceFiles => ResourceManager.GetString("Wormhole_HideServiceFiles", resourceCulture);
+        public static string Wormhole_HideServiceFilesTooltip => ResourceManager.GetString("Wormhole_HideServiceFilesTooltip", resourceCulture);
         public static string Settings_NotificationsTitle => ResourceManager.GetString("Settings_NotificationsTitle", resourceCulture);
         public static string Settings_ToastPopupSeconds => ResourceManager.GetString("Settings_ToastPopupSeconds", resourceCulture);
         public static string Settings_ToastPopupSecondsTooltip => ResourceManager.GetString("Settings_ToastPopupSecondsTooltip", resourceCulture);
@@ -3966,6 +4078,42 @@ namespace AresToys.App.Resources {
         public static string LauncherCellEdit_Advanced {
             get {
                 return ResourceManager.GetString("LauncherCellEdit_Advanced", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Workflow.
+        /// </summary>
+        public static string LauncherCellEdit_Workflow {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_Workflow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to (no workflow).
+        /// </summary>
+        public static string LauncherCellEdit_WorkflowNone {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WorkflowNone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run a workflow when this key is pressed, instead of launching the path.
+        /// </summary>
+        public static string LauncherCellEdit_WorkflowTooltip {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WorkflowTooltip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Clear the workflow (back to an ordinary launch cell).
+        /// </summary>
+        public static string LauncherCellEdit_ClearWorkflow {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_ClearWorkflow", resourceCulture);
             }
         }
         

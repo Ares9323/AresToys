@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -80,9 +80,18 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// button — leaves the wormholes on screen instead of minimising them with everything else.</summary>
     [ObservableProperty] private bool _keepVisibleOnShowDesktop = true;
 
-    /// <summary>When true the header strip of every wormhole is invisible (chrome AND backdrop)
-    /// until the pointer moves over the wormhole. The strip keeps its height and stays draggable.</summary>
-    [ObservableProperty] private bool _hideHeaderChrome;
+    /// <summary>When true, hovering a collapsed wormhole expands it for as long as the pointer
+    /// stays on it. Visual only: the wormhole stays collapsed in its record.</summary>
+    [ObservableProperty] private bool _expandCollapsedOnHover;
+
+    /// <summary>When true a single click opens a tile and the tiles carry the hand cursor. Off by
+    /// default: opening stays a double click, and the tiles show the arrow rather than a hand that
+    /// promises a click will do something.</summary>
+    [ObservableProperty] private bool _openWithOneClick;
+
+    /// <summary>When true (default) desktop.ini, Thumbs.db and the other OS bookkeeping files are
+    /// kept out of the tiles.</summary>
+    [ObservableProperty] private bool _hideServiceFiles = true;
 
     /// <summary>Snap drag / resize to a <see cref="SnapGridSizePx"/> lattice anchored to the
     /// monitor's work area.</summary>
@@ -120,7 +129,9 @@ public sealed partial class WormholesViewModel : ObservableObject
         AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
         WebLinkFaviconsEnabled = _defaults.WebLinkFaviconsEnabled;
         KeepVisibleOnShowDesktop = _defaults.KeepVisibleOnShowDesktop;
-        HideHeaderChrome = _defaults.HideHeaderChrome;
+        ExpandCollapsedOnHover = _defaults.ExpandCollapsedOnHover;
+        OpenWithOneClick = _defaults.OpenWithOneClick;
+        HideServiceFiles = _defaults.HideServiceFiles;
         SnapToGrid = _defaults.SnapToGrid;
         SnapGridSizePx = _defaults.SnapGridSizePx;
         SnapToWormholes = _defaults.SnapToWormholes;
@@ -131,6 +142,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         // chrome, lock toggle from chrome, hamburger rename, etc.), the matching row updates
         // its displayed fields in place. The event fires on the UI dispatcher already.
         _manager.RecordChanged += OnManagerRecordChanged;
+        _manager.RecordDeleted += OnManagerRecordDeleted;
         _manager.WormholeFocused += OnManagerWormholeFocused;
     }
 
@@ -204,10 +216,22 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetKeepVisibleOnShowDesktopAsync(value, CancellationToken.None);
     }
 
-    partial void OnHideHeaderChromeChanged(bool value)
+    partial void OnExpandCollapsedOnHoverChanged(bool value)
     {
         if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetHideHeaderChromeAsync(value, CancellationToken.None);
+        _ = _defaults.SetExpandCollapsedOnHoverAsync(value, CancellationToken.None);
+    }
+
+    partial void OnOpenWithOneClickChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetOpenWithOneClickAsync(value, CancellationToken.None);
+    }
+
+    partial void OnHideServiceFilesChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetHideServiceFilesAsync(value, CancellationToken.None);
     }
 
     partial void OnSnapToGridChanged(bool value)
@@ -246,6 +270,17 @@ public sealed partial class WormholesViewModel : ObservableObject
         row?.RefreshDisplay();
     }
 
+    /// <summary>A wormhole was deleted somewhere else — most often from its own chrome menu, while
+    /// this panel sits open behind it. Drop the row so the grid doesn't advertise something that
+    /// no longer exists. Unknown ids are ignored, and a row this panel already removed itself
+    /// (its own Delete button) simply isn't found.</summary>
+    private void OnManagerRecordDeleted(object? sender, Guid id)
+    {
+        var row = Rows.FirstOrDefault(r => r.Id == id);
+        if (row is null) return;
+        Remove(row);
+    }
+
     /// <summary>Pull the latest snapshot from the store and rebuild the rows. Idempotent —
     /// safe to call on every tab activation. Doesn't subscribe to store change events for v1
     /// (drag-induced LocationChanged would otherwise spam the grid with rebuilds); the user
@@ -271,7 +306,9 @@ public sealed partial class WormholesViewModel : ObservableObject
             AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
             WebLinkFaviconsEnabled  = _defaults.WebLinkFaviconsEnabled;
             KeepVisibleOnShowDesktop = _defaults.KeepVisibleOnShowDesktop;
-            HideHeaderChrome        = _defaults.HideHeaderChrome;
+            ExpandCollapsedOnHover  = _defaults.ExpandCollapsedOnHover;
+            OpenWithOneClick        = _defaults.OpenWithOneClick;
+            HideServiceFiles        = _defaults.HideServiceFiles;
             SnapToGrid              = _defaults.SnapToGrid;
             SnapGridSizePx          = _defaults.SnapGridSizePx;
             SnapToWormholes         = _defaults.SnapToWormholes;
@@ -289,8 +326,10 @@ public sealed partial class WormholesViewModel : ObservableObject
         await Presets.RefreshAsync().ConfigureAwait(true);
     }
 
-    /// <summary>Called by a row's Delete command after the manager has removed the record.
-    /// Keeps the grid in sync without a full <see cref="ReloadAsync"/> round-trip.</summary>
+    /// <summary>Drop a row from the grid, keeping <see cref="IsEmpty"/> honest. Called by a row's
+    /// own Delete command and by <see cref="OnManagerRecordDeleted"/>; idempotent, so the two
+    /// arriving for the same deletion is harmless. Avoids a full <see cref="ReloadAsync"/>
+    /// round-trip.</summary>
     internal void Remove(WormholeRowViewModel row)
     {
         Rows.Remove(row);

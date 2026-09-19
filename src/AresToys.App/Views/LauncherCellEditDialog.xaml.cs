@@ -13,6 +13,11 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
     private readonly string _tabKey;
     private readonly string _keyChar;
     private readonly IconService _icons;
+    private readonly AresToys.Pipeline.Profiles.IPipelineProfileStore _profiles;
+    /// <summary>Workflow id the cell had when the dialog opened, applied to the picker once its
+    /// items have loaded (the list is fetched from the store on the ComboBox's Loaded event, which
+    /// runs after the ctor).</summary>
+    private readonly string _initialWorkflowId;
 
     /// <summary>Wraps an enum value with its localised display string for the WindowMode combo.
     /// ItemTemplate-less ComboBox renders ToString(), so we override that to the localised
@@ -22,13 +27,24 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
         public override string ToString() => Display;
     }
 
-    public LauncherCellEditDialog(LauncherCell initial, IconService icons)
+    /// <summary>One entry in the workflow picker. <see cref="Id"/> empty = the "(no workflow)"
+    /// sentinel, i.e. an ordinary launch cell. Rendered via ToString like
+    /// <see cref="WindowModeOption"/>, so the ComboBox needs no ItemTemplate.</summary>
+    private sealed record WorkflowOption(string Id, string Display)
+    {
+        public override string ToString() => Display;
+    }
+
+    public LauncherCellEditDialog(LauncherCell initial, IconService icons,
+        AresToys.Pipeline.Profiles.IPipelineProfileStore profiles)
     {
         InitializeComponent();
         DarkTitleBar.Apply(this);
         _tabKey = initial.TabKey;
         _keyChar = initial.KeyChar;
         _icons = icons;
+        _profiles = profiles;
+        _initialWorkflowId = initial.WorkflowId;
         // Header includes the namespace so the user knows which slot they're editing — the
         // F-strip and the 10 tabs all use the same QWERTY letters, so "Cell Q" alone would be
         // ambiguous between (tab1, Q), (tab2, Q), …
@@ -183,6 +199,47 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
         ProcessNameBox.Text = dlg.Result.ProcessName;
     }
 
+    /// <summary>Fill the workflow picker from the profile store — every workflow the user has,
+    /// built-in or their own, exactly like the tray-click pickers in Settings. Built-in names go
+    /// through <see cref="WorkflowDisplayNameLocalizer"/> so the list reads the same here as it
+    /// does everywhere else; profiles the user renamed keep their stored name. A store failure
+    /// leaves the picker with just the "(no workflow)" entry rather than taking the dialog down:
+    /// every other field stays editable.</summary>
+    private async void OnWorkflowBoxLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.ComboBox combo) return;
+        var options = new List<WorkflowOption> { new(string.Empty, Loc("LauncherCellEdit_WorkflowNone")) };
+        try
+        {
+            var profiles = await _profiles.ListAsync(System.Threading.CancellationToken.None);
+            foreach (var p in profiles
+                .Select(p => (p.Id, Display: WorkflowDisplayNameLocalizer.Localize(p.Id, p.DisplayName)))
+                .OrderBy(t => t.Display, StringComparer.OrdinalIgnoreCase))
+            {
+                options.Add(new WorkflowOption(p.Id, p.Display));
+            }
+        }
+        catch
+        {
+            /* picker degrades to "(no workflow)" only */
+        }
+
+        combo.ItemsSource = options;
+        // A cell pointing at a workflow that has since been deleted finds no match; fall back to
+        // the sentinel so the picker shows "(no workflow)" rather than a blank box — saving then
+        // clears the stale id, which is the honest outcome.
+        combo.SelectedItem = options.FirstOrDefault(o =>
+                                 string.Equals(o.Id, _initialWorkflowId, StringComparison.Ordinal))
+                             ?? options[0];
+    }
+
+    private void OnClearWorkflow(object sender, RoutedEventArgs e)
+    {
+        // Back to the sentinel — an ordinary launch cell again.
+        if (WorkflowBox.ItemsSource is IEnumerable<WorkflowOption> options)
+            WorkflowBox.SelectedItem = options.FirstOrDefault(o => o.Id.Length == 0);
+    }
+
     private void OnClearClicked(object sender, RoutedEventArgs e)
     {
         Result = LauncherCell.Empty(_tabKey, _keyChar);
@@ -204,7 +261,8 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
             WindowTitle: WindowTitleBox.Text.Trim(),
             ProcessName: ProcessNameBox.Text.Trim(),
             IconPath: IconBox.Text.Trim(),
-            IconIndex: iconIndex);
+            IconIndex: iconIndex,
+            WorkflowId: WorkflowBox.SelectedItem is WorkflowOption wf ? wf.Id : string.Empty);
         DialogResult = true;
         Close();
     }

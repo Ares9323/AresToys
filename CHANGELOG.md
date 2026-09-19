@@ -5,14 +5,43 @@ versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Clipboard
+- Recordings can be trimmed from the clipboard. The video entry gained a Trim
+  button in the right-hand toolbar, where images have "Open in image editor",
+  plus an entry in its context menu. Play to the frame you want, mark a start
+  and an end, and the cut lands as a **new** history entry: the recording you
+  trimmed from stays whole. The timeline shows the footage being discarded as
+  red bands at either end, with round handles you can drag to move the two cut
+  points; the picture follows the handle as you drag it. Stop rewinds to the
+  start of the trim rather than of the video, and playback stops at the end of
+  the selection.
+- Works on the H.264 files the recorder writes: MP4, M4V and MOV. GIF and WebM
+  recordings are out, each needing a different encoder (GIF the palette
+  pipeline, WebM VP9, which is far slower).
+- The cut is frame-accurate. It re-encodes rather than copying the stream: the
+  recorder emits a keyframe only every 8.3 seconds, and a stream copy stays
+  accurate only through an MP4 edit list that some players ignore, at which
+  point up to 8 seconds you thought you had cut come back. Re-encoding a
+  ten-second excerpt takes about half a second.
+- Hovering a clipboard entry no longer makes it taller. The reorder chevrons
+  that appear on hover are 42 px stacked, taller than a single-line row, so the
+  row grew to fit them.
+
 ### Launcher
+- A cell can now run a workflow. The cell's Advanced panel gained a Workflow
+  picker listing everything you could already wire to a tray click, built-in or
+  your own, so "capture a region and upload it" can sit on a launcher key
+  instead of a global shortcut. A cell with a workflow runs only that: path,
+  args, elevation and window mode describe how to start a program and don't
+  apply. Such a cell needs no path at all, and with no icon of its own it shows
+  the AresToys logo rather than an empty tile.
 - Dropping a shortcut on a cell now stores what the shortcut points at, not the
   shortcut ([#12](https://github.com/Ares9323/AresToys/issues/12)). Its
   arguments land in the cell's Args field where they're visible and editable,
   its "run as administrator" and window state come across too, and a custom
   icon is kept rather than lost to the target's default. The cell keeps the
   shortcut's name ("Google Chrome", not "chrome"). A shortcut that can't be
-  unwrapped — corrupt, or pointing at something that isn't installed — is left
+  unwrapped (corrupt, or pointing at something that isn't installed) is left
   alone, since it still launches. Picking a .lnk from the cell's edit dialog
   does the same thing.
 - Store / Microsoft Store apps (WhatsApp, Calculator, Claude…) dragged onto a
@@ -23,10 +52,47 @@ versions follow [SemVer](https://semver.org/).
   labelled the cell with a fragment of the publisher id. Such a target is now
   recognised on the spot and stored in the form the shell can actually run, with
   the app's own name on the cell. Cells already saved the broken way are
-  translated when fired, so they start working without being dropped again —
-  their label stays whatever was saved, rename or re-drop them to fix it.
+  translated when fired, so they start working without being dropped again.
+  Their label stays whatever was saved: rename or re-drop them to fix it.
 - "Open file location" on a Store app opens the Applications view rather than an
   empty Explorer window (a packaged app's install folder is locked away).
+
+### Capture
+- Saved screenshots and recordings are named with the local time again. The
+  filename stamp was built from UTC while the date sub-folder right next to it
+  used local time, so a capture could land in today's folder carrying
+  yesterday's hour, off by the machine's UTC offset.
+
+### Wormholes
+- "Hide the header until hovered" is gone, replaced by "Show collapsed wormholes
+  on hover": hovering a collapsed wormhole opens it, and it rolls back up when
+  the pointer leaves. The expansion is visual only, so the wormhole is still
+  collapsed after a restart and its saved height is never overwritten by a peek;
+  clicking the chevron while it's held open pins it open. Off by default. The
+  old option and everything behind it (the header fade, the window growing
+  upwards to reveal the strip) have been removed.
+- A wormhole's own accent colour can be set from its hamburger menu, under
+  "Accent colour…", with "Reset accent colour" to go back to the theme. It
+  recolours the whole window — ring, body and header — and the wormhole
+  restyles itself while you move through the picker, so you choose against the
+  real thing instead of a swatch. Cancelling puts the previous colour back. The
+  backdrops take a darkened shade of the colour so tiles and labels stay legible
+  on top of them, and the ring takes the header's shade so the frame belongs to
+  the window rather than outshining it. Remembered per wormhole.
+- New "Open items with one click" option in Settings → Wormholes, off by
+  default. With it on a single click opens a tile; dragging a tile out still
+  works, since the click only opens when the pointer stays put. The tile cursor
+  now follows the setting: a hand when one click opens, the ordinary arrow
+  otherwise. Previously the tiles always showed a hand while still requiring a
+  double click, so the pointer promised something a single click wouldn't do.
+- New "Hide system service files" option, on by default: desktop.ini, Thumbs.db,
+  ehthumbs.db and .DS_Store no longer take a tile each. Explorer hides them too;
+  a wormhole reads the folder itself, so it had to be told. The files are left
+  untouched on disk.
+- Deleting a wormhole from its own chrome menu now updates an open Settings
+  window. The row used to sit there until the sidebar entry was clicked again:
+  the record was removed without anything announcing it, and the grid only ever
+  dropped rows from inside its own Delete button.
 
 ### Workflows
 - "Launch application" gained a Window setting (normal / maximized / minimized /

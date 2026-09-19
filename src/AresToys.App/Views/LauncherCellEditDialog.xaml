@@ -116,10 +116,28 @@
                                 PlaceholderText="{Markup:Loc LauncherCellEdit_ArgsPlaceholder}" />
                 </Grid>
 
-                <!-- Advanced options: admin elevation + window mode + activate-if-running matchers -->
+                <!-- Advanced options: workflow action + admin elevation + window mode + activate-if-running matchers -->
                 <Expander Grid.Row="5" Header="{Markup:Loc LauncherCellEdit_Advanced}"
                           Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,4,0,0" IsExpanded="False">
                     <StackPanel Margin="0,8,0,0">
+                        <!-- Run a workflow instead of launching the path. Same picker shape as the
+                             tray-click workflow ComboBoxes in Settings. -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_Workflow}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                            <ComboBox Grid.Column="1" x:Name="WorkflowBox"
+                                      Loaded="OnWorkflowBoxLoaded"
+                                      ToolTip="{Markup:Loc LauncherCellEdit_WorkflowTooltip}" />
+                            <ui:Button Grid.Column="2" Content="✕" Margin="4,0,0,0" Padding="6,2"
+                                       Click="OnClearWorkflow"
+                                       ToolTip="{Markup:Loc LauncherCellEdit_ClearWorkflow}" />
+                        </Grid>
+
                         <CheckBox x:Name="RunAsAdminBox" Content="{Markup:Loc LauncherCellEdit_RunAsAdmin}"
                                   Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,0,8"
                                   ToolTip="{Markup:Loc LauncherCellEdit_RunAsAdminTooltip}" />

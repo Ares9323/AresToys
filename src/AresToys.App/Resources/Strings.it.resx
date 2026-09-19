@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -149,6 +149,24 @@
   <data name="Clipboard_TooltipCopyPath" xml:space="preserve"><value>Copia path del file negli appunti</value></data>
   <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Genera codice QR…</value></data>
   <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Apri nell'editor immagini</value></data>
+  <data name="Clipboard_MenuTrimVideo" xml:space="preserve"><value>Taglia video…</value></data>
+  <data name="Clipboard_TooltipTrimVideo" xml:space="preserve"><value>Taglia video…</value></data>
+  <data name="VideoTrim_Title" xml:space="preserve"><value>Taglia video</value></data>
+  <data name="VideoTrim_SetStart" xml:space="preserve"><value>Inizia qui</value></data>
+  <data name="VideoTrim_SetStartTooltip" xml:space="preserve"><value>Taglia tutto ciò che precede il fotogramma mostrato.</value></data>
+  <data name="VideoTrim_SetEnd" xml:space="preserve"><value>Finisci qui</value></data>
+  <data name="VideoTrim_SetEndTooltip" xml:space="preserve"><value>Taglia tutto ciò che segue il fotogramma mostrato.</value></data>
+  <data name="VideoTrim_StopTooltip" xml:space="preserve"><value>Torna all'inizio del taglio</value></data>
+  <data name="VideoTrim_StartHandleTooltip" xml:space="preserve"><value>Trascina per scegliere dove inizia la clip</value></data>
+  <data name="VideoTrim_EndHandleTooltip" xml:space="preserve"><value>Trascina per scegliere dove finisce la clip</value></data>
+  <data name="VideoTrim_PlayPauseTooltip" xml:space="preserve"><value>Riproduci / pausa (puoi anche cliccare sull'immagine)</value></data>
+  <data name="VideoTrim_Selection" xml:space="preserve"><value>Tieni da {0} a {1}  ·  durata {2}</value></data>
+  <data name="VideoTrim_NothingSelected" xml:space="preserve"><value>Non c'è ancora niente da tagliare: vai su un fotogramma e segna un inizio o una fine.</value></data>
+  <data name="VideoTrim_Trim" xml:space="preserve"><value>Taglia</value></data>
+  <data name="VideoTrim_Cancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="VideoTrim_Working" xml:space="preserve"><value>Taglio in corso…</value></data>
+  <data name="VideoTrim_Failed" xml:space="preserve"><value>Il taglio non è riuscito. Verifica che ffmpeg sia disponibile (Impostazioni → Cattura) e che il file sia ancora su disco.</value></data>
+  <data name="VideoTrim_PlaybackFailed" xml:space="preserve"><value>Windows non riesce a riprodurre questo file, quindi non c'è nulla su cui scegliere i punti di taglio.</value></data>
   <data name="Clipboard_TooltipExtEditor" xml:space="preserve"><value>Modifica testo in editor esterno (VSCode / Notepad / …)</value></data>
   <data name="Clipboard_TooltipConvertToPlainText" xml:space="preserve"><value>Converti in testo semplice (rimuove formattazione HTML / RTF in-place)</value></data>
   <data name="Clipboard_ConvertToPlainTextConfirmTitle" xml:space="preserve"><value>Converti in testo semplice</value></data>
@@ -197,6 +215,10 @@
   <data name="LauncherCellEdit_ClearIcon" xml:space="preserve"><value>Rimuove l'icona personalizzata (ripristina l'icona shell predefinita).</value></data>
   <data name="LauncherCellEdit_ArgsPlaceholder" xml:space="preserve"><value>(argomenti command-line opzionali)</value></data>
   <data name="LauncherCellEdit_Advanced" xml:space="preserve"><value>Avanzate</value></data>
+  <data name="LauncherCellEdit_Workflow" xml:space="preserve"><value>Workflow</value></data>
+  <data name="LauncherCellEdit_WorkflowNone" xml:space="preserve"><value>(nessun workflow)</value></data>
+  <data name="LauncherCellEdit_WorkflowTooltip" xml:space="preserve"><value>Esegue un workflow alla pressione del tasto, invece di lanciare il percorso: qualunque workflow che puoi associare a un click sulla tray. Una cella con un workflow esegue solo quello: percorso, argomenti, elevazione e modalità finestra descrivono come avviare un programma e non si applicano.</value></data>
+  <data name="LauncherCellEdit_ClearWorkflow" xml:space="preserve"><value>Rimuove il workflow (torna a una normale cella di avvio).</value></data>
   <data name="LauncherCellEdit_RunAsAdminTooltip" xml:space="preserve"><value>Avvia con il verbo "runas" così Windows mostra il prompt UAC per l'elevazione. Usare con parsimonia — i processi admin possono modificare lo stato di sistema.</value></data>
   <data name="LauncherCellEdit_WindowModeTooltip" xml:space="preserve"><value>Come appare la finestra all'avvio. La maggior parte delle app GUI rispetta Massimizzata/Minimizzata; alcune ignorano l'hint. Nascosta esegue il processo senza mostrare una finestra — utile per task headless.</value></data>
   <data name="LauncherCellEdit_WindowTitlePlaceholder" xml:space="preserve"><value>(se una finestra con questo titolo è aperta, focalizzala invece di lanciare)</value></data>
@@ -366,8 +388,12 @@
   <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>Se attivo, i link web (file .url) mostrano la favicon reale del sito invece dell'icona generica del browser. La favicon viene scaricata una volta per sito (direttamente dal sito, con fallback a un servizio di favicon) e scritta nel .url, così si vede anche in Esplora file. Disattiva per non fare alcuna chiamata di rete e lasciare i file .url intatti.</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Mantieni le wormhole visibili con "Mostra desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>Se attivo, Win+D e il pulsante "Mostra desktop" nell'angolo della barra delle applicazioni non seppelliscono più le wormhole: restano sul desktop scoperto, come le icone. Le wormhole entrano nel gruppo di z-order del desktop, quindi continuano ad andare dietro a qualsiasi app porti in primo piano. Disattiva per farle sparire insieme alle altre finestre.</value></data>
-  <data name="Wormhole_HideHeaderChrome" xml:space="preserve"><value>Nascondi l'header finché non ci passi sopra</value></data>
-  <data name="Wormhole_HideHeaderChromeTooltip" xml:space="preserve"><value>La striscia dell'header viene rimossa del tutto, non sbiadita: le icone partono dal bordo superiore, senza fascia vuota sopra. Passando sopra con il mouse la wormhole cresce verso l'alto dell'altezza della striscia e l'header compare sopra le icone, senza coprirle né spingerle giù. Se la wormhole è già in cima allo schermo cresce invece verso il basso. Si trascina da un punto vuoto del corpo, o dall'header mentre è visibile.</value></data>
+  <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Mostra le wormhole collassate al passaggio del mouse</value></data>
+  <data name="Wormhole_ExpandCollapsedOnHoverTooltip" xml:space="preserve"><value>Portando il puntatore su una wormhole collassata questa si apre, e si richiude quando il puntatore esce. Cambia solo ciò che vedi: la wormhole resta collassata nelle sue impostazioni, quindi torna collassata dopo un riavvio e l'altezza salvata non viene mai sovrascritta. Cliccando il chevron mentre è aperta la fissi aperta.</value></data>
+  <data name="Wormhole_OpenWithOneClick" xml:space="preserve"><value>Apri gli elementi con un clic</value></data>
+  <data name="Wormhole_OpenWithOneClickTooltip" xml:space="preserve"><value>Un solo clic apre l'elemento, e le icone mostrano il cursore a manina che lo annuncia. Trascinare un'icona fuori continua a funzionare: il clic apre solo se il puntatore resta fermo. Disattivata (predefinito) l'apertura richiede il doppio clic come in Explorer, e le icone mostrano la normale freccia invece di una manina che promette qualcosa che un clic singolo non farebbe.</value></data>
+  <data name="Wormhole_HideServiceFiles" xml:space="preserve"><value>Nascondi i file di servizio del sistema (desktop.ini, Thumbs.db…)</value></data>
+  <data name="Wormhole_HideServiceFilesTooltip" xml:space="preserve"><value>Tiene fuori dalle icone i file che Windows e macOS scrivono per uso interno: desktop.ini (impostazioni di visualizzazione della cartella), Thumbs.db ed ehthumbs.db (cache delle anteprime), .DS_Store (lasciato dai Mac, frequente sui dischi condivisi). Explorer li nasconde a sua volta; la wormhole legge la cartella da sé, quindi va detto. Restano su disco e non vengono toccati: questa opzione decide solo se occupano un'icona.</value></data>
   <data name="Settings_NotificationsTitle" xml:space="preserve"><value>Notifiche</value></data>
   <data name="Settings_ToastPopupSeconds" xml:space="preserve"><value>Popup a schermo (secondi)</value></data>
   <data name="Settings_ToastPopupSecondsTooltip" xml:space="preserve"><value>Quanto resta a schermo la notifica, da 0 a 7 secondi. 0 = nessun popup: la notifica va direttamente nel Centro notifiche. 7 (il valore predefinito) lascia decidere a Windows, che sono circa 7 secondi e rispetta l'impostazione di accessibilità "mostra le notifiche per". I valori intermedi chiudono il popup esattamente dopo quei secondi. Non esiste un "per sempre": Windows non può tenere un toast a schermo a tempo indeterminato.</value></data>

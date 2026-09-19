@@ -63,6 +63,12 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
 
     private readonly LauncherStore _store;
     private readonly IconService _icons;
+    /// <summary>Resolves <see cref="AresToys.App.Services.WorkflowRunner"/> when a workflow cell is
+    /// fired, instead of taking it as a constructor dependency: the launcher is reachable from the
+    /// pipeline task graph, and WorkflowRunner needs the PipelineExecutor that graph builds, so
+    /// asking for it up front is a container-refusing dependency cycle.</summary>
+    private readonly IServiceProvider _services;
+    private readonly AresToys.Pipeline.Profiles.IPipelineProfileStore _profiles;
     private readonly ILogger<LauncherWindow> _logger;
 
     /// <summary>Cached singleton instance. The launcher is registered AddSingleton so the open
@@ -112,13 +118,16 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     private readonly ObservableCollection<CellViewModel> _row2 = [];
     private readonly ObservableCollection<CellViewModel> _row3 = [];
 
-    public LauncherWindow(LauncherStore store, IconService icons, ILogger<LauncherWindow> logger)
+    public LauncherWindow(LauncherStore store, IconService icons, IServiceProvider services,
+        AresToys.Pipeline.Profiles.IPipelineProfileStore profiles, ILogger<LauncherWindow> logger)
     {
         InitializeComponent();
         AresToys.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
         AresToys.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         _store = store;
         _icons = icons;
+        _services = services;
+        _profiles = profiles;
         _logger = logger;
         FunctionRow.ItemsSource = _functionRow;
         TabStrip.ItemsSource    = _tabHeaders;
@@ -308,6 +317,29 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     }
     private bool _activeTabRestored;
 
+    /// <summary>Icon for a cell: the custom override if set, otherwise the shell icon for the
+    /// launch path. A workflow cell usually has neither — there's no file on disk to ask the shell
+    /// about — so it falls back to the AresToys logo: the action lives inside the app, and the tile
+    /// would otherwise render blank. The user can still pin any icon they like via the Icon field,
+    /// which wins over this.</summary>
+    private BitmapSource? ResolveCellIcon(LauncherCell cell)
+    {
+        var icon = _icons.GetIcon(cell.IconPath, cell.Path, cell.IconIndex);
+        if (icon is not null) return icon;
+        return cell.HasWorkflow ? AppLogoIcon() : null;
+    }
+
+    /// <summary>The app's own logo, from the <c>AresToysLogo</c> application resource (the shared
+    /// pre-rendered PNG every window's titlebar uses). Cached after the first resolve — it's the
+    /// same frozen bitmap for every workflow cell.</summary>
+    private static BitmapSource? AppLogoIcon()
+    {
+        if (_appLogo is not null) return _appLogo;
+        _appLogo = Application.Current?.Resources["AresToysLogo"] as BitmapSource;
+        return _appLogo;
+    }
+    private static BitmapSource? _appLogo;
+
     private void PrewarmAllIcons(LauncherState snapshot)
     {
         try
@@ -315,7 +347,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             foreach (var cell in snapshot.Cells.Values)
             {
                 if (!cell.IsConfigured) continue;
-                _icons.GetIcon(cell.IconPath, cell.Path, cell.IconIndex);
+                ResolveCellIcon(cell);
             }
         }
         catch (Exception ex)
@@ -332,7 +364,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             var cell = _state.Get(LauncherTabs.FunctionStrip, k);
             // F-row is exempt from the filter on purpose — those keys are global "always-on
             // shortcuts" and the user wants them reachable while searching for tab cells.
-            _functionRow.Add(new CellViewModel(cell, _icons.GetIcon(cell.IconPath, cell.Path, cell.IconIndex), matchesFilter: true));
+            _functionRow.Add(new CellViewModel(cell, ResolveCellIcon(cell), matchesFilter: true));
         }
     }
 
@@ -364,7 +396,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             foreach (var k in keys)
             {
                 var cell = _state.Get(_activeTab, k);
-                dst.Add(new CellViewModel(cell, _icons.GetIcon(cell.IconPath, cell.Path, cell.IconIndex),
+                dst.Add(new CellViewModel(cell, ResolveCellIcon(cell),
                     matchesFilter: CellMatchesFilter(cell)));
             }
         }
@@ -742,6 +774,9 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     {
         var cell = CellFromMenuItem(sender);
         if (cell is null || !cell.IsConfigured) return;
+        // A workflow-only cell has no path to reveal; opening Explorer on an empty string would
+        // just pop a pointless window.
+        if (string.IsNullOrWhiteSpace(cell.Path)) return;
         try
         {
             var path = PackagedAppPath.Normalize(Environment.ExpandEnvironmentVariables(cell.Path));
@@ -840,7 +875,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
 
     private void EditCell(LauncherCell cell)
     {
-        var dlg = new LauncherCellEditDialog(cell, _icons) { Owner = this };
+        var dlg = new LauncherCellEditDialog(cell, _icons, _profiles) { Owner = this };
         // Don't Hide() the launcher: ShowDialog with a hidden owner crashes WPF (this was the
         // empty-cell click crash). Instead suppress our own auto-close-on-deactivate while the
         // dialog is up; the launcher stays visible behind it, gets the focus back on close.
@@ -876,6 +911,23 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     private void FireCell(LauncherCell cell)
     {
         if (!cell.IsConfigured) return;
+
+        // Workflow cells run a pipeline profile instead of starting a program — the same wiring
+        // behind the tray's left / double / middle click. Checked first: the launch-shaped
+        // settings (path, args, elevation, window mode, activate-if-running) describe how to start
+        // an executable and have no meaning for a workflow, so a cell carrying a workflow runs
+        // that and nothing else.
+        if (cell.HasWorkflow)
+        {
+            _logger.LogInformation("LauncherWindow: firing workflow {Workflow} for {Key}",
+                cell.WorkflowId, cell.ComposedKey);
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<AresToys.App.Services.WorkflowRunner>(_services)
+                .RunDetached(cell.WorkflowId);
+            BeginHide();
+            return;
+        }
+
         try
         {
             // Activate-if-running: when the cell declares a window title or process name,

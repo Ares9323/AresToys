@@ -47,6 +47,9 @@ public partial class WormholeWindow : Window
     /// construction or when the Wormholes module wires the window without it; in normal app flow
     /// it's injected by <see cref="Services.Wormholes.WormholeWindowManager"/>.</summary>
     private readonly Services.Wormholes.Favicons.FaviconService? _favicons;
+    /// <summary>Colour picker for the per-wormhole accent override. Optional: a window built
+    /// without it simply doesn't offer the menu entry.</summary>
+    private readonly Services.ColorWheelLauncher? _colors;
     private readonly ObservableCollection<WormholeItemViewModel> _items = new();
     private bool _isClosingFromManager;
     private bool _portalItemCapReached;
@@ -75,7 +78,12 @@ public partial class WormholeWindow : Window
 
     /// <summary>Delays hiding the hover-revealed header (see the MouseLeave wiring) so a stray
     /// leave event produced by the reveal's own resize doesn't make the strip flicker.</summary>
-    private readonly DispatcherTimer _headerHideDebounce;
+    /// <summary>Debounce before re-collapsing a peeked-open wormhole, see the ctor.</summary>
+    private readonly DispatcherTimer _peekCollapseDebounce;
+
+    /// <summary>True while a collapsed wormhole is being held open by the pointer. Visual only:
+    /// the record stays rolled, so nothing about this is persisted.</summary>
+    private bool _peekExpanded;
 
     /// <summary>Drag-out gesture state. Captured on PreviewMouseLeftButtonDown over a tile,
     /// promoted to a real <c>DoDragDrop</c> on PreviewMouseMove once the OS drag threshold is
@@ -83,6 +91,9 @@ public partial class WormholeWindow : Window
     /// and the user sees no file-cursor preview / no drop target acceptance outside the window.</summary>
     private Point? _itemDragStart;
     private WormholeItemViewModel? _itemDragSourceVm;
+    /// <summary>ClickCount of the press currently armed on a tile. Read by the one-click-open path
+    /// on release so only the first click of a double click opens the item.</summary>
+    private int _itemPressClickCount;
 
     /// <summary>Global gate that pauses geometry persistence on EVERY live wormhole. Set by
     /// <see cref="Services.Wormholes.WormholeWindowManager"/> around a display-settings change
@@ -104,7 +115,8 @@ public partial class WormholeWindow : Window
         string wormholesRoot,
         Services.Wormholes.WormholeDefaultsService? defaults = null,
         Services.Wormholes.IWormholeWindowManager? manager = null,
-        Services.Wormholes.Favicons.FaviconService? favicons = null)
+        Services.Wormholes.Favicons.FaviconService? favicons = null,
+        Services.ColorWheelLauncher? colors = null)
     {
         _record = record;
         _onPersist = onPersist;
@@ -113,6 +125,7 @@ public partial class WormholeWindow : Window
         _defaults = defaults;
         _manager = manager;
         _favicons = favicons;
+        _colors = colors;
         InitializeComponent();
         DataContext = record;
         ItemsHost.ItemsSource = _items;
@@ -156,25 +169,23 @@ public partial class WormholeWindow : Window
             if (_isClosingFromManager) return;
             _onPersist();
         };
-        // Hover reveal for the "hide header" mode: the header comes back while the pointer is
-        // anywhere over the wormhole. Window-level (not header-level) because with the strip
-        // collapsed there is nothing to aim at — moving onto the wormhole at all is the gesture
-        // that means "I want the controls".
+        // Expand-on-hover for collapsed wormholes: the pointer arriving anywhere on the rolled-up
+        // strip opens it, leaving the whole (now taller) window rolls it back up.
         //
-        // Reveal is immediate; hiding waits out a short debounce. The reveal resizes the window
-        // under the pointer, and a resize can produce a stray MouseLeave/MouseEnter pair — acting
-        // on those straight away would make the header flicker, or oscillate at the edges.
-        _headerHideDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
-        _headerHideDebounce.Tick += (_, _) =>
+        // Expanding is immediate; re-collapsing waits out a short debounce. Expanding resizes the
+        // window under the pointer, and a resize can produce a stray MouseLeave/MouseEnter pair —
+        // acting on those straight away would make the wormhole flicker, or oscillate at the edge
+        // where the expansion happens to land under the cursor.
+        _peekCollapseDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        _peekCollapseDebounce.Tick += (_, _) =>
         {
-            _headerHideDebounce!.Stop();
-            if (IsMouseOver) return;   // pointer came back in the meantime — stay revealed
-            _pointerInside = false;
-            ApplyHeaderChrome();
+            _peekCollapseDebounce!.Stop();
+            if (IsMouseOver) return;   // pointer came back in the meantime — stay expanded
+            ApplyCollapsedHoverPeek(pointerInside: false);
         };
-        MouseEnter += (_, _) => { _headerHideDebounce.Stop(); _pointerInside = true; ApplyHeaderChrome(); };
-        MouseLeave += (_, _) => { _headerHideDebounce.Stop(); _headerHideDebounce.Start(); };
-        Closed += (_, _) => _headerHideDebounce?.Stop();
+        MouseEnter += (_, _) => { _peekCollapseDebounce.Stop(); ApplyCollapsedHoverPeek(pointerInside: true); };
+        MouseLeave += (_, _) => { _peekCollapseDebounce.Stop(); _peekCollapseDebounce.Start(); };
+        Closed += (_, _) => _peekCollapseDebounce?.Stop();
 
         // Ctrl+MouseWheel zooms tile size like Explorer's icon view. Tunneling handler on the
         // window so it fires regardless of whether the cursor is over the ListBox or the empty
@@ -190,6 +201,16 @@ public partial class WormholeWindow : Window
         Deactivated += (_, _) =>
         {
             if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
+
+            // The search box needs the same net, for the same reason: OnSearchLostFocus rides on
+            // LostFocus, which is a LOGICAL focus event, and WPF deliberately keeps logical focus
+            // inside a window that gets deactivated so it can restore it when the window comes
+            // back. Clicking another app or the desktop therefore never collapsed an empty search
+            // box to its icon, and the wormhole was left with a 160 px hole in its header.
+            // Non-empty text is left alone here exactly as LostFocus leaves it: it's the only
+            // visible trace that a filter is active.
+            if (SearchBox.Visibility == Visibility.Visible && string.IsNullOrEmpty(SearchBox.Text))
+                CloseSearchBox();
         };
 
         // Post-launch backtrack: when the user clicks an icon to launch an app while the
@@ -553,134 +574,123 @@ public partial class WormholeWindow : Window
     {
         var op = EffectiveOpacity();
         BodyBackdrop.Opacity = op;
-        ApplyHeaderChrome();
+        ApplyItemCursor();
 
         var borderOp = EffectiveBorderOpacity();
-        if (Application.Current?.Resources["OuterBorderBrush"] is System.Windows.Media.SolidColorBrush themed)
+        // A per-wormhole accent override recolours the whole window, not just the ring: the ring
+        // alone is a 1 px line, which reads as "nothing happened" when you've just picked a colour.
+        // The two backdrops take a darkened version so tiles and labels stay legible on top of it —
+        // a fully saturated body would drown them. Without an override everything follows the theme
+        // exactly as before. Brushes are per-window: mutating the shared theme brush would recolour
+        // every wormhole at once, and anything else bound to that resource.
+        var custom = WormholeAccent.TryParse(_record.Appearance.AccentOverride);
+
+        // A recoloured wormhole rings itself in the header's shade, not the raw accent, so the
+        // frame belongs to the window instead of outshining it. No override: the theme, as before.
+        var ringColour = custom is { } accentColour
+                     ? WormholeAccent.Shade(accentColour, WormholeAccent.RingShade)
+                     : (Application.Current?.Resources["OuterBorderBrush"] as System.Windows.Media.SolidColorBrush)?.Color;
+        if (ringColour is { } ring)
         {
-            // Each wormhole gets its own brush — modifying the shared theme brush would fade
-            // every wormhole's ring at once and also affect any other UI that consumes the
-            // resource.
-            var local = new System.Windows.Media.SolidColorBrush(themed.Color) { Opacity = borderOp };
-            OuterFrame.BorderBrush = local;
+            OuterFrame.BorderBrush = new System.Windows.Media.SolidColorBrush(ring) { Opacity = borderOp };
         }
+
+        ApplyBackdrop(BodyBackdrop, custom, "Surface1Brush", WormholeAccent.BodyShade);
+        ApplyBackdrop(HeaderBackdrop, custom, "Surface2Brush", WormholeAccent.HeaderShade);
         if (OuterShadow is not null) OuterShadow.Opacity = 0.45 * borderOp;
+    }
+
+    /// <summary>Paint one backdrop: the accent darkened by <paramref name="shade"/> when the
+    /// wormhole carries a colour override, otherwise the themed brush named
+    /// <paramref name="themeKey"/>. Opacity is left alone — it's the user's separate setting.</summary>
+    private static void ApplyBackdrop(System.Windows.Controls.Border target,
+        System.Windows.Media.Color? custom, string themeKey, double shade)
+    {
+        if (custom is { } colour)
+        {
+            target.Background = new System.Windows.Media.SolidColorBrush(WormholeAccent.Shade(colour, shade));
+            return;
+        }
+        if (Application.Current?.Resources[themeKey] is System.Windows.Media.Brush themed)
+        {
+            target.Background = themed;
+        }
+    }
+
+    /// <summary>Show a colour on this wormhole without committing it, for the picker's live
+    /// preview. Nothing is persisted; <see cref="ApplyAppearance"/> puts the real state back when
+    /// the user cancels.</summary>
+    internal void PreviewAccent(System.Windows.Media.Color colour)
+    {
+        OuterFrame.BorderBrush = new System.Windows.Media.SolidColorBrush(
+            WormholeAccent.Shade(colour, WormholeAccent.RingShade)) { Opacity = EffectiveBorderOpacity() };
+        ApplyBackdrop(BodyBackdrop, colour, "Surface1Brush", WormholeAccent.BodyShade);
+        ApplyBackdrop(HeaderBackdrop, colour, "Surface2Brush", WormholeAccent.HeaderShade);
     }
 
     /// <summary>Cheap path: only the opacity changed (Settings slider drag). Skips
     /// RebuildItems so the slider stays fluid even with many wormholes open.</summary>
     internal void RefreshOpacity() => ApplyAppearance();
 
-    /// <summary>Height of the header strip, matching the fixed Height on both header Borders in
-    /// the XAML. Also the amount the window grows by while the header is revealed on hover.</summary>
-    private const double HeaderStripHeight = 32;
-
-    /// <summary>Extra height the window currently carries to display the hover-revealed header
-    /// (0 or <see cref="HeaderStripHeight"/>). The persisted geometry is always the LOGICAL one,
-    /// i.e. without this offset — see <see cref="LogicalTop"/> / <see cref="LogicalHeight"/>.</summary>
-    private double _headerRevealOffset;
-
-    /// <summary>True when the reveal grew the window upwards (Top moved). False when there was no
-    /// room above and it grew downwards instead, leaving Top where it was.</summary>
-    private bool _headerRevealGrewUpwards;
-
-    /// <summary>Whether the pointer is currently over the wormhole, tracked from MouseEnter /
-    /// MouseLeave rather than read from <see cref="UIElement.IsMouseOver"/> on demand: the
-    /// property can report stale values when queried outside those events (observed while the
-    /// reveal resizes the window under the cursor), and a stale read here would collapse the
-    /// header from under the user's pointer.</summary>
-    private bool _pointerInside;
-
-    /// <summary>The window's Top as the record knows it: with the hover reveal undone. Everything
-    /// that persists or restores geometry goes through this, so a wormhole whose header happens
-    /// to be revealed can't save itself 32 px higher than it really lives.</summary>
+    /// <summary>The window's Top as the record knows it. Kept as a named property (rather than
+    /// callers touching Top directly) because geometry persistence and restore all funnel through
+    /// it: when the hover behaviour used to grow the window upwards to reveal a hidden header, this
+    /// is what stopped every reveal from saving the wormhole 32 px higher than it lived. Expanding
+    /// a collapsed wormhole on hover grows it DOWNWARDS and never writes the record, so today the
+    /// two are the same value.</summary>
     internal double LogicalTop
     {
-        get => Top + (_headerRevealGrewUpwards ? _headerRevealOffset : 0);
-        set => Top = value - (_headerRevealGrewUpwards ? _headerRevealOffset : 0);
+        get => Top;
+        set => Top = value;
     }
 
-    /// <summary>The window's Height as the record knows it: with the hover reveal undone.</summary>
+    /// <summary>The window's Height as the record knows it. See <see cref="LogicalTop"/>.</summary>
     internal double LogicalHeight
     {
-        get => Height - _headerRevealOffset;
-        set => Height = value + _headerRevealOffset;
+        get => Height;
+        set => Height = value;
     }
 
-    /// <summary>Apply the "hide header until hovered" default. Hidden means the strip is
-    /// COLLAPSED, not just transparent: both header Borders go to Visibility.Collapsed, the Auto
-    /// row shrinks to nothing and the tiles start at the top edge — no reserved band of empty
-    /// backdrop. On hover the window grows by <see cref="HeaderStripHeight"/> UPWARDS, so the
-    /// header appears above the body instead of pushing the tiles down or covering them.
-    ///
-    /// Suspended while the wormhole is rolled up: rolled state shows nothing but the header, so
-    /// collapsing it would leave a bare 48 px sliver with no way back.</summary>
-    private void ApplyHeaderChrome()
+    /// <summary>Expand or re-collapse a rolled-up wormhole as the pointer arrives and leaves, when
+    /// the "expand collapsed wormholes on hover" default is on. The expansion is a PEEK: it changes
+    /// what the window shows, never <see cref="WormholeRecord.IsRolled"/>. That matters twice over
+    /// — the wormhole is still collapsed after a restart, and the SizeChanged handler skips saving
+    /// height while the record says rolled, so a peek can't overwrite the saved size.</summary>
+    private void ApplyCollapsedHoverPeek(bool pointerInside)
     {
-        var hideMode = _defaults?.HideHeaderChrome == true && !_record.IsRolled;
-        var revealed = !hideMode || _pointerInside;
-
-        SetHeaderRevealOffset(hideMode && revealed ? HeaderStripHeight : 0);
-
-        var visibility = revealed ? Visibility.Visible : Visibility.Collapsed;
-        HeaderChrome.Visibility = visibility;
-        HeaderBackdrop.Visibility = visibility;
-        HeaderBackdrop.Opacity = EffectiveOpacity();
+        var enabled = _defaults?.ExpandCollapsedOnHover == true;
+        var wanted = enabled && pointerInside && _record.IsRolled;
+        if (wanted == _peekExpanded) return;
+        _peekExpanded = wanted;
+        ApplyRollState();
     }
 
-    /// <summary>Grow / shrink the window by the reveal offset, keeping the BODY still. Growing
-    /// upwards is preferred (the tiles never move); when the wormhole is already at the top of
-    /// its monitor there's nowhere to go, so it grows downwards instead and the tiles shift by
-    /// the strip height — still better than clipping the header off-screen.</summary>
-    private void SetHeaderRevealOffset(double offset)
+    /// <summary>Re-apply the expand-on-hover default. Called by the manager when the user flips the
+    /// toggle in Settings → Wormholes; a wormhole left peeked open when the option is switched off
+    /// rolls back up here rather than staying expanded until the next mouse move.</summary>
+    internal void RefreshCollapsedHover() => ApplyCollapsedHoverPeek(IsMouseOver);
+
+    /// <summary>Cursor shown over the item tiles, bound from the DataTemplate. A hand only when a
+    /// single click actually opens: pointing a hand at something that needs a double click promises
+    /// a click will do something, and it doesn't. A DependencyProperty rather than a field on the
+    /// item view-models, so flipping the setting is a property write instead of an item rebuild
+    /// (which would re-extract every icon).</summary>
+    public static readonly DependencyProperty ItemCursorProperty =
+        DependencyProperty.Register(nameof(ItemCursor), typeof(Cursor), typeof(WormholeWindow),
+            new PropertyMetadata(Cursors.Arrow));
+
+    public Cursor ItemCursor
     {
-        if (Math.Abs(offset - _headerRevealOffset) < 0.5) return;
-
-        // The offset fields MUST be updated before Top / Height are touched. WPF raises
-        // LocationChanged and SizeChanged synchronously from those setters, and those handlers
-        // persist LogicalTop / LogicalHeight — computed from exactly these fields. Setting them
-        // afterwards made every reveal save the window 32 px off, and the drift accumulated on
-        // each hover (measured: Y 400 → 368 → 432).
-        if (offset > 0)
-        {
-            _headerRevealGrewUpwards = HasRoomAbove(offset);
-            _headerRevealOffset = offset;
-            if (_headerRevealGrewUpwards) Top -= offset;
-            Height += offset;
-        }
-        else
-        {
-            var previous = _headerRevealOffset;
-            var grewUpwards = _headerRevealGrewUpwards;
-            _headerRevealOffset = 0;
-            _headerRevealGrewUpwards = false;
-            // Shrink height first: doing it after moving Top would briefly leave the window
-            // overlapping whatever sits below it.
-            Height -= previous;
-            if (grewUpwards) Top += previous;
-        }
+        get => (Cursor)GetValue(ItemCursorProperty);
+        set => SetValue(ItemCursorProperty, value);
     }
 
-    /// <summary>Undo the hover reveal without going through the hover state — used before the
-    /// roll-up path rewrites Height outright, so the offset can't be left stranded on a height
-    /// that no longer contains it.</summary>
-    private void CollapseHeaderReveal() => SetHeaderRevealOffset(0);
+    private void ApplyItemCursor() =>
+        ItemCursor = _defaults?.OpenWithOneClick == true ? Cursors.Hand : Cursors.Arrow;
 
-    /// <summary>True when the window can move up by <paramref name="dip"/> and stay inside the
-    /// work area of its monitor. Measured in physical pixels (what the monitor APIs speak) and
-    /// converted once, so mixed-DPI setups answer correctly.</summary>
-    private bool HasRoomAbove(double dip)
-    {
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        if (hwnd == IntPtr.Zero) return true; // no HWND yet — assume room, the reveal can't run anyway
-        if (!GetWindowRect(hwnd, out var rect)) return true;
-        var work = MonitorWorkArea(hwnd);
-        return rect.Top - DipToPixels(dip, hwnd) >= work.Top;
-    }
-
-    /// <summary>Re-apply the header-visibility default. Called by the manager when the user flips
-    /// the toggle in Settings → Wormholes so every open wormhole follows without a restart.</summary>
-    internal void RefreshHeaderChrome() => ApplyHeaderChrome();
+    /// <summary>Re-apply the one-click-open default: only the tile cursor depends on it up front,
+    /// the click handlers read the flag as the click arrives.</summary>
+    internal void RefreshItemCursor() => ApplyItemCursor();
 
     /// <summary>Expensive path: the icon size changed → every item VM has to be
     /// re-constructed so it asks <see cref="IconService.GetIconAtSize"/> for the new
@@ -858,6 +868,11 @@ public partial class WormholeWindow : Window
             IEnumerable<string> entries = portal.IncludeSubdirectoriesAsItems
                 ? Directory.EnumerateDirectories(portal.SourcePath).Concat(Directory.EnumerateFiles(portal.SourcePath))
                 : Directory.EnumerateFiles(portal.SourcePath);
+
+            // Drop the OS's own bookkeeping files (desktop.ini, Thumbs.db, …) unless the user asked
+            // to see them. Filtered before the sort and before the item cap, so they can't push a
+            // real file past PortalItemCap either.
+            entries = WormholeServiceFileFilter.ExcludeIf(entries, _defaults?.HideServiceFiles ?? true);
 
             var ordered = SortPortalEntries(entries, portal.SortMode).ToList();
             foreach (var path in ordered)
@@ -1190,6 +1205,51 @@ public partial class WormholeWindow : Window
         var rename = new System.Windows.Controls.MenuItem { Header = "Rename" };
         rename.Click += (_, _) => BeginInlineRename();
         menu.Items.Add(rename);
+
+        // Per-wormhole accent colour. Only offered when the picker was supplied (it isn't in the
+        // headless paths that construct a window without the colour services).
+        if (_colors is not null)
+        {
+            var accent = new System.Windows.Controls.MenuItem { Header = "Accent colour…" };
+            accent.Click += async (_, _) =>
+            {
+                // Seed the dialog with the colour this wormhole already has, so opening the picker
+                // on a coloured wormhole starts from it rather than from an unrelated recent.
+                var current = WormholeAccent.TryParse(_record.Appearance.AccentOverride);
+                var seed = current is { } c
+                    ? new AresToys.Editor.Model.ShapeColor(c.A, c.R, c.G, c.B)
+                    : null;
+
+                // Live preview: recolour this wormhole on every change inside the dialog. Picking a
+                // colour against a swatch and only seeing the result after OK is guesswork.
+                var picked = await _colors.PickAsync(
+                    onPreview: p => PreviewAccent(System.Windows.Media.Color.FromArgb(p.A, p.R, p.G, p.B)),
+                    initialColour: seed).ConfigureAwait(true);
+
+                if (picked is null)
+                {
+                    ApplyAppearance();   // cancelled — put the previous colour back
+                    return;
+                }
+                _record.Appearance.AccentOverride = WormholeAccent.Format(
+                    System.Windows.Media.Color.FromArgb(picked.A, picked.R, picked.G, picked.B));
+                _onPersist();
+                ApplyAppearance();
+            };
+            menu.Items.Add(accent);
+
+            if (WormholeAccent.TryParse(_record.Appearance.AccentOverride) is not null)
+            {
+                var resetAccent = new System.Windows.Controls.MenuItem { Header = "Reset accent colour" };
+                resetAccent.Click += (_, _) =>
+                {
+                    _record.Appearance.AccentOverride = null;
+                    _onPersist();
+                    ApplyAppearance();
+                };
+                menu.Items.Add(resetAccent);
+            }
+        }
 
         var hide = new System.Windows.Controls.MenuItem { Header = "Hide this wormhole" };
         hide.Click += (_, _) =>
@@ -1870,6 +1930,9 @@ public partial class WormholeWindow : Window
     private void OnItemMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount != 2) return;
+        // With one-click open on, the first click already opened the item on mouse-up; a second
+        // click landing inside the double-click time would open it twice.
+        if (_defaults?.OpenWithOneClick == true) return;
         if (sender is not FrameworkElement fe) return;
         if (fe.DataContext is not WormholeItemViewModel vm) return;
         OpenItem(vm);
@@ -1900,12 +1963,31 @@ public partial class WormholeWindow : Window
         if (fe.DataContext is not WormholeItemViewModel vm) { _itemDragStart = null; _itemDragSourceVm = null; return; }
         _itemDragStart = e.GetPosition(this);
         _itemDragSourceVm = vm;
+        // Remembered for the one-click-open path: a double click sends two press/release pairs, so
+        // the release of the SECOND press must not open the item a second time.
+        _itemPressClickCount = e.ClickCount;
     }
 
     private void OnItemPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        // Disarm first, whatever happens next.
+        var armed = _itemDragSourceVm;
+        var wasAPress = _itemDragStart is not null;
+        var clickCount = _itemPressClickCount;
         _itemDragStart = null;
         _itemDragSourceVm = null;
+        _itemPressClickCount = 0;
+
+        if (_defaults?.OpenWithOneClick != true) return;
+        // Only the first click of a sequence opens. Double-clicking a tile with one-click open on
+        // would otherwise reach here twice and open the item twice.
+        if (clickCount != 1) return;
+        // Open on mouse-UP, not down: the same press arms the drag-out gesture, so opening on the
+        // way down would open a file the moment the user started dragging it out. A press that
+        // turned into a drag has already cleared _itemDragStart in PreviewMouseMove, so reaching
+        // here with it still set is exactly "a click that stayed put".
+        if (!wasAPress || armed is null) return;
+        OpenItem(armed);
     }
 
     private void OnItemPreviewMouseMove(object sender, MouseEventArgs e)
@@ -2665,19 +2747,20 @@ public partial class WormholeWindow : Window
 
     private void ToggleRoll()
     {
-        _record.IsRolled = !_record.IsRolled;
+        // Clicking the chevron states an intent, so it wins over (and ends) any hover peek:
+        // expanding a peeked-open wormhole pins it open, rather than toggling the record back to
+        // the state it's already showing.
+        _record.IsRolled = _peekExpanded ? false : !_record.IsRolled;
+        _peekExpanded = false;
         ApplyRollState();
         _onPersist();
     }
 
     private void ApplyRollState()
     {
-        // Both branches rewrite Height outright, so any hover-reveal offset has to be handed
-        // back first — otherwise the offset would stay booked against a height that no longer
-        // includes it and every later logical read would be 32 px short.
-        CollapseHeaderReveal();
-
-        if (_record.IsRolled)
+        // The record says whether the wormhole is collapsed; a hover peek overrides what's SHOWN
+        // without touching it (see ApplyCollapsedHoverPeek).
+        if (_record.IsRolled && !_peekExpanded)
         {
             ContentArea.Visibility = Visibility.Collapsed;
             // Window.MinHeight (80 in the XAML) silently clamps the rolled Height we set
@@ -2708,9 +2791,6 @@ public partial class WormholeWindow : Window
             ChevronGlyph.Text = ChevronUpGlyph;
         }
 
-        // Re-evaluate the header: rolled up it must stay visible whatever the "hide header"
-        // default says, and unrolling under the pointer should reveal it again right away.
-        ApplyHeaderChrome();
     }
 
     private void ApplyLockState()

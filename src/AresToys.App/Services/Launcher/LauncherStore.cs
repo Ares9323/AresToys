@@ -87,7 +87,8 @@ public sealed class LauncherStore
                                 WindowTitle: c.WindowTitle ?? string.Empty,
                                 ProcessName: c.ProcessName ?? string.Empty,
                                 IconPath: c.IconPath ?? string.Empty,
-                                IconIndex: c.IconIndex ?? 0);
+                                IconIndex: c.IconIndex ?? 0,
+                                WorkflowId: c.WorkflowId ?? string.Empty);
                             cells[cell.ComposedKey] = cell;
                         }
                     }
@@ -134,6 +135,7 @@ public sealed class LauncherStore
                     ProcessName  = string.IsNullOrWhiteSpace(c.ProcessName) ? null : c.ProcessName,
                     IconPath     = string.IsNullOrWhiteSpace(c.IconPath) ? null : c.IconPath,
                     IconIndex    = c.IconIndex == 0 ? null : c.IconIndex,
+                    WorkflowId   = string.IsNullOrWhiteSpace(c.WorkflowId) ? null : c.WorkflowId,
                 })
                 .ToList(),
             TabTitles = state.TabTitles
@@ -274,6 +276,7 @@ public sealed class LauncherStore
         public string? ProcessName { get; init; }
         public string? IconPath { get; init; }
         public int? IconIndex { get; init; }
+        public string? WorkflowId { get; init; }
     }
     private sealed class StateDto
     {

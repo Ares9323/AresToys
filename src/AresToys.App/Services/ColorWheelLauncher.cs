@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.Extensions.Logging;
 using AresToys.Editor.Model;
 using AresToys.Editor.Persistence;
@@ -31,13 +31,20 @@ public sealed class ColorWheelLauncher
 
     /// <summary>Open the picker, return the chosen colour (or null on Cancel). Doesn't touch the
     /// clipboard or recents list — caller decides.</summary>
-    public async Task<ShapeColor?> PickAsync()
+    /// <param name="onPreview">Called on every colour change inside the dialog, before the user
+    /// commits. Lets a caller recolour whatever it's about to apply the colour to while the user is
+    /// still dragging, which is the difference between picking a colour and picking it blind. The
+    /// caller is responsible for undoing the preview if the dialog comes back null (cancelled).</param>
+    /// <param name="initialColour">Seeds the dialog. Null starts from the most recent colour, which
+    /// is right for a fresh pick but wrong when editing something that already has a colour.</param>
+    public async Task<ShapeColor?> PickAsync(Action<ShapeColor>? onPreview = null, ShapeColor? initialColour = null)
     {
         var recents = await _recents.LoadAsync(CancellationToken.None).ConfigureAwait(true);
         ColorSwatchButton.CurrentRecents = recents;
-        var initial = recents.Count > 0 ? recents[0] : ShapeColor.Black;
+        var initial = initialColour ?? (recents.Count > 0 ? recents[0] : ShapeColor.Black);
 
         var dlg = new ColorPickerWindow(initial);
+        if (onPreview is not null) dlg.ColorChanged += (_, c) => onPreview(c);
         dlg.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
         // Cross-assembly localisation handoff: AresToys.Editor can't reach our resx, so we
         // resolve every translatable label here and push the dictionary into the dialog.

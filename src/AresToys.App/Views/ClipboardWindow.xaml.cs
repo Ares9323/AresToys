@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -72,8 +72,9 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     private readonly AresToys.Storage.Rotation.CategoryRotationService? _categoryRotation;
     private readonly AresToys.App.Services.Qr.QrCodeService? _qrService;
     private readonly AresToys.App.Services.ManualUploadService? _ingestion;
+    private readonly AresToys.App.Services.Recording.VideoTrimService? _videoTrimmer;
 
-    public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, AresToys.Storage.Rotation.CategoryRotationService? categoryRotation = null, AresToys.App.Services.Qr.QrCodeService? qrService = null, AresToys.App.Services.ManualUploadService? ingestion = null)
+    public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, AresToys.Storage.Rotation.CategoryRotationService? categoryRotation = null, AresToys.App.Services.Qr.QrCodeService? qrService = null, AresToys.App.Services.ManualUploadService? ingestion = null, AresToys.App.Services.Recording.VideoTrimService? videoTrimmer = null)
     {
         InitializeComponent();
         AresToys.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
@@ -84,6 +85,7 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         _categoryRotation = categoryRotation;
         _qrService = qrService;
         _ingestion = ingestion;
+        _videoTrimmer = videoTrimmer;
         _current = this;
 
         // Hydrate the persisted "mute preview videos" preference so the first MediaElement load
@@ -1180,6 +1182,34 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     /// the selected row's preview text. Preview is truncated at 200 chars in the row VM,
     /// which is fine for URLs / short snippets; longer payloads (full vCards, JSON blobs)
     /// the user can paste manually into the editor.</summary>
+    /// <summary>Open the trim dialog on the selected recording and, if it produces a file, commit
+    /// that file as a new history entry. Modal (unlike the QR generator): the trim reads the
+    /// selected row's file, so letting the selection move underneath it would be confusing.</summary>
+    private async void OnTrimVideoClicked(object sender, RoutedEventArgs e)
+    {
+        if (_videoTrimmer is null) return;
+        if (!ViewModel.IsTrimmableVideoSelected) return;
+        var source = ViewModel.SelectedItemBlobRef;
+        if (string.IsNullOrEmpty(source)) return;
+
+        // Keep the popup alive while the dialog owns focus — the same guard the QR generator uses,
+        // otherwise OnDeactivated slams the clipboard shut behind it.
+        _suppressDeactivation = true;
+        try
+        {
+            var dlg = new VideoTrimWindow(source, _videoTrimmer) { Owner = this };
+            if (dlg.ShowDialog() == true && dlg.ResultPath is { Length: > 0 } trimmed)
+            {
+                await ViewModel.AddTrimmedVideoAsync(trimmed, CancellationToken.None).ConfigureAwait(true);
+            }
+        }
+        finally
+        {
+            _suppressDeactivation = false;
+            Activate();
+        }
+    }
+
     private void OnGenerateQrFromItemClicked(object sender, RoutedEventArgs e)
     {
         if (_qrService is null) return;

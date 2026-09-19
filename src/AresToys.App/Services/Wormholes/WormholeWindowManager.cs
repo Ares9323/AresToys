@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
@@ -15,6 +15,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     private readonly DesktopLayerHost _desktopLayer;
     private readonly WormholeDefaultsService _defaults;
     private readonly Favicons.FaviconService _favicons;
+    private readonly ColorWheelLauncher _colors;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<WormholeWindowManager> _logger;
     private readonly Dictionary<Guid, WormholeWindow> _live = new();
@@ -40,6 +41,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         DesktopLayerHost desktopLayer,
         WormholeDefaultsService defaults,
         Favicons.FaviconService favicons,
+        ColorWheelLauncher colors,
         ILoggerFactory loggerFactory,
         ILogger<WormholeWindowManager> logger)
     {
@@ -48,6 +50,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _desktopLayer = desktopLayer;
         _defaults = defaults;
         _favicons = favicons;
+        _colors = colors;
         _loggerFactory = loggerFactory;
         _logger = logger;
         // Two separate paths so the cheap slider (opacity) doesn't pay the expensive rebuild
@@ -69,10 +72,15 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // Toggling web-link favicons rebuilds item lists: ON kicks off favicon fetches for every
         // live .url, OFF just stops new fetches (already-stamped .url files keep their icon).
         _defaults.WebLinkFaviconsChanged += (_, _) => RefreshAllLiveIconSize();
-        // Header visibility is a pure opacity flip on two elements — cheapest refresh of the lot,
-        // no item rebuild.
-        _defaults.HeaderChromeChanged += (_, _) => RefreshAllLiveHeaderChrome();
+        // Expand-on-hover only re-evaluates whether a collapsed wormhole is currently peeked
+        // open — no item rebuild.
+        _defaults.ExpandCollapsedOnHoverChanged += (_, _) => RefreshAllLiveCollapsedHover();
         _defaults.KeepVisibleOnShowDesktopChanged += (_, _) => RefreshAllLiveDesktopOwnership();
+        // One-click open only needs the tile cursor swapped: the click handlers read the flag when
+        // the click happens, so nothing about the items themselves changes.
+        _defaults.OpenWithOneClickChanged += (_, _) => RefreshAllLiveItemCursor();
+        // The service-file filter decides which entries exist as tiles, so this one re-enumerates.
+        _defaults.ServiceFilesVisibilityChanged += (_, _) => RefreshAllLivePortalItems();
 
         // React to resolution / monitor / RDP display changes so Windows' automatic rescue of
         // off-screen top-level windows doesn't corrupt the saved wormhole layout. App-lifetime
@@ -635,12 +643,12 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         }
     }
 
-    private void RefreshAllLiveHeaderChrome()
+    private void RefreshAllLiveCollapsedHover()
     {
         foreach (var (_, window) in _live)
         {
-            try { window.RefreshHeaderChrome(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "RefreshHeaderChrome failed during defaults change"); }
+            try { window.RefreshCollapsedHover(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "RefreshCollapsedHover failed during defaults change"); }
         }
     }
 
@@ -650,6 +658,24 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         {
             try { window.RefreshIconSize(); }
             catch (Exception ex) { _logger.LogWarning(ex, "RefreshIconSize failed during defaults change"); }
+        }
+    }
+
+    private void RefreshAllLiveItemCursor()
+    {
+        foreach (var (_, window) in _live)
+        {
+            try { window.RefreshItemCursor(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "RefreshItemCursor failed during defaults change"); }
+        }
+    }
+
+    private void RefreshAllLivePortalItems()
+    {
+        foreach (var (_, window) in _live)
+        {
+            try { window.RefreshPortalItems(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "RefreshPortalItems failed during defaults change"); }
         }
     }
 
@@ -842,6 +868,12 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to close wormhole window {Id}", wormholeId); }
         }
         await _store.DeleteAsync(wormholeId, cancellationToken).ConfigureAwait(true);
+        // Tell whoever is listening that this record no longer exists. An open Settings →
+        // Wormholes panel uses it to drop the row; before this it only learned about deletions it
+        // performed itself, so a delete from the wormhole's own chrome menu left a stale row
+        // behind. Marshalled like RecordChanged: subscribers mutate UI-bound collections.
+        if (Application.Current is { } app) _ = app.Dispatcher.BeginInvoke(() => RecordDeleted?.Invoke(this, wormholeId));
+        else RecordDeleted?.Invoke(this, wormholeId);
     }
 
     public void CloseAll()
@@ -900,7 +932,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             // manager fans out a ClearItemSelection() to every sibling wormhole.
             manager: this,
             // Favicon resolver for .url web-link tiles.
-            favicons: _favicons);
+            favicons: _favicons,
+            // Colour picker behind the hamburger's "Accent colour…" entry.
+            colors: _colors);
         window.DeleteRequested += async (_, id) =>
         {
             try { await DeleteAsync(id, CancellationToken.None).ConfigureAwait(true); }
@@ -1007,6 +1041,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     }
 
     public event EventHandler<Guid>? RecordChanged;
+    public event EventHandler<Guid>? RecordDeleted;
 
     public Task ReconcileAsync(WormholeRecord record, CancellationToken cancellationToken)
     {

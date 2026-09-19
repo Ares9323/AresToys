@@ -437,6 +437,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         // behaviour the user expects from a discoverable shortcut bar.
         OnPropertyChanged(nameof(IsImageSelected));
         OnPropertyChanged(nameof(HasFileOnDisk));
+        OnPropertyChanged(nameof(IsTrimmableVideoSelected));
         OnPropertyChanged(nameof(IsUrlSelected));
         OnPropertyChanged(nameof(IsTextSelected));
         OnPropertyChanged(nameof(IsRichTextSelected));
@@ -446,6 +447,39 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// <summary>True when the current selection is an image — gates the "Open in editor"
     /// affordance (text / file rows have nothing to edit in the image annotation editor).</summary>
     public bool IsImageSelected => SelectedRow?.Kind == ItemKind.Image;
+
+    /// <summary>Path of the selected item's file on disk, when it has one. Exposed so the toolbar
+    /// can hand it to the trim dialog without re-reading the record.</summary>
+    public string? SelectedItemBlobRef => _selectedItemBlobRef;
+
+    /// <summary>Commit a trimmed recording as its own history entry and show it. The source entry
+    /// is left alone: the clipboard is a history, and a trim that quietly replaced the recording it
+    /// came from would be an unundoable edit to something the user may still need whole.</summary>
+    public async Task AddTrimmedVideoAsync(string path, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        var bytes = await System.IO.File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(true);
+        var newItem = new NewItem(
+            Kind: ItemKind.Video,
+            Source: ItemSource.CaptureRecording,
+            CreatedAt: DateTimeOffset.UtcNow,
+            Payload: bytes,
+            PayloadSize: bytes.LongLength,
+            BlobRef: path,
+            SearchText: $"Recording {System.IO.Path.GetFileName(path)}");
+        await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(true);
+        await RefreshAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>True when the current selection is a video this app can trim: it has to still be a
+    /// file on disk (the trim reads and re-encodes it) and be one of the H.264 containers the
+    /// recorder produces. GIF and WebM recordings are deliberately out, each needing a different
+    /// encoder — see <see cref="AresToys.Capture.Recording.VideoTrimArgsBuilder"/>. Gates the
+    /// "Trim video…" toolbar button, which sits where images get "Open in editor".</summary>
+    public bool IsTrimmableVideoSelected =>
+        SelectedRow?.Kind == ItemKind.Video
+        && HasFileOnDisk
+        && AresToys.Capture.Recording.VideoTrimArgsBuilder.IsSupported(_selectedItemBlobRef);
 
     /// <summary>True when the current selection holds text-shaped content — gates the
     /// "Generate QR code…" affordance (toolbar + context menu). A QR code carries a textual

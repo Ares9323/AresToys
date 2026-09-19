@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Matches AresToys.Capture's own target: the project under test is net10.0-windows
+         (gdigrab / screen capture are Windows-only), so the test host has to be too. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>AresToys.Capture.Tests</RootNamespace>
+    <AssemblyName>AresToys.Capture.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AresToys.Capture\AresToys.Capture.csproj" />
+  </ItemGroup>
+</Project>

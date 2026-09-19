@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using Microsoft.Extensions.Logging;
 using AresToys.App.Views;
@@ -202,7 +202,10 @@ public sealed class RecordingCoordinator
             ? PipelineTempFolder
             : await ResolveCaptureFolderAsync(cancellationToken).ConfigureAwait(false);
         Directory.CreateDirectory(folder);
-        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
+        // Local time, not UTC: this stamp is what the user reads in the filename, and it has to
+        // agree with the clock on their wall — and with the date sub-folder two lines up, which
+        // has always used local time. UTC put every name up to a full day and several hours off.
+        var stamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
         var ext = format == RecordingFormat.Mp4 ? "mp4" : "gif";
         var titleSlug = SanitizeForFilename(region.WindowTitle);
         var outPath = Path.Combine(folder,

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -156,6 +156,24 @@
   <data name="Clipboard_TooltipCopyPath" xml:space="preserve"><value>Copy file path to clipboard</value></data>
   <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Generate QR code…</value></data>
   <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Open in image editor</value></data>
+  <data name="Clipboard_MenuTrimVideo" xml:space="preserve"><value>Trim video…</value></data>
+  <data name="Clipboard_TooltipTrimVideo" xml:space="preserve"><value>Trim video…</value></data>
+  <data name="VideoTrim_Title" xml:space="preserve"><value>Trim video</value></data>
+  <data name="VideoTrim_SetStart" xml:space="preserve"><value>Start here</value></data>
+  <data name="VideoTrim_SetStartTooltip" xml:space="preserve"><value>Cut everything before the frame currently shown.</value></data>
+  <data name="VideoTrim_SetEnd" xml:space="preserve"><value>End here</value></data>
+  <data name="VideoTrim_SetEndTooltip" xml:space="preserve"><value>Cut everything after the frame currently shown.</value></data>
+  <data name="VideoTrim_StopTooltip" xml:space="preserve"><value>Back to the start of the trim</value></data>
+  <data name="VideoTrim_StartHandleTooltip" xml:space="preserve"><value>Drag to set where the clip starts</value></data>
+  <data name="VideoTrim_EndHandleTooltip" xml:space="preserve"><value>Drag to set where the clip ends</value></data>
+  <data name="VideoTrim_PlayPauseTooltip" xml:space="preserve"><value>Play / pause (you can also click the picture)</value></data>
+  <data name="VideoTrim_Selection" xml:space="preserve"><value>Keeping {0} to {1}  ·  {2} long</value></data>
+  <data name="VideoTrim_NothingSelected" xml:space="preserve"><value>Nothing to cut yet: move to a frame and mark a start or an end.</value></data>
+  <data name="VideoTrim_Trim" xml:space="preserve"><value>Trim</value></data>
+  <data name="VideoTrim_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="VideoTrim_Working" xml:space="preserve"><value>Trimming…</value></data>
+  <data name="VideoTrim_Failed" xml:space="preserve"><value>The trim failed. Check that ffmpeg is available (Settings → Capture) and that the file is still on disk.</value></data>
+  <data name="VideoTrim_PlaybackFailed" xml:space="preserve"><value>Windows can't play this file back, so there's nothing to pick cut points on.</value></data>
   <data name="Clipboard_TooltipExtEditor" xml:space="preserve"><value>Edit text in external editor (VSCode / Notepad / …)</value></data>
   <data name="Clipboard_TooltipConvertToPlainText" xml:space="preserve"><value>Convert to plain text (strip HTML / RTF formatting in-place)</value></data>
   <data name="Clipboard_ConvertToPlainTextConfirmTitle" xml:space="preserve"><value>Convert to plain text</value></data>
@@ -205,6 +223,10 @@
   <data name="LauncherCellEdit_ClearIcon" xml:space="preserve"><value>Clear the custom icon (revert to default shell icon).</value></data>
   <data name="LauncherCellEdit_ArgsPlaceholder" xml:space="preserve"><value>(optional command-line arguments)</value></data>
   <data name="LauncherCellEdit_Advanced" xml:space="preserve"><value>Advanced</value></data>
+  <data name="LauncherCellEdit_Workflow" xml:space="preserve"><value>Workflow</value></data>
+  <data name="LauncherCellEdit_WorkflowNone" xml:space="preserve"><value>(no workflow)</value></data>
+  <data name="LauncherCellEdit_WorkflowTooltip" xml:space="preserve"><value>Run a workflow when this key is pressed, instead of launching the path — any workflow you can wire to a tray click. A cell with a workflow runs only that: path, args, elevation and window mode describe how to start a program and don't apply.</value></data>
+  <data name="LauncherCellEdit_ClearWorkflow" xml:space="preserve"><value>Clear the workflow (back to an ordinary launch cell).</value></data>
   <data name="LauncherCellEdit_RunAsAdminTooltip" xml:space="preserve"><value>Launch with the "runas" verb so Windows prompts UAC for elevation. Use sparingly — admin processes can change system state.</value></data>
   <data name="LauncherCellEdit_WindowModeTooltip" xml:space="preserve"><value>How the launched window appears initially. Most GUI apps honour Maximized/Minimized; some ignore the hint. Hidden runs the process without showing a window — useful for headless tasks.</value></data>
   <data name="LauncherCellEdit_WindowTitlePlaceholder" xml:space="preserve"><value>(if a window with this title is open, focus it instead of launching)</value></data>
@@ -381,8 +403,12 @@
   <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>When ON, web links (.url files) show the real site favicon instead of the generic browser icon. The favicon is fetched once per site (directly from the site, falling back to a favicon service) and written into the .url so it also shows in Explorer. Turn OFF to make no network calls and leave .url files untouched.</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Keep wormholes visible on "Show desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>When ON, Win+D and the taskbar's far-corner "Show desktop" button no longer bury the wormholes: they stay on the revealed desktop like the icons do. Wormholes join the desktop's z-order group, so they still go behind any app you bring to the front. Turn OFF to make them disappear with the other windows.</value></data>
-  <data name="Wormhole_HideHeaderChrome" xml:space="preserve"><value>Hide the header until hovered</value></data>
-  <data name="Wormhole_HideHeaderChromeTooltip" xml:space="preserve"><value>The header strip is removed entirely — not faded — so the tiles start right at the top edge with no empty band above them. Hovering the wormhole grows it upwards by the height of the strip and the header appears above the tiles, without covering them or pushing them down. When the wormhole is already at the top of the screen it grows downwards instead. Drag it from any empty spot in the body, or from the header while it's showing.</value></data>
+  <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Show collapsed wormholes on hover</value></data>
+  <data name="Wormhole_ExpandCollapsedOnHoverTooltip" xml:space="preserve"><value>Moving the pointer onto a collapsed wormhole opens it, and it rolls back up when the pointer leaves. Only what you see changes: the wormhole stays collapsed in its settings, so it comes back collapsed after a restart and its saved height is never overwritten. Clicking the chevron while it is held open pins it open for good.</value></data>
+  <data name="Wormhole_OpenWithOneClick" xml:space="preserve"><value>Open items with one click</value></data>
+  <data name="Wormhole_OpenWithOneClickTooltip" xml:space="preserve"><value>A single click opens a tile, and the tiles show the hand cursor that says so. Dragging a tile out still works: the click only opens when the pointer stays put. Off (the default) opening takes a double click, as it does in Explorer, and the tiles show the ordinary arrow instead of a hand promising something a single click wouldn't do.</value></data>
+  <data name="Wormhole_HideServiceFiles" xml:space="preserve"><value>Hide system service files (desktop.ini, Thumbs.db…)</value></data>
+  <data name="Wormhole_HideServiceFilesTooltip" xml:space="preserve"><value>Keeps the files Windows and macOS write for their own bookkeeping out of the tiles: desktop.ini (a folder's view settings), Thumbs.db and ehthumbs.db (thumbnail caches), .DS_Store (left behind by Macs, common on shared drives). Explorer hides them too; a wormhole reads the folder itself, so it has to be told. They stay on disk and are untouched — this only decides whether they take up a tile.</value></data>
   <data name="Settings_NotificationsTitle" xml:space="preserve"><value>Notifications</value></data>
   <data name="Settings_ToastPopupSeconds" xml:space="preserve"><value>Popup on screen (seconds)</value></data>
   <data name="Settings_ToastPopupSecondsTooltip" xml:space="preserve"><value>How long the notification stays on screen, from 0 to 7 seconds. 0 = no popup at all: the notification goes straight to the Notification Center. 7 (the default) leaves the duration to Windows, which is about 7 seconds and honours your "show notifications for" accessibility setting. Anything in between closes the popup at exactly that many seconds. There is no "forever": Windows cannot keep a toast on screen indefinitely.</value></data>

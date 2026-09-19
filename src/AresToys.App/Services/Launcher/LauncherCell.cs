@@ -38,9 +38,19 @@ public sealed record LauncherCell(
     /// icon container (.dll, .exe, .ico). 0 = first icon (default). Lets the user pick a
     /// specific icon out of e.g. shell32.dll which contains hundreds. Ignored for raster
     /// images that have a single icon (.png / .jpg / .bmp / .gif).</summary>
-    int IconIndex = 0)
+    int IconIndex = 0,
+    /// <summary>Id of a pipeline profile (workflow) this cell runs instead of launching
+    /// <see cref="Path"/> — the same wiring the tray's left / double / middle click uses, so any
+    /// built-in or user-made workflow can sit on a launcher key. When set it takes over the cell's
+    /// action: <see cref="Path"/>, <see cref="Args"/>, <see cref="RunAsAdmin"/> and
+    /// <see cref="WindowMode"/> describe how to start a program and have no meaning for a
+    /// workflow. Empty = ordinary launch cell.</summary>
+    string WorkflowId = "")
 {
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(Path);
+    /// <summary>This cell runs a workflow rather than launching a path.</summary>
+    public bool HasWorkflow => !string.IsNullOrWhiteSpace(WorkflowId);
+
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(Path) || HasWorkflow;
 
     public static LauncherCell Empty(string tabKey, string keyChar) =>
         new(tabKey, keyChar, string.Empty, string.Empty, string.Empty);
