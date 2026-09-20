@@ -1331,6 +1331,32 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     public Task ReconcileAsync(WormholeRecord record, CancellationToken cancellationToken)
     {
+        _records[record.Id] = record;
+
+        // A tab that isn't the parent doesn't own the window, so reconciling it must not touch the
+        // window's geometry or close it. Both of those were happening, and both were destructive:
+        //
+        //  - geometry: every member maps to the SAME window, so pushing each record's own X/Y/W/H
+        //    left the group wearing whichever tab was reconciled last. Restoring a layout preset
+        //    reconciles every record in turn, which is exactly how a group ended up the size of one
+        //    of its tabs instead of its parent's.
+        //  - hidden: the close path removed one id and closed the shared window, taking every other
+        //    tab off the desktop with it and leaving their ids pointing at a dead window. The
+        //    records were all still there, so Settings listed wormholes that had no window — which
+        //    is what "they vanished from the desktop but I can see them in the list" was.
+        //
+        // Hidden / collapsed / topmost belong to the group as a whole, and the group's is the
+        // parent's. A tab's own flag is still persisted and takes effect if it's ever detached.
+        if (!_groups.GovernsWindow(record.Id))
+        {
+            if (_live.TryGetValue(record.Id, out var host))
+            {
+                if (host.ActiveRecord.Id == record.Id) host.RefreshFromRecord();
+                host.RefreshTabs();   // a renamed or recoloured tab still has to redraw
+            }
+            return Task.CompletedTask;
+        }
+
         _live.TryGetValue(record.Id, out var window);
         if (record.IsHidden)
         {

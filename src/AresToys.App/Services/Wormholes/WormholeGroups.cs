@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace AresToys.App.Services.Wormholes;
@@ -53,6 +53,20 @@ public sealed class WormholeGroups
         _groups.FirstOrDefault(g => g.Members.Contains(wormholeId));
 
     public bool IsGrouped(Guid wormholeId) => FindFor(wormholeId) is not null;
+
+    /// <summary>Whether this wormhole's record drives the window it appears in. True for anything
+    /// ungrouped, and for a group's parent; false for the group's other tabs, which share a window
+    /// they don't own.
+    ///
+    /// The distinction matters because window-level state — position, size, hidden, collapsed,
+    /// topmost — belongs to the group as a whole and is read from the parent. Acting on a tab's own
+    /// copy would move the window to whichever tab was handled last, or close a window that other
+    /// tabs are still living in.</summary>
+    public bool GovernsWindow(Guid wormholeId)
+    {
+        var group = FindFor(wormholeId);
+        return group is null || group.ParentId == wormholeId;
+    }
 
     /// <summary>Drop <paramref name="dragged"/> onto <paramref name="target"/>. If the target is
     /// already a tab of a group, the dragged wormhole joins that group and the group keeps its

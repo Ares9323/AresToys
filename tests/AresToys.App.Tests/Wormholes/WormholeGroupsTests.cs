@@ -185,6 +185,39 @@ public sealed class WormholeGroupsTests
     }
 
     [Fact]
+    public void OnlyTheParentDrivesTheWindowItsTabsShare()
+    {
+        // The rule behind a bug that took wormholes off the desktop: restoring a layout preset
+        // reconciles every record, and acting on a tab's own geometry moved the shared window to
+        // whichever tab came last, while acting on a tab's Hidden flag closed a window the other
+        // tabs were still living in — leaving records with no window, visible in Settings and
+        // nowhere else.
+        var groups = new WormholeGroups();
+
+        Assert.True(groups.GovernsWindow(A));   // not grouped: it's its own window
+
+        groups.Merge(dragged: B, target: A);
+
+        Assert.True(groups.GovernsWindow(A));    // the parent
+        Assert.False(groups.GovernsWindow(B));   // a tab of A's window
+        Assert.True(groups.GovernsWindow(D));    // still ungrouped
+    }
+
+    [Fact]
+    public void AfterTheParentLeavesTheNewParentDrivesTheWindow()
+    {
+        var groups = new WormholeGroups();
+        groups.Merge(dragged: B, target: A);
+        groups.Merge(dragged: C, target: A);
+
+        groups.Detach(A);
+
+        Assert.True(groups.GovernsWindow(A));    // on its own again
+        Assert.True(groups.GovernsWindow(B));    // inherited the role
+        Assert.False(groups.GovernsWindow(C));
+    }
+
+    [Fact]
     public void LoadingDropsGroupsWhoseWormholesNoLongerExist()
     {
         // groups.json is a separate file, so it can outlive the records it points at: a rollback
