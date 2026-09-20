@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -95,6 +95,10 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     /// the new behaviour. Toggled via the chrome button or Esc (which exits drag mode instead
     /// of closing while the mode is on).</summary>
     private bool _dragMode;
+    /// <summary>The dock toggle's resting appearance, captured before the first time we flip it
+    /// to Danger. Snapshotting beats hard-coding Secondary: whatever the XAML (or a future theme)
+    /// gives the button is what undocking restores.</summary>
+    private Wpf.Ui.Controls.ControlAppearance _dragToggleAppearance;
     /// <summary>Internal clipboard for the per-cell Copy/Paste menu. Static so it survives
     /// re-opening the launcher within the same app session — a copy + restart is rare; a
     /// copy + close + reopen to paste somewhere else is common. Holds the source cell's
@@ -129,6 +133,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         _services = services;
         _profiles = profiles;
         _logger = logger;
+        _dragToggleAppearance = DragToggle.Appearance;
         FunctionRow.ItemsSource = _functionRow;
         TabStrip.ItemsSource    = _tabHeaders;
         Row1Host.ItemsSource    = _row1;
@@ -544,22 +549,32 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
 
     /// <summary>Common entry for "user pressed a key bound to a cell". Fires the cell when
     /// configured, otherwise just logs a debug breadcrumb (the user wanted to see which keys
-    /// they pressed even when nothing happened, useful while assembling a tab). In drag mode
-    /// firing is suppressed — the launcher is supposed to stay put and accept drops only.</summary>
+    /// they pressed even when nothing happened, useful while assembling a tab).
+    ///
+    /// The keyboard fires while docked too. Only the mouse changes meaning in that mode: a
+    /// left-click is the drag-to-rearrange gesture, so clicking must not launch anything. A
+    /// keypress has no such second job, and a docked launcher is a panel the user keeps on
+    /// screen precisely to press keys at. What docking does change is what happens after: the
+    /// window stays up instead of dismissing itself (see <see cref="HideAfterFire"/>).</summary>
     private void HandleKey(string tabKey, string keyChar)
     {
         var cell = _state.Get(tabKey, keyChar);
-        if (_dragMode)
-        {
-            _logger.LogDebug("Launcher key {TabKey}:{KeyChar} pressed (drag mode — fire suppressed)", tabKey, keyChar);
-            return;
-        }
         if (cell.IsConfigured)
         {
             FireCell(cell);
             return;
         }
         _logger.LogDebug("Launcher key {TabKey}:{KeyChar} pressed — no mapping", tabKey, keyChar);
+    }
+
+    /// <summary>Dismiss after a cell has fired, unless the launcher is docked. Undocked it's a
+    /// one-shot menu: summon, fire, dismiss (deferred, see BeginHide). Docked it's a panel the
+    /// user deliberately parked on screen, so it stays where it is and is ready for the next
+    /// key. Same reasoning the Deactivated handler already applies to focus loss.</summary>
+    private void HideAfterFire()
+    {
+        if (_dragMode) return;
+        BeginHide();
     }
 
     private void OnDragToggleClick(object sender, RoutedEventArgs e) => SetDragMode(!_dragMode);
@@ -584,6 +599,11 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         DragToggle.Content = on
             ? AresToys.App.Resources.Strings.ResourceManager.GetString("Launcher_DragModeOn", culture) ?? "✓ Drag mode (on)"
             : AresToys.App.Resources.Strings.ResourceManager.GetString("Launcher_DragMode", culture) ?? "📥 Drag mode";
+        // Docked is a state the user has to be able to spot at a glance, and it's the one that
+        // changes what a click does. The Danger appearance is what the settings screen already
+        // uses for "this one behaves differently from its neighbours" (Reset all hotkeys), so
+        // the docked toggle borrows it. Off, it goes back to whatever the XAML asked for.
+        DragToggle.Appearance = on ? Wpf.Ui.Controls.ControlAppearance.Danger : _dragToggleAppearance;
         // Persist so closing the launcher while in drag mode reopens it the same way next time.
         // Fire-and-forget: persistence is sub-ms (single SQLite key write).
         _ = _store.SaveDragModeAsync(on, CancellationToken.None);
@@ -706,6 +726,27 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     private void OnTabClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is Border b && b.Tag is string tabKey) SwitchTab(tabKey);
+    }
+
+    /// <summary>Hovering a tab header mid-drag switches to that page (issue #15). Moving a cell
+    /// to another tab is otherwise impossible: the drag has to end on the destination slot, and
+    /// that slot sits on a page the user can't reach while the mouse button is down. Same
+    /// gesture Explorer and every browser use for their own tab strips.
+    ///
+    /// The header itself never accepts the drop. Effects stays None, so the cursor keeps
+    /// saying "not here" and the user still has to release over a real cell. Switching rebuilds
+    /// the strip underneath the pointer, which ends this Border's drag interaction; the newly
+    /// materialised header takes over on the next DragOver, and SwitchTab's own "already on this
+    /// tab" guard keeps that from looping.</summary>
+    private void OnTabDragOver(object sender, DragEventArgs e)
+    {
+        if (!_dragMode) return;
+        if (sender is not Border b || b.Tag is not string tabKey) return;
+        if (!e.Data.GetDataPresent(CellDragFormat) && !e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+
+        SwitchTab(tabKey);
+        e.Effects = DragDropEffects.None;
+        e.Handled = true;
     }
 
     private void OnTabRightClick(object sender, MouseButtonEventArgs e)
@@ -924,7 +965,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
                 .GetRequiredService<AresToys.App.Services.WorkflowRunner>(_services)
                 .RunDetached(cell.WorkflowId);
-            BeginHide();
+            HideAfterFire();
             return;
         }
 
@@ -937,7 +978,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             {
                 _logger.LogInformation("LauncherWindow: activated existing window for {Key} (title='{Title}' proc='{Proc}')",
                     cell.ComposedKey, cell.WindowTitle, cell.ProcessName);
-                BeginHide();
+                HideAfterFire();
                 return;
             }
 
@@ -967,16 +1008,20 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             // process's integrity level, which is what unprivileged apps want.
             if (cell.RunAsAdmin) psi.Verb = "runas";
 
-            Process.Start(psi);
+            var started = Process.Start(psi);
             _logger.LogInformation("LauncherWindow: fired {Key} → {Path} {Args} (admin={Admin}, mode={Mode})",
                 cell.ComposedKey, path, args, cell.RunAsAdmin, cell.WindowMode);
+            // Minimise-after-startup can't be expressed as a window style: it waits for the app's
+            // window and puts it down afterwards. See WindowMinimizer.
+            if (cell.WindowMode == LauncherWindowMode.MinimizeAfterStartup)
+                WindowMinimizer.MinimizeWhenReady(started, path, _logger);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "LauncherWindow: failed to launch cell {Key} → {Path}",
                 cell.ComposedKey, cell.Path);
         }
-        BeginHide();   // one-shot menu: summon, fire, dismiss (deferred — see BeginClose).
+        HideAfterFire();
     }
 
     private static ProcessWindowStyle MapWindowMode(LauncherWindowMode mode) => mode switch
@@ -1011,6 +1056,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             KeyChar = cell.KeyChar;
             Label = cell.Label;
             Path = cell.Path;
+            HasWorkflow = cell.HasWorkflow;
             ComposedKey = cell.ComposedKey;
             Icon = icon;
             CellVisibility = matchesFilter ? Visibility.Visible : Visibility.Hidden;
@@ -1023,6 +1069,13 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         /// <summary>Drives ToolTipService.IsEnabled — false on empty cells so WPF doesn't pop
         /// a hollow rectangle when the user hovers an unmapped slot.</summary>
         public bool HasPath => !string.IsNullOrWhiteSpace(Path);
+        /// <summary>This cell runs a workflow instead of launching a path.</summary>
+        public bool HasWorkflow { get; }
+        /// <summary>The slot holds something, by either route. What the context menu keys off:
+        /// a workflow cell has no Path, and binding those entries to <see cref="HasPath"/> left
+        /// it with nothing but Paste, leaving no way back into the editor short of overwriting the
+        /// cell (issue #17).</summary>
+        public bool IsConfigured => HasPath || HasWorkflow;
         /// <summary>Glyph shown on the cell — uses the user's keyboard layout so an Italian
         /// QWERTY shows "ò" / "-" instead of the canonical US ";" / "/". Storage stays US so
         /// KeyDown matching keeps working regardless of layout.</summary>

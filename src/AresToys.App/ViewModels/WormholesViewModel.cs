@@ -93,6 +93,10 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// kept out of the tiles.</summary>
     [ObservableProperty] private bool _hideServiceFiles = true;
 
+    /// <summary>When true (default) shortcut tiles (.lnk and .url alike) carry Explorer's little
+    /// arrow in their bottom-left corner.</summary>
+    [ObservableProperty] private bool _shortcutArrowOverlay = true;
+
     /// <summary>Snap drag / resize to a <see cref="SnapGridSizePx"/> lattice anchored to the
     /// monitor's work area.</summary>
     [ObservableProperty] private bool _snapToGrid;
@@ -132,6 +136,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         ExpandCollapsedOnHover = _defaults.ExpandCollapsedOnHover;
         OpenWithOneClick = _defaults.OpenWithOneClick;
         HideServiceFiles = _defaults.HideServiceFiles;
+        ShortcutArrowOverlay = _defaults.ShortcutArrowOverlay;
         SnapToGrid = _defaults.SnapToGrid;
         SnapGridSizePx = _defaults.SnapGridSizePx;
         SnapToWormholes = _defaults.SnapToWormholes;
@@ -228,6 +233,12 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetOpenWithOneClickAsync(value, CancellationToken.None);
     }
 
+    partial void OnShortcutArrowOverlayChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetShortcutArrowOverlayAsync(value, CancellationToken.None);
+    }
+
     partial void OnHideServiceFilesChanged(bool value)
     {
         if (_suppressDefaultsPersist) return;
@@ -309,6 +320,7 @@ public sealed partial class WormholesViewModel : ObservableObject
             ExpandCollapsedOnHover  = _defaults.ExpandCollapsedOnHover;
             OpenWithOneClick        = _defaults.OpenWithOneClick;
             HideServiceFiles        = _defaults.HideServiceFiles;
+            ShortcutArrowOverlay    = _defaults.ShortcutArrowOverlay;
             SnapToGrid              = _defaults.SnapToGrid;
             SnapGridSizePx          = _defaults.SnapGridSizePx;
             SnapToWormholes         = _defaults.SnapToWormholes;

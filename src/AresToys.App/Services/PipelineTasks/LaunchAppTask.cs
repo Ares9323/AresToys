@@ -20,9 +20,14 @@ public sealed class LaunchAppTask : IPipelineTask
 {
     public const string TaskId = "arestoys.launch-app";
 
+    private readonly IToastNotifier _notifier;
     private readonly ILogger<LaunchAppTask> _logger;
 
-    public LaunchAppTask(ILogger<LaunchAppTask> logger) { _logger = logger; }
+    public LaunchAppTask(IToastNotifier notifier, ILogger<LaunchAppTask> logger)
+    {
+        _notifier = notifier;
+        _logger = logger;
+    }
 
     public string Id => TaskId;
     public string DisplayName => "Launch app";
@@ -40,9 +45,14 @@ public sealed class LaunchAppTask : IPipelineTask
         {
             rawPath = fromBag;
         }
+        // A launch that doesn't happen leaves nothing behind on screen (no window, no error
+        // dialog), so without this the step is indistinguishable from one that worked. Opt-out
+        // rather than opt-in: the toast only ever appears when something actually went wrong.
+        var notifyOnError = (bool?)config?["notifyOnError"] ?? true;
         if (string.IsNullOrWhiteSpace(rawPath))
         {
             _logger.LogWarning("LaunchAppTask: no path configured + no bag.text; skipping");
+            if (notifyOnError) _notifier.Show("AresToys", "Launch app: no path configured, and nothing to take from the previous step.");
             return Task.CompletedTask;
         }
         var path = Environment.ExpandEnvironmentVariables(rawPath).Trim();
@@ -54,15 +64,20 @@ public sealed class LaunchAppTask : IPipelineTask
         var psi = BuildStartInfo(path, args, workingDir, windowMode, runAsAdmin);
         try
         {
-            Process.Start(psi);
+            var started = Process.Start(psi);
             _logger.LogInformation("LaunchAppTask: launched {Path} {Args} (admin={Admin}, mode={Mode})",
-                psi.FileName, args, runAsAdmin, psi.WindowStyle);
+                psi.FileName, args, runAsAdmin, windowMode ?? nameof(LauncherWindowMode.Normal));
+            if (IsMinimizeAfterStartup(windowMode))
+                WindowMinimizer.MinimizeWhenReady(started, psi.FileName, _logger);
         }
         catch (Exception ex)
         {
             // Includes the user cancelling the UAC prompt on an elevated launch (Win32Exception
             // 1223) — a warning, not a workflow-breaking error.
             _logger.LogWarning(ex, "LaunchAppTask: failed to launch {Path}", psi.FileName);
+            // The shell's own message is the useful part here ("The directory name is invalid",
+            // "The system cannot find the file specified"), so it goes in verbatim.
+            if (notifyOnError) _notifier.Show("AresToys", $"Launch app failed: {ex.Message}");
         }
         return Task.CompletedTask;
     }
@@ -98,6 +113,15 @@ public sealed class LaunchAppTask : IPipelineTask
         if (runAsAdmin) psi.Verb = "runas";
         return psi;
     }
+
+    /// <summary>Does this step ask for the after-the-fact minimise? Kept next to the parser so
+    /// the two readings of <c>windowMode</c> stay in step: MinimizeAfterStartup deliberately
+    /// maps to a NORMAL window style, because the whole point is to let the app open the way it
+    /// wants and only then put it down. Unparseable values answer false, same "behave like
+    /// Normal" fallback the style parser applies.</summary>
+    public static bool IsMinimizeAfterStartup(string? windowMode) =>
+        Enum.TryParse<LauncherWindowMode>(windowMode, ignoreCase: true, out var mode)
+        && mode == LauncherWindowMode.MinimizeAfterStartup;
 
     /// <summary>Parse the step's <c>windowMode</c> string into a window style. Unknown or missing
     /// values fall back to Normal so an old profile (saved before this option existed) or a

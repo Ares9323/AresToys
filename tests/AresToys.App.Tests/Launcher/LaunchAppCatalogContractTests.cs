@@ -33,6 +33,24 @@ public sealed class LaunchAppCatalogContractTests
     }
 
     [Fact]
+    public void TheEditorOffersTheNotifyOnFailureToggle()
+    {
+        Assert.Contains(Descriptor.BoolParameters ?? [], p => p.Key == "notifyOnError");
+    }
+
+    [Fact]
+    public void FailureNotificationsAreOnUnlessTheUserTurnsThemOff()
+    {
+        // A launch that doesn't happen leaves no trace on screen, so the default is opt-out:
+        // the toast only ever fires on an actual failure. The task reads the same default when
+        // the key is missing, which is what keeps profiles written before this option honest.
+        var config = JsonNode.Parse(Descriptor.DefaultConfigJson!)!.AsObject();
+
+        Assert.True((bool?)config["notifyOnError"]);
+        Assert.True((Descriptor.BoolParameters ?? []).Single(p => p.Key == "notifyOnError").DefaultValue);
+    }
+
+    [Fact]
     public void PickingAShortcutForThePathUnwrapsIt()
     {
         var path = (Descriptor.StringParameters ?? []).Single(p => p.Key == "path");

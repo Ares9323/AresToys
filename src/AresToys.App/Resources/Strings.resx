@@ -57,6 +57,7 @@
   <data name="Common_Search" xml:space="preserve"><value>Search…</value></data>
   <data name="Common_Configure" xml:space="preserve"><value>Configure…</value></data>
   <data name="Common_Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="Common_Run" xml:space="preserve"><value>Run</value></data>
   <data name="Common_ResetAll" xml:space="preserve"><value>Reset all</value></data>
   <data name="Common_ResetToDefaults" xml:space="preserve"><value>Reset to defaults</value></data>
   <data name="Common_Import" xml:space="preserve"><value>Import…</value></data>
@@ -206,6 +207,7 @@
   <data name="LauncherCellEdit_WindowModeMinimized" xml:space="preserve"><value>Minimized</value></data>
   <data name="LauncherCellEdit_WindowModeMaximized" xml:space="preserve"><value>Maximized</value></data>
   <data name="LauncherCellEdit_WindowModeHidden" xml:space="preserve"><value>Hidden</value></data>
+  <data name="LauncherCellEdit_WindowModeMinimizeAfterStartup" xml:space="preserve"><value>Minimize after startup</value></data>
   <data name="LauncherCellEdit_WindowTitle" xml:space="preserve"><value>Window title (optional)</value></data>
   <data name="LauncherCellEdit_ProcessName" xml:space="preserve"><value>Process name (optional)</value></data>
   <data name="LauncherCellEdit_Icon" xml:space="preserve"><value>Icon</value></data>
@@ -228,7 +230,7 @@
   <data name="LauncherCellEdit_WorkflowTooltip" xml:space="preserve"><value>Run a workflow when this key is pressed, instead of launching the path — any workflow you can wire to a tray click. A cell with a workflow runs only that: path, args, elevation and window mode describe how to start a program and don't apply.</value></data>
   <data name="LauncherCellEdit_ClearWorkflow" xml:space="preserve"><value>Clear the workflow (back to an ordinary launch cell).</value></data>
   <data name="LauncherCellEdit_RunAsAdminTooltip" xml:space="preserve"><value>Launch with the "runas" verb so Windows prompts UAC for elevation. Use sparingly — admin processes can change system state.</value></data>
-  <data name="LauncherCellEdit_WindowModeTooltip" xml:space="preserve"><value>How the launched window appears initially. Most GUI apps honour Maximized/Minimized; some ignore the hint. Hidden runs the process without showing a window — useful for headless tasks.</value></data>
+  <data name="LauncherCellEdit_WindowModeTooltip" xml:space="preserve"><value>How the launched window appears initially. Most GUI apps honour Maximized/Minimized; some ignore the hint. Hidden runs the process without showing a window — useful for headless tasks. Minimize after startup opens the app normally and puts it down as soon as its window appears: use it for the apps that answer Minimized by showing nothing at all.</value></data>
   <data name="LauncherCellEdit_WindowTitlePlaceholder" xml:space="preserve"><value>(if a window with this title is open, focus it instead of launching)</value></data>
   <data name="LauncherCellEdit_PickWindow" xml:space="preserve"><value>Pick from currently-open windows…</value></data>
   <data name="LauncherCellEdit_ProcessNamePlaceholder" xml:space="preserve"><value>(if a process with this name is running, focus it — e.g. notepad)</value></data>
@@ -401,6 +403,8 @@
   <data name="Wormhole_AutoDisableTopmostOnLaunchTooltip" xml:space="preserve"><value>When ON, any launch gesture inside a wormhole (double-click a tile, Enter, open folder, drop a file on an executable tile) flips Topmost OFF on every wormhole and sends them behind the foreground app. Lets you toggle wormholes above a fullscreen app, click to launch, and have them auto-drop behind the launched app without a second hotkey press.</value></data>
   <data name="Wormhole_WebLinkFavicons" xml:space="preserve"><value>Favicons for web links</value></data>
   <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>When ON, web links (.url files) show the real site favicon instead of the generic browser icon. The favicon is fetched once per site (directly from the site, falling back to a favicon service) and written into the .url so it also shows in Explorer. Turn OFF to make no network calls and leave .url files untouched.</value></data>
+  <data name="Wormhole_ShortcutArrow" xml:space="preserve"><value>Arrow on shortcut icons</value></data>
+  <data name="Wormhole_ShortcutArrowTooltip" xml:space="preserve"><value>When ON (the default) a shortcut tile carries the little arrow in its bottom-left corner, the way Explorer marks one. Covers both kinds: .lnk shortcuts and .url web links. Turn it OFF for a cleaner wall of icons, which is usually what you want in a wormhole where everything is a shortcut and the arrow tells you nothing.</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Keep wormholes visible on "Show desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>When ON, Win+D and the taskbar's far-corner "Show desktop" button no longer bury the wormholes: they stay on the revealed desktop like the icons do. Wormholes join the desktop's z-order group, so they still go behind any app you bring to the front. Turn OFF to make them disappear with the other windows.</value></data>
   <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Show collapsed wormholes on hover</value></data>
@@ -561,6 +565,7 @@
   <data name="Hotkeys_Hotkey" xml:space="preserve"><value>Hotkey</value></data>
   <data name="Hotkeys_BackToList" xml:space="preserve"><value>Back to the hotkey list</value></data>
   <data name="Hotkeys_DuplicateTooltip" xml:space="preserve"><value>Clone this workflow into a new editable copy</value></data>
+  <data name="Hotkeys_RunTooltip" xml:space="preserve"><value>Run this workflow right now, without assigning it a hotkey</value></data>
   <data name="Hotkeys_RemoveTooltip" xml:space="preserve"><value>Delete this workflow (built-ins can't be deleted)</value></data>
   <data name="Hotkeys_ResetTooltip" xml:space="preserve"><value>Restore this built-in workflow's original steps and hotkey.</value></data>
 
@@ -851,6 +856,7 @@
   <data name="EnumValue_Maximized" xml:space="preserve"><value>Maximized</value></data>
   <data name="EnumValue_Minimized" xml:space="preserve"><value>Minimized</value></data>
   <data name="EnumValue_Hidden" xml:space="preserve"><value>Hidden</value></data>
+  <data name="EnumValue_MinimizeAfterStartup" xml:space="preserve"><value>Minimize after startup</value></data>
   <data name="EnumValue_Solid" xml:space="preserve"><value>Solid</value></data>
   <data name="EnumValue_Dash" xml:space="preserve"><value>Dash</value></data>
   <data name="EnumValue_Dot" xml:space="preserve"><value>Dot</value></data>
@@ -988,6 +994,7 @@
   <data name="WorkflowAction_arestoys_open_launcher_drag_mode" xml:space="preserve"><value>Open launcher (drag mode)</value></data>
 
   <!-- Per-parameter labels (only the most common bool / string knobs). -->
+  <data name="WorkflowActionParam_arestoys_launch_app_notifyOnError" xml:space="preserve"><value>Notify when the launch fails</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_fullscreen" xml:space="preserve"><value>Open fullscreen on active monitor (fit to screen)</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_default_tool" xml:space="preserve"><value>Default tool</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_abortOnCancel" xml:space="preserve"><value>Interrupt workflow if canceled</value></data>
@@ -1044,7 +1051,7 @@
   <data name="WorkflowActionDesc_arestoys_save_qr_as_svg" xml:space="preserve"><value>Same as Save QR as image but produces a scalable SVG document — sharp at any size, ideal for print or slides.</value></data>
   <data name="WorkflowActionDesc_arestoys_copy_qr_to_clipboard" xml:space="preserve"><value>Generate a QR PNG and place it on the Windows clipboard. Paste-ready in any app that accepts images.</value></data>
   <data name="WorkflowActionDesc_arestoys_pin_to_screen" xml:space="preserve"><value>Show the captured image in an always-on-top window. Drag to move, wheel to zoom, right-click or Esc to close.</value></data>
-  <data name="WorkflowActionDesc_arestoys_launch_app" xml:space="preserve"><value>Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Browsing to a .lnk fills the step in from the shortcut: real target, its arguments, its window state and its "run as administrator" setting. Window picks the state the app starts in; Run as administrator raises the UAC prompt.</value></data>
+  <data name="WorkflowActionDesc_arestoys_launch_app" xml:space="preserve"><value>Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Browsing to a .lnk fills the step in from the shortcut: real target, its arguments, its window state and its "run as administrator" setting. You can also drag a file, folder or Start-menu app straight onto the Path field. Window picks the state the app starts in, but it's a request handed to the app rather than something Windows enforces: apps that live in the tray often show no window at all when it's set to Minimized or Hidden, which looks exactly like a launch that didn't happen. Minimize after startup sidesteps that: the app opens normally and is put down as soon as its window appears. Run as administrator raises the UAC prompt.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_file" xml:space="preserve"><value>Open a file or folder with its default OS-registered handler — same as double-clicking in Explorer.</value></data>
   <data name="WorkflowActionDesc_arestoys_run_command" xml:space="preserve"><value>Run a shell command line via cmd /c — supports PATH lookups, pipes, redirects, chained commands. Fire-and-forget.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_launcher_menu" xml:space="preserve"><value>Show the launcher overlay — a 3×10 keyboard grid where every printable key fires a path / shortcut / shell target.</value></data>

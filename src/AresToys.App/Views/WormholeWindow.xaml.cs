@@ -232,6 +232,13 @@ public partial class WormholeWindow : Window
                 CloseSearchBox();
         };
 
+        // Issue #13: the wormhole losing activation (clicking another app, the desktop, or a
+        // sibling wormhole) is the other half of "deselect on click outside". A click on another
+        // wormhole's tile never routes through THIS window's OnContentAreaMouseDown at all, so
+        // that handler alone can't catch it. ClearItemSelection() is the same no-broadcast path
+        // the manager already uses when a sibling steals the selection.
+        Deactivated += (_, _) => ClearItemSelection();
+
         // Post-launch backtrack: when the user clicks an icon to launch an app while the
         // auto-disable-on-launch setting is ON, we set _pendingPostLaunchBacktrack and the
         // batch SetAllTopmostAsync(false) sends every wormhole behind. The launched app takes
@@ -1389,6 +1396,17 @@ public partial class WormholeWindow : Window
     private void OnContentAreaMouseDown(object sender, MouseButtonEventArgs e)
     {
         _manager?.NotifyWormholeFocused(this);
+
+        // Issue #13: a tile's "Selected" overlay used to stick forever. Clicking another tile
+        // moved it, but there was no gesture that cleared it. This handler sits on OuterFrame, so
+        // it sees every mouse-down in the window (header strip + empty content area alike) once it
+        // bubbles past whatever handled it first. If the click didn't land on an item tile or an
+        // interactive control (button/textbox: those have their own click semantics and clicking
+        // them isn't "clicking outside the wormhole's items"), treat it as a background click and
+        // drop the selection, matching Explorer's "click empty space to deselect".
+        if (e.ChangedButton == MouseButton.Left && !IsClickOnItemOrControl(e.OriginalSource as DependencyObject))
+            ItemsHost.UnselectAll();
+
         if (_record.IsLocked) return;
         if (e.ChangedButton != MouseButton.Left) return;
         if (e.OriginalSource is System.Windows.Controls.Button) return;
@@ -1398,6 +1416,26 @@ public partial class WormholeWindow : Window
             catch (InvalidOperationException) { }
         }
     }
+
+    /// <summary>Walks up from the click's OriginalSource looking for a ListBoxItem (a tile) or a
+    /// button/textbox (header controls: chevron, search, lock, hamburger, title editor). Stops at
+    /// the window root. Used by <see cref="OnContentAreaMouseDown"/> to tell a genuine background
+    /// click apart from one that's about to be handled by a tile or a chrome control.</summary>
+    private bool IsClickOnItemOrControl(DependencyObject? source)
+    {
+        for (var d = source; d is not null && !ReferenceEquals(d, this); d = GetVisualOrLogicalParent(d))
+        {
+            if (d is System.Windows.Controls.ListBoxItem) return true;
+            if (d is System.Windows.Controls.Primitives.ButtonBase) return true;
+            if (d is System.Windows.Controls.TextBox) return true;
+        }
+        return false;
+    }
+
+    private static DependencyObject? GetVisualOrLogicalParent(DependencyObject d) =>
+        d is Visual or System.Windows.Media.Media3D.Visual3D
+            ? VisualTreeHelper.GetParent(d) ?? LogicalTreeHelper.GetParent(d)
+            : LogicalTreeHelper.GetParent(d);
 
     private void OnChevronClicked(object sender, RoutedEventArgs e) => ToggleRoll();
 
@@ -2325,6 +2363,18 @@ public partial class WormholeWindow : Window
         var screen = PointToScreen(e.GetPosition(this));
         AresToys.App.Services.Shell.ShellContextMenu.Show(vm.AbsolutePath, this, screen);
         e.Handled = true;
+
+        // Show() is documented as blocking until the picked verb's own invocation finishes,
+        // including the modal Properties sheet reachable from the shell menu, which is where
+        // "Change Icon…" lives. Icons are resolved once at WormholeItemViewModel construction and
+        // IconService caches the bitmap per path (see IconService.Invalidate), so a shell-driven
+        // icon change would otherwise sit stale in both the cache and this tile's Icon property
+        // until the app restarts. We don't know which verb (if any) the user picked, so evict +
+        // re-resolve unconditionally: for the common case (Open, Copy, …) this is just a cheap
+        // no-op re-extraction, not a hot path.
+        _icons.Invalidate(vm.AbsolutePath);
+        var refreshedIcon = _icons.GetIconAtSize(vm.AbsolutePath, vm.IconSizePx);
+        if (refreshedIcon is not null) vm.Icon = refreshedIcon;
     }
 
     /// <summary>Keyboard shortcuts on the items list: Del / Shift+Del recycle or permanently

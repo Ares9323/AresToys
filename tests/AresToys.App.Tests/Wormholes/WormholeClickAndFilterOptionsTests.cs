@@ -27,6 +27,33 @@ public sealed class WormholeClickAndFilterOptionsTests
     }
 
     [Fact]
+    public void ShortcutTilesCarryExplorersArrowByDefault()
+    {
+        Assert.True(Build(new FakeSettingsStore()).ShortcutArrowOverlay);
+    }
+
+    [Fact]
+    public async Task TurningTheShortcutArrowOffSurvivesAReloadAndAnnouncesItself()
+    {
+        // The announcement is what drops the icon cache: the arrow is composed into the bitmap
+        // when it's extracted, so without it the open wormholes would keep their arrows until
+        // the app restarted.
+        var store = new FakeSettingsStore();
+        var defaults = Build(store);
+        var announced = 0;
+        defaults.ShortcutArrowOverlayChanged += (_, _) => announced++;
+
+        await defaults.SetShortcutArrowOverlayAsync(false, CancellationToken.None);
+        await defaults.SetShortcutArrowOverlayAsync(false, CancellationToken.None);   // no-op
+
+        Assert.Equal(1, announced);
+
+        var reloaded = Build(store);
+        await reloaded.LoadAsync(CancellationToken.None);
+        Assert.False(reloaded.ShortcutArrowOverlay);
+    }
+
+    [Fact]
     public void ExpandingCollapsedWormholesOnHoverIsOffByDefault()
     {
         Assert.False(Build(new FakeSettingsStore()).ExpandCollapsedOnHover);

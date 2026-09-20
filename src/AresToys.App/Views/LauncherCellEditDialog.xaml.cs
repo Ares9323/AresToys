@@ -71,6 +71,7 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
                 LauncherWindowMode.Minimized  => Loc("LauncherCellEdit_WindowModeMinimized"),
                 LauncherWindowMode.Maximized  => Loc("LauncherCellEdit_WindowModeMaximized"),
                 LauncherWindowMode.Hidden     => Loc("LauncherCellEdit_WindowModeHidden"),
+                LauncherWindowMode.MinimizeAfterStartup => Loc("LauncherCellEdit_WindowModeMinimizeAfterStartup"),
                 _ => m.ToString(),
             }))
             .ToList();

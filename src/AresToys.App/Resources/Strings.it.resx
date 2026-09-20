@@ -57,6 +57,7 @@
   <data name="Common_Search" xml:space="preserve"><value>Cerca…</value></data>
   <data name="Common_Configure" xml:space="preserve"><value>Configura…</value></data>
   <data name="Common_Duplicate" xml:space="preserve"><value>Duplica</value></data>
+  <data name="Common_Run" xml:space="preserve"><value>Esegui</value></data>
   <data name="Common_ResetAll" xml:space="preserve"><value>Reimposta tutto</value></data>
   <data name="Common_ResetToDefaults" xml:space="preserve"><value>Ripristina predefiniti</value></data>
   <data name="Common_Import" xml:space="preserve"><value>Importa…</value></data>
@@ -198,6 +199,7 @@
   <data name="LauncherCellEdit_WindowModeMinimized" xml:space="preserve"><value>Minimizzata</value></data>
   <data name="LauncherCellEdit_WindowModeMaximized" xml:space="preserve"><value>Massimizzata</value></data>
   <data name="LauncherCellEdit_WindowModeHidden" xml:space="preserve"><value>Nascosta</value></data>
+  <data name="LauncherCellEdit_WindowModeMinimizeAfterStartup" xml:space="preserve"><value>Riduci dopo l&apos;avvio</value></data>
   <data name="LauncherCellEdit_WindowTitle" xml:space="preserve"><value>Titolo finestra (opzionale)</value></data>
   <data name="LauncherCellEdit_ProcessName" xml:space="preserve"><value>Nome processo (opzionale)</value></data>
   <data name="LauncherCellEdit_Icon" xml:space="preserve"><value>Icona</value></data>
@@ -220,7 +222,7 @@
   <data name="LauncherCellEdit_WorkflowTooltip" xml:space="preserve"><value>Esegue un workflow alla pressione del tasto, invece di lanciare il percorso: qualunque workflow che puoi associare a un click sulla tray. Una cella con un workflow esegue solo quello: percorso, argomenti, elevazione e modalità finestra descrivono come avviare un programma e non si applicano.</value></data>
   <data name="LauncherCellEdit_ClearWorkflow" xml:space="preserve"><value>Rimuove il workflow (torna a una normale cella di avvio).</value></data>
   <data name="LauncherCellEdit_RunAsAdminTooltip" xml:space="preserve"><value>Avvia con il verbo "runas" così Windows mostra il prompt UAC per l'elevazione. Usare con parsimonia — i processi admin possono modificare lo stato di sistema.</value></data>
-  <data name="LauncherCellEdit_WindowModeTooltip" xml:space="preserve"><value>Come appare la finestra all'avvio. La maggior parte delle app GUI rispetta Massimizzata/Minimizzata; alcune ignorano l'hint. Nascosta esegue il processo senza mostrare una finestra — utile per task headless.</value></data>
+  <data name="LauncherCellEdit_WindowModeTooltip" xml:space="preserve"><value>Come appare la finestra all'avvio. La maggior parte delle app GUI rispetta Massimizzata/Minimizzata; alcune ignorano l'hint. Nascosta esegue il processo senza mostrare una finestra — utile per task headless. Riduci dopo l&apos;avvio apre l&apos;app normalmente e la riduce appena compare la finestra: utile per le app che, con Minimizzata, non mostrano nulla.</value></data>
   <data name="LauncherCellEdit_WindowTitlePlaceholder" xml:space="preserve"><value>(se una finestra con questo titolo è aperta, focalizzala invece di lanciare)</value></data>
   <data name="LauncherCellEdit_PickWindow" xml:space="preserve"><value>Scegli tra le finestre aperte…</value></data>
   <data name="LauncherCellEdit_ProcessNamePlaceholder" xml:space="preserve"><value>(se un processo con questo nome è in esecuzione, focalizzalo — es. notepad)</value></data>
@@ -386,6 +388,8 @@
   <data name="Wormhole_AutoDisableTopmostOnLaunchTooltip" xml:space="preserve"><value>Se attivo, ogni gesto di apertura da un wormhole (doppio click su una tile, Enter, apri cartella, drop di un file su una tile eseguibile) disattiva Topmost su tutti i wormhole e li manda dietro l'app in primo piano. Comodo con la hotkey di toggle: la prima pressione porta i wormhole sopra un'app fullscreen, click su un'icona per lanciare, e i wormhole scendono automaticamente dietro l'app appena lanciata senza dover premere di nuovo la hotkey.</value></data>
   <data name="Wormhole_WebLinkFavicons" xml:space="preserve"><value>Favicon per i link web</value></data>
   <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>Se attivo, i link web (file .url) mostrano la favicon reale del sito invece dell'icona generica del browser. La favicon viene scaricata una volta per sito (direttamente dal sito, con fallback a un servizio di favicon) e scritta nel .url, così si vede anche in Esplora file. Disattiva per non fare alcuna chiamata di rete e lasciare i file .url intatti.</value></data>
+  <data name="Wormhole_ShortcutArrow" xml:space="preserve"><value>Freccia sulle icone dei collegamenti</value></data>
+  <data name="Wormhole_ShortcutArrowTooltip" xml:space="preserve"><value>Se attivo (predefinito) le icone dei collegamenti portano la freccetta in basso a sinistra, come fa Esplora file. Vale per entrambi i tipi: collegamenti .lnk e link web .url. Disattiva per avere icone più pulite: di solito è quello che serve in un wormhole dove è tutto un collegamento e la freccia non distingue nulla.</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Mantieni le wormhole visibili con "Mostra desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>Se attivo, Win+D e il pulsante "Mostra desktop" nell'angolo della barra delle applicazioni non seppelliscono più le wormhole: restano sul desktop scoperto, come le icone. Le wormhole entrano nel gruppo di z-order del desktop, quindi continuano ad andare dietro a qualsiasi app porti in primo piano. Disattiva per farle sparire insieme alle altre finestre.</value></data>
   <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Mostra le wormhole collassate al passaggio del mouse</value></data>
@@ -539,6 +543,7 @@
   <data name="Hotkeys_Hotkey" xml:space="preserve"><value>Scorciatoia</value></data>
   <data name="Hotkeys_BackToList" xml:space="preserve"><value>Torna alla lista delle scorciatoie</value></data>
   <data name="Hotkeys_DuplicateTooltip" xml:space="preserve"><value>Clona questo workflow in una nuova copia modificabile</value></data>
+  <data name="Hotkeys_RunTooltip" xml:space="preserve"><value>Esegui subito questo workflow, senza assegnargli una scorciatoia</value></data>
   <data name="Hotkeys_RemoveTooltip" xml:space="preserve"><value>Elimina questo workflow (i predefiniti non possono essere eliminati)</value></data>
   <data name="Hotkeys_ResetTooltip" xml:space="preserve"><value>Ripristina i passaggi e la scorciatoia originali di questo workflow predefinito.</value></data>
 
@@ -798,6 +803,7 @@
   <data name="EnumValue_Maximized" xml:space="preserve"><value>Massimizzata</value></data>
   <data name="EnumValue_Minimized" xml:space="preserve"><value>Ridotta a icona</value></data>
   <data name="EnumValue_Hidden" xml:space="preserve"><value>Nascosta</value></data>
+  <data name="EnumValue_MinimizeAfterStartup" xml:space="preserve"><value>Riduci dopo l&apos;avvio</value></data>
   <data name="EnumValue_Solid" xml:space="preserve"><value>Solido</value></data>
   <data name="EnumValue_Dash" xml:space="preserve"><value>Tratteggio</value></data>
   <data name="EnumValue_Dot" xml:space="preserve"><value>Punto</value></data>
@@ -928,6 +934,7 @@
   <data name="WorkflowActionParam_arestoys_open_settings_tab" xml:space="preserve"><value>Sezione</value></data>
   <data name="WorkflowAction_arestoys_open_launcher_drag_mode" xml:space="preserve"><value>Apri launcher (modalità drag)</value></data>
 
+  <data name="WorkflowActionParam_arestoys_launch_app_notifyOnError" xml:space="preserve"><value>Notifica se l'avvio fallisce</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_fullscreen" xml:space="preserve"><value>Apri a schermo intero sul monitor attivo (fit to screen)</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_default_tool" xml:space="preserve"><value>Strumento predefinito</value></data>
   <data name="WorkflowActionParam_arestoys_open_editor_before_upload_abortOnCancel" xml:space="preserve"><value>Interrompi il workflow se annullato</value></data>
@@ -982,7 +989,7 @@
   <data name="WorkflowActionDesc_arestoys_save_qr_as_svg" xml:space="preserve"><value>Come Salva QR come immagine ma produce un documento SVG scalabile — nitido a qualsiasi dimensione, ideale per stampa o slide.</value></data>
   <data name="WorkflowActionDesc_arestoys_copy_qr_to_clipboard" xml:space="preserve"><value>Genera un PNG QR e lo mette negli appunti di Windows. Pronto da incollare in qualsiasi app che accetta immagini.</value></data>
   <data name="WorkflowActionDesc_arestoys_pin_to_screen" xml:space="preserve"><value>Mostra l'immagine catturata in una finestra sempre in primo piano. Trascina per spostare, rotella per zoom, click destro o Esc per chiudere.</value></data>
-  <data name="WorkflowActionDesc_arestoys_launch_app" xml:space="preserve"><value>Avvia un eseguibile, collegamento o file batch. Il percorso supporta l'espansione %ENV%. Gli argomenti vengono passati alla destinazione. Scegliendo un .lnk lo step viene compilato dal collegamento: destinazione reale, argomenti, stato della finestra e impostazione "esegui come amministratore". Window sceglie lo stato in cui l'app si apre; Run as administrator mostra il prompt UAC.</value></data>
+  <data name="WorkflowActionDesc_arestoys_launch_app" xml:space="preserve"><value>Avvia un eseguibile, collegamento o file batch. Il percorso supporta l'espansione %ENV%. Gli argomenti vengono passati alla destinazione. Scegliendo un .lnk lo step viene compilato dal collegamento: destinazione reale, argomenti, stato della finestra e impostazione "esegui come amministratore". Puoi anche trascinare un file, una cartella o un'app del menu Start direttamente sul campo Path. Window sceglie lo stato in cui l'app si apre, ma è una richiesta passata all'app, non una regola imposta da Windows: le app che vivono nella tray spesso non mostrano alcuna finestra quando è impostato su Minimized o Hidden, e sembra che l'avvio non sia avvenuto. Riduci dopo l'avvio aggira il problema: l'app si apre normalmente e viene ridotta appena compare la finestra. Run as administrator mostra il prompt UAC.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_file" xml:space="preserve"><value>Apre un file o cartella con il gestore predefinito registrato nell'OS — come un doppio click in Esplora.</value></data>
   <data name="WorkflowActionDesc_arestoys_run_command" xml:space="preserve"><value>Esegue una riga di comando shell via cmd /c — supporta PATH, pipe, redirect, comandi concatenati. Fire-and-forget.</value></data>
   <data name="WorkflowActionDesc_arestoys_open_launcher_menu" xml:space="preserve"><value>Mostra l'overlay launcher — una griglia tastiera 3×10 in cui ogni tasto stampabile lancia un percorso / collegamento / target shell.</value></data>

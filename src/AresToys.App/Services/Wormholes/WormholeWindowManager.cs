@@ -98,6 +98,13 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _defaults.OpenWithOneClickChanged += (_, _) => RefreshAllLiveItemCursor();
         // The service-file filter decides which entries exist as tiles, so this one re-enumerates.
         _defaults.ServiceFilesVisibilityChanged += (_, _) => RefreshAllLivePortalItems();
+        // The shortcut arrow is painted into the bitmap when it's extracted, so flipping it means
+        // telling the icon service (which drops its cache) and then re-rendering every tile.
+        _defaults.ShortcutArrowOverlayChanged += (_, _) =>
+        {
+            _icons.ShowShortcutArrow = _defaults.ShortcutArrowOverlay;
+            RefreshAllLiveIconSize();
+        };
 
         // React to resolution / monitor / RDP display changes so Windows' automatic rescue of
         // off-screen top-level windows doesn't corrupt the saved wormhole layout. App-lifetime
@@ -703,6 +710,11 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     {
         if (_initialized) return;
         _initialized = true;
+
+        // Apply the persisted shortcut-arrow preference before the first tile is rendered: the
+        // arrow is baked into the icon at extraction time, so a later correction would mean
+        // throwing away a cache we've just filled. Defaults are hydrated before we get here.
+        _icons.ShowShortcutArrow = _defaults.ShortcutArrowOverlay;
 
         // Snapshot the records into an independent list — IWormholeStore.LoadAllAsync returns a
         // ReadOnlyCollection wrapping the store's internal cache, and SpawnWindow triggers WPF's

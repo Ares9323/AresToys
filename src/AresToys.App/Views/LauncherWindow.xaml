@@ -24,23 +24,24 @@
              carries the right cell's payload. The five entries match the conventional file-
              manager actions on a slot: jump to its source on disk, edit, copy/paste between
              slots (own clipboard, doesn't touch the OS clipboard), wipe.
-             Empty cells (HasPath=false) hide the entries that have nothing to operate on
-             (Open location / Edit / Copy / Delete) plus the surrounding separators — only
-             Paste stays available, since it's the one action that works on an empty slot
-             (drop a copied cell into the empty spot). -->
+             Edit and Paste are always there: Edit is how an empty slot gets filled in without
+             dragging something onto it, and it's the only way back into a workflow cell, which
+             has no Path at all (issue #17). The rest key off IsConfigured (a path OR a workflow)
+             and disappear on a slot that holds nothing, since they'd have nothing to act on.
+             Open location is narrower still: it needs a real path on disk, so a workflow cell
+             doesn't show it. -->
         <ContextMenu x:Key="LauncherCellMenu"
                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
             <MenuItem Header="{Markup:Loc Launcher_MenuOpenLocation}" Click="OnMenuOpenLocation"
                       Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
-            <MenuItem Header="{Markup:Loc Launcher_MenuEdit}"         Click="OnMenuEdit"
-                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
-            <Separator Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+            <MenuItem Header="{Markup:Loc Launcher_MenuEdit}"         Click="OnMenuEdit" />
+            <Separator Visibility="{Binding IsConfigured, Converter={StaticResource BoolToVisibility}}" />
             <MenuItem Header="{Markup:Loc Launcher_MenuCopy}"          Click="OnMenuCopy"
-                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+                      Visibility="{Binding IsConfigured, Converter={StaticResource BoolToVisibility}}" />
             <MenuItem Header="{Markup:Loc Launcher_MenuPaste}"         Click="OnMenuPaste" />
-            <Separator Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+            <Separator Visibility="{Binding IsConfigured, Converter={StaticResource BoolToVisibility}}" />
             <MenuItem Header="{Markup:Loc Launcher_MenuDelete}"        Click="OnMenuDelete"
-                      Visibility="{Binding HasPath, Converter={StaticResource BoolToVisibility}}" />
+                      Visibility="{Binding IsConfigured, Converter={StaticResource BoolToVisibility}}" />
         </ContextMenu>
     </ui:FluentWindow.Resources>
     <!-- Accent-tinted 2px frame around the whole window content (titlebar + body), matching
@@ -205,6 +206,9 @@
                                 Cursor="Hand"
                                 Tag="{Binding TabKey}"
                                 Height="44"
+                                AllowDrop="True"
+                                DragEnter="OnTabDragOver"
+                                DragOver="OnTabDragOver"
                                 Visibility="{Binding HeaderVisibility}"
                                 ToolTip="{Markup:Loc Launcher_TabRenameHint}">
                             <Border.Style>

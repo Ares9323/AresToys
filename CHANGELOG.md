@@ -3,6 +3,86 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.32] — 2026-09-20
+
+### Launcher
+- Edit is always in a cell's right-click menu now
+  ([#17](https://github.com/Ares9323/AresToys/issues/17)). A cell running a
+  workflow has no path, and the menu keyed every entry off having one, so the
+  only thing offered on such a cell was Paste and there was no way back into its
+  settings short of overwriting it. Empty slots get Edit too, which is the
+  keyboard-only way to fill one in. Copy and Delete now appear on any cell that
+  holds something, workflow cells included; Open file location still needs a
+  real path on disk.
+- A cell can be dragged to another page ([#15](https://github.com/Ares9323/AresToys/issues/15)).
+  In drag mode, holding a cell over a numbered tab switches to that page
+  mid-drag, so you can drop it on a slot that wasn't reachable while the mouse
+  button was down. The tab itself isn't a drop target: release over a cell, as
+  before.
+- The keyboard still launches while the launcher is docked. Docking changes what
+  the mouse means, since a left-click there is the drag-to-rearrange gesture, but
+  a keypress has no second job and a docked launcher is a panel you keep on
+  screen precisely to press keys at. Firing a cell this way leaves the window up
+  instead of dismissing it.
+- The dock toggle turns red while docked, the same treatment the settings screen
+  gives its reset buttons, so the mode you're in is visible at a glance.
+
+### Workflows
+- A workflow can be run from its own page ([#16](https://github.com/Ares9323/AresToys/issues/16)).
+  The header gained a Run button, first in the row next to Duplicate and Remove,
+  which fires the open workflow on the spot so you can try it out before
+  deciding which shortcut it deserves. Built-in workflows can be run this way
+  too. A rename you haven't committed yet is saved first, so what runs is what
+  you're looking at.
+- New window mode: **Minimize after startup**, for both the workflow step and
+  launcher cells. Minimized is only a request passed to the app, and some apps
+  answer it by showing no window at all, or by handing the launch to a copy
+  that's already running and exiting before anything is drawn: either way it
+  looks like the app never started. The new mode opens the app the way it likes
+  to be opened and puts its window down as soon as one appears, including a
+  window that belongs to an instance that was already running.
+- A file, a folder or an app from the Start menu can be dragged straight onto a
+  step's Path field, the way it can be dropped onto a launcher cell. It gets the
+  same treatment too: a shortcut is unwrapped into target, arguments, window
+  state and elevation, and a Store app, which Windows hands over as an id rather
+  than a path, is stored in the one form that actually launches it. Until now
+  the field refused every drop, because the step rows listen for drags of their
+  own to reorder the workflow.
+- "Launch application" says so when a launch fails, instead of leaving it in the
+  log. The shell's own reason is what you get ("The system cannot find the file
+  specified", "The directory name is invalid"), and a "Notify when the launch
+  fails" toggle turns it off for steps that are meant to fail quietly. Note that
+  a Window setting of Minimized or Hidden is a request passed to the app: some
+  apps show no window at all, which looks like a launch that never happened but
+  isn't one, and no notification appears because nothing failed.
+
+### Wormholes
+- Selecting a tile is no longer permanent ([#13](https://github.com/Ares9323/AresToys/issues/13)).
+  The "Selected" overlay used to be impossible to dismiss: it moved when you
+  clicked another tile and otherwise stayed put forever, because nothing in the
+  window ever cleared the selection on its own. Clicking empty space in a
+  wormhole now clears it, as it does in Explorer, and so does the wormhole
+  losing focus (clicking another app, the desktop, or a sibling wormhole).
+- An icon you pick yourself now sticks ([#14](https://github.com/Ares9323/AresToys/issues/14)).
+  On a web link the favicon service kept the site's icon in the shortcut's
+  `IconFile=` line, which is the same line Windows writes when you choose an
+  icon in Properties, so the next refresh put the favicon straight back over
+  your choice: the change looked like it had never been applied, and refreshing
+  made no difference. A link whose icon points anywhere outside AresToys' own
+  favicon cache is now left alone, and clearing the icon in Properties hands the
+  link back to the favicon service.
+- Icons also follow the file they come from. A resolved icon used to be kept for
+  the lifetime of the app, so a link re-pointed, a shortcut edited or a folder
+  given a custom icon all kept showing the old one until a restart. The cached
+  icon is now re-read whenever the file behind it has changed, and changing an
+  icon through a tile's right-click menu refreshes that tile on the spot.
+- New option in Settings → Wormholes: **Arrow on shortcut icons**, on by default.
+  Off, the tiles drop Explorer's little corner arrow, which is usually what you
+  want in a wormhole where everything is a shortcut and the arrow distinguishes
+  nothing. Web links (.url) now follow the same rule as .lnk shortcuts: they get
+  the arrow when the option is on, where before they never had one, so the two
+  kinds of shortcut finally look alike.
+
 ## [0.1.31] — 2026-09-20
 
 ### Clipboard

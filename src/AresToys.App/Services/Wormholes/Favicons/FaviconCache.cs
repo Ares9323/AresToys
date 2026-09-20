@@ -29,6 +29,26 @@ public sealed class FaviconCache
     /// <summary>True when a cached <c>.ico</c> already exists for the host.</summary>
     public bool Has(string host) => File.Exists(PathForHost(host));
 
+    /// <summary>Does this icon path belong to us? Windows stores the icon picked from a link's
+    /// Properties sheet in the very same <c>IconFile=</c> line the favicon write-through uses,
+    /// so this is what tells "a line we wrote" apart from "a choice the user made". Anything
+    /// outside this directory is the user's and must not be overwritten.</summary>
+    public bool Owns(string? iconPath)
+    {
+        if (string.IsNullOrWhiteSpace(iconPath)) return false;
+        try
+        {
+            var full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(iconPath.Trim()));
+            var root = Path.GetFullPath(_dir).TrimEnd(Path.DirectorySeparatorChar);
+            return full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            // Malformed path (invalid characters, a bare host name typed by hand): not ours.
+            return false;
+        }
+    }
+
     /// <summary>Write the icon bytes for a host, creating the cache directory on first use.
     /// Best-effort: returns false on IO failure rather than throwing into the caller's async void.</summary>
     public bool Save(string host, byte[] icoBytes)

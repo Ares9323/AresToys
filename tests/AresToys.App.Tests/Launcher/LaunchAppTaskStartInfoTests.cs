@@ -20,6 +20,30 @@ public sealed class LaunchAppTaskStartInfoTests
         Assert.True(psi.UseShellExecute);
     }
 
+    [Fact]
+    public void MinimizeAfterStartupStartsTheAppInANormalWindow()
+    {
+        // The minimising happens afterwards, through WindowMinimizer. Asking the shell for a
+        // minimised window here would reintroduce the very behaviour this mode exists to avoid:
+        // apps that answer the hint by showing no window at all.
+        var psi = LaunchAppTask.BuildStartInfo(@"C:\Windows\notepad.exe", "", "", "MinimizeAfterStartup", false);
+
+        Assert.Equal(ProcessWindowStyle.Normal, psi.WindowStyle);
+        Assert.True(LaunchAppTask.IsMinimizeAfterStartup("MinimizeAfterStartup"));
+    }
+
+    [Theory]
+    [InlineData("Minimized")]
+    [InlineData("Normal")]
+    [InlineData("Hidden")]
+    [InlineData("nonsense")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void NoOtherWindowModeAsksForTheAfterTheFactMinimise(string? mode)
+    {
+        Assert.False(LaunchAppTask.IsMinimizeAfterStartup(mode));
+    }
+
     [Theory]
     [InlineData("Maximized", ProcessWindowStyle.Maximized)]
     [InlineData("Minimized", ProcessWindowStyle.Minimized)]

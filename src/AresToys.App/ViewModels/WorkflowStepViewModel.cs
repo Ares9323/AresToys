@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -461,6 +461,11 @@ public sealed partial class StringParameterEntry : ObservableObject
     public bool ShowFileButton => Picker is StringPickerKind.File or StringPickerKind.FileOrFolder;
     public bool ShowFolderButton => Picker is StringPickerKind.Folder or StringPickerKind.FileOrFolder;
     public bool ShowHotkeyCaptureButton => Picker is StringPickerKind.HotkeyCapture;
+    /// <summary>This parameter names a filesystem target, so a drag from Explorer / the Start
+    /// menu can fill it in. Same set that gets a Browse button: a drop on "args" or on a shell
+    /// command line would be guesswork, so those keep refusing drops.</summary>
+    public bool AcceptsPathDrop =>
+        Picker is StringPickerKind.File or StringPickerKind.Folder or StringPickerKind.FileOrFolder;
 
     public sealed record OptionEntry(string Raw, string Display);
 
@@ -524,6 +529,40 @@ public sealed partial class StringParameterEntry : ObservableObject
         {
             Value = dlg.FolderName;
         }
+    }
+
+    /// <summary>Commit a path that arrived by drag-and-drop instead of through Browse…, giving
+    /// it the same treatment the launcher gives a cell drop: a Start-menu packaged app arrives
+    /// as a bare AppUserModelID and only runs in its <c>shell:AppsFolder\</c> form, and a
+    /// <c>.lnk</c> goes through the step's own unwrap so its arguments / working dir / window
+    /// state land in the sibling fields rather than staying invisible inside the shortcut.
+    /// A file dropped on a folder-only field contributes its parent directory, because the user
+    /// clearly meant "this place", and rejecting it outright would just be pedantic.</summary>
+    public void ApplyDroppedPath(string? droppedPath)
+    {
+        if (string.IsNullOrWhiteSpace(droppedPath)) return;
+        var dropped = droppedPath.Trim();
+
+        if (Services.Launcher.PackagedAppPath.LooksLikeAppUserModelId(dropped))
+        {
+            Value = Services.Launcher.PackagedAppPath.Normalize(dropped);
+            return;
+        }
+
+        if (Picker is StringPickerKind.Folder)
+        {
+            try
+            {
+                if (!System.IO.Directory.Exists(dropped) && System.IO.File.Exists(dropped))
+                {
+                    var parent = System.IO.Path.GetDirectoryName(dropped);
+                    if (!string.IsNullOrEmpty(parent)) { Value = parent; return; }
+                }
+            }
+            catch { /* unreadable path: fall through and store it verbatim */ }
+        }
+
+        Value = _onPathPicked is null ? dropped : _onPathPicked(dropped);
     }
 
     private void SeedInitialDirectory(Microsoft.Win32.OpenFileDialog dlg)

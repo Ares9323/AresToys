@@ -676,6 +676,9 @@
                                        Command="{Binding Hotkeys.BackToListCommand}"
                                        ToolTip="{Markup:Loc Hotkeys_BackToList}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                <ui:Button Content="{Markup:Loc Common_Run}" Margin="0,0,4,0"
+                                           Command="{Binding Hotkeys.Workflows.RunWorkflowCommand}"
+                                           ToolTip="{Markup:Loc Hotkeys_RunTooltip}" />
                                 <ui:Button Content="{Markup:Loc Common_Duplicate}" Margin="0,0,4,0"
                                            Command="{Binding Hotkeys.Workflows.DuplicateWorkflowCommand}"
                                            ToolTip="{Markup:Loc Hotkeys_DuplicateTooltip}" />
@@ -955,10 +958,18 @@
                                                                             </Style>
                                                                         </ComboBox.Style>
                                                                     </ComboBox>
+                                                                    <!-- Path fields accept a drag from Explorer or the Start menu. The handlers
+                                                                         are Preview (tunnelling) on purpose: the step row above listens on the
+                                                                         bubbling DragOver to veto everything that isn't a step reorder, so a
+                                                                         bubbling handler here would never see the drop. -->
                                                                     <ui:TextBox Grid.Column="1"
                                                                                 Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                 PlaceholderText="{Binding Placeholder}"
                                                                                 FontSize="11"
+                                                                                AllowDrop="True"
+                                                                                PreviewDragEnter="OnParameterPathPreviewDragOver"
+                                                                                PreviewDragOver="OnParameterPathPreviewDragOver"
+                                                                                PreviewDrop="OnParameterPathPreviewDrop"
                                                                                 Visibility="{Binding HasOptions, Converter={StaticResource InverseBoolToVisibility}}" />
                                                                     <!-- Picker buttons live to the right of the text box. Visibility is bound
                                                                          to the entry's ShowFileButton / ShowFolderButton flags so a parameter
@@ -2086,6 +2097,15 @@
                                       IsChecked="{Binding Wormholes.WebLinkFaviconsEnabled, Mode=TwoWay}"
                                       Content="{Markup:Loc Wormhole_WebLinkFavicons}"
                                       ToolTip="{Markup:Loc Wormhole_WebLinkFaviconsTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
+                            <!-- Explorer's shortcut arrow, on by default. Worth turning off in a
+                                 wormhole whose tiles are all shortcuts: there the arrow marks
+                                 nothing and just sits on top of every icon. -->
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.ShortcutArrowOverlay, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_ShortcutArrow}"
+                                      ToolTip="{Markup:Loc Wormhole_ShortcutArrowTooltip}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" />
 

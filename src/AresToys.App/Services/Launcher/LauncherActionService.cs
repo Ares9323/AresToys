@@ -105,9 +105,13 @@ public sealed class LauncherActionService
             };
             if (cell.RunAsAdmin) psi.Verb = "runas";
 
-            Process.Start(psi);
+            var started = Process.Start(psi);
             _logger.LogInformation("LauncherActionService: fired {Key} → {Path} {Args} (admin={Admin}, mode={Mode})",
                 cell.ComposedKey, path, args, cell.RunAsAdmin, cell.WindowMode);
+            // Minimise-after-startup is applied here rather than through the window style: see
+            // WindowMinimizer for why the flag alone isn't enough for some apps.
+            if (cell.WindowMode == LauncherWindowMode.MinimizeAfterStartup)
+                WindowMinimizer.MinimizeWhenReady(started, path, _logger);
             return true;
         }
         catch (Exception ex)

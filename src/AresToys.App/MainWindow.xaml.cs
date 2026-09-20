@@ -764,6 +764,40 @@ public partial class MainWindow : FluentWindow
         DispatchDrop(vm, source);
     }
 
+    // ── Dropping a path onto a step's parameter field ───────────────────────────────────────
+    // Explorer files / folders and Start-menu apps can be dragged straight onto a step's path
+    // field, the way they can be dropped onto a launcher cell. Both handlers are wired to the
+    // Preview (tunnelling) events: OnStepRowDragOver sits on the row's bubbling DragOver and
+    // cancels every drag that isn't a step reorder, so by the time a bubbling handler here ran
+    // the drop would already be vetoed. Tunnelling reaches the TextBox first, and marking the
+    // event handled keeps the reorder logic out of it.
+
+    /// <summary>Accept the drag when the hovered field is a path field and the payload is a
+    /// file drop. Anything else is left alone, so the row's reorder handling behaves as before.</summary>
+    private void OnParameterPathPreviewDragOver(object sender, DragEventArgs e)
+    {
+        if (!IsPathDropTarget(sender, e, out _)) return;
+        e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    /// <summary>Commit the dropped path into the field. Only the first item of a multi-file drag
+    /// is used: one field holds one target, and picking silently among several would be a guess.</summary>
+    private void OnParameterPathPreviewDrop(object sender, DragEventArgs e)
+    {
+        if (!IsPathDropTarget(sender, e, out var entry)) return;
+        if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is not string[] paths || paths.Length == 0) return;
+        entry!.ApplyDroppedPath(paths[0]);
+        e.Handled = true;
+    }
+
+    private static bool IsPathDropTarget(object sender, DragEventArgs e, out StringParameterEntry? entry)
+    {
+        entry = (sender as FrameworkElement)?.DataContext as StringParameterEntry;
+        return entry is { AcceptsPathDrop: true }
+               && e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop);
+    }
+
     // ── Inline workflow rename ──────────────────────────────────────────────────────────────
     // The TextBox in edit-view is bound TwoWay to WorkflowsViewModel.EditingDisplayName with
     // UpdateSourceTrigger=LostFocus, so the property mirrors what the user typed when focus

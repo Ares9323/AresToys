@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -14,8 +14,70 @@ namespace AresToys.App.Services.Launcher;
 /// GDI handle, not free to do per-render. Cache survives the lifetime of the launcher window.</summary>
 public sealed class IconService
 {
-    private readonly Dictionary<string, BitmapSource?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CachedIcon> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
+
+    /// <summary>A resolved bitmap plus the source's last-write time at the moment we extracted
+    /// it. Null stamp = nothing on disk to watch (a <c>shell:</c> parsing name), in which case
+    /// the entry is kept for the lifetime of the process as before.
+    ///
+    /// Stamping is what lets a re-render pick up an icon that changed underneath us: the
+    /// <c>IconFile=</c> line inside a <c>.url</c>, a <c>.lnk</c> re-pointed, a folder given a
+    /// custom icon. Without it the first extraction won for the rest of the session and only a
+    /// restart could shift it, which is how issue #14 presented: the user changed a link's icon,
+    /// refreshed the wormhole, and kept getting the old one.</summary>
+    private readonly record struct CachedIcon(BitmapSource? Bitmap, DateTime? Stamp);
+
+    /// <summary>Last-write time of whatever the path points at, file or folder, or null when
+    /// there's nothing there (a shell parsing name, a target that's gone). Two metadata queries
+    /// at worst, which is cheap next to the icon extraction it guards.</summary>
+    private static DateTime? SourceStamp(string path)
+    {
+        try
+        {
+            var file = new FileInfo(path);
+            if (file.Exists) return file.LastWriteTimeUtc;
+
+            var dir = new DirectoryInfo(path);
+            if (!dir.Exists) return null;
+            // A folder's custom icon lives in the desktop.ini inside it. Creating that file bumps
+            // the folder's own timestamp, but editing an existing one doesn't, so watching the
+            // folder alone would catch the first icon change and miss every one after it. Take
+            // whichever of the two moved last.
+            var stamp = dir.LastWriteTimeUtc;
+            var ini = new FileInfo(Path.Combine(dir.FullName, "desktop.ini"));
+            if (ini.Exists && ini.LastWriteTimeUtc > stamp) stamp = ini.LastWriteTimeUtc;
+            return stamp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Whether a shortcut's icon is composed with the little arrow Explorer stamps on
+    /// one. On by default; the wormhole settings expose it, because a wormhole full of shortcuts
+    /// is a wall of arrows that distinguish nothing. Setting it drops the cache: the arrow is
+    /// baked into the bitmap at extraction time, so entries resolved under the old setting would
+    /// otherwise keep their arrow (or their lack of one) until the app restarts.</summary>
+    public bool ShowShortcutArrow
+    {
+        get => _showShortcutArrow;
+        set
+        {
+            if (value == _showShortcutArrow) return;
+            _showShortcutArrow = value;
+            lock (_lock) { _cache.Clear(); }
+        }
+    }
+
+    private volatile bool _showShortcutArrow = true;
+
+    /// <summary>The two things Explorer treats as a shortcut and marks with the arrow: a classic
+    /// <c>.lnk</c> and an internet shortcut (<c>.url</c>).</summary>
+    private static bool IsShortcut(string path) =>
+        path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".url", StringComparison.OrdinalIgnoreCase);
 
     public BitmapSource? GetIcon(string? rawPath) => GetIcon(rawPath, iconIndex: 0);
 
@@ -84,9 +146,10 @@ public sealed class IconService
         if (string.IsNullOrEmpty(expanded)) return null;
 
         var cacheKey = $"{expanded}|sz{sizePx}";
+        var stamp = SourceStamp(expanded);
         lock (_lock)
         {
-            if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
+            if (_cache.TryGetValue(cacheKey, out var cached) && cached.Stamp == stamp) return cached.Bitmap;
         }
 
         // Try IShellItemImageFactory FIRST: it's the only path that actually upscales a small
@@ -99,12 +162,12 @@ public sealed class IconService
         // shell overlays — the .lnk shortcut arrow / OneDrive cloud glyph is dropped — so for
         // .lnk we re-add the arrow ourselves via SHGetStockIconInfo(SIID_LINK).
         var bmp = LoadFromImageFile(expanded)
-                  ?? ExtractViaShellItemImageFactoryWithOverlay(expanded, sizePx)
+                  ?? ExtractViaShellItemImageFactoryWithOverlay(expanded, sizePx, _showShortcutArrow)
                   ?? ExtractIconAtSize(expanded, sizePx)
                   ?? ExtractIcon(expanded);
         lock (_lock)
         {
-            _cache[cacheKey] = bmp;
+            _cache[cacheKey] = new CachedIcon(bmp, stamp);
         }
         return bmp;
     }
@@ -123,9 +186,10 @@ public sealed class IconService
         if (string.IsNullOrEmpty(expanded)) return null;
 
         var cacheKey = iconIndex == 0 ? expanded : $"{expanded}|{iconIndex}";
+        var stamp = SourceStamp(expanded);
         lock (_lock)
         {
-            if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
+            if (_cache.TryGetValue(cacheKey, out var cached) && cached.Stamp == stamp) return cached.Bitmap;
         }
 
         // Shell parsing names (a packaged app's shell:AppsFolder\<AUMID>, and the other shell:
@@ -141,7 +205,7 @@ public sealed class IconService
                   ?? ExtractIcon(expanded);
         lock (_lock)
         {
-            _cache[cacheKey] = bmp;
+            _cache[cacheKey] = new CachedIcon(bmp, stamp);
         }
         return bmp;
     }
@@ -256,15 +320,17 @@ public sealed class IconService
     }
 
     /// <summary>Wraps <see cref="ExtractViaShellItemImageFactory"/> and re-adds the link-arrow
-    /// overlay for <c>.lnk</c> files. IShellItemImageFactory doesn't composite shell overlays
+    /// overlay for shortcuts. IShellItemImageFactory doesn't composite shell overlays
     /// (that's only the imagelist + SHGFI_OVERLAYINDEX path), so for shortcuts we paint the
     /// stock SIID_LINK glyph onto the bottom-left of the upscaled icon at ~50% size — close to
-    /// Explorer's own convention. Non-.lnk paths pass through unchanged.</summary>
-    private static BitmapSource? ExtractViaShellItemImageFactoryWithOverlay(string path, int sizePx)
+    /// Explorer's own convention. Both flavours of shortcut get it: a <c>.lnk</c> and a
+    /// <c>.url</c> web link, which Explorer marks the same way. Anything else, and every path
+    /// while <see cref="ShowShortcutArrow"/> is off, passes through unchanged.</summary>
+    private static BitmapSource? ExtractViaShellItemImageFactoryWithOverlay(string path, int sizePx, bool withArrow)
     {
         var baseImg = ExtractViaShellItemImageFactory(path, sizePx);
         if (baseImg is null) return null;
-        if (!path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) return baseImg;
+        if (!withArrow || !IsShortcut(path)) return baseImg;
 
         var overlay = GetLinkOverlayIcon(sizePx);
         if (overlay is null) return baseImg;

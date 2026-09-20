@@ -9,6 +9,12 @@ public enum LauncherWindowMode
     Maximized,
     Minimized,
     Hidden,
+    /// <summary>Start the app normally, then minimise its window as soon as it appears (see
+    /// <see cref="WindowMinimizer"/>). For the apps that treat <see cref="Minimized"/> as
+    /// "don't show a window at all", or that hand the launch to an already-running copy and
+    /// exit before drawing anything: those come up looking like a launch that never happened.
+    /// Starting them the ordinary way and minimising afterwards sidesteps it.</summary>
+    MinimizeAfterStartup,
 }
 
 /// <summary>One mapping in the launcher overlay. <see cref="TabKey"/> namespaces the cell:

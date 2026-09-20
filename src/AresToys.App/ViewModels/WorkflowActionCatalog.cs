@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 using AresToys.Core.Pipeline;
 
 namespace AresToys.App.ViewModels;
@@ -651,12 +651,13 @@ public static class WorkflowActionCatalog
         // a document and let Windows pick the handler"; Run command for shell pipelines.
         new("arestoys.launch-app",
             "Launch app",
-            "Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Working dir defaults to the path's folder. Browsing to a .lnk fills the step in from the shortcut — real target, its arguments, its window state and its 'run as administrator' setting — instead of storing the shortcut itself. Window picks the state the app starts in (Hidden suits background tools); Run as administrator raises the UAC prompt. Leave the Path field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Launch app'); a value in Path always wins so a workflow with a pinned target isn't redirected by stray bag content.",
+            "Start an executable, shortcut, or batch file. Path supports %ENV% expansion. Args are passed verbatim to the target. Working dir defaults to the path's folder. Browsing to a .lnk fills the step in from the shortcut (real target, its arguments, its window state and its 'run as administrator' setting) instead of storing the shortcut itself. You can also drag a file, folder or Start-menu app straight onto the Path field, the way you'd drop one onto a launcher cell. Window picks the state the app starts in (Hidden suits background tools, and Minimize after startup opens the app normally and puts it down once its window appears), but it's a request handed to the app rather than something Windows enforces: apps that live in the tray often show no window at all when it's set to Minimized or Hidden, which looks exactly like a launch that didn't happen. Notify when the launch fails puts the shell's error on screen instead of leaving it in the log. Run as administrator raises the UAC prompt. Leave the Path field empty to consume bag.text from an upstream step (e.g. 'Read clipboard' → 'Launch app'); a value in Path always wins so a workflow with a pinned target isn't redirected by stray bag content.",
             "Actions",
-            DefaultConfigJson: "{\"path\":\"\",\"args\":\"\",\"workingDir\":\"\",\"windowMode\":\"Normal\",\"runAsAdmin\":false}",
+            DefaultConfigJson: "{\"path\":\"\",\"args\":\"\",\"workingDir\":\"\",\"windowMode\":\"Normal\",\"runAsAdmin\":false,\"notifyOnError\":true}",
             BoolParameters: new[]
             {
                 new BoolParameter("runAsAdmin", "Run as administrator", false),
+                new BoolParameter("notifyOnError", "Notify when the launch fails", true),
             },
             StringParameters: new[]
             {

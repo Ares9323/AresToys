@@ -1183,7 +1183,16 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Common_Duplicate", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run.
+        /// </summary>
+        public static string Common_Run {
+            get {
+                return ResourceManager.GetString("Common_Run", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Edit.
         /// </summary>
@@ -2902,6 +2911,24 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("EnumValue_Hidden", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Minimize after startup.
+        /// </summary>
+        public static string EnumValue_MinimizeAfterStartup {
+            get {
+                return ResourceManager.GetString("EnumValue_MinimizeAfterStartup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Minimize after startup.
+        /// </summary>
+        public static string LauncherCellEdit_WindowModeMinimizeAfterStartup {
+            get {
+                return ResourceManager.GetString("LauncherCellEdit_WindowModeMinimizeAfterStartup", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Middle center.
@@ -3266,6 +3293,8 @@ namespace AresToys.App.Resources {
         public static string Wormhole_AutoDisableTopmostOnLaunchTooltip => ResourceManager.GetString("Wormhole_AutoDisableTopmostOnLaunchTooltip", resourceCulture);
         public static string Wormhole_WebLinkFavicons => ResourceManager.GetString("Wormhole_WebLinkFavicons", resourceCulture);
         public static string Wormhole_WebLinkFaviconsTooltip => ResourceManager.GetString("Wormhole_WebLinkFaviconsTooltip", resourceCulture);
+        public static string Wormhole_ShortcutArrow => ResourceManager.GetString("Wormhole_ShortcutArrow", resourceCulture);
+        public static string Wormhole_ShortcutArrowTooltip => ResourceManager.GetString("Wormhole_ShortcutArrowTooltip", resourceCulture);
         public static string Wormhole_KeepVisibleOnShowDesktop => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktop", resourceCulture);
         public static string Wormhole_KeepVisibleOnShowDesktopTooltip => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktopTooltip", resourceCulture);
         public static string Wormhole_ExpandCollapsedOnHover => ResourceManager.GetString("Wormhole_ExpandCollapsedOnHover", resourceCulture);
@@ -3396,7 +3425,16 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Hotkeys_DuplicateTooltip", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run this workflow right now, without assigning it a hotkey.
+        /// </summary>
+        public static string Hotkeys_RunTooltip {
+            get {
+                return ResourceManager.GetString("Hotkeys_RunTooltip", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Hotkey.
         /// </summary>
@@ -7913,6 +7951,15 @@ namespace AresToys.App.Resources {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Notify when the launch fails.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_launch_app_notifyOnError {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_launch_app_notifyOnError", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Open fullscreen on active monitor (fit to screen).
         /// </summary>

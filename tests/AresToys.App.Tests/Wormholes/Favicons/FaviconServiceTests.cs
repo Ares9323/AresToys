@@ -84,6 +84,56 @@ public class FaviconServiceTests : IDisposable
         Assert.Null(UrlShortcutFile.ReadIconFile(url));
     }
 
+    [Fact]
+    public async Task EnsureFavicon_LeavesAUserChosenIconAlone()
+    {
+        // Issue #14: picking an icon in the shortcut's Properties sheet writes it into the same
+        // IconFile= line this service maintains. Rewriting it put the favicon straight back, so
+        // the user's choice never survived a refresh.
+        var dl = new FakeDownloader { Result = new byte[] { 0, 0, 1, 0, 9 } };
+        var svc = NewService(dl);
+        var url = WriteUrlFile("https://example.com/page");
+        var chosen = Path.Combine(_dir, "my-own.ico");
+        File.WriteAllBytes(chosen, new byte[] { 0, 0, 1, 0 });
+        UrlShortcutFile.SetIcon(url, chosen, iconIndex: 0);
+
+        var changed = await svc.EnsureFaviconAsync(url, CancellationToken.None);
+
+        Assert.False(changed);
+        Assert.Equal(chosen, UrlShortcutFile.ReadIconFile(url));
+        // Not even a download: there's nowhere to put the result.
+        Assert.Equal(0, dl.Calls);
+    }
+
+    [Fact]
+    public async Task EnsureFavicon_ClearingTheIconHandsTheLinkBack()
+    {
+        // The way back: emptying IconFile in Properties returns the link to the favicon service.
+        var dl = new FakeDownloader { Result = new byte[] { 0, 0, 1, 0, 9 } };
+        var svc = NewService(dl);
+        var url = WriteUrlFile("https://example.com/page");
+        UrlShortcutFile.SetIcon(url, Path.Combine(_dir, "my-own.ico"), iconIndex: 0);
+        Assert.False(await svc.EnsureFaviconAsync(url, CancellationToken.None));
+
+        UrlShortcutFile.SetIcon(url, string.Empty, iconIndex: 0);
+
+        Assert.True(await svc.EnsureFaviconAsync(url, CancellationToken.None));
+        Assert.Equal(_cache.PathForHost("example.com"), UrlShortcutFile.ReadIconFile(url));
+    }
+
+    [Fact]
+    public async Task EnsureFavicon_StillRefreshesItsOwnCachedIcon()
+    {
+        // A line we wrote stays ours: re-pointing it (host change, cache moved) must keep working.
+        var dl = new FakeDownloader { Result = new byte[] { 0, 0, 1, 0, 9 } };
+        var svc = NewService(dl);
+        var url = WriteUrlFile("https://example.com/page");
+        UrlShortcutFile.SetIcon(url, _cache.PathForHost("stale.example"), iconIndex: 0);
+
+        Assert.True(await svc.EnsureFaviconAsync(url, CancellationToken.None));
+        Assert.Equal(_cache.PathForHost("example.com"), UrlShortcutFile.ReadIconFile(url));
+    }
+
     private sealed class FakeDownloader : IFaviconDownloader
     {
         public int Calls;

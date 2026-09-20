@@ -37,12 +37,18 @@ public sealed partial class WorkflowsViewModel : ObservableObject
     private readonly IPipelineProfileStore _profiles;
     private readonly PipelineProfileSeeder _seeder;
     private readonly HotkeyConfigService _hotkeys;
+    // Taken as an ordinary constructor dependency (unlike LauncherActionService, which resolves
+    // WorkflowRunner lazily from IServiceProvider): WorkflowsViewModel sits in the settings/UI
+    // layer, not inside the pipeline task graph WorkflowRunner's own PipelineExecutor is built
+    // from, so there's no dependency cycle here for the container to reject.
+    private readonly Services.WorkflowRunner _runner;
 
-    public WorkflowsViewModel(IPipelineProfileStore profiles, PipelineProfileSeeder seeder, HotkeyConfigService hotkeys, WorkflowEditorViewModel editor, Services.LocalizationService localization)
+    public WorkflowsViewModel(IPipelineProfileStore profiles, PipelineProfileSeeder seeder, HotkeyConfigService hotkeys, Services.WorkflowRunner runner, WorkflowEditorViewModel editor, Services.LocalizationService localization)
     {
         _profiles = profiles;
         _seeder = seeder;
         _hotkeys = hotkeys;
+        _runner = runner;
         Editor = editor;
         Workflows = [];
         // Re-translate built-in workflow names when the user flips UI language. Custom workflows
@@ -72,6 +78,7 @@ public sealed partial class WorkflowsViewModel : ObservableObject
     public event EventHandler? WorkflowsBulkReset;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RunWorkflowCommand))]
     [NotifyCanExecuteChangedFor(nameof(DuplicateWorkflowCommand))]
     [NotifyCanExecuteChangedFor(nameof(RemoveWorkflowCommand))]
     private WorkflowOption? _selectedWorkflow;
@@ -179,6 +186,22 @@ public sealed partial class WorkflowsViewModel : ObservableObject
         await _profiles.UpsertAsync(profile, CancellationToken.None).ConfigureAwait(true);
         await ReloadWorkflowsAsync().ConfigureAwait(true);
         SelectedWorkflow = Workflows.FirstOrDefault(w => w.Id == id);
+    }
+
+    /// <summary>"Run" button in the editor header: fires the open workflow immediately so the user
+    /// can test it without assigning a hotkey first. Commits the pending inline rename before
+    /// firing (mirrors <see cref="HotkeysViewModel.BackToList"/>): the name TextBox only pushes to
+    /// the store on LostFocus via a fire-and-forget save, so without this explicit await a Run
+    /// click could race that save. The step editor itself isn't at risk here since every step edit
+    /// already persists synchronously as it happens (see <c>WorkflowEditorViewModel.PersistAsync</c>
+    /// call sites), so nothing else needs flushing before WorkflowRunner reads the profile back
+    /// from the store.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task RunWorkflowAsync()
+    {
+        if (SelectedWorkflow is not { } current) return;
+        await SaveDisplayNameAsync().ConfigureAwait(true);
+        _runner.RunDetached(current.Id);
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]

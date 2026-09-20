@@ -29,6 +29,7 @@ public sealed class WormholeDefaultsService
     public const string ExpandCollapsedOnHoverKey = "app.wormholes.expand_collapsed_on_hover";
     public const string OpenWithOneClickKey = "app.wormholes.open_with_one_click";
     public const string HideServiceFilesKey = "app.wormholes.hide_service_files";
+    public const string ShortcutArrowOverlayKey = "app.wormholes.shortcut_arrow_overlay";
     public const string SnapToGridKey       = "app.wormholes.snap_to_grid";
     public const string SnapGridSizeKey     = "app.wormholes.snap_grid_size_px";
     public const string SnapToWormholesKey  = "app.wormholes.snap_to_wormholes";
@@ -104,6 +105,7 @@ public sealed class WormholeDefaultsService
     private bool _expandCollapsedOnHover;
     private bool _openWithOneClick;
     private bool _hideServiceFiles = true;
+    private bool _shortcutArrowOverlay = true;
     private bool _snapToGrid;
     private int _snapGridSizePx = SnapGridFallback;
     private bool _snapToWormholes;
@@ -191,6 +193,12 @@ public sealed class WormholeDefaultsService
     /// folder itself, so it has to be asked.</summary>
     public bool HideServiceFiles => _hideServiceFiles;
 
+    /// <summary>When true (the default) a shortcut tile carries the little arrow in its bottom
+    /// left corner, the way Explorer marks one. Covers both kinds of shortcut a wormhole holds:
+    /// a <c>.lnk</c> and a <c>.url</c> web link. Turning it off leaves the bare icon, which reads
+    /// better on a wall of tiles that are ALL shortcuts, where the arrow marks nothing.</summary>
+    public bool ShortcutArrowOverlay => _shortcutArrowOverlay;
+
     /// <summary>Snap a dragged / resized wormhole's edges to a <see cref="SnapGridSizePx"/> grid.</summary>
     public bool SnapToGrid => _snapToGrid;
 
@@ -219,6 +227,11 @@ public sealed class WormholeDefaultsService
     /// <summary>Raised when the service-file filter was toggled, so every live window
     /// re-enumerates its source and the tiles appear or disappear without a restart.</summary>
     public event EventHandler? ServiceFilesVisibilityChanged;
+
+    /// <summary>Raised when the shortcut-arrow overlay was toggled. Icons are composed with (or
+    /// without) the arrow at extraction time and cached that way, so the handler has to drop the
+    /// icon cache before re-rendering the live windows.</summary>
+    public event EventHandler? ShortcutArrowOverlayChanged;
 
     /// <summary>Raised when the "keep visible on Show desktop" default changed. Live windows
     /// join or leave the desktop's z-order group in response (see <see cref="DesktopOwnership"/>).</summary>
@@ -314,6 +327,10 @@ public sealed class WormholeDefaultsService
             var hideServiceRaw = await _store.GetAsync(HideServiceFilesKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(hideServiceRaw, out var hideService))
                 _hideServiceFiles = hideService;
+
+            var shortcutArrowRaw = await _store.GetAsync(ShortcutArrowOverlayKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(shortcutArrowRaw, out var shortcutArrow))
+                _shortcutArrowOverlay = shortcutArrow;
 
             var snapGridRaw = await _store.GetAsync(SnapToGridKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(snapGridRaw, out var snapGrid))
@@ -457,6 +474,15 @@ public sealed class WormholeDefaultsService
         await _store.SetAsync(HideServiceFilesKey, enabled.ToString(CultureInfo.InvariantCulture),
             sensitive: false, cancellationToken).ConfigureAwait(true);
         ServiceFilesVisibilityChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetShortcutArrowOverlayAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _shortcutArrowOverlay) return;
+        _shortcutArrowOverlay = enabled;
+        await _store.SetAsync(ShortcutArrowOverlayKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        ShortcutArrowOverlayChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task SetSnapToGridAsync(bool enabled, CancellationToken cancellationToken)

@@ -41,6 +41,20 @@ public sealed class FaviconService : IDisposable
         if (string.IsNullOrWhiteSpace(url)) return false;
         if (!TryGetHttpHost(url, out var host)) return false;
 
+        // An icon the user chose themselves is off limits (issue #14). The shortcut's Properties
+        // sheet writes the picked icon into the same IconFile= line this service maintains, so
+        // the rewrite below used to land straight on top of it: the tile snapped back to the
+        // favicon on the very next refresh, which made the change look like it hadn't taken and
+        // no amount of refreshing could fix. Only a line pointing inside our own cache is ours
+        // to update. Clearing the icon in Properties empties the line and hands the link back.
+        var existingIcon = UrlShortcutFile.ReadIconFile(urlFilePath);
+        if (!string.IsNullOrWhiteSpace(existingIcon) && !_cache.Owns(existingIcon))
+        {
+            _logger.LogDebug("Favicon: {Path} carries a user-chosen icon ({Icon}); leaving it alone",
+                urlFilePath, existingIcon);
+            return false;
+        }
+
         var icoPath = _cache.PathForHost(host);
         var cached = _cache.Has(host);
 
