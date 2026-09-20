@@ -1,9 +1,9 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [0.1.31] — 2026-09-20
 
 ### Clipboard
 - Recordings can be trimmed from the clipboard. The video entry gained a Trim

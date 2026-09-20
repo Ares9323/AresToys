@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="src/AresToys.App/Assets/AresToysLogo.png" alt="AresToys logo" width="160" />
 </p>
 
@@ -6,7 +6,7 @@
 
 > Modern productivity suite for Windows — unifies CopyQ (clipboard), ShareX (capture + upload), and MaxLauncher (keyboard launcher) into one app, plus tools none of them ship.
 
-**Status:** Alpha, actively shipped. Latest release: **v0.1.30** (2026-09-17). Velopack-driven installer + portable + delta updates flow through GitHub Releases on every tagged version.
+**Status:** Alpha, actively shipped. Latest release: **v0.1.31** (2026-09-20). Velopack-driven installer + portable + delta updates flow through GitHub Releases on every tagged version.
 
 ---
 
