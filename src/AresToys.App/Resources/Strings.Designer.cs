@@ -284,6 +284,12 @@ namespace AresToys.App.Resources {
             }
         }
         
+        public static string Capture_HideToasts => ResourceManager.GetString("Capture_HideToasts", resourceCulture);
+
+        public static string Capture_HideToastsTooltip => ResourceManager.GetString("Capture_HideToastsTooltip", resourceCulture);
+
+        public static string Capture_HideToastsDelay => ResourceManager.GetString("Capture_HideToastsDelay", resourceCulture);
+
         /// <summary>
         ///   Looks up a localized string similar to Screenshot delay (seconds).
         /// </summary>
@@ -3398,6 +3404,15 @@ namespace AresToys.App.Resources {
         public static string Pattern_HourTooltip => ResourceManager.GetString("Pattern_HourTooltip", resourceCulture);
         public static string Pattern_MinuteTooltip => ResourceManager.GetString("Pattern_MinuteTooltip", resourceCulture);
         public static string Pattern_SecondTooltip => ResourceManager.GetString("Pattern_SecondTooltip", resourceCulture);
+        public static string Capture_FilePrefix => ResourceManager.GetString("Capture_FilePrefix", resourceCulture);
+        public static string Capture_FilePrefixPlaceholder => ResourceManager.GetString("Capture_FilePrefixPlaceholder", resourceCulture);
+        public static string Capture_FileNamePattern => ResourceManager.GetString("Capture_FileNamePattern", resourceCulture);
+        public static string Capture_FileNamePreview => ResourceManager.GetString("Capture_FileNamePreview", resourceCulture);
+        public static string Pattern_MillisecondTooltip => ResourceManager.GetString("Pattern_MillisecondTooltip", resourceCulture);
+        public static string Pattern_WindowTitleTooltip => ResourceManager.GetString("Pattern_WindowTitleTooltip", resourceCulture);
+        public static string Pattern_AppNameTooltip => ResourceManager.GetString("Pattern_AppNameTooltip", resourceCulture);
+        public static string Capture_FileNameReset => ResourceManager.GetString("Capture_FileNameReset", resourceCulture);
+        public static string Capture_FileNameResetTooltip => ResourceManager.GetString("Capture_FileNameResetTooltip", resourceCulture);
         public static string Pattern_AmPmTooltip => ResourceManager.GetString("Pattern_AmPmTooltip", resourceCulture);
         public static string ClipboardCategories_PickIconTooltip => ResourceManager.GetString("ClipboardCategories_PickIconTooltip", resourceCulture);
         public static string ClipboardCategories_CategoryNameTooltip => ResourceManager.GetString("ClipboardCategories_CategoryNameTooltip", resourceCulture);

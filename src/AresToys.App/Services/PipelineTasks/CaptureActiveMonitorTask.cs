@@ -30,8 +30,11 @@ public sealed class CaptureActiveMonitorTask : IPipelineTask
     private readonly CaptureImageOutputService _outputEncoder;
     private readonly ILogger<CaptureActiveMonitorTask> _logger;
 
-    public CaptureActiveMonitorTask(ICaptureSource captureSource, ISettingsStore settings, CaptureImageOutputService outputEncoder, ILogger<CaptureActiveMonitorTask> logger)
+    private readonly IToastNotifier? _notifier;
+
+    public CaptureActiveMonitorTask(ICaptureSource captureSource, ISettingsStore settings, CaptureImageOutputService outputEncoder, ILogger<CaptureActiveMonitorTask> logger, IToastNotifier? notifier = null)
     {
+        _notifier = notifier;
         _captureSource = captureSource;
         _settings = settings;
         _outputEncoder = outputEncoder;
@@ -68,6 +71,8 @@ public sealed class CaptureActiveMonitorTask : IPipelineTask
         }
 
         var region = new CaptureRegion(monitor.X, monitor.Y, monitor.Width, monitor.Height, $"Monitor {monitor.Name}");
+        // Take the previous capture's "saved" toast off the screen first, or it ends up in this shot.
+        if (_notifier is not null) await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
         var captured = await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
         var (bytes, ext) = await _outputEncoder.EncodeAsync(captured.PngBytes, cancellationToken).ConfigureAwait(false);
 
@@ -75,6 +80,10 @@ public sealed class CaptureActiveMonitorTask : IPipelineTask
         context.Bag[PipelineBagKeys.FileExtension] = ext;
         context.Bag[PipelineBagKeys.CaptureScreenPos] = (region.X, region.Y);
         context.Bag[PipelineBagKeys.WindowTitle] = region.WindowTitle!;
+        if (WindowEnumeration.GetForegroundProcessName(Environment.ProcessId) is { } appName)
+        {
+            context.Bag[PipelineBagKeys.AppName] = appName;
+        }
         context.Bag[PipelineBagKeys.NewItem] = new NewItem(
             Kind: ItemKind.Image,
             Source: ItemSource.CaptureMonitor,

@@ -22,6 +22,7 @@ public sealed class CaptureCoordinator
     private readonly ISettingsStore _settings;
     private readonly IServiceProvider _services;
     private readonly CaptureImageOutputService _outputEncoder;
+    private readonly IToastNotifier _notifier;
     private readonly ILogger<CaptureCoordinator> _logger;
 
     public CaptureCoordinator(
@@ -31,8 +32,10 @@ public sealed class CaptureCoordinator
         ISettingsStore settings,
         IServiceProvider services,
         CaptureImageOutputService outputEncoder,
+        IToastNotifier notifier,
         ILogger<CaptureCoordinator> logger)
     {
+        _notifier = notifier;
         _captureSource = captureSource;
         _executor = executor;
         _profiles = profiles;
@@ -65,6 +68,8 @@ public sealed class CaptureCoordinator
         // in the captured image. Same pattern ShareX uses (see CaptureRegion.cs:76-95). If we
         // wait for the overlay to take its own snapshot, the dropdown is gone by the time we
         // get there because focus has shifted to AresToys in the meantime.
+        // Take the previous capture's "saved" toast off the screen first, or it ends up in this shot.
+        await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
         var (prefabSnapshot, prefabLeft, prefabTop) = RegionOverlayWindow.CaptureVirtualScreen();
         var (region, prefab) = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
@@ -173,6 +178,7 @@ public sealed class CaptureCoordinator
         // Region capture passes prefabPng = the snapshot cropped at mouse-up time; everything
         // else (fullscreen, monitor, last-region, active-window-via-this-path) BitBlts here.
         // Wrapping the prefab in CapturedImage keeps the rest of the pipeline ignorant.
+        if (prefabPng is not { Length: > 0 }) await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
         var captured = prefabPng is { Length: > 0 }
             ? new CapturedImage(region.Width, region.Height, prefabPng)
             : await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
@@ -211,6 +217,11 @@ public sealed class CaptureCoordinator
         {
             ctx.Bag[PipelineBagKeys.WindowTitle] = region.WindowTitle;
         }
+        // %appName: the window under a picked region, the foreground app for whole-screen shots.
+        var appName = source == ItemSource.CaptureRegion
+            ? WindowEnumeration.GetProcessNameAt(region.X + region.Width / 2, region.Y + region.Height / 2)
+            : WindowEnumeration.GetForegroundProcessName(Environment.ProcessId);
+        if (appName is not null) ctx.Bag[PipelineBagKeys.AppName] = appName;
         var searchTextPrefix = string.IsNullOrEmpty(region.WindowTitle) ? source.ToString() : region.WindowTitle;
         ctx.Bag[PipelineBagKeys.NewItem] = new NewItem(
             Kind: ItemKind.Image,

@@ -392,13 +392,27 @@ public partial class MainWindow : FluentWindow
         // Casting to Button missed the chips entirely and the handler returned silently —
         // ButtonBase covers both vanilla Button and any wpf-ui themed variant.
         if (sender is not System.Windows.Controls.Primitives.ButtonBase btn || btn.Tag is not string token) return;
-        if (SubFolderPatternBox is null) return;
-        var caret = SubFolderPatternBox.SelectionStart;
-        var text = SubFolderPatternBox.Text ?? string.Empty;
-        SubFolderPatternBox.Text = text.Insert(caret, token);
-        SubFolderPatternBox.SelectionStart = caret + token.Length;
-        SubFolderPatternBox.SelectionLength = 0;
-        SubFolderPatternBox.Focus();
+        InsertPatternToken(SubFolderPatternBox, token);
+    }
+
+    /// <summary>Same as <see cref="OnPatternTokenClick"/> for the file-name pattern box.</summary>
+    private void OnFileNameTokenClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Primitives.ButtonBase btn || btn.Tag is not string token) return;
+        InsertPatternToken(FileNamePatternBox, token);
+    }
+
+    private static void InsertPatternToken(System.Windows.Controls.TextBox? box, string token)
+    {
+        if (box is null) return;
+        // Caret only means something while the user is in the box; otherwise it sits at 0 and a
+        // chip click would prepend the token (e.g. "%title%title-…"). Append in that case.
+        var caret = box.IsKeyboardFocusWithin ? box.SelectionStart : (box.Text ?? string.Empty).Length;
+        var text = box.Text ?? string.Empty;
+        box.Text = text.Insert(caret, token);
+        box.SelectionStart = caret + token.Length;
+        box.SelectionLength = 0;
+        box.Focus();
     }
 
     /// <summary>Builds the "+ Add step" categorized context menu on demand. Doing this in

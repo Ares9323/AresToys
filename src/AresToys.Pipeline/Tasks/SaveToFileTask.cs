@@ -111,16 +111,11 @@ public sealed class SaveToFileTask : IPipelineTask
         }
         Directory.CreateDirectory(folder);
 
-        // Local time, not UTC: this stamp is what the user reads in the filename, and it has to
-        // agree with the clock on their wall — and with the date sub-folder two lines up, which
-        // has always used local time. UTC put every name up to a full day and several hours off.
-        var stamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
-        var titleSlug = context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) && rawTitle is string title
-            ? SanitizeForFilename(title)
-            : string.Empty;
-        var baseName = string.IsNullOrEmpty(titleSlug)
-            ? $"arestoys-{stamp}"
-            : $"arestoys-{titleSlug}-{stamp}";
+        // Prefix + pattern from Capture settings (local time, same clock as the date sub-folder).
+        var baseName = await CaptureFileNamer.BuildAsync(_settings,
+            context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) ? rawTitle as string : null,
+            context.Bag.TryGetValue(PipelineBagKeys.AppName, out var rawApp) ? rawApp as string : null,
+            cancellationToken).ConfigureAwait(false);
         var bareExt = extension.TrimStart('.');
         var fullPath = Path.Combine(folder, $"{baseName}.{bareExt}");
 
@@ -159,21 +154,5 @@ public sealed class SaveToFileTask : IPipelineTask
                 (string?)config?["notificationTitle"],
                 suppressEditorButton: skipIfNotModified);
         }
-    }
-
-    /// <summary>ShareX-style date / metadata tokens for the sub-folder pattern. Tokens use the
-    /// same prefix style as ShareX (<c>%y</c>, <c>%mo</c>, <c>%d</c>, <c>%h</c>, <c>%mi</c>,
-    /// <c>%s</c>, <c>%yy</c>, <c>%pm</c>) so users migrating from ShareX recognise them.</summary>
-    private static string SanitizeForFilename(string title)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sb = new System.Text.StringBuilder(title.Length);
-        foreach (var c in title)
-        {
-            if (Array.IndexOf(invalid, c) >= 0 || c == '-' || c == ' ') sb.Append('_');
-            else sb.Append(c);
-        }
-        var s = sb.ToString().Trim('_');
-        return s.Length > 40 ? s[..40] : s;
     }
 }

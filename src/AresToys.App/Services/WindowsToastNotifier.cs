@@ -27,15 +27,41 @@ public sealed class WindowsToastNotifier : IToastNotifier
     private readonly Dictionary<string, ToastCallbacks> _pendingToasts = new(StringComparer.Ordinal);
     private static int _nextTag;
 
+    /// <summary>Toasts whose popup is (or may still be) on screen, keyed by uid. Added at Show
+    /// when a popup is requested, removed on <c>Dismissed</c> (timeout, user close, our own
+    /// Hide) or activation. Everything <see cref="HideOnScreenPopupsAsync"/> needs to take a
+    /// popup down and put the entry back in the Center.</summary>
+    private readonly Dictionary<string, OnScreenToast> _onScreen = new(StringComparer.Ordinal);
+
+    private sealed record OnScreenToast(
+        ToastContentBuilder Builder,
+        Windows.UI.Notifications.ToastNotification Shown,
+        int CenterSeconds,
+        DateTimeOffset? ExpiresAt);
+
+    /// <summary>Opt-in (Capture settings): take our popups down before a capture. Off by default
+    /// because the shell needs time to actually remove the banner, and that wait is latency on
+    /// every shot that finds one on screen.</summary>
+    public const string HideBeforeCaptureKey = "capture.hide_toasts_before_capture";
+
+    /// <summary>How long to wait after Hide before the screen is grabbed, in ms. 60 ms was not
+    /// enough on the test machine, nor was 150; 200 is the default and users tune it to their PC.</summary>
+    public const string HideBeforeCaptureDelayKey = "capture.hide_toasts_delay_ms";
+    public const int DefaultHideBeforeCaptureDelayMs = 200;
+    public const int MaxHideBeforeCaptureDelayMs = 2000;
+
     private sealed class ToastCallbacks
     {
         public Action? Body;
         public Dictionary<string, Action> Buttons { get; } = new(StringComparer.Ordinal);
     }
 
-    public WindowsToastNotifier(Notifications.ToastLifetimeService lifetime, ILogger<WindowsToastNotifier> logger)
+    private readonly AresToys.Storage.Settings.ISettingsStore _settings;
+
+    public WindowsToastNotifier(Notifications.ToastLifetimeService lifetime, AresToys.Storage.Settings.ISettingsStore settings, ILogger<WindowsToastNotifier> logger)
     {
         _lifetime = lifetime;
+        _settings = settings;
         _logger = logger;
 
         // Single global activation handler. The toolkit dispatches every click here; we route
@@ -149,7 +175,15 @@ public sealed class WindowsToastNotifier : IToastNotifier
                 // Center = 0: the popup closing is exactly when the entry should go.
                 if (centerSeconds == Notifications.ToastLifetimeService.CenterNone)
                     toast.Dismissed += (_, _) => RemoveFromHistory(uid);
+
+                // Track the popup until it leaves the screen, so a capture can take it down.
+                if (!toast.SuppressPopup)
+                    toast.Dismissed += (_, _) => { lock (_onScreen) _onScreen.Remove(uid); };
             });
+            if (shown is not null && !shown.SuppressPopup)
+            {
+                lock (_onScreen) _onScreen[uid] = new OnScreenToast(builder, shown, centerSeconds, expiresAt);
+            }
 
             // Only when the user asked for a popup SHORTER than Windows' own duration. At the
             // ceiling we leave the OS alone so a longer "show notifications for" accessibility
@@ -192,20 +226,11 @@ public sealed class WindowsToastNotifier : IToastNotifier
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(popupSeconds)).ConfigureAwait(false);
-                ToastNotificationManagerCompat.CreateToastNotifier().Hide(shown);
-
-                // Center = 0 ("don't keep") → Hide already did the whole job.
-                if (centerSeconds == Notifications.ToastLifetimeService.CenterNone) return;
-                // Expiry already passed while the popup was up → nothing to put back.
-                if (expiresAt is { } expiry && expiry <= DateTimeOffset.Now) return;
-
-                builder.Show(toast =>
-                {
-                    toast.Tag = uid;
-                    toast.Group = uid;
-                    toast.SuppressPopup = true;
-                    if (expiresAt is { } e) toast.ExpirationTime = e;
-                });
+                // A capture may already have taken this popup down (and re-issued the entry).
+                bool stillOnScreen;
+                lock (_onScreen) stillOnScreen = _onScreen.Remove(uid);
+                if (!stillOnScreen) return;
+                HideKeepingCenterEntry(builder, shown, uid, centerSeconds, expiresAt);
             }
             catch (Exception ex)
             {
@@ -213,6 +238,60 @@ public sealed class WindowsToastNotifier : IToastNotifier
                 // must never surface as an unhandled exception on a background thread.
                 _logger.LogDebug(ex, "Early popup close failed for toast {Uid}", uid);
             }
+        });
+    }
+
+    public async Task HideOnScreenPopupsAsync()
+    {
+        // Nothing on screen → no settings read, no wait: captures stay instant.
+        lock (_onScreen) { if (_onScreen.Count == 0) return; }
+        if (await _settings.GetAsync(HideBeforeCaptureKey, CancellationToken.None).ConfigureAwait(false) != "1") return;
+        var rawDelay = await _settings.GetAsync(HideBeforeCaptureDelayKey, CancellationToken.None).ConfigureAwait(false);
+        var delayMs = int.TryParse(rawDelay, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var d)
+            ? Math.Clamp(d, 0, MaxHideBeforeCaptureDelayMs)
+            : DefaultHideBeforeCaptureDelayMs;
+
+        KeyValuePair<string, OnScreenToast>[] toHide;
+        lock (_onScreen)
+        {
+            toHide = _onScreen.ToArray();
+            _onScreen.Clear();
+        }
+        if (toHide.Length == 0) return;
+
+        foreach (var (uid, t) in toHide)
+        {
+            try { HideKeepingCenterEntry(t.Builder, t.Shown, uid, t.CenterSeconds, t.ExpiresAt); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Hiding toast {Uid} before capture failed", uid); }
+        }
+        _logger.LogDebug("Hid {Count} toast popup(s) before capture", toHide.Length);
+        if (delayMs > 0) await Task.Delay(delayMs).ConfigureAwait(false);
+    }
+
+    /// <summary><c>ToastNotifier.Hide</c> takes the popup down but also drops the Center entry;
+    /// when the user still wants the entry, re-issue the same content with <c>SuppressPopup</c>
+    /// (lands in the Center without a second popup). Same (Tag, Group) so it replaces nothing
+    /// else, same absolute expiry so the Center lifetime isn't extended.</summary>
+    private static void HideKeepingCenterEntry(
+        ToastContentBuilder builder,
+        Windows.UI.Notifications.ToastNotification shown,
+        string uid,
+        int centerSeconds,
+        DateTimeOffset? expiresAt)
+    {
+        ToastNotificationManagerCompat.CreateToastNotifier().Hide(shown);
+
+        // Center = 0 ("don't keep") → Hide already did the whole job.
+        if (centerSeconds == Notifications.ToastLifetimeService.CenterNone) return;
+        // Expiry already passed while the popup was up → nothing to put back.
+        if (expiresAt is { } expiry && expiry <= DateTimeOffset.Now) return;
+
+        builder.Show(toast =>
+        {
+            toast.Tag = uid;
+            toast.Group = uid;
+            toast.SuppressPopup = true;
+            if (expiresAt is { } e) toast.ExpirationTime = e;
         });
     }
 
@@ -245,6 +324,7 @@ public sealed class WindowsToastNotifier : IToastNotifier
         {
             // First click on a toast wins: remove the whole entry so a second activation
             // (shouldn't happen — Windows dismisses the toast — but defensive) is a no-op.
+            lock (_onScreen) _onScreen.Remove(tag);
             if (!_pendingToasts.Remove(tag, out var callbacks)) return;
             if (args.TryGetValue("button", out var idx) && callbacks.Buttons.TryGetValue(idx, out var btn))
                 action = btn;

@@ -2,6 +2,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using AresToys.Pipeline.Tasks;
 using AresToys.Storage.Settings;
 
 namespace AresToys.App.ViewModels;
@@ -34,11 +35,38 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
     [ObservableProperty]
     private int _delaySeconds;
 
+    /// <summary>Take AresToys' own toast popup off the screen before a capture so it doesn't end
+    /// up in the next shot. Opt-in: costs <see cref="HideToastsDelayMs"/> on every capture that
+    /// finds a popup on screen (none otherwise).</summary>
+    [ObservableProperty]
+    private bool _hideToastsBeforeCapture;
+
+    /// <summary>Wait after hiding the popup before grabbing the screen, in ms.</summary>
+    [ObservableProperty]
+    private int _hideToastsDelayMs = AresToys.App.Services.WindowsToastNotifier.DefaultHideBeforeCaptureDelayMs;
+
     /// <summary>Optional sub-folder pattern appended under <see cref="Folder"/> at save time.
     /// Supports ShareX-style tokens (<c>%y</c>, <c>%mo</c>, <c>%d</c>, <c>%h</c>, <c>%mi</c>, …).
     /// Empty = no sub-folder. Persisted to <c>capture.subfolder_pattern</c>.</summary>
     [ObservableProperty]
     private string _subFolderPattern = string.Empty;
+
+    /// <summary>Text put in front of every saved capture's file name. Empty = no prefix.
+    /// Persisted to <c>capture.file_prefix</c>; see <see cref="CaptureFileNamer"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FileNamePreview))]
+    private string _filePrefix = CaptureFileNamer.DefaultPrefix;
+
+    /// <summary>File name pattern after the prefix: date tokens plus <c>%ms</c>, <c>%title</c>
+    /// and <c>%appName</c>. Persisted to <c>capture.file_name_pattern</c>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FileNamePreview))]
+    private string _fileNamePattern = CaptureFileNamer.DefaultPattern;
+
+    /// <summary>Live example under the pattern box, built with a sample window so the user sees
+    /// what %title / %appName turn into.</summary>
+    public string FileNamePreview =>
+        CaptureFileNamer.Build(FilePrefix, FileNamePattern, DateTime.Now, "Mozilla Firefox", "firefox") + ".png";
 
     /// <summary>Output format for captures + editor saves. PascalCase string ("PNG"/"JPEG"/
     /// "BMP"/"GIF") for the dropdown binding; the persisted setting (<c>capture.image_format</c>)
@@ -77,7 +105,14 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
         Folder = (await _settings.GetAsync(FolderKey, CancellationToken.None).ConfigureAwait(true)) ?? DefaultFolder;
         var rawDelay = await _settings.GetAsync(DelayKey, CancellationToken.None).ConfigureAwait(true);
         DelaySeconds = int.TryParse(rawDelay, out var d) ? Math.Clamp(d, 0, 30) : 0;
+        HideToastsBeforeCapture = (await _settings.GetAsync(AresToys.App.Services.WindowsToastNotifier.HideBeforeCaptureKey, CancellationToken.None).ConfigureAwait(true)) == "1";
+        var rawHideDelay = await _settings.GetAsync(AresToys.App.Services.WindowsToastNotifier.HideBeforeCaptureDelayKey, CancellationToken.None).ConfigureAwait(true);
+        HideToastsDelayMs = int.TryParse(rawHideDelay, out var hd)
+            ? Math.Clamp(hd, 0, AresToys.App.Services.WindowsToastNotifier.MaxHideBeforeCaptureDelayMs)
+            : AresToys.App.Services.WindowsToastNotifier.DefaultHideBeforeCaptureDelayMs;
         SubFolderPattern = (await _settings.GetAsync(SubFolderPatternKey, CancellationToken.None).ConfigureAwait(true)) ?? string.Empty;
+        FilePrefix = (await _settings.GetAsync(CaptureFileNamer.PrefixSettingKey, CancellationToken.None).ConfigureAwait(true)) ?? CaptureFileNamer.DefaultPrefix;
+        FileNamePattern = (await _settings.GetAsync(CaptureFileNamer.PatternSettingKey, CancellationToken.None).ConfigureAwait(true)) ?? CaptureFileNamer.DefaultPattern;
 
         var rawFormat = await _settings.GetAsync(ImageFormatKey, CancellationToken.None).ConfigureAwait(true);
         ImageFormat = NormaliseFormat(rawFormat);
@@ -121,10 +156,44 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
             sensitive: false, CancellationToken.None);
     }
 
+    partial void OnHideToastsBeforeCaptureChanged(bool value)
+    {
+        if (_suppressPersist) return;
+        _ = _settings.SetAsync(AresToys.App.Services.WindowsToastNotifier.HideBeforeCaptureKey, value ? "1" : "0",
+            sensitive: false, CancellationToken.None);
+    }
+
+    partial void OnHideToastsDelayMsChanged(int value)
+    {
+        if (_suppressPersist) return;
+        _ = _settings.SetAsync(AresToys.App.Services.WindowsToastNotifier.HideBeforeCaptureDelayKey,
+            value.ToString(System.Globalization.CultureInfo.InvariantCulture), sensitive: false, CancellationToken.None);
+    }
+
     partial void OnSubFolderPatternChanged(string value)
     {
         if (_suppressPersist) return;
         _ = _settings.SetAsync(SubFolderPatternKey, value, sensitive: false, CancellationToken.None);
+    }
+
+    /// <summary>"Reset" next to the file-name boxes: back to the default prefix and pattern.</summary>
+    [RelayCommand]
+    private void ResetFileName()
+    {
+        FilePrefix = CaptureFileNamer.DefaultPrefix;
+        FileNamePattern = CaptureFileNamer.DefaultPattern;
+    }
+
+    partial void OnFilePrefixChanged(string value)
+    {
+        if (_suppressPersist) return;
+        _ = _settings.SetAsync(CaptureFileNamer.PrefixSettingKey, value, sensitive: false, CancellationToken.None);
+    }
+
+    partial void OnFileNamePatternChanged(string value)
+    {
+        if (_suppressPersist) return;
+        _ = _settings.SetAsync(CaptureFileNamer.PatternSettingKey, value, sensitive: false, CancellationToken.None);
     }
 
     partial void OnImageFormatChanged(string value)

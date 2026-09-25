@@ -257,15 +257,16 @@ public partial class PinnedImageWindow : Window
             }
             Directory.CreateDirectory(folder);
 
-            var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
+            var baseName = await AresToys.Pipeline.Tasks.CaptureFileNamer.BuildAsync(
+                _settings, windowTitle: null, appName: null, CancellationToken.None).ConfigureAwait(true);
             var bareExt = extension.TrimStart('.');
-            var fullPath = Path.Combine(folder, $"arestoys-pin-{stamp}.{bareExt}");
+            var fullPath = Path.Combine(folder, $"{baseName}.{bareExt}");
             // Same -N collision guard SaveToFileTask uses; cheap and bounded.
             if (File.Exists(fullPath))
             {
                 for (var n = 1; n < 1000; n++)
                 {
-                    var candidate = Path.Combine(folder, $"arestoys-pin-{stamp}-{n}.{bareExt}");
+                    var candidate = Path.Combine(folder, $"{baseName}-{n}.{bareExt}");
                     if (!File.Exists(candidate)) { fullPath = candidate; break; }
                 }
             }

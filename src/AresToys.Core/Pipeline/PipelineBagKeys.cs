@@ -29,6 +29,11 @@ public static class PipelineBagKeys
     /// <summary>Title of the window that was snap-captured (when applicable). Type: <c>string</c>.</summary>
     public const string WindowTitle = "window_title";
 
+    /// <summary>Process name (no extension, e.g. <c>firefox</c>) of the app the capture came
+    /// from, when it could be resolved. Feeds the <c>%appName</c> file-name token.
+    /// Type: <c>string</c>.</summary>
+    public const string AppName = "app_name";
+
     /// <summary>Top-left of the captured region in physical screen pixels — set by the region/
     /// monitor/fullscreen capture tasks so downstream tasks (notably <c>arestoys.pin-to-screen</c>)
     /// can reproduce the exact on-screen origin. Type: <c>(int X, int Y)</c>.</summary>

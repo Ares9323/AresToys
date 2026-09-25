@@ -80,7 +80,11 @@ public sealed class SaveVideoFileTask : IPipelineTask
 
         var folder = await ResolveFolderAsync(config, cancellationToken).ConfigureAwait(false);
         Directory.CreateDirectory(folder);
-        var fullPath = BuildDestinationPath(folder, context, targetExt);
+        var baseName = await CaptureFileNamer.BuildAsync(_settings,
+            context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) ? rawTitle as string : null,
+            context.Bag.TryGetValue(PipelineBagKeys.AppName, out var rawApp) ? rawApp as string : null,
+            cancellationToken).ConfigureAwait(false);
+        var fullPath = BuildDestinationPath(folder, baseName, targetExt);
 
         // Fast path: target format == source format (i.e. user picked mp4 and recorder gave us
         // mp4). Write the bytes directly to the destination, no ffmpeg roundtrip. Same shape as
@@ -107,7 +111,7 @@ public sealed class SaveVideoFileTask : IPipelineTask
                     sourceExt, targetExt);
                 // Fallback: write the original bytes with the source extension so the user at
                 // least gets the recording. Re-derive the path with the source ext.
-                fullPath = BuildDestinationPath(folder, context, sourceExt);
+                fullPath = BuildDestinationPath(folder, baseName, sourceExt);
                 await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken).ConfigureAwait(false);
                 targetExt = sourceExt;
             }
@@ -160,13 +164,8 @@ public sealed class SaveVideoFileTask : IPipelineTask
         return folder;
     }
 
-    private static string BuildDestinationPath(string folder, PipelineContext context, string ext)
+    private static string BuildDestinationPath(string folder, string baseName, string ext)
     {
-        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
-        var titleSlug = context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) && rawTitle is string t
-            ? SanitizeForFilename(t)
-            : string.Empty;
-        var baseName = string.IsNullOrEmpty(titleSlug) ? $"arestoys-rec-{stamp}" : $"arestoys-rec-{titleSlug}-{stamp}";
         var candidate = Path.Combine(folder, $"{baseName}.{ext}");
         // Collision guard, same shape as SaveToFileTask. Cheap; bounded.
         if (File.Exists(candidate))
@@ -254,18 +253,5 @@ public sealed class SaveVideoFileTask : IPipelineTask
             _logger.LogWarning(ex, "SaveVideoFileTask: ffmpeg launch failed");
             return false;
         }
-    }
-
-    private static string SanitizeForFilename(string title)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sb = new System.Text.StringBuilder(title.Length);
-        foreach (var c in title)
-        {
-            if (Array.IndexOf(invalid, c) >= 0 || c == '-' || c == ' ') sb.Append('_');
-            else sb.Append(c);
-        }
-        var s = sb.ToString().Trim('_');
-        return s.Length > 40 ? s[..40] : s;
     }
 }

@@ -1159,10 +1159,72 @@
                     <Button Content="AM/PM"     Tag="%pm"  Click="OnPatternTokenClick" ToolTip="{Markup:Loc Pattern_AmPmTooltip}" />
                 </WrapPanel>
 
+                <!-- File name: free prefix + token pattern, same chip mechanics as the sub-folder
+                     pattern above. The chips here also offer %ms, %title and %appName. -->
+                <TextBlock Text="{Markup:Loc Capture_FilePrefix}" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <ui:TextBox Text="{Binding Capture.FilePrefix, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="{Markup:Loc Capture_FilePrefixPlaceholder}"
+                            PreviewTextInput="OnSubFolderPatternPreviewTextInput"
+                            DataObject.Pasting="OnSubFolderPatternPasting"
+                            HorizontalAlignment="Left" MinWidth="240"
+                            Margin="0,0,0,12" />
+
+                <TextBlock Text="{Markup:Loc Capture_FileNamePattern}" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="FileNamePatternBox" Grid.Column="0"
+                                Text="{Binding Capture.FileNamePattern, UpdateSourceTrigger=PropertyChanged}"
+                                PreviewTextInput="OnSubFolderPatternPreviewTextInput"
+                                DataObject.Pasting="OnSubFolderPatternPasting" />
+                    <ui:Button Grid.Column="1" Margin="6,0,0,0"
+                               Content="{Markup:Loc Capture_FileNameReset}"
+                               ToolTip="{Markup:Loc Capture_FileNameResetTooltip}"
+                               Command="{Binding Capture.ResetFileNameCommand}" />
+                </Grid>
+                <WrapPanel Margin="0,0,0,6">
+                    <WrapPanel.Resources>
+                        <Style TargetType="Button" BasedOn="{StaticResource PatternTokenChipStyle}" />
+                    </WrapPanel.Resources>
+                    <Button Content="Year"        Tag="%y"       Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_YearTooltip}" />
+                    <Button Content="ShortYear"   Tag="%yy"      Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_ShortYearTooltip}" />
+                    <Button Content="Month"       Tag="%mo"      Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_MonthTooltip}" />
+                    <Button Content="MonthName"   Tag="%mon"     Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_MonthNameTooltip}" />
+                    <Button Content="Day"         Tag="%d"       Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_DayTooltip}" />
+                    <Button Content="Hour"        Tag="%h"       Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_HourTooltip}" />
+                    <Button Content="Minute"      Tag="%mi"      Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_MinuteTooltip}" />
+                    <Button Content="Second"      Tag="%s"       Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_SecondTooltip}" />
+                    <Button Content="Millisecond" Tag="%ms"      Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_MillisecondTooltip}" />
+                    <Button Content="AM/PM"       Tag="%pm"      Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_AmPmTooltip}" />
+                    <Button Content="WindowTitle" Tag="%title"   Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_WindowTitleTooltip}" />
+                    <Button Content="AppName"     Tag="%appName" Click="OnFileNameTokenClick" ToolTip="{Markup:Loc Pattern_AppNameTooltip}" />
+                </WrapPanel>
+                <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16">
+                    <Run Text="{Markup:Loc Capture_FileNamePreview}" />
+                    <Run Text="{Binding Capture.FileNamePreview, Mode=OneWay}" />
+                </TextBlock>
+
                 <TextBlock Text="{Markup:Loc Capture_DelaySeconds}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <ui:NumberBox Value="{Binding Capture.DelaySeconds, Mode=TwoWay}"
                               Minimum="0" Maximum="30" SmallChange="1"
                               HorizontalAlignment="Left" Width="120" />
+
+                <!-- Opt-in: hide AresToys' own toast before a capture. The wait is only paid
+                     when a popup is actually on screen; the box is greyed out while off. -->
+                <CheckBox IsChecked="{Binding Capture.HideToastsBeforeCapture, Mode=TwoWay}"
+                          Content="{Markup:Loc Capture_HideToasts}"
+                          ToolTip="{Markup:Loc Capture_HideToastsTooltip}"
+                          Margin="0,12,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="28,0,0,0"
+                            IsEnabled="{Binding Capture.HideToastsBeforeCapture}">
+                    <ui:NumberBox Value="{Binding Capture.HideToastsDelayMs, Mode=TwoWay}"
+                                  Minimum="0" Maximum="2000" SmallChange="10"
+                                  Width="140" />
+                    <TextBlock Text="{Markup:Loc Capture_HideToastsDelay}" VerticalAlignment="Center" Margin="8,0,0,0"
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                </StackPanel>
 
                 <!-- Image format. Drives both capture pipelines (CaptureCoordinator encodes new
                      screenshots into the chosen format) and the editor's "Save" button (history

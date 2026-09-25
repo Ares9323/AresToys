@@ -459,6 +459,15 @@
   <data name="Pattern_HourTooltip" xml:space="preserve"><value>Ora 24h — 00-23</value></data>
   <data name="Pattern_MinuteTooltip" xml:space="preserve"><value>Minuti — 00-59</value></data>
   <data name="Pattern_SecondTooltip" xml:space="preserve"><value>Secondi — 00-59</value></data>
+  <data name="Capture_FilePrefix" xml:space="preserve"><value>Prefisso del nome file</value></data>
+  <data name="Capture_FilePrefixPlaceholder" xml:space="preserve"><value>es. arestoys (vuoto per nessun prefisso)</value></data>
+  <data name="Capture_FileNamePattern" xml:space="preserve"><value>Pattern del nome file</value></data>
+  <data name="Capture_FileNamePreview" xml:space="preserve"><value>Esempio:</value></data>
+  <data name="Pattern_MillisecondTooltip" xml:space="preserve"><value>Millisecondi: 000-999</value></data>
+  <data name="Pattern_WindowTitleTooltip" xml:space="preserve"><value>Titolo della finestra catturata (vuoto se non c'è)</value></data>
+  <data name="Pattern_AppNameTooltip" xml:space="preserve"><value>Nome dell'app da cui arriva la cattura, es. firefox</value></data>
+  <data name="Capture_FileNameReset" xml:space="preserve"><value>Ripristina</value></data>
+  <data name="Capture_FileNameResetTooltip" xml:space="preserve"><value>Ripristina il prefisso (arestoys) e il pattern (%y%mo%d-%h%mi%s_%appName) predefiniti</value></data>
   <data name="Pattern_AmPmTooltip" xml:space="preserve"><value>AM o PM</value></data>
   <data name="ClipboardCategories_PickIconTooltip" xml:space="preserve"><value>Clicca per scegliere un'icona dalla libreria.</value></data>
   <data name="ClipboardCategories_CategoryNameTooltip" xml:space="preserve"><value>Nome della categoria. Rinominandola, tutti gli elementi esistenti vengono spostati nel nuovo nome.</value></data>
@@ -555,6 +564,9 @@
   <data name="Capture_SubFolderPattern" xml:space="preserve"><value>Pattern sottocartella (opzionale)</value></data>
   <data name="Capture_SubFolderPlaceholder" xml:space="preserve"><value>es. %y-%mo  →  sottocartella 2026-04 sotto la cartella di salvataggio</value></data>
   <data name="Capture_SubFolderHint" xml:space="preserve"><value>Token: %y / %yy anno a 4 / 2 cifre, %mo mese (01–12), %mon nome mese, %d giorno, %h ora, %mi minuto, %s secondo, %pm AM/PM. Lascia vuoto per nessuna sottocartella.</value></data>
+  <data name="Capture_HideToasts" xml:space="preserve"><value>Nascondi le notifiche di AresToys prima della cattura</value></data>
+  <data name="Capture_HideToastsTooltip" xml:space="preserve"><value>Toglie dallo schermo la notifica della cattura precedente, così non finisce nello screenshot successivo. Resta nel Centro notifiche. Aggiunge l'attesa qui sotto, solo quando una notifica è sullo schermo.</value></data>
+  <data name="Capture_HideToastsDelay" xml:space="preserve"><value>ms di attesa prima della cattura (aumentali se la notifica si vede ancora)</value></data>
   <data name="Capture_DelaySeconds" xml:space="preserve"><value>Ritardo screenshot (secondi)</value></data>
   <data name="Capture_ImageFormat" xml:space="preserve"><value>Formato immagine</value></data>
   <data name="Capture_JpegQuality" xml:space="preserve"><value>Qualità JPEG</value></data>

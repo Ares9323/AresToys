@@ -159,6 +159,46 @@ public static class WindowEnumeration
         return null;
     }
 
+    /// <summary>Process name (e.g. <c>firefox</c>) of the top-level window at a screen-pixel
+    /// point. Null when there's no window, it belongs to <paramref name="excludeProcessId"/>
+    /// (our own overlays / pins), or the process can't be queried (elevated, already gone).
+    /// Feeds the <c>%appName</c> file-name token for region captures.</summary>
+    public static string? GetProcessNameAt(int x, int y, int? excludeProcessId = null)
+    {
+        var hwnd = WindowFromPoint(new POINT { X = x, Y = y });
+        if (hwnd == IntPtr.Zero) return null;
+        var root = GetAncestor(hwnd, GA_ROOT);
+        return ProcessNameOf(root == IntPtr.Zero ? hwnd : root, excludeProcessId);
+    }
+
+    /// <summary>Process name of the current foreground window, same exclusions as
+    /// <see cref="GetProcessNameAt"/>. Used for whole-window / monitor captures.</summary>
+    public static string? GetForegroundProcessName(int? excludeProcessId = null)
+    {
+        var hwnd = GetForegroundWindow();
+        return hwnd == IntPtr.Zero ? null : ProcessNameOf(hwnd, excludeProcessId);
+    }
+
+    private static string? ProcessNameOf(IntPtr hwnd, int? excludeProcessId)
+    {
+        _ = GetWindowThreadProcessId(hwnd, out var pid);
+        if (pid == 0 || (excludeProcessId is int skip && (int)pid == skip)) return null;
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+            return process.ProcessName;
+        }
+        catch { return null; }
+    }
+
+    private const uint GA_ROOT = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
     // ── Win32 helpers ────────────────────────────────────────────────────────────────────
 
     /// <summary>Same as ShareX's <c>CaptureHelpers.GetWindowRectangle</c>: prefer DWM extended

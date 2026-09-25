@@ -35,6 +35,7 @@ public static class DatePatternExpander
         .Replace("%d",    now.ToString("dd",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
         .Replace("%h",    now.ToString("HH",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
         .Replace("%mi",   now.ToString("mm",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
+        .Replace("%ms",   now.ToString("fff",  CultureInfo.InvariantCulture), StringComparison.Ordinal)
         .Replace("%s",    now.ToString("ss",   CultureInfo.InvariantCulture), StringComparison.Ordinal)
         .Replace("%pm",   now.ToString("tt",   CultureInfo.InvariantCulture), StringComparison.Ordinal);
 }

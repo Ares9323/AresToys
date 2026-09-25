@@ -52,6 +52,8 @@ public sealed class RecordingCoordinator
     private readonly ILogger<RecordingCoordinator> _logger;
     private RecordingOverlayWindow? _overlay;
     private RecordingFormat _activeFormat;
+    private string? _activeWindowTitle;
+    private string? _activeAppName;
     private bool _downloadInProgress;
     /// <summary>True when the in-flight recording was started by a pipeline step (non-null
     /// PipelineContext). Drives <see cref="StopAndPersistAsync"/>: pipeline mode emits bag
@@ -103,22 +105,6 @@ public sealed class RecordingCoordinator
             folder = Path.Combine(folder, sub);
         }
         return folder;
-    }
-
-    /// <summary>Strip filesystem-unsafe chars from a window title and limit length so filenames stay
-    /// reasonable. Returns empty string if the input is null/whitespace.</summary>
-    private static string SanitizeForFilename(string? title)
-    {
-        if (string.IsNullOrWhiteSpace(title)) return string.Empty;
-        var invalid = Path.GetInvalidFileNameChars();
-        var sb = new System.Text.StringBuilder(title.Length);
-        foreach (var c in title)
-        {
-            if (Array.IndexOf(invalid, c) >= 0 || c == '-' || c == ' ') sb.Append('_');
-            else sb.Append(c);
-        }
-        var s = sb.ToString().Trim('_');
-        return s.Length > 40 ? s[..40] : s;
     }
 
     /// <summary>Single hotkey toggle wrapping a recording session.
@@ -187,6 +173,9 @@ public sealed class RecordingCoordinator
         // semantics: recording a multi-region capture has no use case (ffmpeg records one
         // contiguous rect), and the user reported the Enter-to-confirm step felt unnatural
         // when starting a recording. AutoConfirm = first mouse-up commits the rect.
+        // Previous capture's toast off the screen, or it would be both in the picker's frozen
+        // frame and in the first seconds of the recording.
+        await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
         var region = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             var overlay = new RegionOverlayWindow { AutoConfirmOnFirstSelection = true };
@@ -202,14 +191,14 @@ public sealed class RecordingCoordinator
             ? PipelineTempFolder
             : await ResolveCaptureFolderAsync(cancellationToken).ConfigureAwait(false);
         Directory.CreateDirectory(folder);
-        // Local time, not UTC: this stamp is what the user reads in the filename, and it has to
-        // agree with the clock on their wall — and with the date sub-folder two lines up, which
-        // has always used local time. UTC put every name up to a full day and several hours off.
-        var stamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
+        // Remember where the recording came from: the stop path hands these to the pipeline
+        // bag so SaveVideoFileTask can use %title / %appName in the final file name.
+        _activeWindowTitle = region.WindowTitle;
+        _activeAppName = AresToys.Capture.WindowEnumeration.GetProcessNameAt(
+            region.X + region.Width / 2, region.Y + region.Height / 2, Environment.ProcessId);
         var ext = format == RecordingFormat.Mp4 ? "mp4" : "gif";
-        var titleSlug = SanitizeForFilename(region.WindowTitle);
-        var outPath = Path.Combine(folder,
-            string.IsNullOrEmpty(titleSlug) ? $"arestoys-rec-{stamp}.{ext}" : $"arestoys-rec-{titleSlug}-{stamp}.{ext}");
+        var baseName = await CaptureFileNamer.BuildAsync(_settings, _activeWindowTitle, _activeAppName, cancellationToken).ConfigureAwait(false);
+        var outPath = Path.Combine(folder, $"{baseName}.{ext}");
 
         var options = new RecordingOptions(
             X: region.X, Y: region.Y, Width: region.Width, Height: region.Height,
@@ -334,6 +323,8 @@ public sealed class RecordingCoordinator
             contextForBag.Bag[PipelineBagKeys.PayloadBytes] = bytes;
             contextForBag.Bag[PipelineBagKeys.FileExtension] = ext;
             contextForBag.Bag[PipelineBagKeys.NewItem] = newItem;
+            if (!string.IsNullOrEmpty(_activeWindowTitle)) contextForBag.Bag[PipelineBagKeys.WindowTitle] = _activeWindowTitle;
+            if (!string.IsNullOrEmpty(_activeAppName)) contextForBag.Bag[PipelineBagKeys.AppName] = _activeAppName;
             _logger.LogDebug("RecordingCoordinator: pipeline-mode stop — emitted bag (temp={Path})", path);
             completion?.TrySetResult(true);
             return;

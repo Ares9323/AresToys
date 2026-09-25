@@ -1222,7 +1222,11 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         var anchor = (sender as MenuItem)?.Parent is ContextMenu { PlacementTarget: UIElement target }
             ? target
             : AddCategoryButton;
-        OpenCategoryNamePopup(anchor, renaming: name, initialText: tab.DisplayName);
+        // Open the name box only once the context menu has fully closed. Opening a
+        // StaysOpen=False popup from inside the MenuItem click lets the closing menu and the new
+        // popup fight over mouse capture, which could leave the window ignoring input.
+        Dispatcher.BeginInvoke(() => OpenCategoryNamePopup(anchor, renaming: name, initialText: tab.DisplayName),
+            DispatcherPriority.ContextIdle);
     }
 
     private async void OnCategoryDeleteClick(object sender, RoutedEventArgs e)

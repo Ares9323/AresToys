@@ -41,8 +41,11 @@ public sealed class CaptureRegionTask : IPipelineTask
     private readonly ISettingsStore _settings;
     private readonly ILogger<CaptureRegionTask> _logger;
 
-    public CaptureRegionTask(ICaptureSource captureSource, CaptureImageOutputService outputEncoder, ISettingsStore settings, ILogger<CaptureRegionTask> logger)
+    private readonly IToastNotifier? _notifier;
+
+    public CaptureRegionTask(ICaptureSource captureSource, CaptureImageOutputService outputEncoder, ISettingsStore settings, ILogger<CaptureRegionTask> logger, IToastNotifier? notifier = null)
     {
+        _notifier = notifier;
         _captureSource = captureSource;
         _outputEncoder = outputEncoder;
         _settings = settings;
@@ -94,6 +97,7 @@ public sealed class CaptureRegionTask : IPipelineTask
             var last = await LastCaptureRegion.LoadAsync(_settings, cancellationToken).ConfigureAwait(false);
             if (last is not null)
             {
+                if (_notifier is not null) await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
                 var captured = await _captureSource.CaptureAsync(last, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Capture region: reusing last region ({X}, {Y}) {W}×{H} px",
                     last.X, last.Y, last.Width, last.Height);
@@ -107,6 +111,8 @@ public sealed class CaptureRegionTask : IPipelineTask
         // is constructed, focus has shifted to AresToys and transient UI like open dropdowns
         // are gone. ShareX-style: capture once at the earliest entry point, hand the bitmap
         // to the overlay, crop on mouse-up.
+        // Take the previous capture's "saved" toast off the screen first, or it ends up in this shot.
+        if (_notifier is not null) await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
         var (prefabSnapshot, prefabLeft, prefabTop) = RegionOverlayWindow.CaptureVirtualScreen();
         var (region, prefabBytes, multiParts) = await Application.Current.Dispatcher.InvokeAsync(() =>
         {
@@ -167,6 +173,13 @@ public sealed class CaptureRegionTask : IPipelineTask
         if (!string.IsNullOrEmpty(region.WindowTitle))
         {
             context.Bag[PipelineBagKeys.WindowTitle] = region.WindowTitle;
+        }
+        // App under the centre of the region (the overlay is closed by now, so the real window
+        // is on top again). Feeds the %appName file-name token.
+        if (AresToys.Capture.WindowEnumeration.GetProcessNameAt(
+                region.X + region.Width / 2, region.Y + region.Height / 2) is { } appName)
+        {
+            context.Bag[PipelineBagKeys.AppName] = appName;
         }
         var searchTextPrefix = string.IsNullOrEmpty(region.WindowTitle) ? "Region" : region.WindowTitle;
         context.Bag[PipelineBagKeys.NewItem] = new NewItem(

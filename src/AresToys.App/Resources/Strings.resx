@@ -474,6 +474,15 @@
   <data name="Pattern_HourTooltip" xml:space="preserve"><value>Hour 24h — 00-23</value></data>
   <data name="Pattern_MinuteTooltip" xml:space="preserve"><value>Minute — 00-59</value></data>
   <data name="Pattern_SecondTooltip" xml:space="preserve"><value>Second — 00-59</value></data>
+  <data name="Capture_FilePrefix" xml:space="preserve"><value>File name prefix</value></data>
+  <data name="Capture_FilePrefixPlaceholder" xml:space="preserve"><value>e.g. arestoys (leave empty for no prefix)</value></data>
+  <data name="Capture_FileNamePattern" xml:space="preserve"><value>File name pattern</value></data>
+  <data name="Capture_FileNamePreview" xml:space="preserve"><value>Example:</value></data>
+  <data name="Pattern_MillisecondTooltip" xml:space="preserve"><value>Millisecond: 000-999</value></data>
+  <data name="Pattern_WindowTitleTooltip" xml:space="preserve"><value>Title of the captured window (empty when there is none)</value></data>
+  <data name="Pattern_AppNameTooltip" xml:space="preserve"><value>Name of the app the capture came from, e.g. firefox</value></data>
+  <data name="Capture_FileNameReset" xml:space="preserve"><value>Reset</value></data>
+  <data name="Capture_FileNameResetTooltip" xml:space="preserve"><value>Restore the default prefix (arestoys) and pattern (%y%mo%d-%h%mi%s_%appName)</value></data>
   <data name="Pattern_AmPmTooltip" xml:space="preserve"><value>AM or PM</value></data>
   <data name="ClipboardCategories_PickIconTooltip" xml:space="preserve"><value>Click to pick an icon from the library.</value></data>
   <data name="ClipboardCategories_CategoryNameTooltip" xml:space="preserve"><value>Category name. Renaming re-routes every existing item to the new name.</value></data>
@@ -579,6 +588,9 @@
   <data name="Capture_SubFolderPattern" xml:space="preserve"><value>Sub-folder pattern (optional)</value></data>
   <data name="Capture_SubFolderPlaceholder" xml:space="preserve"><value>e.g. %y-%mo  →  2026-04 sub-folder under the save folder</value></data>
   <data name="Capture_SubFolderHint" xml:space="preserve"><value>Tokens: %y / %yy 4-digit / 2-digit year, %mo month (01–12), %mon month name, %d day, %h hour, %mi minute, %s second, %pm AM/PM. Leave empty for no sub-folder.</value></data>
+  <data name="Capture_HideToasts" xml:space="preserve"><value>Hide AresToys notifications before capturing</value></data>
+  <data name="Capture_HideToastsTooltip" xml:space="preserve"><value>Takes the previous capture's notification off the screen so it doesn't end up in the next screenshot. It stays in the Notification Center. Adds the wait below, only when a notification is on screen.</value></data>
+  <data name="Capture_HideToastsDelay" xml:space="preserve"><value>ms to wait before capturing (raise it if the notification still shows up)</value></data>
   <data name="Capture_DelaySeconds" xml:space="preserve"><value>Screenshot delay (seconds)</value></data>
   <data name="Capture_ImageFormat" xml:space="preserve"><value>Image format</value></data>
   <data name="Capture_JpegQuality" xml:space="preserve"><value>JPEG quality</value></data>

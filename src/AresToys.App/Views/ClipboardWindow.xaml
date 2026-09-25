@@ -49,6 +49,10 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <!-- FontAwesome glyphs sit ~2 px above the Segoe UI text next to them (the icon font's
+             ascent is taller), so tab icons looked high inside their buttons. A render-only
+             shift fixes the optics without changing the tab height. -->
+        <TranslateTransform x:Key="IconFontBaselineNudge" Y="2" />
     </ui:FluentWindow.Resources>
     <!-- Accent-tinted 2px frame around the whole window content (titlebar + body), matching
          MainWindow / ImageEffectsWindow / GradientEditorWindow / QrGeneratorWindow. FluentWindow's
@@ -253,6 +257,7 @@
                                                    FontFamily="{DynamicResource IconFont}"
                                                    Margin="0,0,6,0"
                                                    VerticalAlignment="Center"
+                                                   RenderTransform="{StaticResource IconFontBaselineNudge}"
                                                    Visibility="{Binding Icon, Converter={StaticResource NonEmptyToVisibility}}" />
                                         <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
                                     </StackPanel>
@@ -270,7 +275,8 @@
                                Cursor="Hand"
                                Click="OnAddCategoryClick"
                                ToolTip="{Markup:Loc Clipboard_TooltipAddCategory}">
-                        <TextBlock Text="&#xF067;" FontFamily="{DynamicResource IconFont}" VerticalAlignment="Center" />
+                        <TextBlock Text="&#xF067;" FontFamily="{DynamicResource IconFont}" VerticalAlignment="Center"
+                                   RenderTransform="{StaticResource IconFontBaselineNudge}" />
                     </ui:Button>
                     <!-- Shared name box: create (anchored to "+") or rename (anchored to the
                          right-clicked tab). PlacementTarget is set from code-behind. -->

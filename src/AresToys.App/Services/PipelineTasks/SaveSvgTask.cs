@@ -73,7 +73,10 @@ public sealed class SaveSvgTask : IPipelineTask
         else
         {
             folder = await ResolveCaptureFolderAsync(config, cancellationToken).ConfigureAwait(false);
-            stem = "arestoys-" + DateTimeOffset.Now.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
+            stem = await CaptureFileNamer.BuildAsync(_settings,
+                context.Bag.TryGetValue(PipelineBagKeys.WindowTitle, out var rawTitle) ? rawTitle as string : null,
+                context.Bag.TryGetValue(PipelineBagKeys.AppName, out var rawApp) ? rawApp as string : null,
+                cancellationToken).ConfigureAwait(false);
         }
         Directory.CreateDirectory(folder);
 

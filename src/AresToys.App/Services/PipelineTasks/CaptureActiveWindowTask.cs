@@ -33,8 +33,11 @@ public sealed class CaptureActiveWindowTask : IPipelineTask
     private readonly CaptureImageOutputService _outputEncoder;
     private readonly ILogger<CaptureActiveWindowTask> _logger;
 
-    public CaptureActiveWindowTask(ICaptureSource captureSource, ISettingsStore settings, CaptureImageOutputService outputEncoder, ILogger<CaptureActiveWindowTask> logger)
+    private readonly IToastNotifier? _notifier;
+
+    public CaptureActiveWindowTask(ICaptureSource captureSource, ISettingsStore settings, CaptureImageOutputService outputEncoder, ILogger<CaptureActiveWindowTask> logger, IToastNotifier? notifier = null)
     {
+        _notifier = notifier;
         _captureSource = captureSource;
         _settings = settings;
         _outputEncoder = outputEncoder;
@@ -78,6 +81,8 @@ public sealed class CaptureActiveWindowTask : IPipelineTask
 
         var region = new CaptureRegion(snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height,
             string.IsNullOrEmpty(snapshot.Title) ? "Active window" : snapshot.Title);
+        // Take the previous capture's "saved" toast off the screen first, or it ends up in this shot.
+        if (_notifier is not null) await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
         var captured = await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
         var (bytes, ext) = await _outputEncoder.EncodeAsync(captured.PngBytes, cancellationToken).ConfigureAwait(false);
 
@@ -87,6 +92,10 @@ public sealed class CaptureActiveWindowTask : IPipelineTask
         if (!string.IsNullOrEmpty(region.WindowTitle))
         {
             context.Bag[PipelineBagKeys.WindowTitle] = region.WindowTitle;
+        }
+        if (WindowEnumeration.GetForegroundProcessName(Environment.ProcessId) is { } appName)
+        {
+            context.Bag[PipelineBagKeys.AppName] = appName;
         }
         var searchText = string.IsNullOrEmpty(region.WindowTitle) ? "Active window" : region.WindowTitle!;
         context.Bag[PipelineBagKeys.NewItem] = new NewItem(

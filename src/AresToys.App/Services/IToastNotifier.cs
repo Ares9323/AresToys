@@ -19,4 +19,10 @@ public interface IToastNotifier
     /// something different per scenario" confusion the pipeline task used to have.</summary>
     void Show(string title, string message, Action? onClick = null, string? imagePath = null,
               IReadOnlyList<ToastButtonChoice>? buttons = null);
+
+    /// <summary>Called right before a screenshot / recording grabs the screen: take any of our
+    /// popups off the screen so the previous capture's "saved" toast doesn't end up in the next
+    /// one. Completes once the popups are gone (instantly when none was showing). Entries the
+    /// user wants kept stay in the Notification Center. Default: nothing to hide.</summary>
+    Task HideOnScreenPopupsAsync() => Task.CompletedTask;
 }

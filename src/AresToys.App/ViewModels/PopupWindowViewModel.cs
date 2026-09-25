@@ -932,6 +932,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
             await _categories.AddAsync(
                 new Category(trimmed, CategoriesViewModel.DefaultIconGlyph, Categories.Count),
                 CancellationToken.None).ConfigureAwait(true);
+            await ReloadCategoriesAsync().ConfigureAwait(true);
         }
         ActiveCategory = existing?.Name ?? trimmed;
     }
@@ -946,6 +947,10 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         if (Categories.Any(c => !string.Equals(c.Name, oldName, StringComparison.Ordinal)
                                 && string.Equals(c.Name, trimmed, StringComparison.OrdinalIgnoreCase))) return;
         await _categories.RenameAsync(oldName, trimmed, CancellationToken.None).ConfigureAwait(true);
+        // Rebuild the tab strip right here instead of waiting for the store's Changed event to
+        // come back through the dispatcher: the renamed tab updates in the same frame, and the
+        // active-tab switch below finds the new name already in the list.
+        await ReloadCategoriesAsync().ConfigureAwait(true);
         if (string.Equals(ActiveCategory, oldName, StringComparison.Ordinal)) ActiveCategory = trimmed;
     }
 
@@ -955,6 +960,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     public async Task DeleteCategoryAsync(string name)
     {
         await _categories.DeleteAsync(name, CancellationToken.None).ConfigureAwait(true);
+        await ReloadCategoriesAsync().ConfigureAwait(true);
         if (string.Equals(ActiveCategory, name, StringComparison.Ordinal))
             ActiveCategory = AresToys.Storage.Items.Category.Default;
         else
