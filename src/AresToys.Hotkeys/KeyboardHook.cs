@@ -35,17 +35,25 @@ public sealed class KeyboardHook : IDisposable
     /// and <see cref="_suppressedKeyUps"/> pairing both left STALE state on a dropped KEYUP,
     /// which then silently swallowed the NEXT press: both recording hotkeys are bound to
     /// PrintScreen, so a single dropped KEYUP froze BOTH "start recording" and "stop recording".
-    /// These keys are handled by a self-healing scheme in <see cref="HookProc"/> instead — fire
-    /// on the leading edge, and swallow only a KEYUP that pairs with a KEYDOWN we fired within
-    /// <see cref="KeyUpPairWindowMs"/>. A dropped KEYUP can't poison anything because the pairing
-    /// window expires on its own. Maps vkCode → TickCount64 of the last KEYDOWN we fired for it.</summary>
-    private readonly Dictionary<uint, long> _keyUpTriggerArmTick = new();
+    /// These keys are handled by a time-based, self-healing scheme in <see cref="HookProc"/>
+    /// instead: a matched event fires only if the key has been quiet for
+    /// <see cref="KeyUpPairWindowMs"/> (so auto-repeat KEYDOWNs and the trailing KEYUP of a press
+    /// are swallowed) AND the last fire is at least <see cref="SpecialKeyCooldownMs"/> old. No
+    /// state depends on a KEYUP arriving, so a dropped one can't poison the next press.
+    /// Both maps are vkCode → TickCount64.</summary>
+    private readonly Dictionary<uint, long> _specialKeyLastEventTick = new();
+    private readonly Dictionary<uint, long> _specialKeyLastFireTick = new();
     private readonly object _keyUpTriggerLock = new();
-    /// <summary>How long after a fired KEYDOWN a matching KEYUP is treated as that same press's
-    /// trailing edge (swallowed, no second fire) rather than a fresh press. Comfortably longer
-    /// than the microsecond gap of a real KEYDOWN→KEYUP pair, far shorter than any deliberate
-    /// start/stop re-press.</summary>
+    /// <summary>Minimum quiet gap before a PrintScreen / Pause event counts as a fresh press.
+    /// Longer than the auto-repeat interval (~33 ms) and a typical KEYDOWN→KEYUP gap.</summary>
     private const long KeyUpPairWindowMs = 250;
+    /// <summary>Hard cap of one fire per second for PrintScreen / Pause (issue #21). Win11
+    /// sometimes delivers a press's KEYDOWN and KEYUP far enough apart (or duplicates them) that
+    /// edge pairing alone let the workflow run twice.</summary>
+    private const long SpecialKeyCooldownMs = 1000;
+
+    /// <summary>Clock for the PrintScreen / Pause timing. Test seam: tests swap it for a fake.</summary>
+    internal Func<long> TickSource { get; set; } = () => Environment.TickCount64;
 
     /// <summary>Pure-observer listeners notified of every non-injected key transition. Cannot
     /// suppress events — suppression is the exclusive concern of the atomic bindings in
@@ -210,8 +218,8 @@ public sealed class KeyboardHook : IDisposable
 
         // ── Keyup-trigger special keys (PrintScreen / Pause) ──────────────────────────────
         // Self-healing path that tolerates Win11's unreliable KEYDOWN/KEYUP delivery for these
-        // keys (see _keyUpTriggerArmTick remark). Always fire on the leading edge; swallow only
-        // a KEYUP that pairs with a KEYDOWN we just fired. Deliberately bypasses the _heldKeys
+        // keys (see _specialKeyLastEventTick remark). Fire on whichever edge arrives first after
+        // a quiet gap, never more than once per SpecialKeyCooldownMs. Deliberately bypasses the _heldKeys
         // auto-repeat guard and the _suppressedKeyUps pairing used for ordinary keys — both left
         // stale state when a KEYUP was dropped, which silently ate the next press (the two
         // recording hotkeys, both bound to PrintScreen, would freeze after the first press).
@@ -219,22 +227,20 @@ public sealed class KeyboardHook : IDisposable
         // KEYUP is a pure de-dupe, not a suppression concern.
         if (data.vkCode is VK_SNAPSHOT or VK_PAUSE)
         {
-            var nowTick = Environment.TickCount64;
-            var shouldFire = true;
-            if (isKeyUp)
+            var nowTick = TickSource();
+            bool shouldFire;
+            lock (_keyUpTriggerLock)
             {
-                lock (_keyUpTriggerLock)
-                {
-                    // Trailing edge of the press we already fired on (its KEYDOWN) ⇒ swallow.
-                    // Consume the arm either way so a later genuine keyup-only press still fires.
-                    if (_keyUpTriggerArmTick.TryGetValue(data.vkCode, out var armed) && nowTick - armed < KeyUpPairWindowMs)
-                        shouldFire = false;
-                    _keyUpTriggerArmTick.Remove(data.vkCode);
-                }
-            }
-            else // leading-edge KEYDOWN — always a genuine press; arm the paired-keyup swallow.
-            {
-                lock (_keyUpTriggerLock) _keyUpTriggerArmTick[data.vkCode] = nowTick;
+                // Quiet gap: an event close to the previous one for this vk is an auto-repeat
+                // KEYDOWN or the trailing KEYUP of the same press. Every event refreshes the gap,
+                // so holding the key never re-fires and its release is swallowed.
+                var quiet = !_specialKeyLastEventTick.TryGetValue(data.vkCode, out var lastEvent)
+                            || nowTick - lastEvent >= KeyUpPairWindowMs;
+                var cooledDown = !_specialKeyLastFireTick.TryGetValue(data.vkCode, out var lastFire)
+                                 || nowTick - lastFire >= SpecialKeyCooldownMs;
+                shouldFire = quiet && cooledDown;
+                _specialKeyLastEventTick[data.vkCode] = nowTick;
+                if (shouldFire) _specialKeyLastFireTick[data.vkCode] = nowTick;
             }
 
             if (shouldFire) FireCallback(matched);

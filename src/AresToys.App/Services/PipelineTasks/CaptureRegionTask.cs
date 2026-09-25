@@ -6,6 +6,7 @@ using AresToys.Capture;
 using AresToys.Core.Domain;
 using AresToys.Core.Pipeline;
 using AresToys.Storage.Items;
+using AresToys.Storage.Settings;
 
 namespace AresToys.App.Services.PipelineTasks;
 
@@ -37,12 +38,14 @@ public sealed class CaptureRegionTask : IPipelineTask
 
     private readonly ICaptureSource _captureSource;
     private readonly CaptureImageOutputService _outputEncoder;
+    private readonly ISettingsStore _settings;
     private readonly ILogger<CaptureRegionTask> _logger;
 
-    public CaptureRegionTask(ICaptureSource captureSource, CaptureImageOutputService outputEncoder, ILogger<CaptureRegionTask> logger)
+    public CaptureRegionTask(ICaptureSource captureSource, CaptureImageOutputService outputEncoder, ISettingsStore settings, ILogger<CaptureRegionTask> logger)
     {
         _captureSource = captureSource;
         _outputEncoder = outputEncoder;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -83,6 +86,23 @@ public sealed class CaptureRegionTask : IPipelineTask
         // multi-region is power-user opt-in, single-shot is the common case.
         var autoConfirm = (bool?)config?["autoConfirmOnFirstSelection"] ?? true;
 
+        // Per-workflow opt-in: re-capture the last picked region without opening the overlay.
+        // Live BitBlt of the same rectangle, so repeated shots of one area (a progress bar, a
+        // chart, a game HUD) are a single keypress. Nothing stored yet → normal overlay pick.
+        if ((bool?)config?["useLastRegion"] == true)
+        {
+            var last = await LastCaptureRegion.LoadAsync(_settings, cancellationToken).ConfigureAwait(false);
+            if (last is not null)
+            {
+                var captured = await _captureSource.CaptureAsync(last, cancellationToken).ConfigureAwait(false);
+                _logger.LogInformation("Capture region: reusing last region ({X}, {Y}) {W}×{H} px",
+                    last.X, last.Y, last.Width, last.Height);
+                await PublishAsync(context, last, captured.PngBytes, multiParts: null, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            _logger.LogInformation("Capture region: no last region stored yet; opening the overlay");
+        }
+
         // Snapshot synchronously BEFORE the dispatcher hop — by the time the overlay window
         // is constructed, focus has shifted to AresToys and transient UI like open dropdowns
         // are gone. ShareX-style: capture once at the earliest entry point, hand the bitmap
@@ -112,6 +132,20 @@ public sealed class CaptureRegionTask : IPipelineTask
         var rawPng = prefabBytes is { Length: > 0 }
             ? prefabBytes
             : (await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false)).PngBytes;
+
+        // Remember the pick so "use last region" steps (and the tray "Last region" entry) can
+        // repeat it. Best-effort: a settings write failure must not lose the capture.
+        try { await LastCaptureRegion.SaveAsync(_settings, region, cancellationToken).ConfigureAwait(false); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist last-region bounds"); }
+
+        await PublishAsync(context, region, rawPng, multiParts, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Encode the captured PNG to the user's output format and fill the bag for the
+    /// downstream steps. Shared by the overlay pick and the last-region shortcut.</summary>
+    private async Task PublishAsync(PipelineContext context, CaptureRegion region, byte[] rawPng,
+        IReadOnlyList<(int X, int Y, byte[] Png)>? multiParts, CancellationToken cancellationToken)
+    {
         var (bytes, ext) = await _outputEncoder.EncodeAsync(rawPng, cancellationToken).ConfigureAwait(false);
 
         context.Bag[PipelineBagKeys.PayloadBytes] = bytes;

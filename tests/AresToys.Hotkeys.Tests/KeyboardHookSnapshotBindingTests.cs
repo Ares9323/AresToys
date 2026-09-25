@@ -19,12 +19,24 @@ public class KeyboardHookSnapshotBindingTests
     private static KeyboardHook.KBDLLHOOKSTRUCT MakeData(uint vkCode)
         => new() { vkCode = vkCode, scanCode = 0, flags = 0, time = 0, dwExtraInfo = IntPtr.Zero };
 
+    /// <summary>Hook with a fake clock starting well past zero, so the first press is never
+    /// inside the one-second cooldown. Advance <c>now[0]</c> to simulate elapsed time.</summary>
+    private static KeyboardHook MakeHook(out long[] now)
+    {
+        var clock = new long[] { 100_000 };
+        now = clock;
+        return new KeyboardHook { TickSource = () => clock[0] };
+    }
+
+    /// <summary>Gap between deliberate presses in these tests: past the 1 s cooldown.</summary>
+    private const long NextPress = 1_100;
+
     [Theory]
     [InlineData(VK_SNAPSHOT)]
     [InlineData(VK_PAUSE)]
     public void KeyupOnlyKey_FiresCallbackOnEveryPress_NotEveryOther(uint vk)
     {
-        using var hook = new KeyboardHook();
+        using var hook = MakeHook(out var now);
         var fires = 0;
         var third = new CountdownEvent(3);
         hook.Register("snap", HotkeyModifiers.None, vk, () =>
@@ -36,6 +48,7 @@ public class KeyboardHookSnapshotBindingTests
         // These keys deliver ONLY a KEYUP. Three genuine presses → three KEYUP events.
         for (var i = 0; i < 3; i++)
         {
+            now[0] += NextPress;
             var suppressed = hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYUP);
             // Every press must be suppressed (consumed) so the foreground app doesn't also act on it.
             Assert.Equal(1, suppressed);
@@ -56,7 +69,7 @@ public class KeyboardHookSnapshotBindingTests
     [Fact]
     public void KeyupOnlyKey_MixedWithKeydownDelivery_AllPressesFire()
     {
-        using var hook = new KeyboardHook();
+        using var hook = MakeHook(out var now);
         var fires = 0;
         var third = new CountdownEvent(3);
         hook.Register("snap", HotkeyModifiers.None, VK_SNAPSHOT, () =>
@@ -70,10 +83,12 @@ public class KeyboardHookSnapshotBindingTests
 
         // Press 2 — both KEYDOWN and KEYUP arrive. KEYDOWN must fire (it's the leading edge);
         // KEYUP must just be consumed without a second fire.
+        now[0] += NextPress;
         Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYDOWN));
         Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYUP));
 
         // Press 3 — back to KEYUP only.
+        now[0] += NextPress;
         Assert.Equal(1, hook.InvokeHookForTest(MakeData(VK_SNAPSHOT), (IntPtr)KeyboardHook.WM_KEYUP));
 
         Assert.True(third.Wait(DispatchTimeout),
@@ -94,7 +109,7 @@ public class KeyboardHookSnapshotBindingTests
     [InlineData(VK_PAUSE)]
     public void KeyupTriggerKey_KeydownWithDroppedKeyup_NextPressStillFires(uint vk)
     {
-        using var hook = new KeyboardHook();
+        using var hook = MakeHook(out var now);
         var fires = 0;
         var second = new CountdownEvent(2);
         hook.Register("snap", HotkeyModifiers.None, vk, () =>
@@ -108,10 +123,50 @@ public class KeyboardHookSnapshotBindingTests
         Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYDOWN));
 
         // Press 2 — user presses again to stop. Must fire despite press 1's lost KEYUP.
+        now[0] += NextPress;
         Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYDOWN));
 
         Assert.True(second.Wait(DispatchTimeout),
             $"a press after a dropped keyup must still fire, fired {fires}");
+        Assert.Equal(2, fires);
+    }
+
+    /// <summary>Issue #21: a single PrintScreen / Pause press ran the workflow twice. Whatever
+    /// Windows delivers inside one second (KEYDOWN + late KEYUP, duplicated edges, auto-repeat),
+    /// the callback fires once; a press after the cooldown fires again.</summary>
+    [Theory]
+    [InlineData(VK_SNAPSHOT)]
+    [InlineData(VK_PAUSE)]
+    public void SpecialKey_FiresAtMostOncePerSecond(uint vk)
+    {
+        using var hook = MakeHook(out var now);
+        var fires = 0;
+        hook.Register("snap", HotkeyModifiers.None, vk, () => Interlocked.Increment(ref fires), suppress: true);
+
+        // KEYDOWN, then a KEYUP arriving late (past the 250 ms pairing gap), then a stray
+        // duplicate KEYUP: all one press, all suppressed.
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYDOWN));
+        now[0] += 400;
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYUP));
+        now[0] += 300;
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYUP));
+
+        // Held key: auto-repeat KEYDOWNs every ~33 ms past the cooldown must not re-fire.
+        for (var i = 0; i < 40; i++)
+        {
+            now[0] += 33;
+            Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYDOWN));
+        }
+        now[0] += 33;
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYUP));
+
+        // Genuine new press after the cooldown.
+        now[0] += NextPress;
+        Assert.Equal(1, hook.InvokeHookForTest(MakeData(vk), (IntPtr)KeyboardHook.WM_KEYUP));
+
+        var deadline = DateTime.UtcNow + DispatchTimeout;
+        while (Volatile.Read(ref fires) < 2 && DateTime.UtcNow < deadline) Thread.Sleep(10);
+        Thread.Sleep(100); // let any wrongly-queued extra fire land before asserting
         Assert.Equal(2, fires);
     }
 }

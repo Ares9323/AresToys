@@ -14,7 +14,6 @@ namespace AresToys.App.Services;
 
 public sealed class CaptureCoordinator
 {
-    private const string LastRegionKey = "capture.last_region";
     private const string DelayKey = "capture.delay_seconds";
 
     private readonly ICaptureSource _captureSource;
@@ -160,10 +159,9 @@ public sealed class CaptureCoordinator
 
     public async Task CaptureLastRegionAsync(CancellationToken cancellationToken)
     {
-        var stored = await _settings.GetAsync(LastRegionKey, cancellationToken).ConfigureAwait(false);
-        if (TryParseRegion(stored, out var region))
+        if (await LastCaptureRegion.LoadAsync(_settings, cancellationToken).ConfigureAwait(false) is { } region)
         {
-            await RunPipelineAsync(region!, ItemSource.CaptureRegion, cancellationToken).ConfigureAwait(false);
+            await RunPipelineAsync(region, ItemSource.CaptureRegion, cancellationToken).ConfigureAwait(false);
             return;
         }
         _logger.LogInformation("LastRegion: nothing stored yet — falling back to region picker");
@@ -227,26 +225,7 @@ public sealed class CaptureCoordinator
 
     private async Task PersistLastRegionAsync(CaptureRegion region, CancellationToken cancellationToken)
     {
-        // Stored as "X,Y,W,H" — small enough to keep in the settings table without serialization.
-        var serialized = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}",
-            region.X, region.Y, region.Width, region.Height);
-        try { await _settings.SetAsync(LastRegionKey, serialized, sensitive: false, cancellationToken).ConfigureAwait(false); }
+        try { await LastCaptureRegion.SaveAsync(_settings, region, cancellationToken).ConfigureAwait(false); }
         catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist last-region bounds"); }
-    }
-
-
-    private static bool TryParseRegion(string? raw, out CaptureRegion? region)
-    {
-        region = null;
-        if (string.IsNullOrEmpty(raw)) return false;
-        var parts = raw.Split(',');
-        if (parts.Length != 4) return false;
-        if (!int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var x)) return false;
-        if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var y)) return false;
-        if (!int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var w)) return false;
-        if (!int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var h)) return false;
-        if (w <= 0 || h <= 0) return false;
-        region = new CaptureRegion(x, y, w, h, "Last region");
-        return true;
     }
 }

@@ -86,6 +86,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         // Bump the version BEFORE marshalling — the dispatcher hop has measurable latency and
         // a window-open during the gap should still see "data has changed" via PrepareAsync.
         System.Threading.Interlocked.Increment(ref _itemsVersion);
+        if (e.Kind == ItemsChangeKind.Added) _addedSinceLastOpenId = e.ItemId;
         // Marshal to UI thread; Refresh updates the ObservableCollection.
         Application.Current?.Dispatcher.InvokeAsync(() => _ = RefreshAsync(CancellationToken.None));
     }
@@ -157,11 +158,22 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// to <c>clipboard.show_snippet_with_label</c>.</summary>
     [ObservableProperty] private bool _showSnippetWithLabel;
 
+    /// <summary>When true, opening the window selects the newest entry, but only if something
+    /// was ADDED since the previous open (issue #20); otherwise the old selection is kept.
+    /// Default true. Persisted to <c>clipboard.focus_latest_on_open</c>.</summary>
+    [ObservableProperty] private bool _focusLatestOnOpen = true;
+
+    /// <summary>Id of the most recent item reported as Added (dedup bumps included) since the
+    /// last <see cref="PrepareAsync"/>, or null when nothing was added. Written from the store's
+    /// event thread, consumed on the UI thread.</summary>
+    private long? _addedSinceLastOpenId;
+
     private bool _typeFiltersLoaded;
     private const string ShowImagesKey = "clipboard.show_images";
     private const string ShowTextKey = "clipboard.show_text";
     private const string PinnedKey = "clipboard.pinned";
     private const string ShowSnippetWithLabelKey = "clipboard.show_snippet_with_label";
+    private const string FocusLatestOnOpenKey = "clipboard.focus_latest_on_open";
 
     partial void OnShowImagesChanged(bool value)
     {
@@ -176,6 +188,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         if (_typeFiltersLoaded) _ = RefreshAsync(CancellationToken.None);
     }
     partial void OnIsPinnedChanged(bool value) => PersistFlag(PinnedKey, value);
+    partial void OnFocusLatestOnOpenChanged(bool value) => PersistFlag(FocusLatestOnOpenKey, value);
 
     partial void OnShowSnippetWithLabelChanged(bool value)
     {
@@ -215,6 +228,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         var rawText = await settings.GetAsync(ShowTextKey, cancellationToken).ConfigureAwait(true);
         var rawPinned = await settings.GetAsync(PinnedKey, cancellationToken).ConfigureAwait(true);
         var rawSnippet = await settings.GetAsync(ShowSnippetWithLabelKey, cancellationToken).ConfigureAwait(true);
+        var rawFocusLatest = await settings.GetAsync(FocusLatestOnOpenKey, cancellationToken).ConfigureAwait(true);
         // Filter chips default true (fresh DB shows everything); pinned defaults false (the
         // popup behaves as before until the user opts in). show-snippet-with-label defaults
         // false — matches CopyQ where a "Notes"-labeled item shows only the label.
@@ -222,6 +236,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         ShowText = rawText != "0";
         IsPinned = rawPinned == "1";
         ShowSnippetWithLabel = rawSnippet == "1";
+        FocusLatestOnOpen = rawFocusLatest != "0";
         _typeFiltersLoaded = true;
     }
 
@@ -638,6 +653,13 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         {
             await RefreshAsync(cancellationToken).ConfigureAwait(true);
         }
+
+        // Issue #20: jump to the entry added since the last open. If it isn't visible (other
+        // category, filtered out by a chip or the search), keep the current selection.
+        var addedId = _addedSinceLastOpenId;
+        _addedSinceLastOpenId = null;
+        if (FocusLatestOnOpen && addedId is { } id && Rows.FirstOrDefault(r => r.Id == id) is { } row)
+            SelectedRow = row;
     }
 
     private System.Windows.Threading.DispatcherTimer? _searchDebounce;
@@ -896,6 +918,48 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SelectCategory(string? name)
         => ActiveCategory = string.IsNullOrEmpty(name) ? null : name;
+
+    /// <summary>Tab-strip "+" button: create a category on the fly, appended after the existing
+    /// ones with the same default icon the Settings page uses, then switch to it. An existing
+    /// name (case-insensitive) just switches to that tab instead of hitting the PK constraint.</summary>
+    public async Task CreateCategoryAsync(string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0) return;
+        var existing = Categories.FirstOrDefault(c => string.Equals(c.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            await _categories.AddAsync(
+                new Category(trimmed, CategoriesViewModel.DefaultIconGlyph, Categories.Count),
+                CancellationToken.None).ConfigureAwait(true);
+        }
+        ActiveCategory = existing?.Name ?? trimmed;
+    }
+
+    /// <summary>Tab right-click → Rename. No-op for an empty name, an unchanged name, or a name
+    /// another category already uses (case-insensitive). Items follow the category inside the
+    /// store's transaction; the active tab follows the new name.</summary>
+    public async Task RenameCategoryAsync(string oldName, string newName)
+    {
+        var trimmed = newName.Trim();
+        if (trimmed.Length == 0 || string.Equals(trimmed, oldName, StringComparison.Ordinal)) return;
+        if (Categories.Any(c => !string.Equals(c.Name, oldName, StringComparison.Ordinal)
+                                && string.Equals(c.Name, trimmed, StringComparison.OrdinalIgnoreCase))) return;
+        await _categories.RenameAsync(oldName, trimmed, CancellationToken.None).ConfigureAwait(true);
+        if (string.Equals(ActiveCategory, oldName, StringComparison.Ordinal)) ActiveCategory = trimmed;
+    }
+
+    /// <summary>Tab right-click → Delete. The store moves the category's items back to the
+    /// default bucket, so the list is refreshed even when the deleted tab wasn't active (its
+    /// items may have just landed in the one on screen).</summary>
+    public async Task DeleteCategoryAsync(string name)
+    {
+        await _categories.DeleteAsync(name, CancellationToken.None).ConfigureAwait(true);
+        if (string.Equals(ActiveCategory, name, StringComparison.Ordinal))
+            ActiveCategory = AresToys.Storage.Items.Category.Default;
+        else
+            await RefreshAsync(CancellationToken.None).ConfigureAwait(true);
+    }
 
     /// <summary>Move the selected item into the named category (right-click → Move to → …).</summary>
     [RelayCommand(CanExecute = nameof(HasSelection))]

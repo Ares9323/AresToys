@@ -128,6 +128,9 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
             if (e.NewValue is not true) return;
             _isClosing = false;
             Focus();
+            // PrepareAsync may have moved the selection to a freshly added entry (issue #20);
+            // bring it into view once the list has laid out.
+            Dispatcher.BeginInvoke(ScrollSelectedIntoView, DispatcherPriority.Loaded);
         };
     }
 
@@ -1147,6 +1150,121 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
             ViewModel.SelectedRow = ViewModel.Rows[0];
             ScrollSelectedIntoView();
         }
+    }
+
+    /// <summary>Name of the category being renamed while <see cref="CategoryNamePopup"/> is
+    /// open, or null when the popup is creating a new category from the "+" button.</summary>
+    private string? _renamingCategory;
+
+    private void OnAddCategoryClick(object sender, RoutedEventArgs e)
+        => OpenCategoryNamePopup(AddCategoryButton, renaming: null, initialText: string.Empty);
+
+    private void OpenCategoryNamePopup(UIElement anchor, string? renaming, string initialText)
+    {
+        _renamingCategory = renaming;
+        CategoryNameBox.Text = initialText;
+        CategoryNamePopup.PlacementTarget = anchor;
+        CategoryNamePopup.IsOpen = true;
+    }
+
+    private void OnCategoryNamePopupOpened(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(() =>
+        {
+            CategoryNameBox.Focus();
+            CategoryNameBox.SelectAll();
+        }, DispatcherPriority.Input);
+
+    /// <summary>Enter creates / renames and switches to the category; Esc just closes the box.
+    /// Both are marked handled so the window's own Esc (hide) doesn't fire as well.</summary>
+    private async void OnCategoryNameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CategoryNamePopup.IsOpen = false;
+            HistoryList.Focus();
+            return;
+        }
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        var name = CategoryNameBox.Text;
+        var renaming = _renamingCategory;
+        CategoryNamePopup.IsOpen = false;
+        HistoryList.Focus();
+        try
+        {
+            if (renaming is null) await ViewModel.CreateCategoryAsync(name).ConfigureAwait(true);
+            else await ViewModel.RenameCategoryAsync(renaming, name).ConfigureAwait(true);
+        }
+        catch { /* storage failure: the tab strip simply stays as it was */ }
+    }
+
+    private static CategoryTab? TabFromMenuSender(object sender)
+        => (sender as FrameworkElement)?.DataContext as CategoryTab;
+
+    /// <summary>The default 'Clipboard' bucket can't be renamed or deleted (storage throws), so
+    /// grey those two entries out instead of offering a click that does nothing.</summary>
+    private void OnCategoryTabMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu) return;
+        var isDefault = string.Equals((menu.DataContext as CategoryTab)?.Name,
+            AresToys.Storage.Items.Category.Default, StringComparison.Ordinal);
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is "rename" or "delete") item.IsEnabled = !isDefault;
+        }
+    }
+
+    private void OnCategoryRenameClick(object sender, RoutedEventArgs e)
+    {
+        if (TabFromMenuSender(sender) is not { Name: { } name } tab) return;
+        // Anchor the name box under the tab that was right-clicked.
+        var anchor = (sender as MenuItem)?.Parent is ContextMenu { PlacementTarget: UIElement target }
+            ? target
+            : AddCategoryButton;
+        OpenCategoryNamePopup(anchor, renaming: name, initialText: tab.DisplayName);
+    }
+
+    private async void OnCategoryDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (TabFromMenuSender(sender) is not { Name: { } name } tab) return;
+        // The confirmation takes focus; keep the popup alive behind it (same guard as the QR
+        // generator and the video trim dialog).
+        _suppressDeactivation = true;
+        var culture = AresToys.App.Markup.LocalizedStrings.Instance.Culture ?? CultureInfo.CurrentUICulture;
+        var template = AresToys.App.Resources.Strings.ResourceManager.GetString("Clipboard_CategoryDeleteConfirm", culture) ?? "{0}";
+        MessageBoxResult answer;
+        try
+        {
+            // CA1863 wants a cached CompositeFormat; a rare confirm dialog on a resx template that
+            // can change culture at runtime doesn't benefit from it.
+#pragma warning disable CA1863
+            var message = string.Format(culture, template, tab.DisplayName);
+#pragma warning restore CA1863
+            answer = MessageBox.Show(this, message,
+                "AresToys", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+        }
+        finally
+        {
+            _suppressDeactivation = false;
+            Activate();
+        }
+        if (answer != MessageBoxResult.OK) return;
+        try { await ViewModel.DeleteCategoryAsync(name).ConfigureAwait(true); }
+        catch { /* storage failure: the tab stays */ }
+    }
+
+    /// <summary>Open Settings on the Categories page, where icon and retention caps live. The
+    /// MainWindow is a DI singleton created at startup, so it's always in Application.Windows.</summary>
+    private void OnCategorySettingsClick(object sender, RoutedEventArgs e)
+    {
+        var main = Application.Current.Windows.OfType<MainWindow>().FirstOrDefault();
+        if (main is null) return;
+        if (!ViewModel.IsPinned) BeginHide();
+        if (!main.IsVisible) main.Show();
+        if (main.WindowState == WindowState.Minimized) main.WindowState = WindowState.Normal;
+        main.Activate();
+        if (main.DataContext is SettingsViewModel vm) vm.SelectedTab = SettingsTab.Categories;
     }
 
     private void ScrollSelectedIntoView()

@@ -1656,6 +1656,7 @@
                                                         MinWidth="36"
                                                         Margin="2,0,2,0"
                                                         LostFocus="OnCategoryFieldCommitted"
+                                                        KeyDown="OnCategoryFieldKeyDown"
                                                         ToolTip="{Markup:Loc ClipboardCategories_MaxItemsTooltip}" />
                                             <Button Content="+" Tag="MaxItems+"
                                                     Click="OnCategoryStepperClicked"
@@ -1682,6 +1683,7 @@
                                                         MinWidth="36"
                                                         Margin="2,0,2,0"
                                                         LostFocus="OnCategoryFieldCommitted"
+                                                        KeyDown="OnCategoryFieldKeyDown"
                                                         ToolTip="{Markup:Loc ClipboardCategories_AutoCleanupTooltip}" />
                                             <Button Content="+" Tag="AutoCleanupAfter+"
                                                     Click="OnCategoryStepperClicked"
@@ -2564,8 +2566,13 @@
                             <CheckBox IsChecked="{Binding ClipboardShowSnippetWithLabel, Mode=TwoWay}"
                                       Content="{Markup:Loc Settings_ClipboardShowSnippetWithLabel}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
-                                      HorizontalAlignment="Left"
+                                      HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_ClipboardShowSnippetWithLabelTooltip}" />
+                            <CheckBox IsChecked="{Binding ClipboardFocusLatestOnOpen, Mode=TwoWay}"
+                                      Content="{Markup:Loc Settings_ClipboardFocusLatestOnOpen}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left"
+                                      ToolTip="{Markup:Loc Settings_ClipboardFocusLatestOnOpenTooltip}" />
                         </StackPanel>
                     </Border>
 

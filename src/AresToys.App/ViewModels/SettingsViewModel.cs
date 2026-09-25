@@ -15,6 +15,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string EditorStartMaximizedKey = "app.editor_start_maximized";
     private const string EditorAltClickNoMatchKey = "editor.alt_click_no_match";
     private const string ClipboardShowSnippetWithLabelKey = "clipboard.show_snippet_with_label";
+    private const string ClipboardFocusLatestOnOpenKey = "clipboard.focus_latest_on_open";
     // Module-toggle keys shared with ModuleSettings (kept in lockstep — App.OnStartup reads the
     // same constants on launch to decide whether to spin each module up).
     private const string ClipboardModuleKey  = ModuleSettings.ClipboardKey;
@@ -228,6 +229,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _clipboardShowSnippetWithLabel;
 
+    /// <summary>Bound to the Settings-tab "Focus the newest entry on open" checkbox (issue #20).
+    /// Persisted under <see cref="ClipboardFocusLatestOnOpenKey"/>, default ON. Pushed straight
+    /// into <see cref="PopupWindowViewModel.FocusLatestOnOpen"/> like the snippet toggle.</summary>
+    [ObservableProperty]
+    private bool _clipboardFocusLatestOnOpen = true;
+
     /// <summary>Bound to the Settings → Modules "Clipboard" toggle. Persisted under
     /// <see cref="ClipboardModuleKey"/> — read by <see cref="App.OnStartup"/> to decide whether
     /// to start <see cref="Services.ClipboardIngestionService"/>, pre-warm the popup window, and
@@ -290,6 +297,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _suppressEditorStartMaximizedPersist;
     private bool _suppressEditorAltClickSelectAnyPersist;
     private bool _suppressClipboardShowSnippetWithLabelPersist;
+    private bool _suppressClipboardFocusLatestOnOpenPersist;
     private bool _suppressClipboardModulePersist;
     private bool _suppressLauncherModulePersist;
     private bool _suppressWormholesModulePersist;
@@ -366,6 +374,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _suppressClipboardShowSnippetWithLabelPersist = true;
         try { ClipboardShowSnippetWithLabel = rawSnippet == "1"; }
         finally { _suppressClipboardShowSnippetWithLabelPersist = false; }
+
+        var rawFocusLatest = await _settingsStore.GetAsync(ClipboardFocusLatestOnOpenKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressClipboardFocusLatestOnOpenPersist = true;
+        try { ClipboardFocusLatestOnOpen = rawFocusLatest != "0"; }
+        finally { _suppressClipboardFocusLatestOnOpenPersist = false; }
 
         // Module flags share the "unset → default" semantics with App.OnStartup: Clipboard +
         // Launcher default ON when the key is missing, Wormholes defaults OFF (opt-in).
@@ -460,6 +473,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         // Push into the clipboard VM so an already-visible window refreshes its rows now,
         // without waiting for the next Hide→Show cycle to re-read from SQLite.
         _clipboardVm.ShowSnippetWithLabel = value;
+    }
+
+    partial void OnClipboardFocusLatestOnOpenChanged(bool value)
+    {
+        if (_suppressClipboardFocusLatestOnOpenPersist) return;
+        _ = _settingsStore.SetAsync(ClipboardFocusLatestOnOpenKey,
+            value ? "1" : "0",
+            sensitive: false,
+            CancellationToken.None);
+        _clipboardVm.FocusLatestOnOpen = value;
     }
 
     partial void OnClipboardModuleEnabledChanged(bool value)

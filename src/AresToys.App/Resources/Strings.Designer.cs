@@ -410,6 +410,42 @@ namespace AresToys.App.Resources {
             }
         }
         
+        public static string Clipboard_CategoryRename {
+            get {
+                return ResourceManager.GetString("Clipboard_CategoryRename", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_CategoryDelete {
+            get {
+                return ResourceManager.GetString("Clipboard_CategoryDelete", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_CategorySettings {
+            get {
+                return ResourceManager.GetString("Clipboard_CategorySettings", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_CategoryDeleteConfirm {
+            get {
+                return ResourceManager.GetString("Clipboard_CategoryDeleteConfirm", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TooltipAddCategory {
+            get {
+                return ResourceManager.GetString("Clipboard_TooltipAddCategory", resourceCulture);
+            }
+        }
+        
+        public static string Clipboard_NewCategoryPlaceholder {
+            get {
+                return ResourceManager.GetString("Clipboard_NewCategoryPlaceholder", resourceCulture);
+            }
+        }
+        
         /// <summary>
         ///   Looks up a localized string similar to Clear all.
         /// </summary>
@@ -5028,6 +5064,18 @@ namespace AresToys.App.Resources {
             }
         }
         
+        public static string Settings_ClipboardFocusLatestOnOpen {
+            get {
+                return ResourceManager.GetString("Settings_ClipboardFocusLatestOnOpen", resourceCulture);
+            }
+        }
+        
+        public static string Settings_ClipboardFocusLatestOnOpenTooltip {
+            get {
+                return ResourceManager.GetString("Settings_ClipboardFocusLatestOnOpenTooltip", resourceCulture);
+            }
+        }
+        
         /// <summary>
         ///   Looks up a localized string similar to Show content snippet under label.
         /// </summary>
@@ -7933,6 +7981,12 @@ namespace AresToys.App.Resources {
             }
         }
         
+        public static string WorkflowActionParam_arestoys_capture_region_useLastRegion {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_capture_region_useLastRegion", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Auto-confirm on first selection (skip multi-region).
         /// </summary>

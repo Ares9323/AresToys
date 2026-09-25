@@ -145,6 +145,8 @@
   <data name="Settings_ClipboardSectionHint" xml:space="preserve"><value>Opzioni di visualizzazione della finestra Appunti.</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabel" xml:space="preserve"><value>Mostra anteprima contenuto sotto l'etichetta</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabelTooltip" xml:space="preserve"><value>Quando un elemento ha un'etichetta, mostra anche una piccola anteprima del contenuto su una seconda riga. Disattivato di default — l'etichetta sostituisce completamente lo snippet.</value></data>
+  <data name="Settings_ClipboardFocusLatestOnOpen" xml:space="preserve"><value>Seleziona la voce più recente all'apertura</value></data>
+  <data name="Settings_ClipboardFocusLatestOnOpenTooltip" xml:space="preserve"><value>Se dall'ultima apertura della finestra è stato copiato qualcosa di nuovo, all'apertura viene selezionata quella voce. Altrimenti resta la selezione precedente.</value></data>
   <data name="Clipboard_TooltipPaste" xml:space="preserve"><value>Incolla (Invio)</value></data>
   <data name="Clipboard_TooltipPin" xml:space="preserve"><value>Spilla / rimuovi spillo (Ctrl+P)</value></data>
   <data name="Clipboard_TooltipCopyPath" xml:space="preserve"><value>Copia path del file negli appunti</value></data>
@@ -753,6 +755,14 @@
   <data name="Param_Vertical" xml:space="preserve"><value>Verticale</value></data>
   <data name="Param_Horizontal" xml:space="preserve"><value>Orizzontale</value></data>
 
+  <data name="Clipboard_TooltipAddCategory" xml:space="preserve"><value>Nuova categoria</value></data>
+  <data name="Clipboard_NewCategoryPlaceholder" xml:space="preserve"><value>Nome categoria, Invio per creare</value></data>
+  <data name="Clipboard_CategoryRename" xml:space="preserve"><value>Rinomina</value></data>
+  <data name="Clipboard_CategoryDelete" xml:space="preserve"><value>Elimina</value></data>
+  <data name="Clipboard_CategorySettings" xml:space="preserve"><value>Impostazioni icona e conservazione…</value></data>
+  <data name="Clipboard_CategoryDeleteConfirm" xml:space="preserve"><value>Eliminare la categoria '{0}'?
+
+I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano spillati.</value></data>
   <data name="Clipboard_ClearAll" xml:space="preserve"><value>Pulisci tutto</value></data>
   <data name="Clipboard_FilterImageTitle" xml:space="preserve"><value>Filtro immagini</value></data>
   <data name="Clipboard_FilterTextTitle" xml:space="preserve"><value>Filtro testo</value></data>
@@ -942,6 +952,7 @@
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original" xml:space="preserve"><value>Mantieni l'originale nella cronologia appunti</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name" xml:space="preserve"><value>Preset</value></data>
   <data name="WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection" xml:space="preserve"><value>Conferma automatica alla prima selezione (salta multi-regione)</value></data>
+  <data name="WorkflowActionParam_arestoys_capture_region_useLastRegion" xml:space="preserve"><value>Usa l'ultima regione selezionata (salta la selezione)</value></data>
 
   <data name="WorkflowActionCategory_I_O" xml:space="preserve"><value>I/O</value></data>
   <data name="WorkflowActionCategory_Flow" xml:space="preserve"><value>Flusso</value></data>

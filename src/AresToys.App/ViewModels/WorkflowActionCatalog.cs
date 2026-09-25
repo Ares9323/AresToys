@@ -157,10 +157,13 @@ public static class WorkflowActionCatalog
             // Default true: the multi-region workflow (drag-drag-drag-Enter) is the exception,
             // not the rule — most users want a one-drag screenshot. Existing workflows that
             // were saved with autoConfirmOnFirstSelection=false keep their explicit value.
-            DefaultConfigJson: "{\"autoConfirmOnFirstSelection\":true}",
+            DefaultConfigJson: "{\"autoConfirmOnFirstSelection\":true,\"useLastRegion\":false}",
             BoolParameters: new[]
             {
                 new BoolParameter("autoConfirmOnFirstSelection", "Auto-confirm on first selection (skip multi-region)", true),
+                // Skip the overlay and re-capture the last picked rectangle (falls back to the
+                // overlay when nothing has been picked yet).
+                new BoolParameter("useLastRegion", "Use last selected region (skip the overlay)", false),
             },
             Outputs: new[] { WorkflowPort.Payload }),
 

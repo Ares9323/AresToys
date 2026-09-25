@@ -213,7 +213,8 @@
                         </ToggleButton>
                     </StackPanel>
 
-                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Categories}"
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ItemsControl x:Name="CategoryTabs" ItemsSource="{Binding Categories}"
                                   VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -235,6 +236,18 @@
                                            DragEnter="OnCategoryTabDragEnter"
                                            DragLeave="OnCategoryTabDragLeave"
                                            Drop="OnCategoryTabDrop">
+                                    <!-- Right-click: rename / delete / jump to the Settings page for
+                                         icon + retention caps. The menu inherits the CategoryTab as
+                                         DataContext from its PlacementTarget; Opened disables
+                                         rename / delete on the default 'Clipboard' tab. -->
+                                    <ui:Button.ContextMenu>
+                                        <ContextMenu Opened="OnCategoryTabMenuOpened">
+                                            <MenuItem Tag="rename" Header="{Markup:Loc Clipboard_CategoryRename}" Click="OnCategoryRenameClick" />
+                                            <MenuItem Tag="delete" Header="{Markup:Loc Clipboard_CategoryDelete}" Click="OnCategoryDeleteClick" />
+                                            <Separator />
+                                            <MenuItem Header="{Markup:Loc Clipboard_CategorySettings}" Click="OnCategorySettingsClick" />
+                                        </ContextMenu>
+                                    </ui:Button.ContextMenu>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Icon}"
                                                    FontFamily="{DynamicResource IconFont}"
@@ -247,6 +260,34 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- "+" after the last tab: opens a small name box and creates the category
+                         right here, without going through Settings. -->
+                    <!-- Height pinned to the tab strip so the button is exactly as tall as the
+                         category tabs, whatever font / padding they end up with. -->
+                    <ui:Button x:Name="AddCategoryButton"
+                               Height="{Binding ActualHeight, ElementName=CategoryTabs}"
+                               Cursor="Hand"
+                               Click="OnAddCategoryClick"
+                               ToolTip="{Markup:Loc Clipboard_TooltipAddCategory}">
+                        <TextBlock Text="&#xF067;" FontFamily="{DynamicResource IconFont}" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <!-- Shared name box: create (anchored to "+") or rename (anchored to the
+                         right-clicked tab). PlacementTarget is set from code-behind. -->
+                    <Popup x:Name="CategoryNamePopup"
+                           Placement="Bottom" VerticalOffset="4"
+                           StaysOpen="False" AllowsTransparency="True"
+                           Opened="OnCategoryNamePopupOpened">
+                        <Border Background="{DynamicResource Surface1Brush}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
+                                CornerRadius="4" Padding="8">
+                            <ui:TextBox x:Name="CategoryNameBox"
+                                        MinWidth="200"
+                                        PlaceholderText="{Markup:Loc Clipboard_NewCategoryPlaceholder}"
+                                        KeyDown="OnCategoryNameKeyDown" />
+                        </Border>
+                    </Popup>
+                    </StackPanel>
 
                     <ui:Button Grid.Column="2"
                                Content="{Markup:Loc Clipboard_ClearAll}"

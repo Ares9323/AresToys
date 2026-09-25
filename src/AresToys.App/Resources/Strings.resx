@@ -152,6 +152,8 @@
   <data name="Settings_ClipboardSectionHint" xml:space="preserve"><value>Display options for the clipboard window.</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabel" xml:space="preserve"><value>Show content snippet under label</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabelTooltip" xml:space="preserve"><value>When an item has a label, also render a small preview of its content on a second line. Off by default — the label replaces the snippet entirely.</value></data>
+  <data name="Settings_ClipboardFocusLatestOnOpen" xml:space="preserve"><value>Focus the newest entry on open</value></data>
+  <data name="Settings_ClipboardFocusLatestOnOpenTooltip" xml:space="preserve"><value>When something new was copied since the window was last opened, select that entry when it opens. Otherwise the previous selection is kept.</value></data>
   <data name="Clipboard_TooltipPaste" xml:space="preserve"><value>Paste (Enter)</value></data>
   <data name="Clipboard_TooltipPin" xml:space="preserve"><value>Pin / unpin (Ctrl+P)</value></data>
   <data name="Clipboard_TooltipCopyPath" xml:space="preserve"><value>Copy file path to clipboard</value></data>
@@ -801,6 +803,14 @@
   <data name="Param_Horizontal" xml:space="preserve"><value>Horizontal</value></data>
 
   <!-- Clipboard popup: image / text filter tooltip details, "Clear all" button. -->
+  <data name="Clipboard_TooltipAddCategory" xml:space="preserve"><value>New category</value></data>
+  <data name="Clipboard_NewCategoryPlaceholder" xml:space="preserve"><value>Category name, Enter to create</value></data>
+  <data name="Clipboard_CategoryRename" xml:space="preserve"><value>Rename</value></data>
+  <data name="Clipboard_CategoryDelete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Clipboard_CategorySettings" xml:space="preserve"><value>Icon and retention settings…</value></data>
+  <data name="Clipboard_CategoryDeleteConfirm" xml:space="preserve"><value>Delete category '{0}'?
+
+Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></data>
   <data name="Clipboard_ClearAll" xml:space="preserve"><value>Clear all</value></data>
   <data name="Clipboard_FilterImageTitle" xml:space="preserve"><value>Image filter</value></data>
   <data name="Clipboard_FilterTextTitle" xml:space="preserve"><value>Text filter</value></data>
@@ -1002,6 +1012,7 @@
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_keep_original" xml:space="preserve"><value>Keep original in clipboard history</value></data>
   <data name="WorkflowActionParam_arestoys_apply_image_effects_preset_preset_name" xml:space="preserve"><value>Preset</value></data>
   <data name="WorkflowActionParam_arestoys_capture_region_autoConfirmOnFirstSelection" xml:space="preserve"><value>Auto-confirm on first selection (skip multi-region)</value></data>
+  <data name="WorkflowActionParam_arestoys_capture_region_useLastRegion" xml:space="preserve"><value>Use last selected region (skip the overlay)</value></data>
 
   <!-- Catalog category headers actually emitted by descriptors. -->
   <data name="WorkflowActionCategory_I_O" xml:space="preserve"><value>I/O</value></data>

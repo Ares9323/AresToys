@@ -1023,7 +1023,12 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is not FrameworkElement el) return;
         if (el.DataContext is not AresToys.App.ViewModels.CategoryRowViewModel row) return;
-        if (!row.CanModify) return;
+        // CanConfigure, not CanModify: the default 'Clipboard' row can't be renamed but its
+        // retention caps are editable. Gating on CanModify silently dropped every typed
+        // MaxItems / AutoCleanupAfter on that row (only the +/- steppers saved), so the value
+        // looked applied until the next restart or update reloaded it from SQLite (issue #18).
+        // SaveAsync itself still skips the rename for rows that can't be modified.
+        if (!row.CanConfigure) return;
         _ = row.SaveAsync();
     }
 
