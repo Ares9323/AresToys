@@ -3,6 +3,50 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.33] — 2026-09-26
+
+### Clipboard
+- A "+" button after the last category tab creates a category on the spot: type
+  a name, Enter, and the window switches to it. A name that already exists just
+  switches to that tab.
+- Right-click on a category tab offers Rename, Delete and a shortcut to the
+  Settings page for its icon and retention caps. The default Clipboard category
+  can't be renamed or deleted, so those two entries are greyed out there. Delete
+  asks first and moves the category's items back to Clipboard.
+- New option, on by default: when something was copied since the window was last
+  opened, opening it selects that entry
+  ([#20](https://github.com/Ares9323/AresToys/issues/20)). Otherwise the previous
+  selection is kept.
+- Max items and auto cleanup typed by hand on the Clipboard category are saved
+  again ([#18](https://github.com/Ares9323/AresToys/issues/18)). Only the +/-
+  buttons used to save on that row, so a typed value looked applied until the
+  next restart or update reloaded the old one. Enter now commits both fields.
+- Category tab icons sit centred with their labels.
+
+### Capture
+- The file name is configurable: a free prefix (default `arestoys`, empty for
+  none) and a pattern with the same token chips as the sub-folder, plus
+  Millisecond, WindowTitle and AppName. The default pattern is
+  `%y%mo%d-%h%mi%s_%appName`, date first so files sort chronologically, and a
+  Reset button brings prefix and pattern back. It applies to screenshots, SVG
+  traces, saved pins and recordings, which drop their old `-rec` / `-pin` marks.
+- `%appName` is the program under the captured region, or the foreground program
+  for window and monitor captures. Recordings started from a workflow now keep
+  the window title and program in their final name.
+- New option, off by default: hide AresToys' own notification before capturing,
+  so the previous shot's "saved" toast doesn't end up in the next one. It stays
+  in the Notification Center. The wait after hiding it is adjustable (default
+  200 ms) and is only paid when a notification is actually on screen.
+- The Capture region step can reuse the last selected region instead of opening
+  the overlay. Every region pick now updates the stored region, so the tray's
+  Last region entry repeats the latest pick too, not only tray captures.
+
+### Hotkeys
+- PrintScreen and Pause fire at most once per second
+  ([#21](https://github.com/Ares9323/AresToys/issues/21)). Windows sometimes
+  delivered the key's down and up far enough apart, or twice, for one press to
+  run the workflow two times.
+
 ## [0.1.32] — 2026-09-20
 
 ### Launcher
