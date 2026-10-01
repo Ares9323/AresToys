@@ -3,6 +3,34 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.34] — 2026-10-01
+
+### Stability
+- Closed editor windows are freed again. Every capture opened in the editor
+  stayed in memory until AresToys was restarted, image included, so after a
+  day of screenshots the app could hold several GB. On a PC already short on
+  RAM that pushed it into the page file and made it hang.
+- Unhandled errors are written to `%LocalAppData%\AresToys-Data\Logs\crash-*.log`
+  (last 20 kept), so a crash leaves something to report. A known WPF
+  accessibility bug that could close the app while a list was updating is now
+  logged and ignored.
+
+### Hotkeys
+- PrintScreen and Pause no longer run the workflow twice on a busy PC
+  ([#21](https://github.com/Ares9323/AresToys/issues/21)). The one-per-second
+  limit measured when the key was processed instead of when it was pressed, so
+  a release handled late looked like a second press.
+
+### Clipboard
+- Video previews no longer play, with audio, while the window is closed, and no
+  longer keep the file locked
+  ([#22](https://github.com/Ares9323/AresToys/issues/22)). A newly copied video
+  is loaded only when the window opens, and closing it stops playback and
+  releases the file. Muted previews start muted instead of after a moment.
+- Delete is always the third button in the side toolbar, after Paste and Pin
+  ([#23](https://github.com/Ares9323/AresToys/issues/23)), instead of moving
+  with the buttons that depend on the entry type.
+
 ## [0.1.33] — 2026-09-26
 
 ### Clipboard
