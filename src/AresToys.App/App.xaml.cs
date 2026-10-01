@@ -40,6 +40,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // First thing after base startup, so even bootstrap failures leave a crash log.
+        AresToys.App.Services.Logging.CrashReporter.Install(this);
+
         // "Always run as administrator" self-relaunch check. Must come before SingleInstanceGuard
         // and any heavy bootstrap: if the user opted into elevated autostart and the OS gave us a
         // non-elevated token (e.g. they double-clicked the Start menu shortcut, which doesn't go

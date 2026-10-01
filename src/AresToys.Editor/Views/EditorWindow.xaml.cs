@@ -138,9 +138,7 @@ public partial class EditorWindow : FluentWindow
         // hook the swatch's SelectedColor change and project it back into a fresh CurrentTextStyle.
         // Reverse direction (style change → swatch refresh) is handled in the PropertyChanged
         // handler below to keep the two views in sync after Set-as-current / external mutations.
-        var textSwatchDescriptor = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
-            ColorSwatchButton.SelectedColorProperty, typeof(ColorSwatchButton));
-        textSwatchDescriptor?.AddValueChanged(TextSwatch, (_, _) =>
+        HookSwatchColor(TextSwatch, (_, _) =>
         {
             var current = _vm.CurrentTextStyle;
             if (TextSwatch.SelectedColor.Equals(current.Color)) return;
@@ -207,10 +205,8 @@ public partial class EditorWindow : FluentWindow
         };
 
         // Realtime property panel: each change live-updates the shape via DependencyPropertyDescriptor hooks.
-        var swatchColorDesc = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
-            ColorSwatchButton.SelectedColorProperty, typeof(ColorSwatchButton));
-        swatchColorDesc?.AddValueChanged(SelOutlineSwatch, (_, _) => OnSelOutlineChanged());
-        swatchColorDesc?.AddValueChanged(SelFillSwatch, (_, _) => OnSelFillChanged());
+        HookSwatchColor(SelOutlineSwatch, (_, _) => OnSelOutlineChanged());
+        HookSwatchColor(SelFillSwatch, (_, _) => OnSelFillChanged());
         SelStrokeSlider.ValueChanged += (_, _) => OnSelStrokeChanged();
         SelRotationSlider.ValueChanged += (_, _) => OnSelRotationSliderChanged();
         SelEffectSlider.ValueChanged += (_, _) => OnSelEffectSliderChanged();
@@ -250,12 +246,10 @@ public partial class EditorWindow : FluentWindow
         SelStepItalicCheck.Checked += (_, _) => OnSelStepFontStyleChanged();
         SelStepItalicCheck.Unchecked += (_, _) => OnSelStepFontStyleChanged();
 
-        var swatchColorDescAlt = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
-            ColorSwatchButton.SelectedColorProperty, typeof(ColorSwatchButton));
-        swatchColorDescAlt?.AddValueChanged(SelTextColorSwatch, (_, _) => OnSelTextStyleChanged());
-        swatchColorDescAlt?.AddValueChanged(SelTextOutlineSwatch, (_, _) => OnSelTextOutlineChanged());
+        HookSwatchColor(SelTextColorSwatch, (_, _) => OnSelTextStyleChanged());
+        HookSwatchColor(SelTextOutlineSwatch, (_, _) => OnSelTextOutlineChanged());
         SelTextOutlineSlider.ValueChanged += (_, _) => OnSelTextOutlineChanged();
-        swatchColorDescAlt?.AddValueChanged(DefaultTextOutlineSwatch, (_, _) => OnDefaultTextOutlineChanged());
+        HookSwatchColor(DefaultTextOutlineSwatch, (_, _) => OnDefaultTextOutlineChanged());
         DefaultTextOutlineSlider.ValueChanged += (_, _) => OnDefaultTextOutlineChanged();
         WireEffectDefaultSliders();
 
@@ -276,6 +270,31 @@ public partial class EditorWindow : FluentWindow
             // that opens nested-modal (e.g. a canvas magnifier window) instead.
         };
         Closing += OnClosing;
+        Closed += (_, _) => UnhookSwatchColors();
+    }
+
+    /// <summary>DependencyPropertyDescriptor.AddValueChanged stores the handler in a static,
+    /// process-wide table, so every hook keeps this window (and its full-size source image)
+    /// alive until it is removed. Hooks go through here and are removed on Closed: before
+    /// this, every editor ever opened stayed in memory for the life of the process.</summary>
+    private static readonly System.ComponentModel.DependencyPropertyDescriptor? SwatchColorDescriptor =
+        System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
+            ColorSwatchButton.SelectedColorProperty, typeof(ColorSwatchButton));
+
+    private readonly List<(ColorSwatchButton Swatch, EventHandler Handler)> _swatchColorHooks = [];
+
+    private void HookSwatchColor(ColorSwatchButton swatch, EventHandler handler)
+    {
+        if (SwatchColorDescriptor is null) return;
+        SwatchColorDescriptor.AddValueChanged(swatch, handler);
+        _swatchColorHooks.Add((swatch, handler));
+    }
+
+    private void UnhookSwatchColors()
+    {
+        foreach (var (swatch, handler) in _swatchColorHooks)
+            SwatchColorDescriptor?.RemoveValueChanged(swatch, handler);
+        _swatchColorHooks.Clear();
     }
 
     public bool Saved { get; private set; }

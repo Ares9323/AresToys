@@ -40,9 +40,11 @@ public sealed class KeyboardHook : IDisposable
     /// <see cref="KeyUpPairWindowMs"/> (so auto-repeat KEYDOWNs and the trailing KEYUP of a press
     /// are swallowed) AND the last fire is at least <see cref="SpecialKeyCooldownMs"/> old. No
     /// state depends on a KEYUP arriving, so a dropped one can't poison the next press.
-    /// Both maps are vkCode → TickCount64.</summary>
-    private readonly Dictionary<uint, long> _specialKeyLastEventTick = new();
-    private readonly Dictionary<uint, long> _specialKeyLastFireTick = new();
+    /// Both maps are vkCode → the event's own <c>KBDLLHOOKSTRUCT.time</c> (ms, GetTickCount
+    /// clock, wraps every ~49.7 days; compared with unsigned subtraction so the wrap is
+    /// harmless).</summary>
+    private readonly Dictionary<uint, uint> _specialKeyLastEventTick = new();
+    private readonly Dictionary<uint, uint> _specialKeyLastFireTick = new();
     private readonly object _keyUpTriggerLock = new();
     /// <summary>Minimum quiet gap before a PrintScreen / Pause event counts as a fresh press.
     /// Longer than the auto-repeat interval (~33 ms) and a typical KEYDOWN→KEYUP gap.</summary>
@@ -51,9 +53,6 @@ public sealed class KeyboardHook : IDisposable
     /// sometimes delivers a press's KEYDOWN and KEYUP far enough apart (or duplicates them) that
     /// edge pairing alone let the workflow run twice.</summary>
     private const long SpecialKeyCooldownMs = 1000;
-
-    /// <summary>Clock for the PrintScreen / Pause timing. Test seam: tests swap it for a fake.</summary>
-    internal Func<long> TickSource { get; set; } = () => Environment.TickCount64;
 
     /// <summary>Pure-observer listeners notified of every non-injected key transition. Cannot
     /// suppress events — suppression is the exclusive concern of the atomic bindings in
@@ -227,7 +226,13 @@ public sealed class KeyboardHook : IDisposable
         // KEYUP is a pure de-dupe, not a suppression concern.
         if (data.vkCode is VK_SNAPSHOT or VK_PAUSE)
         {
-            var nowTick = TickSource();
+            // Timing uses the time Windows stamped on the event, not when we got to process
+            // it. The hook runs on the UI thread: when the PC is under load (or the workflow
+            // the KEYDOWN just started keeps the UI thread busy, e.g. a full-desktop capture)
+            // the trailing KEYUP can be processed more than a second after the KEYDOWN, and
+            // with a processing-time clock it passed both the quiet-gap and cooldown checks
+            // and fired the workflow a second time (#21, "still happens on a slow PC").
+            var nowTick = data.time;
             bool shouldFire;
             lock (_keyUpTriggerLock)
             {
@@ -235,9 +240,9 @@ public sealed class KeyboardHook : IDisposable
                 // KEYDOWN or the trailing KEYUP of the same press. Every event refreshes the gap,
                 // so holding the key never re-fires and its release is swallowed.
                 var quiet = !_specialKeyLastEventTick.TryGetValue(data.vkCode, out var lastEvent)
-                            || nowTick - lastEvent >= KeyUpPairWindowMs;
+                            || unchecked(nowTick - lastEvent) >= KeyUpPairWindowMs;
                 var cooledDown = !_specialKeyLastFireTick.TryGetValue(data.vkCode, out var lastFire)
-                                 || nowTick - lastFire >= SpecialKeyCooldownMs;
+                                 || unchecked(nowTick - lastFire) >= SpecialKeyCooldownMs;
                 shouldFire = quiet && cooledDown;
                 _specialKeyLastEventTick[data.vkCode] = nowTick;
                 if (shouldFire) _specialKeyLastFireTick[data.vkCode] = nowTick;

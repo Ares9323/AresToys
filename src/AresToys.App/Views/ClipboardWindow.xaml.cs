@@ -125,8 +125,14 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         // skips the query entirely (version-skip path).
         IsVisibleChanged += (_, e) =>
         {
-            if (e.NewValue is not true) return;
+            if (e.NewValue is not true)
+            {
+                // Hidden: no playback in the background and no lock on the file (issue #22).
+                UnloadPreviewVideo();
+                return;
+            }
             _isClosing = false;
+            LoadPreviewVideo();
             Focus();
             // PrepareAsync may have moved the selection to a freshly added entry (issue #20);
             // bring it into view once the list has laid out.
@@ -329,31 +335,43 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
                     DispatcherPriority.ContextIdle);
                 break;
             case nameof(PopupWindowViewModel.PreviewVideoPath):
-                // Imperatively set the MediaElement source — binding Source directly to a
-                // changing path string is unreliable in WPF (stale handles, no clear file lock
-                // release). Stop + null first so the previous file unlocks, then re-Open.
-                if (PreviewVideoPlayer is not null)
-                {
-                    StopPreviewVideoTimer();
-                    PreviewVideoPlayer.Stop();
-                    PreviewVideoPlayer.Close();
-                    PreviewVideoPlayer.Source = null;
-                    var path = ViewModel.PreviewVideoPath;
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        PreviewVideoPlayer.Source = new Uri(path, UriKind.Absolute);
-                        PreviewVideoPlayer.Play();
-                        UpdatePlayPauseGlyph(playing: true);
-                        // Slider + timer are wired up by OnPreviewVideoOpened once decoding
-                        // surfaces the duration metadata — nothing to start manually here.
-                    }
-                    else
-                    {
-                        UpdatePlayPauseGlyph(playing: false);
-                    }
-                }
+                LoadPreviewVideo();
                 break;
         }
+    }
+
+    /// <summary>Point the MediaElement at the current <see cref="PopupWindowViewModel.PreviewVideoPath"/>.
+    /// Imperative rather than a Source binding: binding a changing path string is unreliable in
+    /// WPF (stale handles, no clear file lock release). The previous file is always unloaded
+    /// first so it unlocks. Nothing is opened while the window is hidden (issue #22): the
+    /// selection also moves while hidden (a new entry lands, PrepareAsync selects it), and that
+    /// used to start an invisible, audible loop that kept the video file locked. The
+    /// IsVisibleChanged handler calls this again when the window is shown.</summary>
+    private void LoadPreviewVideo()
+    {
+        if (PreviewVideoPlayer is null) return;
+        UnloadPreviewVideo();
+        var path = ViewModel.PreviewVideoPath;
+        if (string.IsNullOrEmpty(path) || !IsVisible) return;
+        PreviewVideoPlayer.Source = new Uri(path, UriKind.Absolute);
+        // Applied before Play as well as on MediaOpened, so a muted preview never leaks the
+        // first few milliseconds of audio.
+        ApplyPreviewMutedToControls();
+        PreviewVideoPlayer.Play();
+        UpdatePlayPauseGlyph(playing: true);
+        // Slider + timer are wired up by OnPreviewVideoOpened once decoding surfaces the
+        // duration metadata, nothing to start manually here.
+    }
+
+    /// <summary>Stop playback and release the file handle.</summary>
+    private void UnloadPreviewVideo()
+    {
+        if (PreviewVideoPlayer is null) return;
+        StopPreviewVideoTimer();
+        PreviewVideoPlayer.Stop();
+        PreviewVideoPlayer.Close();
+        PreviewVideoPlayer.Source = null;
+        UpdatePlayPauseGlyph(playing: false);
     }
 
     /// <summary>Polls <c>MediaElement.Position</c> ~7×/sec to keep the seek slider + timecode in
@@ -443,7 +461,7 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     /// playing as long as the user is looking at it.</summary>
     private void OnPreviewVideoEnded(object sender, RoutedEventArgs e)
     {
-        if (PreviewVideoPlayer is null) return;
+        if (PreviewVideoPlayer is null || !IsVisible) return;
         PreviewVideoPlayer.Position = TimeSpan.Zero;
         PreviewVideoPlayer.Play();
         UpdatePlayPauseGlyph(playing: true);

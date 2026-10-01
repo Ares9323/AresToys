@@ -888,6 +888,16 @@
                                 </ui:Button.Style>
                                 <TextBlock Text="&#xE718;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
+                            <!-- Delete stays third, right after Paste and Pin, whatever the entry type:
+                                 the buttons below it come and go with the selection, so a trailing
+                                 Delete jumped around between rows (issue #23). -->
+                            <ui:Button Width="32" Height="32" Padding="0" Style="{StaticResource ToolbarIconBtn}"
+                                       Margin="0,0,0,4"
+                                       ToolTip="{Markup:Loc Clipboard_TooltipDelete}"
+                                       Appearance="Danger"
+                                       Command="{Binding DeleteSelectedCommand}">
+                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
+                            </ui:Button>
                             <!-- Copy file path to clipboard — visible only when the selected row
                                  has a real on-disk file (image/video/files saved via a SaveToFile
                                  step). Lets the user paste the path into another app instead of
@@ -986,12 +996,6 @@
                                        Command="{Binding CaptureWebpageCommand}"
                                        Visibility="{Binding CanCaptureWebpage, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="&#xE89E;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
-                            </ui:Button>
-                            <ui:Button Width="32" Height="32" Padding="0" Style="{StaticResource ToolbarIconBtn}"
-                                       ToolTip="{Markup:Loc Clipboard_TooltipDelete}"
-                                       Appearance="Danger"
-                                       Command="{Binding DeleteSelectedCommand}">
-                                <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets" FontSize="14" />
                             </ui:Button>
                         </StackPanel>
                     </ScrollViewer>
