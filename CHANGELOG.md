@@ -3,6 +3,59 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.35] — 2026-10-09
+
+### Stability
+- Screen recordings no longer fill the RAM
+  ([#28](https://github.com/Ares9323/AresToys/issues/28)). The whole video was
+  stored, encrypted, in the clipboard history and decrypted again every time the
+  list refreshed, so a 250 MB GIF could sit in memory dozens of times. History
+  entries for recordings now keep only the file path; old entries that still
+  hold a full video are no longer decoded for the preview.
+- Pressing the record hotkey or Stop again while a recording is finishing no
+  longer starts a second save, which produced duplicate entries and `-1` / `-2`
+  copies of the file. The temporary recording in `%TEMP%\AresToys\recordings`
+  is now moved or deleted once it has been saved.
+
+### Clipboard
+- Tags ([#4](https://github.com/Ares9323/AresToys/issues/4)): give entries any
+  number of coloured tags from the right-click menu ("Tags", "New tag…") to find
+  them across categories. Tags are available on pinned entries and on entries in
+  categories without a size limit or auto cleanup, since anything else is about
+  to disappear anyway. A strip of tag chips above the list filters the history,
+  with an AND / OR toggle on its left to require every selected tag or just one;
+  tag names are also matched by the text search. Settings: the Categories page
+  is now "Categories & tags" and lets you rename, recolour and delete tags.
+  Backups include tags (backup format v4, older backups still import).
+- "Pin to screen" in the right-click menu pins an image, an image file or a
+  video / GIF from the history
+  ([#27](https://github.com/Ares9323/AresToys/issues/27)). Pinned videos loop,
+  with click or Space for play / pause, wheel or arrows to seek, Ctrl+wheel to
+  zoom and a seek bar with timecode and mute on hover.
+
+### Pin to screen
+- Pinned images and videos have an adjustable opacity: Shift+wheel changes it in
+  5% steps, the "◐" readout next to the zoom resets it to 100%.
+
+### Launcher
+- In docked mode, drag a tab header onto another to swap the two tabs
+  ([#25](https://github.com/Ares9323/AresToys/issues/25)). Content and titles
+  move; the number key stays bound to the position.
+- Shortcuts dropped on the launcher or picked with the file button
+  ([#12](https://github.com/Ares9323/AresToys/issues/12)): Control Panel
+  shortcuts now open the right page, the " - Shortcut" suffix is dropped from the
+  label (in the system language too), and the file picker no longer resolves the
+  `.lnk` itself, which lost its arguments and icon. A `.lnk` path typed in the
+  edit dialog is resolved as well. Installer (MSI) shortcuts keep pointing at the
+  `.lnk`, the only way they launch correctly.
+
+### Wormholes
+- With "Show collapsed wormholes on hover" on, hovering a tab of a collapsed
+  group shows that tab ([#24](https://github.com/Ares9323/AresToys/issues/24)),
+  instead of the one last clicked.
+- Detaching the tab a group was built on no longer makes the other tab vanish
+  until the next restart.
+
 ## [0.1.34] — 2026-10-01
 
 ### Stability
