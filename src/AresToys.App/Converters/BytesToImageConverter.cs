@@ -1,30 +1,16 @@
 using System.Globalization;
-using System.IO;
 using System.Windows.Data;
-using System.Windows.Media.Imaging;
+using AresToys.App.Services.ImageFiles;
 
 namespace AresToys.App.Converters;
 
-/// <summary>Decodes a byte[] (assumed PNG/JPEG bytes) into a frozen BitmapImage for image binding.
-/// Returns null on null/empty input or decode failure — the bound Image just shows nothing.</summary>
+/// <summary>Decodes a byte[] (PNG/JPEG/WebP... bytes) into a frozen bitmap for image binding.
+/// Returns null on null/empty input or decode failure: the bound Image just shows nothing.
+/// WebP keeps its alpha channel (decoded through Skia, see <see cref="ImageDecoding"/>).</summary>
 public sealed class BytesToImageConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-    {
-        if (value is not byte[] bytes || bytes.Length == 0) return null;
-        try
-        {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.StreamSource = new MemoryStream(bytes);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
-        }
-        catch (NotSupportedException) { return null; }
-        catch (System.IO.IOException) { return null; }
-    }
+        => value is byte[] { Length: > 0 } bytes ? ImageDecoding.Decode(bytes) : null;
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => Binding.DoNothing;
 }

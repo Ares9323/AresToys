@@ -62,6 +62,10 @@ public sealed class AddFileToClipboardTask : IPipelineTask
         // Stage as a Files item. Payload mirrors what ClipboardIngestionService produces from a
         // CF_HDROP event (UTF-8 newline-joined path list) so the popup + paste round-trip identically.
         var pathBytes = Encoding.UTF8.GetBytes(path);
+        // Saved images get the same row thumbnail as Explorer copies (null for other files).
+        var thumbnail = ImageFiles.FileThumbnails.IsImagePath(path)
+            ? await Task.Run(() => ImageFiles.FileThumbnails.TryGenerateFromFile(path), cancellationToken).ConfigureAwait(false)
+            : null;
         var newItem = new NewItem(
             Kind: ItemKind.Files,
             Source: ItemSource.Pipeline,
@@ -69,7 +73,8 @@ public sealed class AddFileToClipboardTask : IPipelineTask
             Payload: pathBytes,
             PayloadSize: pathBytes.LongLength,
             BlobRef: path,
-            SearchText: path);
+            SearchText: path,
+            Thumbnail: thumbnail);
         var id = await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
         // Terminal task: do NOT write bag.item_id / bag.new_item — see AddTextToClipboardTask for
         // the rationale. The toast gets the row via the override path below.

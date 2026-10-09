@@ -3455,6 +3455,9 @@ namespace AresToys.App.Resources {
         public static string PinnedImage_OpenEditorTooltip => ResourceManager.GetString("PinnedImage_OpenEditorTooltip", resourceCulture);
         public static string PinnedImage_ResetZoomTooltip => ResourceManager.GetString("PinnedImage_ResetZoomTooltip", resourceCulture);
         public static string PinnedImage_OpacityTooltip => ResourceManager.GetString("PinnedImage_OpacityTooltip", resourceCulture);
+        public static string PinnedImage_ZoomTooltip => ResourceManager.GetString("PinnedImage_ZoomTooltip", resourceCulture);
+        public static string PinnedImage_LockTooltip => ResourceManager.GetString("PinnedImage_LockTooltip", resourceCulture);
+        public static string PinnedImage_UnlockTooltip => ResourceManager.GetString("PinnedImage_UnlockTooltip", resourceCulture);
         public static string PinnedImage_SaveTooltip => ResourceManager.GetString("PinnedImage_SaveTooltip", resourceCulture);
         public static string PinnedVideo_ControlsHint => ResourceManager.GetString("PinnedVideo_ControlsHint", resourceCulture);
         public static string PinToScreen_VideoUnavailable => ResourceManager.GetString("PinToScreen_VideoUnavailable", resourceCulture);
@@ -5089,6 +5092,42 @@ namespace AresToys.App.Resources {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Pinned images.
+        /// </summary>
+        public static string Settings_PinsSectionTitle {
+            get {
+                return ResourceManager.GetString("Settings_PinsSectionTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Images and videos pinned to the screen..
+        /// </summary>
+        public static string Settings_PinsSectionHint {
+            get {
+                return ResourceManager.GetString("Settings_PinsSectionHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Restore pinned images at startup.
+        /// </summary>
+        public static string Settings_RestorePinsAtStartup {
+            get {
+                return ResourceManager.GetString("Settings_RestorePinsAtStartup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pins still open when AresToys exits come back at the next launch, in the same place and with the same zoom, opacity and border. Closing a pin (Esc or right click) forgets it. Turning this off deletes the saved pins..
+        /// </summary>
+        public static string Settings_RestorePinsAtStartupTooltip {
+            get {
+                return ResourceManager.GetString("Settings_RestorePinsAtStartupTooltip", resourceCulture);
+            }
+        }
+        
         public static string Settings_ClipboardFocusLatestOnOpen {
             get {
                 return ResourceManager.GetString("Settings_ClipboardFocusLatestOnOpen", resourceCulture);
@@ -6297,6 +6336,15 @@ namespace AresToys.App.Resources {
         public static string Tray_PinToScreen {
             get {
                 return ResourceManager.GetString("Tray_PinToScreen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock all pinned images.
+        /// </summary>
+        public static string Tray_UnlockAllPins {
+            get {
+                return ResourceManager.GetString("Tray_UnlockAllPins", resourceCulture);
             }
         }
         

@@ -382,6 +382,8 @@ public partial class App : Application
                 services.AddSingleton<AutostartService>();
                 services.AddSingleton<ElevationService>();
                 services.AddSingleton<PinToScreenLauncher>();
+                services.AddSingleton<AresToys.App.Services.Pins.PinStore>();
+                services.AddSingleton<AresToys.App.Services.Pins.PinPersistenceService>();
                 services.AddSingleton<EditorLauncher>();
                 services.AddSingleton<ScreenColorPickerService>();
                 services.AddSingleton<ColorWheelLauncher>();
@@ -963,6 +965,22 @@ public partial class App : Application
                 {
                     services.GetService<ILogger<App>>()?.LogDebug(ex, "Clipboard pre-warm failed; first open will load lazily");
                 }
+            }
+        });
+
+        // Pinned images / videos open at the last exit come back where they were (Settings →
+        // "Restore pinned images at startup"). Idle priority so the main window and the tray are
+        // up first; the pins show without activation, so focus stays where the user has it.
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, async () =>
+        {
+            try
+            {
+                await _host!.Services.GetRequiredService<PinToScreenLauncher>()
+                    .RestorePinnedAsync(CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _host!.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Restoring pinned windows failed");
             }
         });
 

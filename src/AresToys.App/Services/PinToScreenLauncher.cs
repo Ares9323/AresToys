@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
+using AresToys.App.Services.Pins;
 using AresToys.App.Views;
 using AresToys.Capture;
 using AresToys.Clipboard;
@@ -29,6 +30,7 @@ public sealed class PinToScreenLauncher
     private readonly ILogger<PinnedImageWindow> _windowLogger;
     private readonly ILogger<PinnedVideoWindow>? _videoWindowLogger;
     private readonly IToastNotifier? _notifier;
+    private readonly PinPersistenceService? _persistence;
 
     /// <summary>Same key the clipboard panel's preview mute toggle persists to: a pinned video
     /// starts with the user's last preview choice.</summary>
@@ -44,7 +46,8 @@ public sealed class PinToScreenLauncher
         ILogger<PinnedImageWindow> windowLogger,
         IClipboardListener? listener = null,
         IToastNotifier? notifier = null,
-        ILogger<PinnedVideoWindow>? videoWindowLogger = null)
+        ILogger<PinnedVideoWindow>? videoWindowLogger = null,
+        PinPersistenceService? persistence = null)
     {
         _captureSource = captureSource;
         _settings = settings;
@@ -56,6 +59,97 @@ public sealed class PinToScreenLauncher
         _windowLogger = windowLogger;
         _notifier = notifier;
         _videoWindowLogger = videoWindowLogger;
+        _persistence = persistence;
+    }
+
+    /// <summary>Show a freshly created image pin and hand it to the persistence service.</summary>
+    private void ShowPin(PinnedImageWindow window)
+    {
+        window.ShowAtCapturedPixel();
+        _persistence?.TrackImage(window);
+    }
+
+    /// <summary>Bring back the pins that were open when the app last exited, at their saved
+    /// pixels, zoom, opacity and border, without taking focus. Entries whose file is gone or
+    /// can't be decoded are pruned. UI-thread only.</summary>
+    public async Task RestorePinnedAsync(CancellationToken cancellationToken)
+    {
+        if (_persistence is null) return;
+        if (!await _persistence.LoadEnabledAsync(cancellationToken).ConfigureAwait(true)) return;
+        var records = await Task.Run(_persistence.LoadForRestore, cancellationToken).ConfigureAwait(true);
+        if (records.Count == 0) return;
+
+        var monitors = MonitorEnumeration.Enumerate();
+        var monitorRects = monitors.Select(m => new PixelRect(m.X, m.Y, m.Width, m.Height)).ToList();
+        var primary = monitors.FirstOrDefault(m => m.IsPrimary) is { } p ? new PixelRect(p.X, p.Y, p.Width, p.Height) : (PixelRect?)null;
+        _logger.LogInformation("Pins: restoring {Count} pinned window(s)", records.Count);
+
+        foreach (var record in records)
+        {
+            try
+            {
+                var saved = new PixelRect(record.X, record.Y, record.Width, record.Height);
+                var target = PinPlacement.EnsureVisible(saved, monitorRects, primary);
+                var snapped = target != saved;
+                if (snapped)
+                    _logger.LogInformation("Pins: pin {Id} was off screen at ({X}, {Y}), moved to ({NX}, {NY})",
+                        record.Id, saved.X, saved.Y, target.X, target.Y);
+
+                if (record.Kind == PinKind.Image)
+                {
+                    var path = _persistence.ImagePath(record);
+                    var bitmap = await Task.Run(() => DecodeFile(path), cancellationToken).ConfigureAwait(true);
+                    if (bitmap is null)
+                    {
+                        _logger.LogWarning("Pins: image {File} of pin {Id} can't be decoded, entry pruned", record.FileName, record.Id);
+                        _persistence.Forget(record.Id);
+                        continue;
+                    }
+                    var w = new PinnedImageWindow(bitmap, settings: _settings, editor: _editor,
+                        initialBorderThickness: record.Border, logger: _windowLogger,
+                        items: _items, listener: _listener, outputEncoder: _outputEncoder)
+                    { PinId = record.Id };
+                    w.ApplyRestoredState(record.Scale, record.Opacity, record.DpiScaleX, record.DpiScaleY, record.Locked);
+                    w.ShowRestored(target.X, target.Y);
+                    _persistence.TrackImage(w, alreadyPersisted: true);
+                }
+                else
+                {
+                    var v = new PinnedVideoWindow(record.SourcePath!, record.Border, muted: record.Muted,
+                        logger: _videoWindowLogger)
+                    { PinId = record.Id };
+                    v.ApplyRestoredState(record.Scale, record.Opacity, record.DpiScaleX, record.DpiScaleY, record.Width, record.Height, record.Locked);
+                    v.ShowRestored(target.X, target.Y);
+                    _persistence.TrackVideo(v, alreadyPersisted: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Pins: restoring pin {Id} failed, entry pruned", record.Id);
+                _persistence.Forget(record.Id);
+            }
+        }
+    }
+
+    /// <summary>Decode a persisted PNG on a worker thread. Frozen, so the UI thread can show it.</summary>
+    private static BitmapSource? DecodeFile(string path)
+    {
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.StreamSource = fs;
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException
+                                      or InvalidOperationException or ArgumentException or System.Runtime.InteropServices.ExternalException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Pin already-encoded image bytes (PNG / JPG / BMP / GIF first frame, anything WIC
@@ -87,7 +181,7 @@ public sealed class PinToScreenLauncher
         var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
         var w = new PinnedImageWindow(bitmap, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
             items: _items, listener: _listener, outputEncoder: _outputEncoder);
-        w.ShowAtCapturedPixel();
+        ShowPin(w);
         return true;
     }
 
@@ -110,6 +204,7 @@ public sealed class PinToScreenLauncher
             logger: _videoWindowLogger);
         w.Show();
         w.Activate();
+        _persistence?.TrackVideo(w);
         return true;
     }
 
@@ -164,7 +259,7 @@ public sealed class PinToScreenLauncher
                     var win = new PinnedImageWindow(bmp, initialScreenPos: (px, py),
                         settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
                 items: _items, listener: _listener, outputEncoder: _outputEncoder);
-                    win.ShowAtCapturedPixel();
+                    ShowPin(win);
                 }
                 return;
             }
@@ -183,7 +278,7 @@ public sealed class PinToScreenLauncher
             var w = new PinnedImageWindow(bitmap, initialScreenPos: (region.X, region.Y),
                 settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
                 items: _items, listener: _listener, outputEncoder: _outputEncoder);
-            w.ShowAtCapturedPixel();
+            ShowPin(w);
             _logger.LogInformation("Pin from screen: window shown — Left={Left}, Top={Top} (DIPs)", w.Left, w.Top);
         }
         catch (Exception ex)
@@ -196,20 +291,49 @@ public sealed class PinToScreenLauncher
     {
         try
         {
-            if (!System.Windows.Clipboard.ContainsImage()) return;
-            var bmp = System.Windows.Clipboard.GetImage();
+            var bmp = ReadClipboardImage();
             if (bmp is null) return;
-            bmp.Freeze();
             var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
             var w = new PinnedImageWindow(bmp, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
                 items: _items, listener: _listener, outputEncoder: _outputEncoder);
-            w.ShowAtCapturedPixel();
+            ShowPin(w);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "PinToScreenLauncher: failed to read clipboard image");
         }
     }
+
+    /// <summary>The clipboard image with its alpha channel when the source provides one: the
+    /// registered "PNG" format first, then a single image file copied in Explorer, and only then
+    /// <see cref="System.Windows.Clipboard.GetImage"/>, which reads the DIB and loses
+    /// transparency.</summary>
+    private static BitmapSource? ReadClipboardImage()
+    {
+        if (System.Windows.Clipboard.GetData("PNG") is MemoryStream png && png.Length > 0)
+        {
+            var decoded = DecodePng(png.ToArray());
+            if (decoded is not null) return decoded;
+        }
+        if (System.Windows.Clipboard.ContainsFileDropList()
+            && System.Windows.Clipboard.GetFileDropList() is { Count: 1 } files
+            && files[0] is { } path
+            && ImageFileExtensions.Contains(Path.GetExtension(path))
+            && File.Exists(path))
+        {
+            var decoded = DecodePng(File.ReadAllBytes(path));
+            if (decoded is not null) return decoded;
+        }
+        if (!System.Windows.Clipboard.ContainsImage()) return null;
+        var bmp = System.Windows.Clipboard.GetImage();
+        bmp?.Freeze();
+        return bmp;
+    }
+
+    private static readonly HashSet<string> ImageFileExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".ico",
+    };
 
     private async Task FromFileAsync(CancellationToken cancellationToken)
     {
@@ -229,7 +353,7 @@ public sealed class PinToScreenLauncher
             var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
             var w = new PinnedImageWindow(bitmap, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
                 items: _items, listener: _listener, outputEncoder: _outputEncoder);
-            w.ShowAtCapturedPixel();
+            ShowPin(w);
         }
         catch (Exception ex)
         {
@@ -242,6 +366,13 @@ public sealed class PinToScreenLauncher
     private static BitmapSource? DecodePng(byte[] bytes)
     {
         if (bytes.Length == 0) return null;
+        // WebP goes through Skia: the WIC WebP codec (Windows "WebP Image Extension") decodes to
+        // Bgr32 and drops the alpha channel, so a transparent WebP would pin on black.
+        if (IsWebP(bytes))
+        {
+            using var webp = SkiaSharp.SKBitmap.Decode(bytes);
+            if (webp is not null) return ImageEffects.SkiaToWpfBitmap.Convert(webp);
+        }
         using var ms = new MemoryStream(bytes);
         var bmp = new BitmapImage();
         bmp.BeginInit();
@@ -251,4 +382,10 @@ public sealed class PinToScreenLauncher
         bmp.Freeze();
         return bmp;
     }
+
+    /// <summary>RIFF container with a WEBP form type.</summary>
+    private static bool IsWebP(byte[] bytes)
+        => bytes.Length > 12
+           && bytes[0] == (byte)'R' && bytes[1] == (byte)'I' && bytes[2] == (byte)'F' && bytes[3] == (byte)'F'
+           && bytes[8] == (byte)'W' && bytes[9] == (byte)'E' && bytes[10] == (byte)'B' && bytes[11] == (byte)'P';
 }

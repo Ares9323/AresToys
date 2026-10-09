@@ -37,6 +37,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         _categories = categories;
         _tags = tags;
         _services = services;
+        _fileThumbnails = new AresToys.App.Services.ImageFiles.FileRowThumbnailLoader(OnFileThumbnailReady);
         IsKeySequencesEnabled = modules.KeySequencesEnabled;
         Rows = [];
         Categories = [];
@@ -46,6 +47,20 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         _ = ReloadCategoriesAsync();
         _ = ReloadTagsAsync();
     }
+
+    /// <summary>Background builder of row thumbnails for Files items stored without one.</summary>
+    private readonly AresToys.App.Services.ImageFiles.FileRowThumbnailLoader _fileThumbnails;
+
+    /// <summary>A lazily built Files thumbnail is ready (worker thread): show it on the visible
+    /// row and store it, so the next list load reads it from the database instead of the file.</summary>
+    private void OnFileThumbnailReady(long itemId, byte[] thumbnail)
+        => Application.Current?.Dispatcher.InvokeAsync(async () =>
+        {
+            foreach (var row in Rows)
+                if (row.Id == itemId && !row.HasThumbnail) row.Thumbnail = thumbnail;
+            try { await _items.SetThumbnailIfMissingAsync(itemId, thumbnail, CancellationToken.None).ConfigureAwait(true); }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException) { /* cosmetic: rebuilt next session */ }
+        });
 
     /// <summary>Mirror of <see cref="ModuleSettings.KeySequencesEnabled"/> captured at construction
     /// time. Bound by <c>ClipboardWindow</c>'s preview pane to gate the Trigger sequence editor —
@@ -846,7 +861,9 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
                 var isTextLike = record.Kind is ItemKind.Text or ItemKind.Html or ItemKind.Rtf;
                 if (isImageLike && !ShowImages) continue;
                 if (isTextLike && !ShowText) continue;
-                Rows.Add(new ItemRowViewModel(record, displayIndex: displayIndex++, showSnippetWithLabel: ShowSnippetWithLabel, tagLookup: _tagLookup));
+                var rowVm = new ItemRowViewModel(record, displayIndex: displayIndex++, showSnippetWithLabel: ShowSnippetWithLabel, tagLookup: _tagLookup);
+                Rows.Add(rowVm);
+                if (rowVm.NeedsFileThumbnail) _fileThumbnails.Request(rowVm.Id, rowVm.FilePaths);
             }
             // Preserve selection across reloads when the same id is still present.
             if (previousId is { } id) SelectedRow = Rows.FirstOrDefault(r => r.Id == id);

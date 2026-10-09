@@ -625,8 +625,22 @@
                                                         Background="{DynamicResource Surface1Brush}"
                                                         BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
                                                         Visibility="{Binding HasThumbnail, Converter={StaticResource BoolToVisibility}}">
-                                                    <Image Source="{Binding Thumbnail, Converter={StaticResource BytesToImage}}"
-                                                           Stretch="Uniform" />
+                                                    <Grid>
+                                                        <Image Source="{Binding Thumbnail, Converter={StaticResource BytesToImage}}"
+                                                               Stretch="Uniform" />
+                                                        <!-- "+N" on a Files row holding more paths than the one
+                                                             the thumbnail shows. -->
+                                                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                Margin="0,0,2,2" Padding="3,0"
+                                                                CornerRadius="3"
+                                                                Background="{DynamicResource AccentBackgroundBrush}"
+                                                                Visibility="{Binding HasExtraFilesBadge, Converter={StaticResource BoolToVisibility}}">
+                                                            <TextBlock Text="{Binding ExtraFilesBadge}"
+                                                                       Foreground="{DynamicResource Surface1Brush}"
+                                                                       FontSize="10"
+                                                                       FontWeight="Bold" />
+                                                        </Border>
+                                                    </Grid>
                                                 </Border>
                                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                                     <!-- Title row: TextBlock (TitleText = Label if set, else

@@ -28,6 +28,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly AresToys.App.Services.Notifications.ToastLifetimeService _toastLifetime;
     private readonly PopupWindowViewModel _clipboardVm;
     private readonly AresToys.App.Services.KeySequences.KeySequenceModuleSettings _keySequencesSettings;
+    private readonly AresToys.App.Services.Pins.PinPersistenceService _pins;
 
     public SettingsViewModel(
         PluginRegistry registry,
@@ -44,7 +45,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         WormholesViewModel wormholes,
         PopupWindowViewModel clipboardVm,
         AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings,
-        AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime)
+        AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime,
+        AresToys.App.Services.Pins.PinPersistenceService pins)
     {
         _autostart = autostart;
         _elevation = elevation;
@@ -52,6 +54,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _clipboardVm = clipboardVm;
         _keySequencesSettings = keySequencesSettings;
         _toastLifetime = toastLifetime;
+        _pins = pins;
         Theme = theme;
         Categories = categories;
         Debug = debug;
@@ -235,6 +238,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _clipboardFocusLatestOnOpen = true;
 
+    /// <summary>Bound to "Restore pinned images at startup" (default ON). Persisted by
+    /// <see cref="AresToys.App.Services.Pins.PinPersistenceService"/> under its
+    /// <c>RestoreSettingKey</c>. Turning it off also deletes the saved pins, so turning it back
+    /// on later never brings back pins from long ago; the pins on screen stay open.</summary>
+    [ObservableProperty]
+    private bool _restorePinsAtStartup = true;
+
     /// <summary>Bound to the Settings → Modules "Clipboard" toggle. Persisted under
     /// <see cref="ClipboardModuleKey"/> — read by <see cref="App.OnStartup"/> to decide whether
     /// to start <see cref="Services.ClipboardIngestionService"/>, pre-warm the popup window, and
@@ -298,6 +308,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _suppressEditorAltClickSelectAnyPersist;
     private bool _suppressClipboardShowSnippetWithLabelPersist;
     private bool _suppressClipboardFocusLatestOnOpenPersist;
+    private bool _suppressRestorePinsAtStartupPersist;
     private bool _suppressClipboardModulePersist;
     private bool _suppressLauncherModulePersist;
     private bool _suppressWormholesModulePersist;
@@ -379,6 +390,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _suppressClipboardFocusLatestOnOpenPersist = true;
         try { ClipboardFocusLatestOnOpen = rawFocusLatest != "0"; }
         finally { _suppressClipboardFocusLatestOnOpenPersist = false; }
+
+        var rawRestorePins = await _settingsStore.GetAsync(AresToys.App.Services.Pins.PinPersistenceService.RestoreSettingKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressRestorePinsAtStartupPersist = true;
+        try { RestorePinsAtStartup = !string.Equals(rawRestorePins, "false", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressRestorePinsAtStartupPersist = false; }
 
         // Module flags share the "unset → default" semantics with App.OnStartup: Clipboard +
         // Launcher default ON when the key is missing, Wormholes defaults OFF (opt-in).
@@ -483,6 +499,12 @@ public sealed partial class SettingsViewModel : ObservableObject
             sensitive: false,
             CancellationToken.None);
         _clipboardVm.FocusLatestOnOpen = value;
+    }
+
+    partial void OnRestorePinsAtStartupChanged(bool value)
+    {
+        if (_suppressRestorePinsAtStartupPersist) return;
+        _ = _pins.SetEnabledAsync(value, CancellationToken.None);
     }
 
     partial void OnClipboardModuleEnabledChanged(bool value)

@@ -70,6 +70,13 @@ public interface IItemStore
     /// the popup re-queries once.</summary>
     Task ReorderPinnedAsync(IReadOnlyList<long> orderedIds, CancellationToken cancellationToken);
 
+    /// <summary>Store a row thumbnail generated after the item was added (the clipboard window
+    /// builds one lazily for Files rows that point at an image). Only fills an empty column, so it
+    /// never overwrites a thumbnail generated at ingestion. Deliberately raises no
+    /// <see cref="ItemsChanged"/> broadcast: the caller already updated the visible row, and a
+    /// refresh per thumbnail would rebuild the whole list for nothing.</summary>
+    Task<bool> SetThumbnailIfMissingAsync(long id, byte[] thumbnail, CancellationToken cancellationToken);
+
     /// <summary>Raised after any mutation (add / update / pin / soft-delete / restore). Subscribers
     /// must marshal to the UI thread themselves.</summary>
     event EventHandler<ItemsChangedEventArgs>? ItemsChanged;
@@ -105,4 +112,8 @@ public sealed record NewItem(
     string? SearchText = null,
     string Category = "Clipboard",
     string? Label = null,
-    string? Trigger = null);
+    string? Trigger = null,
+    // Row thumbnail (PNG) prepared by the caller. Image items get one generated from their
+    // payload when this is null; Files items pointing at an image file pass one here because
+    // only the app layer reads and decodes the file (WebP needs Skia to keep its alpha).
+    byte[]? Thumbnail = null);

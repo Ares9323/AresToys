@@ -80,6 +80,7 @@
   <data name="Tray_ColorSampler" xml:space="preserve"><value>Campiona colore</value></data>
   <data name="Tray_ColorPicker" xml:space="preserve"><value>Selettore colore…</value></data>
   <data name="Tray_PinToScreen" xml:space="preserve"><value>Aggancia a schermo…</value></data>
+  <data name="Tray_UnlockAllPins" xml:space="preserve"><value>Sblocca tutte le immagini fissate</value></data>
   <data name="Tray_QrGenerator" xml:space="preserve"><value>Generatore QR…</value></data>
   <data name="Tray_ScanQrInRegion" xml:space="preserve"><value>Scansiona QR in un'area</value></data>
   <data name="Tray_NewWormhole" xml:space="preserve"><value>Nuovo wormhole…</value></data>
@@ -143,6 +144,10 @@
   <data name="Clipboard_TooltipMoveDown" xml:space="preserve"><value>Sposta giù nell'ordine dei pinnati</value></data>
   <data name="Settings_ClipboardSectionTitle" xml:space="preserve"><value>Appunti</value></data>
   <data name="Settings_ClipboardSectionHint" xml:space="preserve"><value>Opzioni di visualizzazione della finestra Appunti.</value></data>
+  <data name="Settings_PinsSectionTitle" xml:space="preserve"><value>Immagini fissate</value></data>
+  <data name="Settings_PinsSectionHint" xml:space="preserve"><value>Immagini e video fissati sullo schermo.</value></data>
+  <data name="Settings_RestorePinsAtStartup" xml:space="preserve"><value>Ripristina le immagini fissate all'avvio</value></data>
+  <data name="Settings_RestorePinsAtStartupTooltip" xml:space="preserve"><value>Le immagini e i video ancora fissati quando AresToys si chiude ricompaiono al prossimo avvio, nello stesso punto e con zoom, opacità e bordo invariati. Chiudere un elemento fissato (Esc o clic destro) lo dimentica. Disattivando l'opzione gli elementi salvati vengono eliminati.</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabel" xml:space="preserve"><value>Mostra anteprima contenuto sotto l'etichetta</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabelTooltip" xml:space="preserve"><value>Quando un elemento ha un'etichetta, mostra anche una piccola anteprima del contenuto su una seconda riga. Disattivato di default — l'etichetta sostituisce completamente lo snippet.</value></data>
   <data name="Settings_ClipboardFocusLatestOnOpen" xml:space="preserve"><value>Seleziona la voce più recente all'apertura</value></data>
@@ -504,7 +509,10 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Apri nell'editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reimposta zoom al 100%</value></data>
-  <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacità. Maiusc+rotellina per cambiarla, clic per tornare al 100%</value></data>
+  <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacità. Scorri qui o usa Maiusc+rotellina sull'elemento per cambiarla, clic per tornare al 100%</value></data>
+  <data name="PinnedImage_ZoomTooltip" xml:space="preserve"><value>Zoom. Scorri qui o usa Ctrl+rotellina sull'elemento per cambiarlo, clic per tornare al 100%</value></data>
+  <data name="PinnedImage_LockTooltip" xml:space="preserve"><value>Blocca: l'elemento fissato ignora il mouse (clic e rotellina passano a ciò che sta sotto) e non si può spostare, ingrandire né chiudere. Tieni premuto Ctrl+Maiusc sopra di esso per usare i suoi controlli, Maiusc+rotellina per l'opacità</value></data>
+  <data name="PinnedImage_UnlockTooltip" xml:space="preserve"><value>Bloccato: ignora il mouse. Clic per sbloccare (tieni premuto Ctrl+Maiusc sopra l'elemento per raggiungere questo pulsante)</value></data>
   <data name="PinnedImage_SaveTooltip" xml:space="preserve"><value>Salva su file…</value></data>
   <data name="PinnedVideo_ControlsHint" xml:space="preserve"><value>Clic o Spazio: riproduci/pausa. Rotellina o frecce: scorri. Ctrl+rotellina: zoom. Maiusc+rotellina: opacità. Clic destro o Esc: chiudi.</value></data>
   <data name="PinToScreen_VideoUnavailable" xml:space="preserve"><value>Impossibile fissare questo video: il file non esiste più o il formato non è riproducibile.</value></data>

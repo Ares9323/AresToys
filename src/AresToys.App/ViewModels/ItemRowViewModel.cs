@@ -27,7 +27,14 @@ public sealed class ItemRowViewModel : INotifyPropertyChanged
         Pinned = record.Pinned;
         SourceProcess = record.SourceProcess ?? string.Empty;
         Preview = BuildPreview(record);
-        Thumbnail = record.Thumbnail?.ToArray();
+        _thumbnail = record.Thumbnail?.ToArray();
+        if (record.Kind is ItemKind.Files)
+        {
+            // The list query skips the payload, so read the path list from SearchText (the same
+            // newline joined paths) and fall back to BlobRef for single-file pipeline entries.
+            FilePaths = AresToys.App.Services.ImageFiles.FileThumbnails.ParsePaths(record.SearchText);
+            if (FilePaths.Count == 0 && !string.IsNullOrEmpty(record.BlobRef)) FilePaths = [record.BlobRef];
+        }
         DisplayIndex = displayIndex;
         _label = record.Label;
         _trigger = record.Trigger;
@@ -47,9 +54,38 @@ public sealed class ItemRowViewModel : INotifyPropertyChanged
     public bool Pinned { get; }
     public string SourceProcess { get; }
     public string Preview { get; }
-    /// <summary>Pre-generated PNG thumbnail bytes for image items, null otherwise.</summary>
-    public byte[]? Thumbnail { get; }
+    private byte[]? _thumbnail;
+    /// <summary>PNG thumbnail bytes: generated at ingestion for Image items and for Files items
+    /// pointing at an image, or set later by the clipboard window's lazy loader for Files rows
+    /// captured before that existed. Null otherwise.</summary>
+    public byte[]? Thumbnail
+    {
+        get => _thumbnail;
+        set
+        {
+            if (ReferenceEquals(_thumbnail, value)) return;
+            _thumbnail = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasThumbnail));
+            OnPropertyChanged(nameof(HasExtraFilesBadge));
+        }
+    }
     public bool HasThumbnail => Thumbnail is { Length: > 0 };
+
+    /// <summary>Paths of a Files item (empty for every other kind).</summary>
+    public IReadOnlyList<string> FilePaths { get; } = [];
+
+    /// <summary>True for a Files row with no thumbnail yet whose paths include an image: the
+    /// clipboard window then tries to build one in the background.</summary>
+    public bool NeedsFileThumbnail
+        => Kind is ItemKind.Files && !HasThumbnail
+           && AresToys.App.Services.ImageFiles.FileThumbnails.FirstImagePath(FilePaths) is not null;
+
+    /// <summary>"+N" hint over the thumbnail of a Files row holding more than one path.</summary>
+    public string ExtraFilesBadge => FilePaths.Count > 1
+        ? "+" + (FilePaths.Count - 1).ToString(System.Globalization.CultureInfo.InvariantCulture)
+        : string.Empty;
+    public bool HasExtraFilesBadge => HasThumbnail && FilePaths.Count > 1;
 
     /// <summary>0-based position in the popup. Used to render a Ctrl+N hint badge for rows 0..8.</summary>
     public int DisplayIndex { get; }

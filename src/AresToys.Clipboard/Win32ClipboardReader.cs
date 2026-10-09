@@ -14,12 +14,14 @@ public sealed class Win32ClipboardReader : IClipboardReader
     private readonly IForegroundProcessProbe _probe;
     private readonly uint _cfHtml;
     private readonly uint _cfRtf;
+    private readonly uint _cfPng;
 
     public Win32ClipboardReader(IForegroundProcessProbe probe)
     {
         _probe = probe;
         _cfHtml = ClipboardNativeMethods.RegisterClipboardFormat("HTML Format");
         _cfRtf = ClipboardNativeMethods.RegisterClipboardFormat("Rich Text Format");
+        _cfPng = ClipboardNativeMethods.RegisterClipboardFormat("PNG");
     }
 
     public ClipboardChange? ReadCurrent(IntPtr ownerHwnd)
@@ -78,6 +80,14 @@ public sealed class Win32ClipboardReader : IClipboardReader
             var bytes = Encoding.UTF8.GetBytes(text);
             return (ClipboardFormat.Text, bytes, text, null);
         }
+        // The registered "PNG" format (browsers, image editors, AresToys itself) keeps the alpha
+        // channel; CF_DIB goes through a BMP decode that drops it, so a transparent image would
+        // come back with a black or white background.
+        if (ClipboardNativeMethods.IsClipboardFormatAvailable(_cfPng))
+        {
+            var pngBytes = ReadGlobalBytes(_cfPng);
+            if (IsPng(pngBytes)) return (ClipboardFormat.Image, pngBytes, "[image]", null);
+        }
         if (ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfDib))
         {
             var dibBytes = ReadGlobalBytes(ClipboardNativeMethods.CfDib);
@@ -88,6 +98,9 @@ public sealed class Win32ClipboardReader : IClipboardReader
         }
         return (ClipboardFormat.None, ReadOnlyMemory<byte>.Empty, null, null);
     }
+
+    private static bool IsPng(byte[] bytes)
+        => bytes.Length > 8 && bytes[0] == 0x89 && bytes[1] == (byte)'P' && bytes[2] == (byte)'N' && bytes[3] == (byte)'G';
 
     private static byte[] ReadGlobalBytes(uint format)
     {

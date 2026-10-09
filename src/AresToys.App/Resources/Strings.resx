@@ -81,6 +81,7 @@
   <data name="Tray_ColorSampler" xml:space="preserve"><value>Color sampler</value></data>
   <data name="Tray_ColorPicker" xml:space="preserve"><value>Color picker…</value></data>
   <data name="Tray_PinToScreen" xml:space="preserve"><value>Pin to screen…</value></data>
+  <data name="Tray_UnlockAllPins" xml:space="preserve"><value>Unlock all pinned images</value></data>
   <data name="Tray_QrGenerator" xml:space="preserve"><value>QR generator…</value></data>
   <data name="Tray_ScanQrInRegion" xml:space="preserve"><value>Scan QR in region</value></data>
   <data name="Tray_NewWormhole" xml:space="preserve"><value>New wormhole…</value></data>
@@ -150,6 +151,10 @@
   <data name="Clipboard_TooltipMoveDown" xml:space="preserve"><value>Move down in pinned order</value></data>
   <data name="Settings_ClipboardSectionTitle" xml:space="preserve"><value>Clipboard</value></data>
   <data name="Settings_ClipboardSectionHint" xml:space="preserve"><value>Display options for the clipboard window.</value></data>
+  <data name="Settings_PinsSectionTitle" xml:space="preserve"><value>Pinned images</value></data>
+  <data name="Settings_PinsSectionHint" xml:space="preserve"><value>Images and videos pinned to the screen.</value></data>
+  <data name="Settings_RestorePinsAtStartup" xml:space="preserve"><value>Restore pinned images at startup</value></data>
+  <data name="Settings_RestorePinsAtStartupTooltip" xml:space="preserve"><value>Pins still open when AresToys exits come back at the next launch, in the same place and with the same zoom, opacity and border. Closing a pin (Esc or right click) forgets it. Turning this off deletes the saved pins.</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabel" xml:space="preserve"><value>Show content snippet under label</value></data>
   <data name="Settings_ClipboardShowSnippetWithLabelTooltip" xml:space="preserve"><value>When an item has a label, also render a small preview of its content on a second line. Off by default — the label replaces the snippet entirely.</value></data>
   <data name="Settings_ClipboardFocusLatestOnOpen" xml:space="preserve"><value>Focus the newest entry on open</value></data>
@@ -519,7 +524,10 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Open in editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reset zoom to 100%</value></data>
-  <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacity. Shift+wheel to change it, click to reset to 100%</value></data>
+  <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacity. Scroll here or Shift+wheel on the pin to change it, click to reset to 100%</value></data>
+  <data name="PinnedImage_ZoomTooltip" xml:space="preserve"><value>Zoom. Scroll here or Ctrl+wheel on the pin to change it, click to reset to 100%</value></data>
+  <data name="PinnedImage_LockTooltip" xml:space="preserve"><value>Lock: the pin ignores the mouse (clicks and wheel go to what is underneath) and can't be moved, zoomed or closed. Hold Ctrl+Shift over it to reach its controls, Shift+wheel for opacity</value></data>
+  <data name="PinnedImage_UnlockTooltip" xml:space="preserve"><value>Locked: the pin ignores the mouse. Click to unlock (hold Ctrl+Shift over the pin to reach this button)</value></data>
   <data name="PinnedImage_SaveTooltip" xml:space="preserve"><value>Save to file…</value></data>
   <data name="PinnedVideo_ControlsHint" xml:space="preserve"><value>Click or Space: play/pause. Wheel or arrows: seek. Ctrl+wheel: zoom. Shift+wheel: opacity. Right click or Esc: close.</value></data>
   <data name="PinToScreen_VideoUnavailable" xml:space="preserve"><value>Can't pin this video: the file is missing or its format can't be played.</value></data>

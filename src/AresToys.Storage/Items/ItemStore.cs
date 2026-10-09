@@ -34,6 +34,9 @@ public sealed class ItemStore : IItemStore
             : await TryDedupAsync(conn, item, cancellationToken).ConfigureAwait(false);
         if (dedupId is not null)
         {
+            // A row captured before Files thumbnails existed gets one from the repeat copy.
+            if (item.Thumbnail is { Length: > 0 } repeatThumb)
+                await SetThumbnailIfMissingAsync(dedupId.Value, repeatThumb, cancellationToken).ConfigureAwait(false);
             ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Added, dedupId.Value));
             return dedupId.Value;
         }
@@ -42,8 +45,8 @@ public sealed class ItemStore : IItemStore
 
         // Pre-generate a small PNG thumbnail for image items so the popup/timeline can render
         // previews without decrypting the full payload (the heavy DPAPI cost).
-        byte[]? thumbnail = null;
-        if (item.Kind == ItemKind.Image)
+        byte[]? thumbnail = item.Thumbnail is { Length: > 0 } provided ? provided : null;
+        if (thumbnail is null && item.Kind == ItemKind.Image)
         {
             thumbnail = ThumbnailGenerator.TryGenerate(item.Payload, maxSide: 96);
         }
@@ -684,6 +687,19 @@ public sealed class ItemStore : IItemStore
         cmd.Parameters.AddWithValue("$id", id);
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
+        return rows == 1;
+    }
+
+    public async Task<bool> SetThumbnailIfMissingAsync(long id, byte[] thumbnail, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(thumbnail);
+        if (thumbnail.Length == 0) return false;
+        var conn = _database.GetOpenConnection();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE items SET thumbnail = $thumb WHERE id = $id AND thumbnail IS NULL;";
+        cmd.Parameters.AddWithValue("$thumb", thumbnail);
+        cmd.Parameters.AddWithValue("$id", id);
+        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return rows == 1;
     }
 

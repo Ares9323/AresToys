@@ -8,6 +8,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using AresToys.App.Services;
+using AresToys.App.Services.Pins;
 using AresToys.Clipboard;
 using AresToys.Core.Domain;
 using AresToys.Storage.Items;
@@ -15,7 +16,7 @@ using AresToys.Storage.Settings;
 
 namespace AresToys.App.Views;
 
-public partial class PinnedImageWindow : Window
+public partial class PinnedImageWindow : Window, ILockablePin
 {
     public const string BorderThicknessSettingKey = "pin.border_thickness";
     public const int MaxBorderThickness = 12;
@@ -40,6 +41,28 @@ public partial class PinnedImageWindow : Window
     private double _dpiScaleX = 1.0;
     private double _dpiScaleY = 1.0;
     private readonly (int X, int Y)? _initialScreenPos;
+    // One accumulator per wheel action: a touchpad's small deltas add up to one step per 120.
+    private readonly WheelStepAccumulator _zoomWheel = new();
+    private readonly WheelStepAccumulator _opacityWheel = new();
+    private readonly WheelStepAccumulator _borderWheel = new();
+
+    /// <summary>Identity of this pin in the persisted manifest (<see cref="PinPersistenceService"/>).
+    /// A restored pin keeps the id it was saved with.</summary>
+    public Guid PinId { get; init; } = Guid.NewGuid();
+
+    /// <summary>True when the user dismissed the pin (Esc / right click). Any other close, such as
+    /// app shutdown, leaves the persisted entry in place so the pin comes back next launch.</summary>
+    public bool ClosedByUser { get; private set; }
+
+    /// <summary>The image currently shown (replaced by an edit).</summary>
+    public BitmapSource Bitmap => _bitmap;
+
+    /// <summary>Position, zoom, opacity or border changed. Raised at the end of a drag, once per
+    /// wheel notch otherwise: listeners debounce.</summary>
+    public event EventHandler? PinStateChanged;
+
+    /// <summary>The editor replaced <see cref="Bitmap"/>.</summary>
+    public event EventHandler? BitmapReplaced;
 
     /// <param name="initialScreenPos">Optional top-left in physical screen pixels. When set, the
     /// window appears there so "Pin from screen" can leave the captured region exactly where it
@@ -90,7 +113,7 @@ public partial class PinnedImageWindow : Window
         ApplyBorder();
         ApplyImageSize();
 
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) CloseByUser(); };
 
         Loaded += (_, _) => UpdateZoomLabel();
 
@@ -99,7 +122,10 @@ public partial class PinnedImageWindow : Window
         Closed += (_, _) =>
         {
             _liveInstances.RemoveAll(wr => !wr.TryGetTarget(out var w) || ReferenceEquals(w, this));
+            PinLockCoordinator.Unregister(this);
         };
+        // Click-through needs the HWND: re-apply once it exists (a restored locked pin).
+        SourceInitialized += (_, _) => PinWindowPlacement.SetClickThrough(this, IsLocked && !_peek);
     }
 
     /// <summary>Show + Activate + reposition. Set Left/Top in DIPs AFTER Show so the layout
@@ -126,6 +152,131 @@ public partial class PinnedImageWindow : Window
             _logger.LogInformation("Pin: no initialScreenPos — leaving WPF default placement");
         }
     }
+
+    /// <summary>Apply a persisted state before <see cref="ShowRestored"/>: zoom, opacity and the DPI
+    /// the window originally sized itself with, so the restored pin has the same size.</summary>
+    public void ApplyRestoredState(double scale, double opacity, double dpiScaleX, double dpiScaleY, bool locked = false)
+    {
+        SetLocked(locked);
+        _scale = double.IsFinite(scale) ? Math.Clamp(scale, 0.1, 8.0) : 1.0;
+        if (PinWindowPlacement.IsSaneDpiScale(dpiScaleX) && PinWindowPlacement.IsSaneDpiScale(dpiScaleY))
+        {
+            _dpiScaleX = dpiScaleX;
+            _dpiScaleY = dpiScaleY;
+        }
+        SetPinOpacity(PinWindowOpacity.Clamp(opacity));
+        ApplyImageSize();
+        UpdateZoomLabel();
+    }
+
+    /// <summary>Show a restored pin with its outer top-left at a physical screen pixel, without
+    /// taking focus. Positioned through Win32 in physical pixels: with per-monitor DPI a DIP
+    /// Left/Top is resolved against the DPI of the monitor the window is on at that moment,
+    /// which is not the target monitor when the pin lives on a secondary screen.</summary>
+    public void ShowRestored(int physicalX, int physicalY)
+    {
+        ShowActivated = false;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = physicalX / _dpiScaleX;
+        Top = physicalY / _dpiScaleY;
+        SourceInitialized += (_, _) => PinWindowPlacement.MoveToPhysical(this, physicalX, physicalY);
+        Show();
+        PinWindowPlacement.MoveToPhysical(this, physicalX, physicalY);
+    }
+
+    /// <summary>Current state for the manifest, or null while the window has no HWND.</summary>
+    public PinRecord? CaptureRecord()
+    {
+        if (PinWindowPlacement.GetPhysicalBounds(this) is not { } bounds) return null;
+        return new PinRecord
+        {
+            Id = PinId,
+            Kind = PinKind.Image,
+            X = bounds.X,
+            Y = bounds.Y,
+            Width = bounds.Width,
+            Height = bounds.Height,
+            Scale = _scale,
+            Opacity = _opacity,
+            Border = _borderThickness,
+            DpiScaleX = _dpiScaleX,
+            DpiScaleY = _dpiScaleY,
+            Locked = IsLocked,
+        };
+    }
+
+    private void CloseByUser()
+    {
+        if (IsLocked) return;
+        ClosedByUser = true;
+        Close();
+    }
+
+    /// <summary>Locked pins ignore the mouse entirely (click-through, the wheel included) and
+    /// can't be moved, resized or closed by Esc, right click or Alt+F4. Holding Ctrl+Shift over
+    /// the pin makes it interactive again (<see cref="PinLockCoordinator"/>): the overlay shows,
+    /// its buttons and Shift+wheel opacity work, the lock rules stay.</summary>
+    public bool IsLocked { get; private set; }
+
+    /// <summary>Ctrl+Shift peek in progress: click-through lifted while the chord is held.</summary>
+    private bool _peek;
+
+    Window ILockablePin.Window => this;
+
+    private void SetLocked(bool locked)
+    {
+        IsLocked = locked;
+        _peek = false;
+        LockButton.Content = locked ? "🔒" : "🔓";
+        LockButton.ToolTip = locked ? AresToys.App.Resources.Strings.PinnedImage_UnlockTooltip : AresToys.App.Resources.Strings.PinnedImage_LockTooltip;
+        PinWindowPlacement.SetClickThrough(this, locked);
+        if (locked)
+        {
+            PinLockCoordinator.Register(this);
+            // Click-through from now on: no MouseLeave will come to hide the overlay.
+            SetOverlayVisible(false);
+        }
+        else
+        {
+            PinLockCoordinator.Unregister(this);
+        }
+    }
+
+    void ILockablePin.SetPeek(bool peek)
+    {
+        if (!IsLocked || peek == _peek) return;
+        _peek = peek;
+        PinWindowPlacement.SetClickThrough(this, !peek);
+        SetOverlayVisible(peek);
+    }
+
+    void ILockablePin.Unlock()
+    {
+        if (!IsLocked) return;
+        SetLocked(false);
+        RaisePinStateChanged();
+    }
+
+    private void SetOverlayVisible(bool visible)
+    {
+        OverlayBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnLockClick(object sender, RoutedEventArgs e)
+    {
+        SetLocked(!IsLocked);
+        RaisePinStateChanged();
+    }
+
+    /// <summary>Blocks every close gesture (Alt+F4 included) while locked. During app shutdown
+    /// WPF ignores the cancel, so a locked pin never holds up an exit.</summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (IsLocked && !App.IsShuttingDown) e.Cancel = true;
+        base.OnClosing(e);
+    }
+
+    private void RaisePinStateChanged() => PinStateChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Caller helper: read the sticky border value from settings BEFORE constructing the
     /// window. Doing this at the call site means the constructor can apply the border + position
@@ -319,6 +470,8 @@ public partial class PinnedImageWindow : Window
             _bitmap = bmp;
             PinnedImage.Source = bmp;
             ApplyImageSize();
+            BitmapReplaced?.Invoke(this, EventArgs.Empty);
+            RaisePinStateChanged();
         }
         catch
         {
@@ -338,7 +491,7 @@ public partial class PinnedImageWindow : Window
 
     private void OnResetZoomClick(object sender, RoutedEventArgs e)
     {
-        if (Math.Abs(_scale - 1.0) < 1e-4) return;
+        if (IsLocked || Math.Abs(_scale - 1.0) < 1e-4) return;
         // Resize anchored on the window's CURRENT centre, not the top-left corner. ApplyImageSize
         // only updates Width/Height; without re-positioning Left/Top the user perceives the
         // shrink as "drifting toward the top-left" — disorienting when the pin had been moved.
@@ -349,6 +502,7 @@ public partial class PinnedImageWindow : Window
         Left = centerX - Width / 2;
         Top  = centerY - Height / 2;
         UpdateZoomLabel();
+        RaisePinStateChanged();
     }
 
     private void OnRootMouseEnter(object sender, MouseEventArgs e) => OverlayBar.Visibility = Visibility.Visible;
@@ -356,29 +510,86 @@ public partial class PinnedImageWindow : Window
 
     private void OnImageMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton == MouseButton.Left) DragMove();
+        if (e.ChangedButton != MouseButton.Left || IsLocked) return;
+        // DragMove blocks until the button is released, so returning from it is the end of the drag.
+        var (left, top) = (Left, Top);
+        DragMove();
+        if (Math.Abs(Left - left) >= 0.5 || Math.Abs(Top - top) >= 0.5) RaisePinStateChanged();
     }
 
-    private void OnImageRightClick(object sender, MouseButtonEventArgs e) => Close();
+    private void OnImageRightClick(object sender, MouseButtonEventArgs e) => CloseByUser();
 
     private void OnImageWheel(object sender, MouseWheelEventArgs e)
     {
         // Ctrl+wheel = zoom (centred on the mouse cursor's pixel — same UX as image viewers).
         // Shift+wheel = window opacity. Bare wheel = adjust border thickness (cheap visual
         // customisation, sticky default).
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        // Locked (reachable only through the Ctrl+Shift peek): opacity only, zoom and border
+        // would resize / move the window.
+        if (IsLocked)
         {
-            ZoomFromCursor(sender, e);
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                StepOpacity(_opacityWheel.Add(e.Delta));
+        }
+        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            var steps = _zoomWheel.Add(e.Delta);
+            if (steps != 0) ZoomFromCursor(e, steps);
         }
         else if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
         {
-            SetPinOpacity(PinWindowOpacity.Next(_opacity, e.Delta));
+            StepOpacity(_opacityWheel.Add(e.Delta));
         }
         else
         {
-            AdjustBorder(e);
+            AdjustBorder(_borderWheel.Add(e.Delta));
         }
         e.Handled = true;
+    }
+
+    /// <summary>Wheel over the zoom readout: zoom around the window centre, no modifier needed
+    /// (touchpad friendly). Blocked when locked, like Ctrl+wheel.</summary>
+    private void OnZoomLabelWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!IsLocked)
+        {
+            var steps = _zoomWheel.Add(e.Delta);
+            if (steps != 0) ZoomAroundCenter(steps);
+        }
+        e.Handled = true;
+    }
+
+    private void OnZoomLabelClick(object sender, MouseButtonEventArgs e)
+    {
+        OnResetZoomClick(sender, e);
+        e.Handled = true;
+    }
+
+    /// <summary>Wheel over the opacity readout: opacity steps, allowed when locked.</summary>
+    private void OnOpacityLabelWheel(object sender, MouseWheelEventArgs e)
+    {
+        StepOpacity(_opacityWheel.Add(e.Delta));
+        e.Handled = true;
+    }
+
+    private void StepOpacity(int steps)
+    {
+        if (steps != 0) SetPinOpacity(PinWindowOpacity.Steps(_opacity, steps));
+    }
+
+    /// <summary>Zoom keeping the window centre in place (zoom readout wheel).</summary>
+    private void ZoomAroundCenter(int steps)
+    {
+        var newScale = Math.Clamp(_scale * Math.Pow(1.1, steps), 0.1, 8.0);
+        if (Math.Abs(newScale - _scale) < 1e-4) return;
+        var centerX = Left + Width / 2;
+        var centerY = Top  + Height / 2;
+        _scale = newScale;
+        ApplyImageSize();
+        Left = centerX - Width / 2;
+        Top  = centerY - Height / 2;
+        UpdateZoomLabel();
+        RaisePinStateChanged();
     }
 
     private void SetPinOpacity(double opacity)
@@ -386,6 +597,7 @@ public partial class PinnedImageWindow : Window
         _opacity = opacity;
         Opacity = opacity;
         OpacityLabel.Text = "◐ " + PinWindowOpacity.Format(opacity);
+        RaisePinStateChanged();
     }
 
     private void OnOpacityLabelClick(object sender, MouseButtonEventArgs e)
@@ -394,9 +606,10 @@ public partial class PinnedImageWindow : Window
         e.Handled = true;
     }
 
-    private void AdjustBorder(MouseWheelEventArgs e)
+    private void AdjustBorder(int steps)
     {
-        var next = Math.Clamp(_borderThickness + (e.Delta > 0 ? 1 : -1), 0, MaxBorderThickness);
+        if (steps == 0) return;
+        var next = Math.Clamp(_borderThickness + steps, 0, MaxBorderThickness);
         if (next == _borderThickness) return;
         var delta = next - _borderThickness;
         _borderThickness = next;
@@ -408,13 +621,14 @@ public partial class PinnedImageWindow : Window
         Left -= delta;
         Top  -= delta;
         PersistBorder();
+        RaisePinStateChanged();
     }
 
-    private void ZoomFromCursor(object sender, MouseWheelEventArgs e)
+    private void ZoomFromCursor(MouseWheelEventArgs e, int steps)
     {
         var cursorScreen = PointToScreen(e.GetPosition(this));
 
-        var factor = e.Delta > 0 ? 1.1 : 1.0 / 1.1;
+        var factor = Math.Pow(1.1, steps);
         var newScale = Math.Clamp(_scale * factor, 0.1, 8.0);
         if (Math.Abs(newScale - _scale) < 1e-4) return;
         var actualFactor = newScale / _scale;
@@ -436,6 +650,7 @@ public partial class PinnedImageWindow : Window
             Left = dip.X;
             Top  = dip.Y;
             UpdateZoomLabel();
+            RaisePinStateChanged();
         });
     }
 

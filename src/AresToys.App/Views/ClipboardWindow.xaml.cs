@@ -629,9 +629,9 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     /// <summary>Compute the LayoutTransform scale that makes the current image fit the
-    /// preview pane and apply it. Decoding the bytes a second time (the converter already
-    /// produced a BitmapImage for the visual tree) is cheap for clipboard payloads and avoids
-    /// having to wait for the Image element's ActualWidth/Height after layout.</summary>
+    /// preview pane and apply it. Reading the size from the image header (the converter already
+    /// produced the bitmap for the visual tree) is cheap and avoids having to wait for the Image
+    /// element's ActualWidth/Height after layout.</summary>
     private void FitPreviewImageToPane()
     {
         if (PreviewImageScale is null || PreviewImageScroller is null) return;
@@ -642,24 +642,14 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
             PreviewImageScale.ScaleY = 1.0;
             return;
         }
-        int w, h;
-        try
-        {
-            using var ms = new MemoryStream(bytes);
-            var bmp = new System.Windows.Media.Imaging.BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-            bmp.StreamSource = ms;
-            bmp.EndInit();
-            w = bmp.PixelWidth;
-            h = bmp.PixelHeight;
-        }
-        catch
+        // Header read only (WebP through Skia, like the converter that renders it).
+        if (Services.ImageFiles.ImageDecoding.TryGetPixelSize(bytes) is not { } size)
         {
             PreviewImageScale.ScaleX = 1.0;
             PreviewImageScale.ScaleY = 1.0;
             return;
         }
+        var (w, h) = size;
         if (w <= 0 || h <= 0) return;
         // Subtract the Image's 8-px margin on each side so the fit isn't clipped by it.
         var vw = PreviewImageScroller.ViewportWidth - 20;

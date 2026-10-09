@@ -226,6 +226,13 @@ public sealed class TrayIconService : IDisposable
             () => Run<ColorWheelLauncher>(l => _ = l.ShowAsync())));
         tools.Items.Add(BuildMenuItem(Strings.Tray_PinToScreen,
             () => Run<PinToScreenLauncher>(p => _ = p.ShowAsync(CancellationToken.None))));
+        // Fallback for locked (click-through) pins: shown only while at least one exists. The
+        // menu is built once, so visibility is refreshed every time the submenu opens.
+        var unlockPins = BuildMenuItem(Strings.Tray_UnlockAllPins, AresToys.App.Views.PinLockCoordinator.UnlockAll);
+        unlockPins.Visibility = Visibility.Collapsed;
+        tools.SubmenuOpened += (_, _) => unlockPins.Visibility =
+            AresToys.App.Views.PinLockCoordinator.HasLockedPins ? Visibility.Visible : Visibility.Collapsed;
+        tools.Items.Add(unlockPins);
         tools.Items.Add(BuildMenuItem(Strings.Tray_QrGenerator,
             () => Run<AresToys.App.Services.Qr.QrCodeService>(qr =>
                   Run<AresToys.Storage.Settings.ISettingsStore>(settings =>

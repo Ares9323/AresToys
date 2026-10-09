@@ -415,4 +415,59 @@ public class ItemStoreTests
         Assert.Equal(@"C:\x.txt", loaded.BlobRef);
         Assert.Equal("hello", loaded.SearchText);
     }
+
+    private static NewItem FilesItem(string paths, byte[]? thumbnail = null)
+        => new(
+            Kind: ItemKind.Files,
+            Source: ItemSource.Clipboard,
+            CreatedAt: DateTimeOffset.UtcNow,
+            Payload: Encoding.UTF8.GetBytes(paths),
+            PayloadSize: paths.Length,
+            SearchText: paths,
+            Thumbnail: thumbnail);
+
+    [Fact]
+    public async Task AddAsync_FilesWithThumbnail_StoresTheProvidedThumbnail()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+
+        var id = await store.AddAsync(FilesItem(@"C:\pic.png", [1, 2, 3]), CancellationToken.None);
+
+        var listed = await store.ListAsync(new ItemQuery(IncludePayload: false), CancellationToken.None);
+        Assert.Equal(new byte[] { 1, 2, 3 }, listed.Single(r => r.Id == id).Thumbnail!.Value.ToArray());
+    }
+
+    [Fact]
+    public async Task SetThumbnailIfMissing_FillsEmptyColumnOnly_AndRaisesNoEvent()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var bare = await store.AddAsync(FilesItem(@"C:\a.png"), CancellationToken.None);
+        var withThumb = await store.AddAsync(FilesItem(@"C:\b.png", [9]), CancellationToken.None);
+        var events = 0;
+        store.ItemsChanged += (_, _) => events++;
+
+        Assert.True(await store.SetThumbnailIfMissingAsync(bare, [7, 7], CancellationToken.None));
+        Assert.False(await store.SetThumbnailIfMissingAsync(withThumb, [8], CancellationToken.None));
+
+        var listed = await store.ListAsync(new ItemQuery(IncludePayload: false), CancellationToken.None);
+        Assert.Equal(new byte[] { 7, 7 }, listed.Single(r => r.Id == bare).Thumbnail!.Value.ToArray());
+        Assert.Equal(new byte[] { 9 }, listed.Single(r => r.Id == withThumb).Thumbnail!.Value.ToArray());
+        Assert.Equal(0, events);
+    }
+
+    [Fact]
+    public async Task AddAsync_DuplicateFilesCopy_FillsMissingThumbnailOfExistingRow()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var first = await store.AddAsync(FilesItem(@"C:\pic.png"), CancellationToken.None);
+
+        var second = await store.AddAsync(FilesItem(@"C:\pic.png", [5]), CancellationToken.None);
+
+        Assert.Equal(first, second);
+        var loaded = await store.GetByIdAsync(first, includePayload: false, CancellationToken.None);
+        Assert.Equal(new byte[] { 5 }, loaded!.Thumbnail!.Value.ToArray());
+    }
 }

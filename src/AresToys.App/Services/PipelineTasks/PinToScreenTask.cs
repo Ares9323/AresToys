@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using AresToys.App.Services;
+using AresToys.App.Services.Pins;
 using AresToys.App.Views;
 using AresToys.Clipboard;
 using AresToys.Core.Pipeline;
@@ -29,6 +30,7 @@ public sealed class PinToScreenTask : IPipelineTask
     private readonly IClipboardListener? _listener;
     private readonly ILogger<PinToScreenTask> _logger;
     private readonly ILogger<PinnedImageWindow> _windowLogger;
+    private readonly PinPersistenceService? _persistence;
 
     public PinToScreenTask(
         ISettingsStore settings,
@@ -37,7 +39,8 @@ public sealed class PinToScreenTask : IPipelineTask
         CaptureImageOutputService outputEncoder,
         ILogger<PinToScreenTask> logger,
         ILogger<PinnedImageWindow> windowLogger,
-        IClipboardListener? listener = null)
+        IClipboardListener? listener = null,
+        PinPersistenceService? persistence = null)
     {
         _settings = settings;
         _editor = editor;
@@ -46,6 +49,7 @@ public sealed class PinToScreenTask : IPipelineTask
         _listener = listener;
         _logger = logger;
         _windowLogger = windowLogger;
+        _persistence = persistence;
     }
 
     public string Id => TaskId;
@@ -138,6 +142,7 @@ public sealed class PinToScreenTask : IPipelineTask
                 initialBorderThickness: border,
                 logger: _windowLogger);
             w.ShowAtCapturedPixel();
+            _persistence?.TrackImage(w);
         });
     }
 }

@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AresToys.App.Services.Pins;
 
 namespace AresToys.App.Views;
 
@@ -19,7 +20,7 @@ namespace AresToys.App.Views;
 /// Playback goes through the same <see cref="System.Windows.Controls.MediaElement"/> (Windows
 /// Media Foundation) the clipboard panel preview uses, so what plays there plays here. The
 /// file is streamed from disk: a big GIF is never decoded into memory frame by frame.</summary>
-public partial class PinnedVideoWindow : Window
+public partial class PinnedVideoWindow : Window, ILockablePin
 {
     /// <summary>Largest share of the work area a freshly pinned video may cover. Recordings are
     /// often full-screen sized: pinned at 1:1 they would bury the screen they're meant to float
@@ -39,6 +40,28 @@ public partial class PinnedVideoWindow : Window
     private double _opacity = 1.0;
     private double _naturalWidthDip;
     private double _naturalHeightDip;
+    private double _sizingDpiX = 1.0;
+    // One accumulator per wheel action: a touchpad's small deltas add up to one step per 120.
+    private readonly WheelStepAccumulator _zoomWheel = new();
+    private readonly WheelStepAccumulator _opacityWheel = new();
+    private readonly WheelStepAccumulator _seekWheel = new();
+    private double _sizingDpiY = 1.0;
+    /// <summary>Set by <see cref="ApplyRestoredState"/>: MediaOpened then keeps the saved zoom and
+    /// top-left instead of fitting the clip to the screen around the window centre.</summary>
+    private (double Scale, double DpiX, double DpiY)? _restore;
+
+    /// <summary>Identity of this pin in the persisted manifest. A restored pin keeps its id.</summary>
+    public Guid PinId { get; init; } = Guid.NewGuid();
+
+    /// <summary>True when the pin should not come back: the user dismissed it (Esc / right click)
+    /// or the file can't be played. App shutdown leaves it false.</summary>
+    public bool ClosedByUser { get; private set; }
+
+    public string SourcePath => _path;
+
+    /// <summary>Position, zoom, opacity or mute changed, or the clip opened and took its real
+    /// size. Listeners debounce.</summary>
+    public event EventHandler? PinStateChanged;
 
     /// <param name="path">Video / GIF file on disk.</param>
     /// <param name="initialBorderThickness">Sticky pin border (same setting as the image pin).</param>
@@ -70,7 +93,13 @@ public partial class PinnedVideoWindow : Window
 
         PreviewKeyDown += OnKeyDown;
         Loaded += (_, _) => StartPlayback();
-        Closed += (_, _) => ReleasePlayer();
+        Closed += (_, _) =>
+        {
+            ReleasePlayer();
+            PinLockCoordinator.Unregister(this);
+        };
+        // Click-through needs the HWND: re-apply once it exists (a restored locked pin).
+        SourceInitialized += (_, _) => PinWindowPlacement.SetClickThrough(this, IsLocked && !_peek);
         ApplyMuted();
     }
 
@@ -110,14 +139,25 @@ public partial class PinnedVideoWindow : Window
         // Natural size is in video pixels: map 1 pixel to 1 physical pixel like the image pin,
         // then shrink to fit when the clip would cover most of the screen.
         var dpi = VisualTreeHelper.GetDpi(this);
-        _naturalWidthDip = Math.Max(1, Player.NaturalVideoWidth) / dpi.DpiScaleX;
-        _naturalHeightDip = Math.Max(1, Player.NaturalVideoHeight) / dpi.DpiScaleY;
-        var work = SystemParameters.WorkArea;
-        var fit = Math.Min(work.Width * MaxInitialScreenFraction / _naturalWidthDip,
-                           work.Height * MaxInitialScreenFraction / _naturalHeightDip);
-        _scale = Math.Clamp(Math.Min(1.0, fit), 0.1, 8.0);
-        ResizeKeepingCenter();
+        (_sizingDpiX, _sizingDpiY) = _restore is { } r ? (r.DpiX, r.DpiY) : (dpi.DpiScaleX, dpi.DpiScaleY);
+        _naturalWidthDip = Math.Max(1, Player.NaturalVideoWidth) / _sizingDpiX;
+        _naturalHeightDip = Math.Max(1, Player.NaturalVideoHeight) / _sizingDpiY;
+        if (_restore is { } restored)
+        {
+            // Restored pin: saved zoom, top-left stays where ShowRestored put it.
+            _scale = restored.Scale;
+            ApplySize();
+        }
+        else
+        {
+            var work = SystemParameters.WorkArea;
+            var fit = Math.Min(work.Width * MaxInitialScreenFraction / _naturalWidthDip,
+                               work.Height * MaxInitialScreenFraction / _naturalHeightDip);
+            _scale = Math.Clamp(Math.Min(1.0, fit), 0.1, 8.0);
+            ResizeKeepingCenter();
+        }
         _positionTimer.Start();
+        RaisePinStateChanged();
         _logger.LogInformation("PinnedVideo: opened {Path} ({W}x{H} px, {Duration})",
             _path, Player.NaturalVideoWidth, Player.NaturalVideoHeight, duration);
     }
@@ -133,6 +173,8 @@ public partial class PinnedVideoWindow : Window
     {
         _logger.LogWarning(e.ErrorException, "PinnedVideo: cannot play {Path}", _path);
         _onFailed?.Invoke(e.ErrorException);
+        _forceClose = true;
+        ClosedByUser = true;
         Close();
     }
 
@@ -224,13 +266,15 @@ public partial class PinnedVideoWindow : Window
     {
         _muted = !_muted;
         ApplyMuted();
+        RaisePinStateChanged();
     }
 
     private void OnResetZoomClick(object sender, RoutedEventArgs e)
     {
-        if (!_opened || Math.Abs(_scale - 1.0) < 1e-4) return;
+        if (IsLocked || !_opened || Math.Abs(_scale - 1.0) < 1e-4) return;
         _scale = 1.0;
         ResizeKeepingCenter();
+        RaisePinStateChanged();
     }
 
     private void SetPinOpacity(double opacity)
@@ -238,6 +282,7 @@ public partial class PinnedVideoWindow : Window
         _opacity = opacity;
         Opacity = opacity;
         OpacityLabel.Text = "◐ " + PinWindowOpacity.Format(opacity);
+        RaisePinStateChanged();
     }
 
     private void OnOpacityLabelClick(object sender, MouseButtonEventArgs e)
@@ -262,30 +307,89 @@ public partial class PinnedVideoWindow : Window
     {
         if (e.ChangedButton != MouseButton.Left) return;
         // Drag moves the window; a press that doesn't move it is a click and toggles playback.
+        // Locked: no drag, a press is always a click.
+        if (IsLocked)
+        {
+            TogglePlayback();
+            e.Handled = true;
+            return;
+        }
         var (left, top) = (Left, Top);
         DragMove();
         if (Math.Abs(Left - left) < 1 && Math.Abs(Top - top) < 1) TogglePlayback();
+        else RaisePinStateChanged();
         e.Handled = true;
     }
 
-    private void OnSurfaceRightClick(object sender, MouseButtonEventArgs e) => Close();
+    private void OnSurfaceRightClick(object sender, MouseButtonEventArgs e) => CloseByUser();
 
     private void OnSurfaceWheel(object sender, MouseWheelEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-            ZoomFromCursor(e);
-        else if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-            SetPinOpacity(PinWindowOpacity.Next(_opacity, e.Delta));
+        // Locked (reachable only through the Ctrl+Shift peek): opacity or seek, never zoom.
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        if (!IsLocked && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            var steps = _zoomWheel.Add(e.Delta);
+            if (steps != 0) ZoomFromCursor(e, steps);
+        }
+        else if (shift)
+        {
+            StepOpacity(_opacityWheel.Add(e.Delta));
+        }
         else
-            SeekBy(e.Delta > 0 ? SeekStepSeconds : -SeekStepSeconds);
+        {
+            var steps = _seekWheel.Add(e.Delta);
+            if (steps != 0) SeekBy(steps * SeekStepSeconds);
+        }
         e.Handled = true;
+    }
+
+    /// <summary>Wheel over the zoom readout: zoom around the window centre, no modifier needed
+    /// (touchpad friendly). Blocked when locked, like Ctrl+wheel.</summary>
+    private void OnZoomLabelWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!IsLocked)
+        {
+            var steps = _zoomWheel.Add(e.Delta);
+            if (steps != 0) ZoomAroundCenter(steps);
+        }
+        e.Handled = true;
+    }
+
+    private void OnZoomLabelClick(object sender, MouseButtonEventArgs e)
+    {
+        OnResetZoomClick(sender, e);
+        e.Handled = true;
+    }
+
+    /// <summary>Wheel over the opacity readout: opacity steps, allowed when locked.</summary>
+    private void OnOpacityLabelWheel(object sender, MouseWheelEventArgs e)
+    {
+        StepOpacity(_opacityWheel.Add(e.Delta));
+        e.Handled = true;
+    }
+
+    private void StepOpacity(int steps)
+    {
+        if (steps != 0) SetPinOpacity(PinWindowOpacity.Steps(_opacity, steps));
+    }
+
+    /// <summary>Zoom keeping the window centre in place (zoom readout wheel).</summary>
+    private void ZoomAroundCenter(int steps)
+    {
+        if (!_opened) return;
+        var newScale = Math.Clamp(_scale * Math.Pow(1.1, steps), 0.1, 8.0);
+        if (Math.Abs(newScale - _scale) < 1e-4) return;
+        _scale = newScale;
+        ResizeKeepingCenter();
+        RaisePinStateChanged();
     }
 
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
         {
-            case Key.Escape: Close(); break;
+            case Key.Escape: CloseByUser(); break;
             case Key.Space: TogglePlayback(); break;
             case Key.Left: SeekBy(-SeekStepSeconds); break;
             case Key.Right: SeekBy(SeekStepSeconds); break;
@@ -296,11 +400,11 @@ public partial class PinnedVideoWindow : Window
 
     /// <summary>Zoom around the cursor, same math as <see cref="PinnedImageWindow"/>: the point
     /// under the mouse stays put while the window grows / shrinks.</summary>
-    private void ZoomFromCursor(MouseWheelEventArgs e)
+    private void ZoomFromCursor(MouseWheelEventArgs e, int steps)
     {
         if (!_opened) return;
         var cursorScreen = PointToScreen(e.GetPosition(this));
-        var factor = e.Delta > 0 ? 1.1 : 1.0 / 1.1;
+        var factor = Math.Pow(1.1, steps);
         var newScale = Math.Clamp(_scale * factor, 0.1, 8.0);
         if (Math.Abs(newScale - _scale) < 1e-4) return;
         var actualFactor = newScale / _scale;
@@ -317,6 +421,138 @@ public partial class PinnedVideoWindow : Window
             var dip = fromDevice.Transform(newTopLeft);
             Left = dip.X;
             Top = dip.Y;
+            RaisePinStateChanged();
         });
     }
+
+    /// <summary>Apply a persisted state before <see cref="ShowRestored"/>. The saved physical size
+    /// stands in until MediaOpened reports the clip's real size.</summary>
+    public void ApplyRestoredState(double scale, double opacity, double dpiScaleX, double dpiScaleY, int physicalWidth, int physicalHeight, bool locked = false)
+    {
+        SetLocked(locked);
+        var dpiX = PinWindowPlacement.IsSaneDpiScale(dpiScaleX) ? dpiScaleX : 1.0;
+        var dpiY = PinWindowPlacement.IsSaneDpiScale(dpiScaleY) ? dpiScaleY : 1.0;
+        _restore = (double.IsFinite(scale) ? Math.Clamp(scale, 0.1, 8.0) : 1.0, dpiX, dpiY);
+        _scale = _restore.Value.Scale;
+        (_sizingDpiX, _sizingDpiY) = (dpiX, dpiY);
+        SetPinOpacity(PinWindowOpacity.Clamp(opacity));
+        if (physicalWidth > 0 && physicalHeight > 0)
+        {
+            Width = physicalWidth / dpiX;
+            Height = physicalHeight / dpiY;
+        }
+    }
+
+    /// <summary>Show a restored pin with its outer top-left at a physical screen pixel, without
+    /// taking focus. Same Win32 placement as <see cref="PinnedImageWindow.ShowRestored"/>.</summary>
+    public void ShowRestored(int physicalX, int physicalY)
+    {
+        ShowActivated = false;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = physicalX / _sizingDpiX;
+        Top = physicalY / _sizingDpiY;
+        SourceInitialized += (_, _) => PinWindowPlacement.MoveToPhysical(this, physicalX, physicalY);
+        Show();
+        PinWindowPlacement.MoveToPhysical(this, physicalX, physicalY);
+    }
+
+    /// <summary>Current state for the manifest, or null while the window has no HWND.</summary>
+    public PinRecord? CaptureRecord()
+    {
+        if (PinWindowPlacement.GetPhysicalBounds(this) is not { } bounds) return null;
+        return new PinRecord
+        {
+            Id = PinId,
+            Kind = PinKind.Video,
+            SourcePath = _path,
+            X = bounds.X,
+            Y = bounds.Y,
+            Width = bounds.Width,
+            Height = bounds.Height,
+            Scale = _scale,
+            Opacity = _opacity,
+            Border = _borderThickness,
+            DpiScaleX = _sizingDpiX,
+            DpiScaleY = _sizingDpiY,
+            Muted = _muted,
+            Locked = IsLocked,
+        };
+    }
+
+    private void CloseByUser()
+    {
+        if (IsLocked) return;
+        ClosedByUser = true;
+        Close();
+    }
+
+    /// <summary>Set when the file can't be played: the pin closes even if locked.</summary>
+    private bool _forceClose;
+
+    /// <summary>Locked pins ignore the mouse entirely (click-through, the wheel included) and
+    /// can't be moved, resized or closed by Esc, right click or Alt+F4. Holding Ctrl+Shift over
+    /// the pin makes it interactive again (<see cref="PinLockCoordinator"/>): the overlay shows,
+    /// its buttons and Shift+wheel opacity work, the lock rules stay.</summary>
+    public bool IsLocked { get; private set; }
+
+    /// <summary>Ctrl+Shift peek in progress: click-through lifted while the chord is held.</summary>
+    private bool _peek;
+
+    Window ILockablePin.Window => this;
+
+    private void SetLocked(bool locked)
+    {
+        IsLocked = locked;
+        _peek = false;
+        LockButton.Content = locked ? "🔒" : "🔓";
+        LockButton.ToolTip = locked ? AresToys.App.Resources.Strings.PinnedImage_UnlockTooltip : AresToys.App.Resources.Strings.PinnedImage_LockTooltip;
+        PinWindowPlacement.SetClickThrough(this, locked);
+        if (locked)
+        {
+            PinLockCoordinator.Register(this);
+            // Click-through from now on: no MouseLeave will come to hide the overlay.
+            SetOverlayVisible(false);
+        }
+        else
+        {
+            PinLockCoordinator.Unregister(this);
+        }
+    }
+
+    void ILockablePin.SetPeek(bool peek)
+    {
+        if (!IsLocked || peek == _peek) return;
+        _peek = peek;
+        PinWindowPlacement.SetClickThrough(this, !peek);
+        SetOverlayVisible(peek);
+    }
+
+    void ILockablePin.Unlock()
+    {
+        if (!IsLocked) return;
+        SetLocked(false);
+        RaisePinStateChanged();
+    }
+
+    private void SetOverlayVisible(bool visible)
+    {
+        TopBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        TransportBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnLockClick(object sender, RoutedEventArgs e)
+    {
+        SetLocked(!IsLocked);
+        RaisePinStateChanged();
+    }
+
+    /// <summary>Blocks every close gesture (Alt+F4 included) while locked. During app shutdown
+    /// WPF ignores the cancel, so a locked pin never holds up an exit.</summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (IsLocked && !_forceClose && !App.IsShuttingDown) e.Cancel = true;
+        base.OnClosing(e);
+    }
+
+    private void RaisePinStateChanged() => PinStateChanged?.Invoke(this, EventArgs.Empty);
 }

@@ -16,5 +16,16 @@ internal static class PinWindowOpacity
         return Math.Clamp(Math.Round(next / Step) * Step, Min, 1.0);
     }
 
+    /// <summary>Opacity after <paramref name="steps"/> wheel steps (negative = more transparent).</summary>
+    public static double Steps(double current, int steps)
+    {
+        for (var i = 0; i < Math.Abs(steps); i++) current = Next(current, steps);
+        return current;
+    }
+
+    /// <summary>A persisted opacity brought back into range (hand-edited or corrupt manifest).</summary>
+    public static double Clamp(double opacity)
+        => double.IsFinite(opacity) ? Math.Clamp(opacity, Min, 1.0) : 1.0;
+
     public static string Format(double opacity) => $"{Math.Round(opacity * 100)}%";
 }

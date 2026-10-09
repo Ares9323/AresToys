@@ -67,6 +67,13 @@ public sealed class ClipboardIngestionService : IDisposable
                 change.Format, change.Payload.Length, change.SourceProcess);
 
             var newItem = MapToNewItem(change);
+            if (newItem.Kind == ItemKind.Files && change.FilePaths is { Length: > 0 } paths)
+            {
+                // Image files copied in Explorer get a row thumbnail like captures do. Decoded off
+                // the UI thread (this handler runs on it) and at thumbnail size only.
+                var thumbnail = await Task.Run(() => ImageFiles.FileThumbnails.TryGenerate(paths)).ConfigureAwait(false);
+                if (thumbnail is not null) newItem = newItem with { Thumbnail = thumbnail };
+            }
             var profile = await _profiles.GetAsync(DefaultPipelineProfiles.OnClipboardId, CancellationToken.None).ConfigureAwait(false);
             if (profile is null)
             {
