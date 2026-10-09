@@ -25,7 +25,7 @@ versions follow [SemVer](https://semver.org/).
   to disappear anyway. A strip of tag chips above the list filters the history,
   with an AND / OR toggle on its left to require every selected tag or just one;
   tag names are also matched by the text search. Settings: the Categories page
-  is now "Categories & tags" and lets you rename, recolour and delete tags.
+  is now "Categories and tags" and lets you rename, recolour and delete tags.
   Backups include tags (backup format v4, older backups still import).
 - "Pin to screen" in the right-click menu pins an image, an image file or a
   video / GIF from the history
