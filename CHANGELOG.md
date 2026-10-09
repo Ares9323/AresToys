@@ -3,6 +3,40 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.36] — 2026-10-09
+
+### Pin to screen
+- Pinned images and videos come back after a restart, at the same place and with
+  the same zoom, opacity, border and lock state. A pin disappears only when you
+  close it (Esc or right click); quitting AresToys, shutting down or updating
+  keeps it. Images are stored as PNG in `%LocalAppData%\AresToys-Data\Pins`,
+  videos by path. If a pin's monitor is gone it shows up centred on the primary
+  one. New option in Settings, "Pinned images": "Restore pinned images at
+  startup", on by default; turning it off forgets the saved pins.
+- A lock button (🔓 / 🔒) on the hover bar. A locked pin can't be moved, closed,
+  zoomed or resized, and ignores the mouse altogether: clicks and the wheel go to
+  the window underneath. Hold Ctrl+Shift over it to reach its buttons and unlock
+  it, or use "Unlock all pinned images" in the tray menu (Tools).
+- Transparent images keep their transparency: a PNG or WebP with an alpha channel
+  shows what's behind it instead of a black background, and its transparent
+  areas can still be clicked to drag the pin. Copied images are read in the
+  PNG clipboard format, which keeps the alpha channel.
+- Scrolling over the zoom or opacity readout changes it without modifier keys,
+  clicking the zoom readout resets it to 100%. Touchpad scrolling moves one step
+  per wheel notch's worth of movement instead of racing through the values.
+
+### Clipboard
+- Image files copied in Explorer get a thumbnail in the history like captures,
+  with a "+N" badge when several files were copied. Entries already in the
+  history get theirs the next time the window opens.
+- Transparent WebP images no longer preview on black.
+- Images copied with a transparent background keep it in the history (PNG
+  clipboard format preferred over the bitmap one).
+
+### Tests
+- Test databases are closed properly, so test runs no longer leave folders
+  behind in `%TEMP%`.
+
 ## [0.1.35] — 2026-10-09
 
 ### Stability
