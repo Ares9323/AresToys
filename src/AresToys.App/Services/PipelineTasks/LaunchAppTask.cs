@@ -92,7 +92,7 @@ public sealed class LaunchAppTask : IPipelineTask
         // accepts in its shell:AppsFolder form — same normalisation the launcher applies.
         var target = PackagedAppPath.Normalize(path);
 
-        if (string.IsNullOrEmpty(workingDir) && !PackagedAppPath.IsAppsFolderPath(target))
+        if (string.IsNullOrEmpty(workingDir) && !PackagedAppPath.IsShellNamespacePath(target))
         {
             // Default the working directory to the target's parent so the launched app finds its
             // own resources (matches how Explorer would launch it on double-click). A shell

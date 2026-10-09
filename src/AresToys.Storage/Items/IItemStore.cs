@@ -6,6 +6,11 @@ public interface IItemStore
 {
     Task<long> AddAsync(NewItem item, CancellationToken cancellationToken);
     Task<ItemRecord?> GetByIdAsync(long id, CancellationToken cancellationToken);
+    /// <summary>Same row as <see cref="GetByIdAsync(long, CancellationToken)"/>; with
+    /// <paramref name="includePayload"/> = false the payload column is skipped entirely (empty
+    /// <see cref="ItemRecord.Payload"/>), so no DPAPI decryption happens. Use it whenever only
+    /// metadata / BlobRef is needed (video preview, file-drop publish).</summary>
+    Task<ItemRecord?> GetByIdAsync(long id, bool includePayload, CancellationToken cancellationToken);
     Task<IReadOnlyList<ItemRecord>> ListAsync(ItemQuery query, CancellationToken cancellationToken);
     Task<bool> SetPinnedAsync(long id, bool pinned, CancellationToken cancellationToken);
     Task<bool> SetUploadedUrlAsync(long id, string uploaderId, string url, CancellationToken cancellationToken);
@@ -40,6 +45,18 @@ public interface IItemStore
     /// (caller validates; store does not enforce because future modules may relax this). Raises
     /// <see cref="ItemsChangeKind.Updated"/> when the row was found and updated.</summary>
     Task<bool> SetTriggerAsync(long id, string? trigger, CancellationToken cancellationToken);
+
+    /// <summary>Attach a tag to an item (issue #4). The single entry point for every tag
+    /// producer: the popup's "Add tag" menu today, automatic tagging by content type or rules
+    /// later (issue #19). Idempotent; returns true only when the link was actually added, and
+    /// false when it already existed or the item / tag doesn't exist. Does NOT enforce
+    /// <see cref="TagRules.IsTaggable"/>: whether an item should receive tags is the caller's
+    /// policy. Re-indexes the item for search and raises <see cref="ItemsChangeKind.Updated"/>.</summary>
+    Task<bool> AddTagAsync(long itemId, long tagId, CancellationToken cancellationToken);
+
+    /// <summary>Detach a tag from an item. Returns true when a link was removed. Re-indexes the
+    /// item for search and raises <see cref="ItemsChangeKind.Updated"/>.</summary>
+    Task<bool> RemoveTagAsync(long itemId, long tagId, CancellationToken cancellationToken);
 
     /// <summary>Cheap projection used by the Key Sequences module to build its matcher index.
     /// Returns only (Id, Trigger) for non-deleted items with a non-empty trigger. Avoids the full

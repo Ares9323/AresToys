@@ -119,7 +119,7 @@
        which page they're on. -->
   <data name="Sidebar_HotkeysWorkflows" xml:space="preserve"><value>Hotkeys &amp; Workflows</value></data>
   <data name="Sidebar_Uploaders" xml:space="preserve"><value>Uploaders</value></data>
-  <data name="Sidebar_ClipboardCategories" xml:space="preserve"><value>Clipboard Categories</value></data>
+  <data name="Sidebar_ClipboardCategories" xml:space="preserve"><value>Categories &amp; tags</value></data>
   <data name="Sidebar_WormholesSettings" xml:space="preserve"><value>Wormholes Settings</value></data>
   <data name="Sidebar_CaptureSettings" xml:space="preserve"><value>Capture Settings</value></data>
   <data name="Sidebar_AppSettings" xml:space="preserve"><value>App Settings</value></data>
@@ -160,6 +160,7 @@
   <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Generate QR code…</value></data>
   <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Open in image editor</value></data>
   <data name="Clipboard_MenuTrimVideo" xml:space="preserve"><value>Trim video…</value></data>
+  <data name="Clipboard_MenuPinToScreen" xml:space="preserve"><value>Pin to screen</value></data>
   <data name="Clipboard_TooltipTrimVideo" xml:space="preserve"><value>Trim video…</value></data>
   <data name="VideoTrim_Title" xml:space="preserve"><value>Trim video</value></data>
   <data name="VideoTrim_SetStart" xml:space="preserve"><value>Start here</value></data>
@@ -192,7 +193,7 @@
   <data name="Launcher_Title" xml:space="preserve"><value>AresToys - Launcher</value></data>
   <data name="Launcher_DragMode" xml:space="preserve"><value>Dock window</value></data>
   <data name="Launcher_DragModeOn" xml:space="preserve"><value>Undock window</value></data>
-  <data name="Launcher_DragModeBanner" xml:space="preserve"><value>🎯 Drag-and-drop mode — drop files / folders / shortcuts onto cells to map them. Esc or click toggle to exit.</value></data>
+  <data name="Launcher_DragModeBanner" xml:space="preserve"><value>🎯 Drag-and-drop mode: drop files / folders / shortcuts onto cells to map them, drag a tab onto another to swap them. Esc or click toggle to exit.</value></data>
   <data name="Launcher_MenuOpenLocation" xml:space="preserve"><value>Open file location</value></data>
   <data name="Launcher_MenuEdit" xml:space="preserve"><value>Edit…</value></data>
   <data name="Launcher_MenuCopy" xml:space="preserve"><value>Copy</value></data>
@@ -410,7 +411,7 @@
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Keep wormholes visible on "Show desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>When ON, Win+D and the taskbar's far-corner "Show desktop" button no longer bury the wormholes: they stay on the revealed desktop like the icons do. Wormholes join the desktop's z-order group, so they still go behind any app you bring to the front. Turn OFF to make them disappear with the other windows.</value></data>
   <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Show collapsed wormholes on hover</value></data>
-  <data name="Wormhole_ExpandCollapsedOnHoverTooltip" xml:space="preserve"><value>Moving the pointer onto a collapsed wormhole opens it, and it rolls back up when the pointer leaves. Only what you see changes: the wormhole stays collapsed in its settings, so it comes back collapsed after a restart and its saved height is never overwritten. Clicking the chevron while it is held open pins it open for good.</value></data>
+  <data name="Wormhole_ExpandCollapsedOnHoverTooltip" xml:space="preserve"><value>Moving the pointer onto a collapsed wormhole opens it, and it rolls back up when the pointer leaves. Only what you see changes: the wormhole stays collapsed in its settings, so it comes back collapsed after a restart and its saved height is never overwritten. Clicking the chevron while it is held open pins it open for good. On a collapsed group of tabs, pointing at a tab opens that tab, as if you had clicked it.</value></data>
   <data name="Wormhole_OpenWithOneClick" xml:space="preserve"><value>Open items with one click</value></data>
   <data name="Wormhole_OpenWithOneClickTooltip" xml:space="preserve"><value>A single click opens a tile, and the tiles show the hand cursor that says so. Dragging a tile out still works: the click only opens when the pointer stays put. Off (the default) opening takes a double click, as it does in Explorer, and the tiles show the ordinary arrow instead of a hand promising something a single click wouldn't do.</value></data>
   <data name="Wormhole_HideServiceFiles" xml:space="preserve"><value>Hide system service files (desktop.ini, Thumbs.db…)</value></data>
@@ -518,7 +519,11 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Open in editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reset zoom to 100%</value></data>
+  <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacity. Shift+wheel to change it, click to reset to 100%</value></data>
   <data name="PinnedImage_SaveTooltip" xml:space="preserve"><value>Save to file…</value></data>
+  <data name="PinnedVideo_ControlsHint" xml:space="preserve"><value>Click or Space: play/pause. Wheel or arrows: seek. Ctrl+wheel: zoom. Shift+wheel: opacity. Right click or Esc: close.</value></data>
+  <data name="PinToScreen_VideoUnavailable" xml:space="preserve"><value>Can't pin this video: the file is missing or its format can't be played.</value></data>
+  <data name="PinToScreen_ImageUnavailable" xml:space="preserve"><value>Can't pin this image: it couldn't be decoded.</value></data>
   <data name="QrCode_Title" xml:space="preserve"><value>QR code</value></data>
   <data name="QrCode_ScanToOpen" xml:space="preserve"><value>Scan to open</value></data>
   <data name="RegionOverlay_Instructions" xml:space="preserve"><value>Drag to add region · Click to select · Double-click inside a region to confirm · Del to remove · Wheel to zoom · Drag this popup to move it</value></data>
@@ -1237,4 +1242,27 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="WormholePresets_NameLabel" xml:space="preserve"><value>Preset name</value></data>
   <data name="WormholePresets_DeleteConfirm" xml:space="preserve"><value>Delete the layout preset "{0}"?</value></data>
   <data name="WormholePresets_OverwriteConfirm" xml:space="preserve"><value>A preset named "{0}" already exists. Overwrite it?</value></data>
+  <data name="Clipboard_MenuTags" xml:space="preserve"><value>Tags</value></data>
+  <data name="Clipboard_MenuNewTag" xml:space="preserve"><value>New tag…</value></data>
+  <data name="Clipboard_MenuTagsLocked" xml:space="preserve"><value>New tags need a pinned item or a category without auto-cleanup</value></data>
+  <data name="Clipboard_TagFilterTooltip" xml:space="preserve"><value>Show only items carrying every selected tag, across all categories</value></data>
+  <data name="Clipboard_TagFilterTooltipAny" xml:space="preserve"><value>Show only items carrying at least one selected tag, across all categories</value></data>
+  <data name="Clipboard_TagFilterModeTooltip" xml:space="preserve"><value>Switch how selected tags combine: AND shows items with every tag, OR items with at least one</value></data>
+  <data name="Clipboard_TagFilterClear" xml:space="preserve"><value>Clear</value></data>
+  <data name="Clipboard_TagFilterClearTooltip" xml:space="preserve"><value>Turn off every tag filter</value></data>
+  <data name="TagDialog_NewTitle" xml:space="preserve"><value>New tag</value></data>
+  <data name="TagDialog_EditTitle" xml:space="preserve"><value>Edit tag</value></data>
+  <data name="TagDialog_NameLabel" xml:space="preserve"><value>Name</value></data>
+  <data name="TagDialog_ColorLabel" xml:space="preserve"><value>Color (optional)</value></data>
+  <data name="TagDialog_NoColor" xml:space="preserve"><value>No color</value></data>
+  <data name="TagDialog_NameTaken" xml:space="preserve"><value>A tag with this name already exists.</value></data>
+  <data name="Tags_SectionTitle" xml:space="preserve"><value>Tags</value></data>
+  <data name="Tags_Blurb" xml:space="preserve"><value>Tags cut across categories: an item can carry several, and the tag chips under the clipboard search show matching items from every category. New tags can go only on items that won't disappear on their own: pinned items, or items in a category with no max items and no auto-cleanup.</value></data>
+  <data name="Tags_Empty" xml:space="preserve"><value>No tags yet. Create one here or from the clipboard: right-click an item, Tags, New tag…</value></data>
+  <data name="Tags_ItemCountTooltip" xml:space="preserve"><value>Items carrying this tag</value></data>
+  <data name="Tags_EditTooltip" xml:space="preserve"><value>Rename or recolor</value></data>
+  <data name="Tags_DeleteTooltip" xml:space="preserve"><value>Delete tag (removes it from every item)</value></data>
+  <data name="Tags_DeleteConfirm" xml:space="preserve"><value>Delete tag '{0}'?
+
+It will be removed from every item that carries it. The items themselves are kept.</value></data>
 </root>

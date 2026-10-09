@@ -115,7 +115,7 @@
 
   <data name="Sidebar_HotkeysWorkflows" xml:space="preserve"><value>Scorciatoie e workflow</value></data>
   <data name="Sidebar_Uploaders" xml:space="preserve"><value>Uploaders</value></data>
-  <data name="Sidebar_ClipboardCategories" xml:space="preserve"><value>Categorie appunti</value></data>
+  <data name="Sidebar_ClipboardCategories" xml:space="preserve"><value>Categorie e tag</value></data>
   <data name="Sidebar_WormholesSettings" xml:space="preserve"><value>Impostazioni Portali</value></data>
   <data name="Sidebar_CaptureSettings" xml:space="preserve"><value>Impostazioni cattura</value></data>
   <data name="Sidebar_AppSettings" xml:space="preserve"><value>Impostazioni app</value></data>
@@ -153,6 +153,7 @@
   <data name="Clipboard_TooltipQr" xml:space="preserve"><value>Genera codice QR…</value></data>
   <data name="Clipboard_TooltipOpenEditor" xml:space="preserve"><value>Apri nell'editor immagini</value></data>
   <data name="Clipboard_MenuTrimVideo" xml:space="preserve"><value>Taglia video…</value></data>
+  <data name="Clipboard_MenuPinToScreen" xml:space="preserve"><value>Fissa sullo schermo</value></data>
   <data name="Clipboard_TooltipTrimVideo" xml:space="preserve"><value>Taglia video…</value></data>
   <data name="VideoTrim_Title" xml:space="preserve"><value>Taglia video</value></data>
   <data name="VideoTrim_SetStart" xml:space="preserve"><value>Inizia qui</value></data>
@@ -184,7 +185,7 @@
   <data name="Launcher_Title" xml:space="preserve"><value>AresToys - Launcher</value></data>
   <data name="Launcher_DragMode" xml:space="preserve"><value>Aggancia finestra</value></data>
   <data name="Launcher_DragModeOn" xml:space="preserve"><value>Sgancia finestra</value></data>
-  <data name="Launcher_DragModeBanner" xml:space="preserve"><value>🎯 Modalità trascinamento — trascina file / cartelle / collegamenti sulle celle per associarli. Esc o clic sul toggle per uscire.</value></data>
+  <data name="Launcher_DragModeBanner" xml:space="preserve"><value>🎯 Modalità trascinamento: trascina file / cartelle / collegamenti sulle celle per associarli, trascina una tab su un'altra per scambiarle. Esc o clic sul toggle per uscire.</value></data>
   <data name="Launcher_MenuOpenLocation" xml:space="preserve"><value>Apri posizione file</value></data>
   <data name="Launcher_MenuEdit" xml:space="preserve"><value>Modifica…</value></data>
   <data name="Launcher_MenuCopy" xml:space="preserve"><value>Copia</value></data>
@@ -395,7 +396,7 @@
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Mantieni le wormhole visibili con "Mostra desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>Se attivo, Win+D e il pulsante "Mostra desktop" nell'angolo della barra delle applicazioni non seppelliscono più le wormhole: restano sul desktop scoperto, come le icone. Le wormhole entrano nel gruppo di z-order del desktop, quindi continuano ad andare dietro a qualsiasi app porti in primo piano. Disattiva per farle sparire insieme alle altre finestre.</value></data>
   <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Mostra le wormhole collassate al passaggio del mouse</value></data>
-  <data name="Wormhole_ExpandCollapsedOnHoverTooltip" xml:space="preserve"><value>Portando il puntatore su una wormhole collassata questa si apre, e si richiude quando il puntatore esce. Cambia solo ciò che vedi: la wormhole resta collassata nelle sue impostazioni, quindi torna collassata dopo un riavvio e l'altezza salvata non viene mai sovrascritta. Cliccando il chevron mentre è aperta la fissi aperta.</value></data>
+  <data name="Wormhole_ExpandCollapsedOnHoverTooltip" xml:space="preserve"><value>Portando il puntatore su una wormhole collassata questa si apre, e si richiude quando il puntatore esce. Cambia solo ciò che vedi: la wormhole resta collassata nelle sue impostazioni, quindi torna collassata dopo un riavvio e l'altezza salvata non viene mai sovrascritta. Cliccando il chevron mentre è aperta la fissi aperta. In un gruppo di schede collassato, puntando una scheda si apre quella scheda, come se l'avessi cliccata.</value></data>
   <data name="Wormhole_OpenWithOneClick" xml:space="preserve"><value>Apri gli elementi con un clic</value></data>
   <data name="Wormhole_OpenWithOneClickTooltip" xml:space="preserve"><value>Un solo clic apre l'elemento, e le icone mostrano il cursore a manina che lo annuncia. Trascinare un'icona fuori continua a funzionare: il clic apre solo se il puntatore resta fermo. Disattivata (predefinito) l'apertura richiede il doppio clic come in Explorer, e le icone mostrano la normale freccia invece di una manina che promette qualcosa che un clic singolo non farebbe.</value></data>
   <data name="Wormhole_HideServiceFiles" xml:space="preserve"><value>Nascondi i file di servizio del sistema (desktop.ini, Thumbs.db…)</value></data>
@@ -503,7 +504,11 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Apri nell'editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reimposta zoom al 100%</value></data>
+  <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacità. Maiusc+rotellina per cambiarla, clic per tornare al 100%</value></data>
   <data name="PinnedImage_SaveTooltip" xml:space="preserve"><value>Salva su file…</value></data>
+  <data name="PinnedVideo_ControlsHint" xml:space="preserve"><value>Clic o Spazio: riproduci/pausa. Rotellina o frecce: scorri. Ctrl+rotellina: zoom. Maiusc+rotellina: opacità. Clic destro o Esc: chiudi.</value></data>
+  <data name="PinToScreen_VideoUnavailable" xml:space="preserve"><value>Impossibile fissare questo video: il file non esiste più o il formato non è riproducibile.</value></data>
+  <data name="PinToScreen_ImageUnavailable" xml:space="preserve"><value>Impossibile fissare questa immagine: non è stato possibile decodificarla.</value></data>
   <data name="QrCode_Title" xml:space="preserve"><value>Codice QR</value></data>
   <data name="QrCode_ScanToOpen" xml:space="preserve"><value>Scansiona per aprire</value></data>
   <data name="RegionOverlay_Instructions" xml:space="preserve"><value>Trascina per aggiungere una regione · Clic per selezionare · Doppio clic dentro una regione per confermare · Canc per rimuovere · Rotella per zoom · Trascina questo popup per spostarlo</value></data>
@@ -1169,4 +1174,27 @@ I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano 
   <data name="WormholePresets_NameLabel" xml:space="preserve"><value>Nome preset</value></data>
   <data name="WormholePresets_DeleteConfirm" xml:space="preserve"><value>Eliminare il preset di layout "{0}"?</value></data>
   <data name="WormholePresets_OverwriteConfirm" xml:space="preserve"><value>Esiste già un preset chiamato "{0}". Sovrascriverlo?</value></data>
+  <data name="Clipboard_MenuTags" xml:space="preserve"><value>Tag</value></data>
+  <data name="Clipboard_MenuNewTag" xml:space="preserve"><value>Nuovo tag…</value></data>
+  <data name="Clipboard_MenuTagsLocked" xml:space="preserve"><value>I nuovi tag richiedono un elemento fissato o una categoria senza pulizia automatica</value></data>
+  <data name="Clipboard_TagFilterTooltip" xml:space="preserve"><value>Mostra solo gli elementi con tutti i tag selezionati, in tutte le categorie</value></data>
+  <data name="Clipboard_TagFilterTooltipAny" xml:space="preserve"><value>Mostra solo gli elementi con almeno uno dei tag selezionati, in tutte le categorie</value></data>
+  <data name="Clipboard_TagFilterModeTooltip" xml:space="preserve"><value>Cambia come si combinano i tag selezionati: AND mostra gli elementi con tutti i tag, OR quelli con almeno uno</value></data>
+  <data name="Clipboard_TagFilterClear" xml:space="preserve"><value>Azzera</value></data>
+  <data name="Clipboard_TagFilterClearTooltip" xml:space="preserve"><value>Disattiva tutti i filtri per tag</value></data>
+  <data name="TagDialog_NewTitle" xml:space="preserve"><value>Nuovo tag</value></data>
+  <data name="TagDialog_EditTitle" xml:space="preserve"><value>Modifica tag</value></data>
+  <data name="TagDialog_NameLabel" xml:space="preserve"><value>Nome</value></data>
+  <data name="TagDialog_ColorLabel" xml:space="preserve"><value>Colore (facoltativo)</value></data>
+  <data name="TagDialog_NoColor" xml:space="preserve"><value>Nessun colore</value></data>
+  <data name="TagDialog_NameTaken" xml:space="preserve"><value>Esiste già un tag con questo nome.</value></data>
+  <data name="Tags_SectionTitle" xml:space="preserve"><value>Tag</value></data>
+  <data name="Tags_Blurb" xml:space="preserve"><value>I tag attraversano le categorie: un elemento può averne più di uno e i chip dei tag sotto la ricerca degli appunti mostrano gli elementi corrispondenti di tutte le categorie. I nuovi tag si possono aggiungere solo agli elementi che non spariscono da soli: elementi fissati, oppure elementi in una categoria senza limite di elementi e senza pulizia automatica.</value></data>
+  <data name="Tags_Empty" xml:space="preserve"><value>Nessun tag. Creane uno qui o dagli appunti: click destro su un elemento, Tag, Nuovo tag…</value></data>
+  <data name="Tags_ItemCountTooltip" xml:space="preserve"><value>Elementi con questo tag</value></data>
+  <data name="Tags_EditTooltip" xml:space="preserve"><value>Rinomina o cambia colore</value></data>
+  <data name="Tags_DeleteTooltip" xml:space="preserve"><value>Elimina tag (lo rimuove da tutti gli elementi)</value></data>
+  <data name="Tags_DeleteConfirm" xml:space="preserve"><value>Eliminare il tag '{0}'?
+
+Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value></data>
 </root>

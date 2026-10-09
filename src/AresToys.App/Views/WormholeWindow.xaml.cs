@@ -1012,6 +1012,21 @@ public partial class WormholeWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out POINT lpPoint);
 
+    /// <summary>With "expand collapsed wormholes on hover" on, resting the pointer on a tab of a
+    /// collapsed group counts as clicking it (issue #24): the peek then opens onto the tab you're
+    /// pointing at instead of whichever one was last clicked. Only while collapsed, since an open
+    /// group has no peek to steer, and never with the button down, so a tab being dragged out
+    /// doesn't switch the group under it. The strip updates its tabs in place on a switch, so the
+    /// tab under the pointer isn't rebuilt and can't re-fire this handler.</summary>
+    private void OnTabMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not Guid id) return;
+        if (_manager is null || id == _active.Id) return;
+        if (_defaults?.ExpandCollapsedOnHover != true || !_record.IsRolled) return;
+        if (e.LeftButton == MouseButtonState.Pressed || _tabDragId is not null || _inMoveSizeLoop) return;
+        _manager.ShowTabOnHover(id);
+    }
+
     private void OnTabMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe || fe.Tag is not Guid id) return;

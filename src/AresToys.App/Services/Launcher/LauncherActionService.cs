@@ -90,7 +90,7 @@ public sealed class LauncherActionService
             var path = PackagedAppPath.Normalize(Environment.ExpandEnvironmentVariables(cell.Path));
             var args = Environment.ExpandEnvironmentVariables(cell.Args ?? string.Empty);
             string workingDir = string.Empty;
-            if (!PackagedAppPath.IsAppsFolderPath(path))
+            if (!PackagedAppPath.IsShellNamespacePath(path))
             {
                 try { workingDir = Path.GetDirectoryName(path) ?? string.Empty; } catch { /* ignore */ }
             }

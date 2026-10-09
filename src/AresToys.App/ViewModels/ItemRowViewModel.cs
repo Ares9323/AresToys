@@ -8,8 +8,19 @@ namespace AresToys.App.ViewModels;
 
 public sealed class ItemRowViewModel : INotifyPropertyChanged
 {
-    public ItemRowViewModel(ItemRecord record, int displayIndex, bool showSnippetWithLabel = false)
+    public ItemRowViewModel(ItemRecord record, int displayIndex, bool showSnippetWithLabel = false,
+        IReadOnlyDictionary<long, TagBadge>? tagLookup = null)
     {
+        Category = record.Category;
+        TagIds = record.Tags;
+        // Ids whose definition isn't in the lookup (a tag deleted between the two reads) are
+        // simply not drawn; the next refresh has the up-to-date list anyway.
+        Tags = tagLookup is null
+            ? []
+            : record.Tags.Select(id => tagLookup.TryGetValue(id, out var b) ? b : null)
+                         .OfType<TagBadge>()
+                         .OrderBy(b => b.Name, StringComparer.CurrentCultureIgnoreCase)
+                         .ToList();
         Id = record.Id;
         Kind = record.Kind;
         CapturedAt = record.CreatedAt;
@@ -24,6 +35,13 @@ public sealed class ItemRowViewModel : INotifyPropertyChanged
     }
 
     public long Id { get; }
+    public string Category { get; }
+    /// <summary>Raw tag ids of the item (issue #4), used by the "Tags" context submenu to tick
+    /// the assigned entries.</summary>
+    public IReadOnlyList<long> TagIds { get; }
+    /// <summary>Resolved tag chips drawn after the title, ordered by name.</summary>
+    public IReadOnlyList<TagBadge> Tags { get; }
+    public bool HasTags => Tags.Count > 0;
     public ItemKind Kind { get; }
     public DateTimeOffset CapturedAt { get; }
     public bool Pinned { get; }

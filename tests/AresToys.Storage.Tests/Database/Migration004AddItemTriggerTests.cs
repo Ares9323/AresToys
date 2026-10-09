@@ -21,7 +21,8 @@ public class Migration004AddItemTriggerTests
 
         var conn = fx.Database.GetOpenConnection();
         Assert.Contains("trigger", await ListColumnsAsync(conn, "items"));
-        Assert.Equal(4, await ReadSchemaVersionAsync(conn));
+        // The fixture also applies the later migrations, so the version is at least 4.
+        Assert.True(await ReadSchemaVersionAsync(conn) >= 4);
     }
 
     [Fact]
@@ -86,6 +87,8 @@ public class Migration004AddItemTriggerTests
         }
         finally
         {
+            // Pooled connections keep the database files open until their pool is cleared.
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try { Directory.Delete(rootDir, recursive: true); } catch (IOException) { /* lingering handles — best-effort cleanup */ }
         }
     }

@@ -19,7 +19,16 @@ public sealed record ShellShortcutInfo(
     int ShowCommand = ShellShortcut.ShowNormal,
     /// <summary>The "Run as administrator" checkbox from the shortcut's Advanced properties
     /// (the <c>SLDF_RUNAS_USER</c> flag).</summary>
-    bool RunAsAdministrator = false);
+    bool RunAsAdministrator = false,
+    /// <summary>The target's shell parsing name, filled only when <see cref="TargetPath"/> is
+    /// empty: shortcuts to virtual shell items (Control Panel pages, This PC, packaged apps)
+    /// carry just an ID list, no filesystem path. Comes back shaped like
+    /// <c>::{26EE0668-A00A-44D7-9371-BEB064C98683}\2</c>.</summary>
+    string TargetParsingName = "",
+    /// <summary>MSI-advertised ("Darwin") shortcut: the target is resolved by Windows Installer
+    /// at launch time, and the path the link reports is only the product's icon file. Such a
+    /// shortcut has to be launched as the .lnk itself.</summary>
+    bool IsAdvertised = false);
 
 /// <summary>Reads and writes Windows shortcuts through <c>IShellLinkW</c> + <c>IPersistFile</c> —
 /// the same COM pair Explorer uses, no third-party dependency. Shared because two features need
@@ -42,6 +51,14 @@ public static class ShellShortcut
 
     /// <summary>SLDF_RUNAS_USER — the "Run as administrator" bit in the shortcut's flags.</summary>
     private const uint SldfRunAsUser = 0x00002000;
+
+    /// <summary>SLDF_HAS_DARWINID: the link carries a Windows Installer descriptor (an
+    /// "advertised" shortcut) instead of a plain target.</summary>
+    private const uint SldfHasDarwinId = 0x00001000;
+
+    /// <summary>SIGDN_DESKTOPABSOLUTEPARSING: the name <c>SHParseDisplayName</c> turns back into
+    /// the same item, e.g. <c>::{GUID}\…</c> for virtual folders.</summary>
+    private const uint SigdnDesktopAbsoluteParsing = 0x80028000;
 
     /// <summary>Write a .lnk at <paramref name="shortcutPath"/> pointing at
     /// <paramref name="targetPath"/>. Working directory defaults to the target's folder and the
@@ -82,6 +99,26 @@ public static class ShellShortcut
         }
     }
 
+    /// <summary>Write a .lnk pointing at a virtual shell item, given its parsing name (the
+    /// <c>::{GUID}\…</c> form). Such a link stores only an ID list, which is exactly what a
+    /// Control Panel shortcut dragged out of Explorer looks like. Throws when the shell can't
+    /// parse the name.</summary>
+    public static void CreateForShellItem(string parsingName, string shortcutPath)
+    {
+        Marshal.ThrowExceptionForHR(SHParseDisplayName(parsingName, IntPtr.Zero, out var pidl, 0, out _));
+        var link = (IShellLinkW)new CShellLink();
+        try
+        {
+            link.SetIDList(pidl);
+            ((IPersistFile)link).Save(shortcutPath, true);
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(link);
+            Marshal.FreeCoTaskMem(pidl);
+        }
+    }
+
     /// <summary>Read a shortcut's contents. Returns null for anything that isn't a readable .lnk
     /// — wrong extension, missing file, or a corrupt/unparseable one — so callers can fall back
     /// to treating the input path as the target itself.
@@ -102,14 +139,20 @@ public static class ShellShortcut
             try
             {
                 ((IPersistFile)link).Load(path, 0);
+                var targetPath = ReadString(buf => link.GetPath(buf, MaxPath, IntPtr.Zero, 0), MaxPath);
+                var flags = ReadFlags(link);
                 return new ShellShortcutInfo(
-                    TargetPath: ReadString(buf => link.GetPath(buf, MaxPath, IntPtr.Zero, 0), MaxPath),
+                    TargetPath: targetPath,
                     Arguments: ReadString(buf => link.GetArguments(buf, MaxArguments), MaxArguments),
                     IconPath: ReadIconLocation(link, out var index),
                     IconIndex: index,
                     WorkingDirectory: ReadString(buf => link.GetWorkingDirectory(buf, MaxPath), MaxPath),
                     ShowCommand: ReadShowCommand(link),
-                    RunAsAdministrator: ReadRunAsAdministrator(link));
+                    RunAsAdministrator: (flags & SldfRunAsUser) != 0,
+                    // Only worth asking when there's no path: for a filesystem target the parsing
+                    // name is just the same path again.
+                    TargetParsingName: string.IsNullOrEmpty(targetPath) ? ReadParsingName(link) : string.Empty,
+                    IsAdvertised: (flags & SldfHasDarwinId) != 0);
             }
             finally
             {
@@ -177,23 +220,60 @@ public static class ShellShortcut
         }
     }
 
-    /// <summary>Read the elevation bit. Lives on <c>IShellLinkDataList</c>, a second interface on
-    /// the same shell-link object; a shell that doesn't hand it over just means "not elevated".</summary>
-    private static bool ReadRunAsAdministrator(IShellLinkW link)
+    /// <summary>Read the link's SLDF_* flags word (elevation bit, advertised marker). Lives on
+    /// <c>IShellLinkDataList</c>, a second interface on the same shell-link object; a shell that
+    /// doesn't hand it over just means "no flags".</summary>
+    private static uint ReadFlags(IShellLinkW link)
     {
         try
         {
-            if (link is not IShellLinkDataList dataList) return false;
+            if (link is not IShellLinkDataList dataList) return 0;
             dataList.GetFlags(out var flags);
-            return (flags & SldfRunAsUser) != 0;
+            return flags;
         }
         catch
         {
-            return false;
+            return 0;
+        }
+    }
+
+    /// <summary>Turn the link's ID list into a shell parsing name. Empty when the link has no ID
+    /// list or the shell can't name it (a namespace extension that's been uninstalled).</summary>
+    private static string ReadParsingName(IShellLinkW link)
+    {
+        var pidl = IntPtr.Zero;
+        var name = IntPtr.Zero;
+        try
+        {
+            link.GetIDList(out pidl);
+            if (pidl == IntPtr.Zero) return string.Empty;
+            if (SHGetNameFromIDList(pidl, SigdnDesktopAbsoluteParsing, out name) != 0 || name == IntPtr.Zero)
+                return string.Empty;
+            return Marshal.PtrToStringUni(name) ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+        finally
+        {
+            if (name != IntPtr.Zero) Marshal.FreeCoTaskMem(name);
+            if (pidl != IntPtr.Zero) Marshal.FreeCoTaskMem(pidl);
         }
     }
 
     // ── COM interop ────────────────────────────────────────────────────────────────
+
+    [DllImport("shell32.dll", PreserveSig = true)]
+    private static extern int SHGetNameFromIDList(IntPtr pidl, uint sigdnName, out IntPtr ppszName);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+    private static extern int SHParseDisplayName(
+        [MarshalAs(UnmanagedType.LPWStr)] string pszName,
+        IntPtr pbc,
+        out IntPtr ppidl,
+        uint sfgaoIn,
+        out uint psfgaoOut);
 
     [ComImport]
     [Guid("00021401-0000-0000-C000-000000000046")]

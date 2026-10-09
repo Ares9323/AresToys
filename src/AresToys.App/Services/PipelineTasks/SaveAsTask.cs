@@ -32,7 +32,13 @@ public sealed class SaveAsTask : IPipelineTask
 
     public async Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
-        if (!context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) || rawBytes is not byte[] bytes)
+        var bytes = context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) ? rawBytes as byte[] : null;
+        // Screen recordings carry no payload_bytes (issue #28), only the saved file: copy that.
+        var sourceFile = bytes is null && context.Bag.TryGetValue(PipelineBagKeys.LocalPath, out var rawSource)
+                         && rawSource is string sp && File.Exists(sp)
+            ? sp
+            : null;
+        if (bytes is null && sourceFile is null)
         {
             _logger.LogWarning("SaveAsTask: bag.payload_bytes missing; skipping");
             return;
@@ -63,10 +69,13 @@ public sealed class SaveAsTask : IPipelineTask
         }
         try
         {
-            await File.WriteAllBytesAsync(picked, bytes, cancellationToken).ConfigureAwait(false);
+            if (bytes is not null)
+                await File.WriteAllBytesAsync(picked, bytes, cancellationToken).ConfigureAwait(false);
+            else if (!string.Equals(Path.GetFullPath(sourceFile!), Path.GetFullPath(picked), StringComparison.OrdinalIgnoreCase))
+                File.Copy(sourceFile!, picked, overwrite: true);
             context.Bag[PipelineBagKeys.LocalPath] = picked;
             context.Bag[PipelineBagKeys.Text] = picked;
-            _logger.LogDebug("SaveAsTask: wrote {Bytes} bytes to {Path}", bytes.Length, picked);
+            _logger.LogDebug("SaveAsTask: saved to {Path}", picked);
 
             if ((bool?)config?["showNotification"] == true && _toast is not null)
             {

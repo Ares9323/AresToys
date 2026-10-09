@@ -24,17 +24,27 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     private long _itemsVersion;
     private long _lastRefreshedVersion = -1;
 
-    public PopupWindowViewModel(IItemStore items, ICategoryStore categories, IServiceProvider services, ModuleSettings modules)
+    private readonly ITagStore _tags;
+    /// <summary>Tag definitions by id, rebuilt by <see cref="ReloadTagsAsync"/>. Row VMs resolve
+    /// their chip names / colours through it.</summary>
+    private Dictionary<long, TagBadge> _tagLookup = [];
+    /// <summary>Category definitions by stored name, for the taggability rule (retention caps).</summary>
+    private Dictionary<string, Category> _categoryDefs = new(StringComparer.Ordinal);
+
+    public PopupWindowViewModel(IItemStore items, ICategoryStore categories, ITagStore tags, IServiceProvider services, ModuleSettings modules)
     {
         _items = items;
         _categories = categories;
+        _tags = tags;
         _services = services;
         IsKeySequencesEnabled = modules.KeySequencesEnabled;
         Rows = [];
         Categories = [];
         _items.ItemsChanged += OnItemsChanged;
         _categories.Changed += OnCategoriesChanged;
+        _tags.Changed += OnTagsChanged;
         _ = ReloadCategoriesAsync();
+        _ = ReloadTagsAsync();
     }
 
     /// <summary>Mirror of <see cref="ModuleSettings.KeySequencesEnabled"/> captured at construction
@@ -47,14 +57,157 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     {
         _items.ItemsChanged -= OnItemsChanged;
         _categories.Changed -= OnCategoriesChanged;
+        _tags.Changed -= OnTagsChanged;
     }
 
+    /// <summary>A category change can flip retention caps, hence which rows accept new tags;
+    /// the refresh after the reload keeps the rows' Category snapshot current too.</summary>
     private void OnCategoriesChanged(object? sender, EventArgs e)
-        => Application.Current?.Dispatcher.InvokeAsync(() => _ = ReloadCategoriesAsync());
+        => Application.Current?.Dispatcher.InvokeAsync(async () =>
+        {
+            await ReloadCategoriesAsync().ConfigureAwait(true);
+            await RefreshAsync(CancellationToken.None).ConfigureAwait(true);
+        });
+
+    private void OnTagsChanged(object? sender, EventArgs e)
+        => Application.Current?.Dispatcher.InvokeAsync(async () =>
+        {
+            await ReloadTagsAsync().ConfigureAwait(true);
+            // Renames / recolours / deletes change what every row's chips show.
+            await RefreshAsync(CancellationToken.None).ConfigureAwait(true);
+        });
+
+    // ── Tags (issue #4) ─────────────────────────────────────────────────────────────
+
+    /// <summary>Filter chips under the search bar, one per tag, ordered by name.</summary>
+    public ObservableCollection<TagFilterChip> TagChips { get; } = [];
+
+    /// <summary>Every tag definition ordered by name: feeds the row context menu's "Tags" submenu.</summary>
+    public IReadOnlyList<TagBadge> AllTags => TagChips.Select(c => c.Badge).ToList();
+
+    public bool HasTags => TagChips.Count > 0;
+
+    /// <summary>True while at least one tag chip is on. The tag filter then spans every
+    /// category (finding items across categories is the point of tags), so no category tab
+    /// shows as active.</summary>
+    public bool HasActiveTagFilter => TagChips.Any(c => c.IsActive);
+
+    /// <summary>Multi-tag filter mode: false = AND (items carrying every active tag), true = OR
+    /// (items carrying at least one). Persisted to <c>clipboard.tag_filter_any</c>.</summary>
+    [ObservableProperty] private bool _tagFilterMatchAny;
+
+    /// <summary>Label of the mode toggle left of the tag chips.</summary>
+    public string TagFilterModeLabel => TagFilterMatchAny ? "OR" : "AND";
+
+    /// <summary>Tooltip of the filter chips, describing the current mode.</summary>
+    public string TagFilterTooltip => TagFilterMatchAny
+        ? Resources.Strings.Clipboard_TagFilterTooltipAny
+        : Resources.Strings.Clipboard_TagFilterTooltip;
+
+    partial void OnTagFilterMatchAnyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TagFilterModeLabel));
+        OnPropertyChanged(nameof(TagFilterTooltip));
+        PersistFlag(TagFilterMatchAnyKey, value);
+        // With no chip on the mode changes nothing in the list.
+        if (HasActiveTagFilter) _ = RefreshAsync(CancellationToken.None);
+    }
+
+    [RelayCommand]
+    private void ToggleTagFilterMode() => TagFilterMatchAny = !TagFilterMatchAny;
+
+    private async Task ReloadTagsAsync()
+    {
+        var list = await _tags.ListAsync(CancellationToken.None).ConfigureAwait(true);
+        var active = TagChips.Where(c => c.IsActive).Select(c => c.Badge.Id).ToHashSet();
+        _tagLookup = list.ToDictionary(t => t.Id, t => new TagBadge(t));
+        TagChips.Clear();
+        foreach (var t in list)
+        {
+            // A deleted tag drops out of the active set on its own: its chip is gone.
+            TagChips.Add(new TagFilterChip(_tagLookup[t.Id], active.Contains(t.Id)));
+        }
+        OnTagFilterStateChanged();
+    }
+
+    private void OnTagFilterStateChanged()
+    {
+        OnPropertyChanged(nameof(HasTags));
+        OnPropertyChanged(nameof(HasActiveTagFilter));
+        OnPropertyChanged(nameof(AllTags));
+        UpdateCategoryTabFlags();
+    }
+
+    private void UpdateCategoryTabFlags()
+    {
+        var tagFilter = HasActiveTagFilter;
+        for (var i = 0; i < Categories.Count; i++)
+        {
+            var t = Categories[i];
+            var active = !tagFilter && t.Name == ActiveCategory;
+            if (t.IsActive != active) Categories[i] = t with { IsActive = active };
+        }
+    }
+
+    /// <summary>A filter chip was toggled (its IsActive already flipped through the two-way
+    /// binding): refresh with the new AND set.</summary>
+    [RelayCommand]
+    private void TagFilterChanged()
+    {
+        OnTagFilterStateChanged();
+        _ = RefreshAsync(CancellationToken.None);
+    }
+
+    [RelayCommand]
+    private void ClearTagFilter()
+    {
+        if (!ClearTagFilterSilently()) return;
+        OnTagFilterStateChanged();
+        _ = RefreshAsync(CancellationToken.None);
+    }
+
+    /// <summary>Turn every chip off without refreshing. Returns whether anything was on.</summary>
+    private bool ClearTagFilterSilently()
+    {
+        var any = false;
+        foreach (var chip in TagChips)
+        {
+            if (!chip.IsActive) continue;
+            chip.IsActive = false;
+            any = true;
+        }
+        return any;
+    }
+
+    /// <summary>Whether <paramref name="row"/> may receive new tags right now (see
+    /// <see cref="TagRules.IsTaggable"/>). Evaluated live against the current category caps, so a
+    /// category that gained a retention policy since the last refresh is honoured.</summary>
+    public bool IsTaggable(ItemRowViewModel row)
+        => TagRules.IsTaggable(row.Pinned, _categoryDefs.GetValueOrDefault(row.Category));
+
+    /// <summary>"Tags" submenu toggle: remove the tag when the row has it, otherwise add it
+    /// (only when the row is taggable). ItemsChanged rebuilds the row with its new chips.</summary>
+    public async Task ToggleItemTagAsync(ItemRowViewModel row, long tagId)
+    {
+        if (row.TagIds.Contains(tagId))
+            await _items.RemoveTagAsync(row.Id, tagId, CancellationToken.None).ConfigureAwait(true);
+        else if (IsTaggable(row))
+            await _items.AddTagAsync(row.Id, tagId, CancellationToken.None).ConfigureAwait(true);
+    }
+
+    /// <summary>"Tags → New tag…": create the tag (or reuse an existing one with the same name,
+    /// case-insensitive) and attach it to the row.</summary>
+    public async Task CreateTagAndAssignAsync(ItemRowViewModel row, string name, string? color)
+    {
+        if (!IsTaggable(row) || TagRules.NormalizeName(name) is null) return;
+        var tag = await _tags.GetOrCreateAsync(name, color, CancellationToken.None).ConfigureAwait(true);
+        await _items.AddTagAsync(row.Id, tag.Id, CancellationToken.None).ConfigureAwait(true);
+    }
 
     private async Task ReloadCategoriesAsync()
     {
         var list = await _categories.ListAsync(CancellationToken.None).ConfigureAwait(true);
+        _categoryDefs = list.ToDictionary(c => c.Name, StringComparer.Ordinal);
         Categories.Clear();
         MovableCategories.Clear();
         foreach (var c in list)
@@ -68,7 +221,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
                       "Clipboard_DefaultCategory",
                       Markup.LocalizedStrings.Instance.Culture ?? System.Globalization.CultureInfo.CurrentUICulture) ?? c.Name
                 : c.Name;
-            var tab = new CategoryTab(c.Name, display, c.Icon, IsActive: c.Name == ActiveCategory);
+            var tab = new CategoryTab(c.Name, display, c.Icon, IsActive: c.Name == ActiveCategory && !HasActiveTagFilter);
             Categories.Add(tab);
             MovableCategories.Add(tab);
         }
@@ -87,8 +240,14 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         // a window-open during the gap should still see "data has changed" via PrepareAsync.
         System.Threading.Interlocked.Increment(ref _itemsVersion);
         if (e.Kind == ItemsChangeKind.Added) _addedSinceLastOpenId = e.ItemId;
-        // Marshal to UI thread; Refresh updates the ObservableCollection.
-        Application.Current?.Dispatcher.InvokeAsync(() => _ = RefreshAsync(CancellationToken.None));
+        // Marshal to UI thread; Refresh updates the ObservableCollection. An Updated change on the
+        // previewed item (or a broadcast) means its content may differ: let the reselect reload it.
+        Application.Current?.Dispatcher.InvokeAsync(() =>
+        {
+            if (e.Kind == ItemsChangeKind.Updated && (e.ItemId == -1 || e.ItemId == _previewedItemId))
+                _previewStale = true;
+            _ = RefreshAsync(CancellationToken.None);
+        });
     }
 
     public ObservableCollection<ItemRowViewModel> Rows { get; }
@@ -113,11 +272,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     partial void OnActiveCategoryChanged(string? value)
     {
         // Reflect the new active flag in the tab strip + reload items.
-        for (var i = 0; i < Categories.Count; i++)
-        {
-            var t = Categories[i];
-            Categories[i] = t with { IsActive = t.Name == value };
-        }
+        UpdateCategoryTabFlags();
         _ = RefreshAsync(CancellationToken.None);
     }
 
@@ -174,6 +329,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     private const string PinnedKey = "clipboard.pinned";
     private const string ShowSnippetWithLabelKey = "clipboard.show_snippet_with_label";
     private const string FocusLatestOnOpenKey = "clipboard.focus_latest_on_open";
+    private const string TagFilterMatchAnyKey = "clipboard.tag_filter_any";
 
     partial void OnShowImagesChanged(bool value)
     {
@@ -229,6 +385,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         var rawPinned = await settings.GetAsync(PinnedKey, cancellationToken).ConfigureAwait(true);
         var rawSnippet = await settings.GetAsync(ShowSnippetWithLabelKey, cancellationToken).ConfigureAwait(true);
         var rawFocusLatest = await settings.GetAsync(FocusLatestOnOpenKey, cancellationToken).ConfigureAwait(true);
+        var rawTagAny = await settings.GetAsync(TagFilterMatchAnyKey, cancellationToken).ConfigureAwait(true);
         // Filter chips default true (fresh DB shows everything); pinned defaults false (the
         // popup behaves as before until the user opts in). show-snippet-with-label defaults
         // false — matches CopyQ where a "Notes"-labeled item shows only the label.
@@ -237,6 +394,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         IsPinned = rawPinned == "1";
         ShowSnippetWithLabel = rawSnippet == "1";
         FocusLatestOnOpen = rawFocusLatest != "0";
+        TagFilterMatchAny = rawTagAny == "1";
         _typeFiltersLoaded = true;
     }
 
@@ -282,8 +440,28 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasPreview));
     }
 
+    /// <summary>Id of the item the preview pane currently shows (or is loading), null when none.
+    /// Lets <see cref="OnSelectedRowChanged"/> skip the reload when a list refresh just
+    /// reselects the same item: every ItemsChanged rebuilds the rows, and reloading the preview
+    /// each time re-read the payload once per event (issue #28: a burst of events meant a burst
+    /// of parallel full decrypts of the same 250MB recording).</summary>
+    private long? _previewedItemId;
+    /// <summary>Set when the store reports an Updated change for the previewed item (payload
+    /// edit, kind conversion), so the next reselect of that same id does reload.</summary>
+    private bool _previewStale;
+    /// <summary>True while <see cref="RefreshAsync"/> rebuilds <see cref="Rows"/>. The ListBox
+    /// pushes a transient null selection when its items are cleared; ignoring it keeps the
+    /// preview (and a playing video) alive across the rebuild.</summary>
+    private bool _rebuildingRows;
+
     partial void OnSelectedRowChanged(ItemRowViewModel? value)
     {
+        if (_rebuildingRows && value is null) return;
+        if (value is not null && value.Id == _previewedItemId && !_previewStale)
+        {
+            NotifyCommandsCanExecuteChanged();
+            return;
+        }
         // Cancel any in-flight load and start fresh.
         var token = System.Threading.Interlocked.Increment(ref _previewLoadToken);
         _ = LoadPreviewAsync(value, token);
@@ -291,6 +469,8 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
 
     private async Task LoadPreviewAsync(ItemRowViewModel? row, long token)
     {
+        _previewedItemId = row?.Id;
+        _previewStale = false;
         if (row is null)
         {
             _selectedItemBlobRef = null;
@@ -299,9 +479,15 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var record = await _items.GetByIdAsync(row.Id, CancellationToken.None).ConfigureAwait(true);
+        // Videos play from BlobRef, so their row is read without the payload column.
+        var record = await _items.GetByIdAsync(row.Id, includePayload: row.Kind != ItemKind.Video, CancellationToken.None).ConfigureAwait(true);
         if (token != System.Threading.Interlocked.Read(ref _previewLoadToken)) return;
-        if (record is null) { ApplyPreview(PreviewKind.None, null, null, null, null, null); return; }
+        if (record is null)
+        {
+            _previewedItemId = null;
+            ApplyPreview(PreviewKind.None, null, null, null, null, null);
+            return;
+        }
         _selectedItemBlobRef = record.BlobRef;
 
         var payload = record.Payload;
@@ -453,6 +639,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsImageSelected));
         OnPropertyChanged(nameof(HasFileOnDisk));
         OnPropertyChanged(nameof(IsTrimmableVideoSelected));
+        OnPropertyChanged(nameof(IsPinnableSelected));
         OnPropertyChanged(nameof(IsUrlSelected));
         OnPropertyChanged(nameof(IsTextSelected));
         OnPropertyChanged(nameof(IsRichTextSelected));
@@ -473,13 +660,13 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     public async Task AddTrimmedVideoAsync(string path, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-        var bytes = await System.IO.File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(true);
+        // Videos are stored by path only (issue #28): the payload is the path, the size the file's.
         var newItem = new NewItem(
             Kind: ItemKind.Video,
             Source: ItemSource.CaptureRecording,
             CreatedAt: DateTimeOffset.UtcNow,
-            Payload: bytes,
-            PayloadSize: bytes.LongLength,
+            Payload: Encoding.UTF8.GetBytes(path),
+            PayloadSize: new System.IO.FileInfo(path).Length,
             BlobRef: path,
             SearchText: $"Recording {System.IO.Path.GetFileName(path)}");
         await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(true);
@@ -495,6 +682,28 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         SelectedRow?.Kind == ItemKind.Video
         && HasFileOnDisk
         && AresToys.Capture.Recording.VideoTrimArgsBuilder.IsSupported(_selectedItemBlobRef);
+
+    /// <summary>Image bytes "Pin to screen" would pin for the current selection: an Image entry,
+    /// or a Files entry whose first path is an image the preview loaded. Read from the loaded
+    /// preview so pinning needs no second fetch. Null when the selection isn't a pinnable image
+    /// (a Video entry whose file is gone previews an ffmpeg still: deliberately not pinnable).</summary>
+    public byte[]? PinnableImageBytes =>
+        SelectedRow?.Kind is ItemKind.Image or ItemKind.Files && PreviewKind == PreviewKind.Image
+            ? PreviewImageBytes
+            : null;
+
+    /// <summary>Video / animated GIF file "Pin to screen" would play for the current selection:
+    /// a Video entry or a Files entry with a video extension, while the file is still on disk.</summary>
+    public string? PinnableVideoPath =>
+        SelectedRow?.Kind is ItemKind.Video or ItemKind.Files
+        && PreviewKind == PreviewKind.Video
+        && !string.IsNullOrEmpty(PreviewVideoPath)
+        && System.IO.File.Exists(PreviewVideoPath)
+            ? PreviewVideoPath
+            : null;
+
+    /// <summary>Gates the row context menu's "Pin to screen" entry (issue #27).</summary>
+    public bool IsPinnableSelected => PinnableImageBytes is not null || PinnableVideoPath is not null;
 
     /// <summary>True when the current selection holds text-shaped content — gates the
     /// "Generate QR code…" affordance (toolbar + context menu). A QR code carries a textual
@@ -608,12 +817,16 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         // Skip payload decryption for the list view — only metadata + SearchText is needed for the
         // row preview. Payload (decrypted via DPAPI) is fetched on-demand via GetByIdAsync when the
         // user actually pastes / opens an item.
+        // An active tag filter spans every category (see HasActiveTagFilter).
+        var activeTagIds = TagChips.Where(c => c.IsActive).Select(c => c.Badge.Id).ToList();
         var query = new ItemQuery(
             Limit: 500,
             Search: NormalizeSearch(SearchText),
             Kind: KindFilter,
             IncludePayload: false,
-            Category: ActiveCategory);
+            Category: activeTagIds.Count > 0 ? null : ActiveCategory,
+            TagIds: activeTagIds,
+            TagMatchAny: TagFilterMatchAny);
         var previousId = SelectedRow?.Id;
         var loaded = await _items.ListAsync(query, cancellationToken).ConfigureAwait(false);
         // Apply the type-chip filter after the query. ShowImages gates Image / Files / Video
@@ -622,19 +835,28 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         // ItemQuery as a single-Kind filter; the Limit=500 ceiling we already work under makes
         // a SQL-level Kinds list unnecessary for v0.1.0.
         var displayIndex = 0;
-        Rows.Clear();
-        for (var i = 0; i < loaded.Count; i++)
+        _rebuildingRows = true;
+        try
         {
-            var record = loaded[i];
-            var isImageLike = record.Kind is ItemKind.Image or ItemKind.Files or ItemKind.Video;
-            var isTextLike = record.Kind is ItemKind.Text or ItemKind.Html or ItemKind.Rtf;
-            if (isImageLike && !ShowImages) continue;
-            if (isTextLike && !ShowText) continue;
-            Rows.Add(new ItemRowViewModel(record, displayIndex: displayIndex++, showSnippetWithLabel: ShowSnippetWithLabel));
+            Rows.Clear();
+            for (var i = 0; i < loaded.Count; i++)
+            {
+                var record = loaded[i];
+                var isImageLike = record.Kind is ItemKind.Image or ItemKind.Files or ItemKind.Video;
+                var isTextLike = record.Kind is ItemKind.Text or ItemKind.Html or ItemKind.Rtf;
+                if (isImageLike && !ShowImages) continue;
+                if (isTextLike && !ShowText) continue;
+                Rows.Add(new ItemRowViewModel(record, displayIndex: displayIndex++, showSnippetWithLabel: ShowSnippetWithLabel, tagLookup: _tagLookup));
+            }
+            // Preserve selection across reloads when the same id is still present.
+            if (previousId is { } id) SelectedRow = Rows.FirstOrDefault(r => r.Id == id);
+            SelectedRow ??= Rows.FirstOrDefault();
         }
-        // Preserve selection across reloads when the same id is still present.
-        if (previousId is { } id) SelectedRow = Rows.FirstOrDefault(r => r.Id == id);
-        SelectedRow ??= Rows.FirstOrDefault();
+        finally { _rebuildingRows = false; }
+        // The transient null from Rows.Clear was swallowed above: when the list ended up empty
+        // nothing else will clear the preview, so do it here.
+        if (SelectedRow is null && _previewedItemId is not null)
+            _ = LoadPreviewAsync(null, System.Threading.Interlocked.Increment(ref _previewLoadToken));
         NotifyCommandsCanExecuteChanged();
         _lastRefreshedVersion = versionAtStart;
     }
@@ -914,10 +1136,23 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     private void SetFilterImage() => KindFilter = ItemKind.Image;
 
     /// <summary>Click handler for a tab in the category strip — switches the active filter.
-    /// Pass null/empty to select the synthetic "All" tab.</summary>
+    /// Pass null/empty to select the synthetic "All" tab. Picking a tab also turns the tag
+    /// filter off: the tag view is cross-category, a tab click means "back to this bucket".</summary>
     [RelayCommand]
     private void SelectCategory(string? name)
-        => ActiveCategory = string.IsNullOrEmpty(name) ? null : name;
+    {
+        var target = string.IsNullOrEmpty(name) ? null : name;
+        var hadTagFilter = ClearTagFilterSilently();
+        if (hadTagFilter) OnTagFilterStateChanged();
+        if (target == ActiveCategory)
+        {
+            // Same tab: OnActiveCategoryChanged won't fire, so refresh here when the tag
+            // filter just went away.
+            if (hadTagFilter) _ = RefreshAsync(CancellationToken.None);
+            return;
+        }
+        ActiveCategory = target;
+    }
 
     /// <summary>Tab-strip "+" button: create a category on the fly, appended after the existing
     /// ones with the same default icon the Settings page uses, then switch to it. An existing

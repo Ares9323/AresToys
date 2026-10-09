@@ -56,6 +56,14 @@ public sealed class UploadTask : IPipelineTask
         {
             bytes = System.Text.Encoding.UTF8.GetBytes(text);
         }
+        else if (!string.Equals(category, "url", StringComparison.OrdinalIgnoreCase)
+                 && context.Bag.TryGetValue(PipelineBagKeys.LocalPath, out var rawPath) && rawPath is string localPath
+                 && File.Exists(localPath))
+        {
+            // Screen recordings travel as a file only (bag.local_path, no payload_bytes) so a
+            // big video isn't held in memory for the whole workflow. Read it just for the upload.
+            bytes = await File.ReadAllBytesAsync(localPath, cancellationToken).ConfigureAwait(false);
+        }
         else
         {
             _logger.LogWarning("UploadTask: bag key '{Key}' missing or not byte[]; skipping", PipelineBagKeys.PayloadBytes);

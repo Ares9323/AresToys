@@ -22,7 +22,7 @@ public sealed class TempPipelineDatabaseFixture : IAsyncDisposable
         Options = new StorageOptions { RootDirectoryOverride = RootDirectory };
         Paths = new StoragePathResolver(Microsoft.Extensions.Options.Options.Create(Options));
 
-        var migrations = new IMigration[] { new Migration001InitialSchema(), new Migration002AddItemLabel(), new Migration003AddPinSortOrder(), new Migration004AddItemTrigger() };
+        var migrations = new IMigration[] { new Migration001InitialSchema(), new Migration002AddItemLabel(), new Migration003AddPinSortOrder(), new Migration004AddItemTrigger(), new Migration005AddTags() };
         Database = new AresToysDatabase(Paths, new MigrationRunner(migrations), NullLogger<AresToysDatabase>.Instance);
     }
 

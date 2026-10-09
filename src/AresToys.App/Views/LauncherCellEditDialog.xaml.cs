@@ -103,6 +103,10 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
             Title = "Pick file for launcher cell",
             CheckFileExists = true,
             Multiselect = false,
+            // Hand us the .lnk itself. The dialog's own dereferencing returns only the target
+            // path, dropping the shortcut's arguments, icon and window settings, and for a
+            // Control Panel shortcut it has no path to return at all.
+            DereferenceLinks = false,
         };
         SeedDirectory(s => dlg.InitialDirectory = s);
         if (dlg.ShowDialog() != true) return;
@@ -110,7 +114,33 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
         // Same treatment a drop on the cell gets: a .lnk is unwrapped into the target it points
         // at plus the settings it carries, so the cell doesn't break when the shortcut moves and
         // its arguments stay visible and editable here.
-        var target = LauncherDropTarget.Resolve(dlg.FileName);
+        ApplyResolvedTarget(LauncherDropTarget.Resolve(dlg.FileName));
+    }
+
+    /// <summary>A shortcut path typed or pasted into the Path box gets the same unwrapping the
+    /// file picker applies. Runs when the box loses focus and again on OK (Enter confirms the
+    /// dialog without moving focus). Anything that isn't a readable .lnk is left exactly as
+    /// typed.</summary>
+    private void OnPathBoxLostFocus(object sender, RoutedEventArgs e) => ResolveTypedShortcut();
+
+    private void ResolveTypedShortcut()
+    {
+        var typed = PathBox.Text.Trim().Trim('"');
+        if (!typed.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) return;
+        string expanded;
+        try { expanded = Environment.ExpandEnvironmentVariables(typed); }
+        catch { return; }
+        if (ShellShortcut.TryRead(expanded) is null) return;
+
+        var target = LauncherDropTarget.Resolve(expanded);
+        // Resolve keeps the .lnk when it can't unwrap it usefully; nothing to apply then.
+        if (string.Equals(target.Path, expanded, StringComparison.OrdinalIgnoreCase)) return;
+        ApplyResolvedTarget(target);
+    }
+
+    /// <summary>Copy a resolved target into the form.</summary>
+    private void ApplyResolvedTarget(LauncherDropTarget target)
+    {
         PathBox.Text = target.Path;
 
         // Auto-fill the Label from the filename if it's still empty — common case "I just
@@ -250,6 +280,7 @@ public partial class LauncherCellEditDialog : Wpf.Ui.Controls.FluentWindow
 
     private void OnOkClicked(object sender, RoutedEventArgs e)
     {
+        ResolveTypedShortcut();
         var mode = WindowModeBox.SelectedItem is WindowModeOption opt ? opt.Value : LauncherWindowMode.Normal;
         var iconIndex = int.TryParse(IconIndexBox.Text.Trim(), System.Globalization.NumberStyles.Integer,
             System.Globalization.CultureInfo.InvariantCulture, out var ii) ? ii : 0;

@@ -19,8 +19,9 @@ namespace AresToys.App.Services.Recording;
 /// capture-region flow but for video.
 /// <para>
 /// <b>Pipeline mode</b> (called with a non-null PipelineContext, e.g. from RecordScreenTask):
-/// records into a temp folder, on stop populates bag.payload_bytes + bag.file_extension +
-/// bag.new_item + bag.local_path pointing at the temp MP4. Downstream SaveVideoFile +
+/// records into a temp folder, on stop populates bag.file_extension + bag.new_item +
+/// bag.local_path pointing at the temp MP4 (no payload_bytes: the file is never loaded into
+/// memory, see issue #28). Downstream SaveVideoFile +
 /// AddToHistory steps own the final disk write / history insertion / toast — same shape as
 /// the image capture pipeline.
 /// </para>
@@ -37,10 +38,11 @@ public sealed class RecordingCoordinator
     private const string SubFolderPatternSettingKey = "capture.subfolder_pattern";
 
     /// <summary>Temp folder under %TEMP% used by pipeline-mode recordings so the raw MP4 exists
-    /// somewhere stable but doesn't pollute the user's capture folder. SaveVideoFileTask reads
-    /// from here, writes to the configured destination, then deletes the temp file. Created on
-    /// demand inside <see cref="ResolveOutputPath"/>.</summary>
-    private static string PipelineTempFolder =>
+    /// somewhere stable but doesn't pollute the user's capture folder. SaveVideoFileTask moves
+    /// the file from here to the configured destination (or deletes it after a transcode).
+    /// When a workflow has no SaveVideoFile step the temp file IS the history item's file, so
+    /// nothing else deletes it. Created on demand in StartAsync.</summary>
+    public static string PipelineTempFolder =>
         Path.Combine(Path.GetTempPath(), "AresToys", "recordings");
 
     private readonly ScreenRecordingService _recorder;
@@ -130,7 +132,7 @@ public sealed class RecordingCoordinator
             // stop pre-create on its own thread routes through here too via the event handlers
             // installed in StartAsync — those pass null and we fall back to the pending context).
             var ctx = pipelineContext ?? _pendingPipelineContext;
-            await StopAndPersistAsync(cancellationToken, ctx).ConfigureAwait(false);
+            await StopOnceAsync(ctx).ConfigureAwait(false);
             return;
         }
 
@@ -215,7 +217,7 @@ public sealed class RecordingCoordinator
         Application.Current.Dispatcher.Invoke(() =>
         {
             _overlay = new RecordingOverlayWindow(region.X, region.Y, region.Width, region.Height);
-            _overlay.StopRequested += (_, _) => _ = StopAndPersistAsync(CancellationToken.None);
+            _overlay.StopRequested += (_, _) => _ = StopOnceAsync(null);
             _overlay.PauseRequested += (_, _) => { _recorder.Pause(); _overlay?.SetPausedVisual(true); };
             _overlay.ResumeRequested += (_, _) => { _recorder.Resume(); _overlay?.SetPausedVisual(false); };
             _overlay.AbortRequested += (_, _) =>
@@ -271,6 +273,17 @@ public sealed class RecordingCoordinator
         finally { _downloadInProgress = false; }
     }
 
+    /// <summary>Single in-flight stop. ffmpeg can take tens of seconds to finalize, and
+    /// <see cref="ScreenRecordingService.IsRecording"/> stays true until it exits: every extra
+    /// hotkey press / Stop click in that window used to run a whole new
+    /// <see cref="StopAndPersistAsync"/> (issue #28), which with the mode fields already reset
+    /// fell into the legacy branch and added the same recording again, while the pipeline went
+    /// on into another transcode. Now they all join the stop already running.</summary>
+    private Task StopOnceAsync(PipelineContext? pipelineContext)
+        => _stopGate.RunAsync(() => StopAndPersistAsync(CancellationToken.None, pipelineContext));
+
+    private readonly SingleFlight _stopGate = new();
+
     private async Task StopAndPersistAsync(CancellationToken cancellationToken, PipelineContext? pipelineContext = null)
     {
         // Capture the completion source up-front so any return path below (file missing,
@@ -299,28 +312,29 @@ public sealed class RecordingCoordinator
             return;
         }
 
-        var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        // The recording is never loaded into memory (issue #28): the item points at the file
+        // (BlobRef) and its payload is just that path. Downstream steps that need the content
+        // (SaveVideoFile, Upload, Save as) read it from bag.local_path.
         var ext = _activeFormat == RecordingFormat.Mp4 ? "mp4" : "gif";
         var newItem = new NewItem(
             Kind: ItemKind.Video,
             Source: ItemSource.CaptureRegion,
             CreatedAt: DateTimeOffset.UtcNow,
-            Payload: bytes,
-            PayloadSize: bytes.LongLength,
+            Payload: System.Text.Encoding.UTF8.GetBytes(path),
+            PayloadSize: new FileInfo(path).Length,
             BlobRef: path,
             SearchText: $"Recording {Path.GetFileName(path)}");
 
         if (pipelineMode && contextForBag is not null)
         {
-            // Pipeline mode: emit bytes + NewItem into the bag, no history insertion, no toast.
-            // Downstream SaveVideoFileTask transcodes / moves the temp file to the final
+            // Pipeline mode: emit the file path + NewItem into the bag, no history insertion, no
+            // toast. Downstream SaveVideoFileTask transcodes / moves the temp file to the final
             // destination (and updates bag.local_path); AddToHistoryTask then commits the
             // item into the AresToys clipboard (it reads bag.new_item when bag.item_id is
-            // absent — which is the case here since we deliberately don't AddAsync). Same
+            // absent, which is the case here since we deliberately don't AddAsync). Same
             // shape as the image-capture pipeline.
             contextForBag.Bag[PipelineBagKeys.LocalPath] = path;
             contextForBag.Bag[PipelineBagKeys.Text] = path;
-            contextForBag.Bag[PipelineBagKeys.PayloadBytes] = bytes;
             contextForBag.Bag[PipelineBagKeys.FileExtension] = ext;
             contextForBag.Bag[PipelineBagKeys.NewItem] = newItem;
             if (!string.IsNullOrEmpty(_activeWindowTitle)) contextForBag.Bag[PipelineBagKeys.WindowTitle] = _activeWindowTitle;
@@ -341,7 +355,6 @@ public sealed class RecordingCoordinator
             // expecting the old keys doesn't break).
             contextForBag.Bag[PipelineBagKeys.LocalPath] = path;
             contextForBag.Bag[PipelineBagKeys.Text] = path;
-            contextForBag.Bag[PipelineBagKeys.PayloadBytes] = bytes;
             contextForBag.Bag[PipelineBagKeys.FileExtension] = ext;
             contextForBag.Bag[PipelineBagKeys.NewItem] = newItem;
             contextForBag.Bag[PipelineBagKeys.ItemId] = id;

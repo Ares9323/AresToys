@@ -331,4 +331,88 @@ public class ItemStoreTests
         Assert.Null(rows[0].Trigger);
         Assert.Equal("hello", rows[1].Trigger);
     }
+
+    private static NewItem VideoItem(string path, byte[] payload)
+        => new(
+            Kind: ItemKind.Video,
+            Source: ItemSource.CaptureRecording,
+            CreatedAt: DateTimeOffset.UtcNow,
+            Payload: payload,
+            PayloadSize: payload.LongLength,
+            BlobRef: path,
+            SearchText: "Recording");
+
+    [Fact]
+    public async Task AddAsync_Video_StoresPathInsteadOfFileBytes()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var fileBytes = new byte[200_000];
+
+        var id = await store.AddAsync(VideoItem(@"C:\captures\rec.mp4", fileBytes), CancellationToken.None);
+
+        var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
+        Assert.Equal(@"C:\captures\rec.mp4", Encoding.UTF8.GetString(loaded.Payload.Span));
+        Assert.Equal(@"C:\captures\rec.mp4", loaded.BlobRef);
+        // The size column keeps describing the file (the toast and the row show it).
+        Assert.Equal(fileBytes.LongLength, loaded.PayloadSize);
+    }
+
+    [Fact]
+    public async Task AddAsync_Video_NeverDedupsAgainstPreviousRecording()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+
+        var first = await store.AddAsync(VideoItem(@"C:\captures\rec.mp4", new byte[10]), CancellationToken.None);
+        var second = await store.AddAsync(VideoItem(@"C:\captures\rec.mp4", new byte[10]), CancellationToken.None);
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public async Task GetById_LegacyVideoRowWithHugePayload_ReturnsEmptyPayload()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var serializer = new ItemSerializer(new DpapiPayloadProtector());
+        var store = new ItemStore(fx.Database, serializer);
+
+        // Rows written before issue #28 hold the whole recording in the payload column.
+        var conn = fx.Database.GetOpenConnection();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                INSERT INTO items (kind, source, created_at, pinned, payload, payload_size, blob_ref)
+                VALUES ('Video', 'CaptureRecording', $created, 0, $payload, $size, $blob);
+                SELECT last_insert_rowid();
+                """;
+            cmd.Parameters.AddWithValue("$created", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            cmd.Parameters.AddWithValue("$payload", serializer.Encode(new byte[300_000]));
+            cmd.Parameters.AddWithValue("$size", 300_000L);
+            cmd.Parameters.AddWithValue("$blob", @"C:\captures\old.mp4");
+            var id = (long)(await cmd.ExecuteScalarAsync())!;
+
+            var loaded = (await store.GetByIdAsync(id, CancellationToken.None))!;
+            Assert.True(loaded.Payload.IsEmpty);
+            Assert.Equal(@"C:\captures\old.mp4", loaded.BlobRef);
+
+            var listed = await store.ListAsync(new ItemQuery(Limit: 10, IncludePayload: true), CancellationToken.None);
+            Assert.True(listed.Single(r => r.Id == id).Payload.IsEmpty);
+        }
+    }
+
+    [Fact]
+    public async Task GetById_WithoutPayload_SkipsPayloadButKeepsMetadata()
+    {
+        await using var fx = await new TempDatabaseFixture().InitializeAsync();
+        var store = CreateStore(fx);
+        var id = await store.AddAsync(TextItem("hello") with { BlobRef = @"C:\x.txt" }, CancellationToken.None);
+
+        var loaded = (await store.GetByIdAsync(id, includePayload: false, CancellationToken.None))!;
+
+        Assert.True(loaded.Payload.IsEmpty);
+        Assert.Equal(ItemKind.Text, loaded.Kind);
+        Assert.Equal(@"C:\x.txt", loaded.BlobRef);
+        Assert.Equal("hello", loaded.SearchText);
+    }
 }

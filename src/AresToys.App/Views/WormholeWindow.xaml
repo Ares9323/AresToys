@@ -153,6 +153,7 @@
                                         ToolTip="{Binding Title}"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
+                                        MouseEnter="OnTabMouseEnter"
                                         MouseLeftButtonDown="OnTabMouseDown"
                                         MouseMove="OnTabMouseMove"
                                         MouseLeftButtonUp="OnTabMouseUp">

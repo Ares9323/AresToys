@@ -80,12 +80,15 @@ public sealed class CaptureSelectedExplorerFileTask : IPipelineTask
 
         context.Bag[PipelineBagKeys.PayloadBytes] = bytes;
         context.Bag[PipelineBagKeys.FileExtension] = ext;
+        var kind = KindForExtension(ext);
         context.Bag[PipelineBagKeys.NewItem] = new NewItem(
-            Kind: KindForExtension(ext),
+            Kind: kind,
             Source: ItemSource.Manual,
             CreatedAt: DateTimeOffset.UtcNow,
             Payload: bytes,
             PayloadSize: bytes.LongLength,
+            // Video history items reference their file instead of storing it (issue #28).
+            BlobRef: kind == ItemKind.Video ? path : null,
             SearchText: fileName);
 
         _logger.LogInformation("CaptureSelectedExplorerFileTask: loaded '{File}' ({Bytes} bytes) from Explorer selection",

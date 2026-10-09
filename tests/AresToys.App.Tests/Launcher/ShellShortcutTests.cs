@@ -126,6 +126,36 @@ public sealed class ShellShortcutTests : IDisposable
     }
 
     [Fact]
+    public void AShortcutToAVirtualShellItemReportsItsParsingName()
+    {
+        // The Control Panel's "Hardware and Sound" page: the shape of the shortcuts attached to
+        // issue #12. Such a link carries only an ID list, so there's no path to read.
+        const string hardwareAndSound = @"::{26EE0668-A00A-44D7-9371-BEB064C98683}\2";
+        var lnk = Lnk("Hardware and Sound - Shortcut.lnk");
+        ShellShortcut.CreateForShellItem(hardwareAndSound, lnk);
+
+        var info = ShellShortcut.TryRead(lnk);
+
+        Assert.NotNull(info);
+        Assert.Equal(string.Empty, info!.TargetPath);
+        Assert.Equal(hardwareAndSound, info.TargetParsingName, ignoreCase: true);
+        Assert.False(info.IsAdvertised);
+    }
+
+    [Fact]
+    public void AFileShortcutLeavesTheParsingNameEmpty()
+    {
+        var target = MakeFile("file.exe");
+        var lnk = Lnk("file.lnk");
+        ShellShortcut.Create(target, lnk);
+
+        var info = ShellShortcut.TryRead(lnk)!;
+
+        Assert.Equal(string.Empty, info.TargetParsingName);
+        Assert.False(info.IsAdvertised);
+    }
+
+    [Fact]
     public void NonShortcutInputsReadAsNull()
     {
         Assert.Null(ShellShortcut.TryRead(MakeFile("notalink.exe")));

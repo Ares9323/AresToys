@@ -6,23 +6,76 @@ using AresToys.Storage.Items;
 
 namespace AresToys.App.ViewModels;
 
-/// <summary>Settings → Categories tab. Lists every clipboard category with its name, icon and
-/// retention caps; lets the user add, rename, remove, and reorder. The default
+/// <summary>Settings → Categories &amp; tags tab. Lists every clipboard category with its name,
+/// icon and retention caps; lets the user add, rename, remove, and reorder. The default
 /// <see cref="Category.Default"/> bucket is read-only — it cannot be renamed or deleted (its
-/// items would have nowhere to go).</summary>
+/// items would have nowhere to go). The same page hosts the tag editor (issue #4): create,
+/// rename, recolour, delete; the dialogs live in MainWindow's code-behind.</summary>
 public sealed partial class CategoriesViewModel : ObservableObject, IDisposable
 {
     private readonly ICategoryStore _store;
+    private readonly ITagStore _tags;
+    private readonly IItemStore _items;
 
-    public CategoriesViewModel(ICategoryStore store)
+    public CategoriesViewModel(ICategoryStore store, ITagStore tags, IItemStore items)
     {
         _store = store;
+        _tags = tags;
+        _items = items;
         Categories = [];
         _store.Changed += OnStoreChanged;
+        _tags.Changed += OnTagsChanged;
+        _items.ItemsChanged += OnItemsChanged;
         _ = ReloadAsync();
+        _ = ReloadTagsAsync();
     }
 
-    public void Dispose() => _store.Changed -= OnStoreChanged;
+    public void Dispose()
+    {
+        _store.Changed -= OnStoreChanged;
+        _tags.Changed -= OnTagsChanged;
+        _items.ItemsChanged -= OnItemsChanged;
+    }
+
+    // ── Tags ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Every tag ordered by name, with its item count.</summary>
+    public ObservableCollection<TagBadge> Tags { get; } = [];
+
+    public bool HasNoTags => Tags.Count == 0;
+
+    private void OnTagsChanged(object? sender, EventArgs e)
+        => Application.Current?.Dispatcher.InvokeAsync(() => _ = ReloadTagsAsync());
+
+    /// <summary>Item counts move when items gain / lose tags or get deleted / restored. A fresh
+    /// capture (Added) never carries tags, so skip the reload on the hot clipboard path.</summary>
+    private void OnItemsChanged(object? sender, ItemsChangedEventArgs e)
+    {
+        if (e.Kind == ItemsChangeKind.Added) return;
+        Application.Current?.Dispatcher.InvokeAsync(() => _ = ReloadTagsAsync());
+    }
+
+    public async Task ReloadTagsAsync()
+    {
+        var list = await _tags.ListAsync(CancellationToken.None).ConfigureAwait(true);
+        Tags.Clear();
+        foreach (var t in list) Tags.Add(new TagBadge(t));
+        OnPropertyChanged(nameof(HasNoTags));
+    }
+
+    /// <summary>Name clash check for the edit dialog: true when a tag other than
+    /// <paramref name="exceptId"/> already uses the name (case-insensitive).</summary>
+    public bool IsTagNameTaken(string name, long? exceptId)
+        => Tags.Any(t => t.Id != exceptId && string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    public Task CreateTagAsync(string name, string? color)
+        => _tags.GetOrCreateAsync(name, color, CancellationToken.None);
+
+    public Task UpdateTagAsync(long id, string name, string? color)
+        => _tags.UpdateAsync(id, name, color, CancellationToken.None);
+
+    public Task DeleteTagAsync(long id)
+        => _tags.DeleteAsync(id, CancellationToken.None);
 
     public ObservableCollection<CategoryRowViewModel> Categories { get; }
 

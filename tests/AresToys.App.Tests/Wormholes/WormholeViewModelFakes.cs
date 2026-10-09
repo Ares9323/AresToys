@@ -119,6 +119,7 @@ internal sealed class FakeWormholeWindowManager : IWormholeWindowManager
     public Task MergeAsync(Guid dragged, Guid target, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task DetachAsync(Guid wormholeId, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task SetActiveTabAsync(Guid wormholeId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public void ShowTabOnHover(Guid wormholeId) => throw new NotSupportedException();
     public Guid? FindHeaderTargetAt(int screenX, int screenY, AresToys.App.Views.WormholeWindow exclude) => null;
     public void HighlightMergeTarget(Guid? wormholeId) { }
     public void ClearMergeHighlight() { }

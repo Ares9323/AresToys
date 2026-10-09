@@ -1005,13 +1005,18 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         await SaveGroupsAsync(cancellationToken).ConfigureAwait(true);
 
         _live.TryGetValue(wormholeId, out var host);
-        _live.Remove(wormholeId);
 
         if (host is not null && wasParent)
         {
             // The window was the parent's; the remaining tabs need one built on their new parent.
+            // Close it while the parent's id still maps to it: ForgetWindow (on Closed) keys off
+            // that entry to clear every tab registered against the window. Removing it first left
+            // the siblings pointing at the dead window, so SpawnWindow below saw them as already
+            // live and the remaining tab vanished until the next restart.
             try { host.CloseFromManager(); }
             catch (Exception ex) { _logger.LogWarning(ex, "Closing the old parent window while detaching failed"); }
+            foreach (var stale in _live.Where(kv => ReferenceEquals(kv.Value, host)).Select(kv => kv.Key).ToList())
+                _live.Remove(stale);
             var newParentId = _groups.FindFor(siblings.FirstOrDefault())?.ParentId ?? siblings.FirstOrDefault();
             if (newParentId is { } id && _records.TryGetValue(id, out var newParent)) SpawnWindow(newParent);
         }
@@ -1023,6 +1028,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         }
         host?.RefreshTabs();
 
+        _live.Remove(wormholeId);
         if (_records.TryGetValue(wormholeId, out var detached)) SpawnWindow(detached);
         _logger.LogInformation("Wormholes: {Id} detached from its group", wormholeId);
     }
@@ -1033,8 +1039,42 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         var group = _groups.FindFor(wormholeId);
         if (group is null || group.ActiveId == wormholeId) return;
         _groups.SetActive(wormholeId);
+        // This save covers any hover switch still waiting on its debounce.
+        _hoverTabSaveTimer?.Stop();
         await SaveGroupsAsync(cancellationToken).ConfigureAwait(true);
+        ShowActiveTab(wormholeId);
+    }
 
+    /// <summary>Hovering a tab of a collapsed group with "expand on hover" on counts as clicking
+    /// it (issue #24). Same switch as <see cref="SetActiveTabAsync"/>, but sweeping the pointer
+    /// along the strip can hit several tabs a second, so the write to disk waits until the
+    /// pointer settles instead of happening once per tab crossed.</summary>
+    public void ShowTabOnHover(Guid wormholeId)
+    {
+        var group = _groups.FindFor(wormholeId);
+        if (group is null || group.ActiveId == wormholeId) return;
+        _groups.SetActive(wormholeId);
+        ShowActiveTab(wormholeId);
+
+        if (_hoverTabSaveTimer is null)
+        {
+            _hoverTabSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _hoverTabSaveTimer.Tick += (_, _) =>
+            {
+                _hoverTabSaveTimer.Stop();
+                _ = SaveGroupsAsync(CancellationToken.None);
+            };
+        }
+        _hoverTabSaveTimer.Stop();
+        _hoverTabSaveTimer.Start();
+    }
+
+    /// <summary>Debounces the save after <see cref="ShowTabOnHover"/>.</summary>
+    private DispatcherTimer? _hoverTabSaveTimer;
+
+    /// <summary>Put the group's newly active tab on show in its window.</summary>
+    private void ShowActiveTab(Guid wormholeId)
+    {
         if (!_live.TryGetValue(wormholeId, out var host)) return;
         if (_records.TryGetValue(wormholeId, out var record))
         {
@@ -1134,6 +1174,12 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     public void CloseAll()
     {
+        // A tab switched by hover moments ago hasn't been written yet.
+        if (_hoverTabSaveTimer is { IsEnabled: true })
+        {
+            _hoverTabSaveTimer.Stop();
+            _ = SaveGroupsAsync(CancellationToken.None);
+        }
         foreach (var (_, watcher) in _watchers)
         {
             try { watcher.Dispose(); }

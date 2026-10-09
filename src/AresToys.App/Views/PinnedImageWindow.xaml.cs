@@ -35,6 +35,7 @@ public partial class PinnedImageWindow : Window
     private readonly ILogger _logger;
     private BitmapSource _bitmap;
     private double _scale = 1.0;
+    private double _opacity = 1.0;
     private int _borderThickness;
     private double _dpiScaleX = 1.0;
     private double _dpiScaleY = 1.0;
@@ -363,15 +364,33 @@ public partial class PinnedImageWindow : Window
     private void OnImageWheel(object sender, MouseWheelEventArgs e)
     {
         // Ctrl+wheel = zoom (centred on the mouse cursor's pixel — same UX as image viewers).
-        // Bare wheel = adjust border thickness (cheap visual customisation, sticky default).
+        // Shift+wheel = window opacity. Bare wheel = adjust border thickness (cheap visual
+        // customisation, sticky default).
         if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             ZoomFromCursor(sender, e);
+        }
+        else if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            SetPinOpacity(PinWindowOpacity.Next(_opacity, e.Delta));
         }
         else
         {
             AdjustBorder(e);
         }
+        e.Handled = true;
+    }
+
+    private void SetPinOpacity(double opacity)
+    {
+        _opacity = opacity;
+        Opacity = opacity;
+        OpacityLabel.Text = "◐ " + PinWindowOpacity.Format(opacity);
+    }
+
+    private void OnOpacityLabelClick(object sender, MouseButtonEventArgs e)
+    {
+        SetPinOpacity(1.0);
         e.Handled = true;
     }
 

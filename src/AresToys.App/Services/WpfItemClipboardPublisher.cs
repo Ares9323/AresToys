@@ -35,7 +35,11 @@ public sealed class WpfItemClipboardPublisher : IItemClipboardPublisher
 
     public async Task PublishAsync(long itemId, CancellationToken cancellationToken)
     {
-        var record = await _items.GetByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
+        // Metadata first: a Video publish only needs BlobRef, so it never decrypts the payload
+        // (issue #28: this ran right after every recording, on the freshly added item).
+        var record = await _items.GetByIdAsync(itemId, includePayload: false, cancellationToken).ConfigureAwait(false);
+        if (record is not null && record.Kind != ItemKind.Video)
+            record = await _items.GetByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
         if (record is null)
         {
             _logger.LogWarning("WpfItemClipboardPublisher: item {Id} not found.", itemId);

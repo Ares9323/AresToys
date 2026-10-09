@@ -1785,6 +1785,76 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- Tags (issue #4): orthogonal to categories. One row per tag with its
+                         colour, name, item count, Edit (rename / recolour dialog) and Delete
+                         (removes it from every item). "New tag…" opens the same dialog. -->
+                    <Grid Margin="0,24,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Markup:Loc Tags_SectionTitle}" FontSize="20" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <ui:Button Grid.Column="1" Content="{Markup:Loc Clipboard_MenuNewTag}"
+                                   Click="OnNewTagClicked"
+                                   Appearance="Primary"
+                                   Padding="14,4" />
+                    </Grid>
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc Tags_Blurb}" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12" FontStyle="Italic" TextWrapping="Wrap"
+                               Margin="0,0,0,8"
+                               Text="{Markup:Loc Tags_Empty}"
+                               Visibility="{Binding Categories.HasNoTags, Converter={StaticResource BoolToVisibility}}" />
+                    <ItemsControl ItemsSource="{Binding Categories.Tags}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:TagBadge}">
+                                <Border Background="{DynamicResource Surface1Brush}"
+                                        BorderThickness="0" CornerRadius="6"
+                                        Padding="14,8" Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- Swatch: tag colour, or a hollow ring for the neutral default. -->
+                                        <Grid Grid.Column="0" Width="16" Height="16" Margin="0,0,12,0" VerticalAlignment="Center">
+                                            <Ellipse Fill="{Binding ColorBrush}"
+                                                     Visibility="{Binding HasColor, Converter={StaticResource BoolToVisibility}}" />
+                                            <Ellipse Stroke="{DynamicResource AccentForegroundDarkBrush}" StrokeThickness="1.5"
+                                                     Visibility="{Binding HasColor, Converter={StaticResource InverseBoolToVisibility}}" />
+                                        </Grid>
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Text="{Binding ItemCount}"
+                                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="12,0,12,0"
+                                                   ToolTip="{Markup:Loc Tags_ItemCountTooltip}" />
+                                        <ui:Button Grid.Column="3" Tag="{Binding}"
+                                                   Click="OnEditTagClicked"
+                                                   Margin="0,0,8,0"
+                                                   ToolTip="{Markup:Loc Tags_EditTooltip}">
+                                            <TextBlock Text="&#xF040;"
+                                                       FontFamily="{DynamicResource IconFont}"
+                                                       FontSize="13" />
+                                        </ui:Button>
+                                        <ui:Button Grid.Column="4" Tag="{Binding}"
+                                                   Click="OnDeleteTagClicked"
+                                                   Appearance="Danger"
+                                                   ToolTip="{Markup:Loc Tags_DeleteTooltip}">
+                                            <TextBlock Text="&#xF1F8;"
+                                                       FontFamily="{DynamicResource IconFont}"
+                                                       FontSize="13" />
+                                        </ui:Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </ScrollViewer>
 

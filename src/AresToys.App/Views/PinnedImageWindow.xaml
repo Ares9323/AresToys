@@ -6,7 +6,7 @@
         Title="AresToys pin"
         Topmost="True"
         WindowStyle="None"
-        AllowsTransparency="False"
+        AllowsTransparency="True"
         Background="Black"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -81,6 +81,17 @@
                            FontFamily="Consolas"
                            VerticalAlignment="Center"
                            Margin="2,0,0,0" />
+                <!-- Opacity readout: Shift+wheel changes it, click resets to 100%. -->
+                <TextBlock x:Name="OpacityLabel"
+                           Text="◐ 100%"
+                           Foreground="{DynamicResource AccentForegroundBrush}"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           VerticalAlignment="Center"
+                           Margin="10,0,2,0"
+                           Cursor="Hand"
+                           ToolTip="{Markup:Loc PinnedImage_OpacityTooltip}"
+                           MouseLeftButtonUp="OnOpacityLabelClick" />
             </StackPanel>
         </Border>
     </Grid>

@@ -111,6 +111,13 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     private System.Windows.Point? _cellDragStart;
     private string? _cellDragSourceKey;
     private const string CellDragFormat = "arestoys.launcher.cell";
+    /// <summary>Mouse-down anchor + tab key for dragging a tab header onto another to swap the two
+    /// pages (issue #25). Window-level rather than per header because pressing a header switches
+    /// to it, which rebuilds the whole strip: the move that crosses the drag threshold arrives on
+    /// the freshly built header, not the one that saw the press.</summary>
+    private System.Windows.Point? _tabDragStart;
+    private string? _tabDragSourceKey;
+    private const string TabDragFormat = "arestoys.launcher.tab";
     /// <summary>Current search filter — case-insensitive substring matched against each cell's
     /// label and path. Empty string = no filter (everything visible). Function-row cells are
     /// always visible regardless of this value.</summary>
@@ -725,7 +732,78 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OnTabClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border b && b.Tag is string tabKey) SwitchTab(tabKey);
+        if (sender is not Border b || b.Tag is not string tabKey) return;
+        // In docked mode the press also arms a header drag; a click that never travels past the
+        // drag threshold stays a plain tab switch.
+        if (_dragMode)
+        {
+            _tabDragStart = e.GetPosition(this);
+            _tabDragSourceKey = tabKey;
+        }
+        SwitchTab(tabKey);
+    }
+
+    /// <summary>Start dragging a tab header once the pointer has moved past the system drag
+    /// threshold. Same gesture as dragging a cell, with its own data format so the drop targets
+    /// can tell a page swap from a cell swap.</summary>
+    private void OnTabMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_tabDragStart is null || _tabDragSourceKey is null) return;
+        if (!_dragMode || e.LeftButton != MouseButtonState.Pressed)
+        {
+            _tabDragStart = null;
+            _tabDragSourceKey = null;
+            return;
+        }
+        var pos = e.GetPosition(this);
+        if (Math.Abs(pos.X - _tabDragStart.Value.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(pos.Y - _tabDragStart.Value.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+
+        var sourceKey = _tabDragSourceKey;
+        _tabDragStart = null;
+        _tabDragSourceKey = null;
+        if (sender is not Border b) return;
+        DragDrop.DoDragDrop(b, new DataObject(TabDragFormat, sourceKey), DragDropEffects.Move);
+    }
+
+    /// <summary>A tab header dropped on another: swap the two pages, then stay on the page the
+    /// user was carrying, which now sits at the drop position.</summary>
+    private void OnTabDrop(object sender, DragEventArgs e)
+    {
+        if (sender is not Border b || b.Tag is not string targetKey) return;
+        ResetTabHeaderBorder(b);
+        if (!_dragMode || !e.Data.GetDataPresent(TabDragFormat)) return;
+        if (e.Data.GetData(TabDragFormat) is not string sourceKey) return;
+        e.Handled = true;
+        if (string.Equals(sourceKey, targetKey, StringComparison.OrdinalIgnoreCase)) return;
+        _ = SwapTabsAsync(sourceKey, targetKey);
+    }
+
+    private void OnTabDragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is Border b) ResetTabHeaderBorder(b);
+    }
+
+    /// <summary>Put a header's border back on its theme brush after the drop-target highlight.
+    /// A resource reference rather than a fixed brush, so a later theme switch still reaches it.</summary>
+    private static void ResetTabHeaderBorder(Border b) =>
+        b.SetResourceReference(Border.BorderBrushProperty, "InnerBorderBrush");
+
+    private async Task SwapTabsAsync(string sourceKey, string targetKey)
+    {
+        try
+        {
+            await _store.SwapTabsAsync(sourceKey, targetKey, CancellationToken.None);
+            _logger.LogInformation("Launcher: swapped tab {Source} ↔ {Target}", sourceKey, targetKey);
+            // The dragged page now lives at the target position; follow it there.
+            _activeTab = targetKey;
+            _ = _store.SaveActiveTabAsync(targetKey, CancellationToken.None);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LauncherWindow: failed to swap tabs {A} ↔ {B}", sourceKey, targetKey);
+        }
     }
 
     /// <summary>Hovering a tab header mid-drag switches to that page (issue #15). Moving a cell
@@ -733,7 +811,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     /// that slot sits on a page the user can't reach while the mouse button is down. Same
     /// gesture Explorer and every browser use for their own tab strips.
     ///
-    /// The header itself never accepts the drop. Effects stays None, so the cursor keeps
+    /// For a cell or a file the header itself never accepts the drop. Effects stays None, so the cursor keeps
     /// saying "not here" and the user still has to release over a real cell. Switching rebuilds
     /// the strip underneath the pointer, which ends this Border's drag interaction; the newly
     /// materialised header takes over on the next DragOver, and SwitchTab's own "already on this
@@ -742,6 +820,20 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     {
         if (!_dragMode) return;
         if (sender is not Border b || b.Tag is not string tabKey) return;
+
+        // A tab header being dragged (issue #25) is the one drag the header does accept: it's a
+        // page swap. No switching here, the strip must stay put under a tab being carried, and
+        // the highlight tells the user which page they'd swap with.
+        if (e.Data.GetDataPresent(TabDragFormat))
+        {
+            var isSelf = e.Data.GetData(TabDragFormat) is string source
+                         && string.Equals(source, tabKey, StringComparison.OrdinalIgnoreCase);
+            e.Effects = isSelf ? DragDropEffects.None : DragDropEffects.Move;
+            if (!isSelf) b.BorderBrush = System.Windows.Media.Brushes.White;
+            e.Handled = true;
+            return;
+        }
+
         if (!e.Data.GetDataPresent(CellDragFormat) && !e.Data.GetDataPresent(DataFormats.FileDrop)) return;
 
         SwitchTab(tabKey);
@@ -828,9 +920,10 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
                 // equivalent of "here's where this app lives".
                 Process.Start(new ProcessStartInfo { FileName = "shell:AppsFolder", UseShellExecute = true });
             }
-            else if (Directory.Exists(path))
+            else if (Directory.Exists(path) || PackagedAppPath.IsShellNamespacePath(path))
             {
-                // Folder: open the folder itself.
+                // Folder: open the folder itself. Same for a virtual shell item (a Control Panel
+                // page): it has no parent folder on disk to select it in.
                 Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
             }
             else
@@ -990,7 +1083,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             string workingDir = string.Empty;
             // A shell parsing name has no parent directory on disk — GetDirectoryName would hand
             // ShellExecute a bogus "shell:AppsFolder" working directory for the child process.
-            if (!PackagedAppPath.IsAppsFolderPath(path))
+            if (!PackagedAppPath.IsShellNamespacePath(path))
             {
                 try { workingDir = Path.GetDirectoryName(path) ?? string.Empty; } catch { /* ignore */ }
             }

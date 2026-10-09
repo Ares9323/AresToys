@@ -61,6 +61,9 @@ public sealed class AresToysDatabase : IAresToysDatabase
     {
         if (_connection is not null)
         {
+            // The connection is pooled: without clearing its pool the file handles stay open
+            // after dispose, so the database (and its -wal / -shm) can't be moved or deleted.
+            SqliteConnection.ClearPool(_connection);
             await _connection.DisposeAsync().ConfigureAwait(false);
             _connection = null;
         }

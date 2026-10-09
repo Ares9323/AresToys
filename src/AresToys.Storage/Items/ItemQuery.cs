@@ -13,4 +13,11 @@ public sealed record ItemQuery(
     bool IncludeThumbnail = true,
     /// <summary>When set, restrict results to items in this category. null = all categories
     /// (the popup's "All" tab). Empty string is treated like null.</summary>
-    string? Category = null);
+    string? Category = null,
+    /// <summary>When non-empty, restrict results to items carrying these tags: EVERY one of them
+    /// by default (AND), or at least one when <see cref="TagMatchAny"/> is set (OR).
+    /// null / empty = no tag filter.</summary>
+    IReadOnlyList<long>? TagIds = null,
+    /// <summary>OR semantics for <see cref="TagIds"/>: an item matches when it carries any of
+    /// the requested tags. Ignored when there is no tag filter.</summary>
+    bool TagMatchAny = false);

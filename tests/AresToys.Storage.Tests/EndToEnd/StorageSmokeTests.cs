@@ -82,6 +82,8 @@ public class StorageSmokeTests
         }
         finally
         {
+            // Pooled connections keep the database files open until their pool is cleared.
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try { Directory.Delete(tempRoot, recursive: true); } catch (IOException) { /* best effort */ }
         }
     }

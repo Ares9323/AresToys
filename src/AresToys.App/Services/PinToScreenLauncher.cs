@@ -27,6 +27,12 @@ public sealed class PinToScreenLauncher
     private readonly IClipboardListener? _listener;
     private readonly ILogger<PinToScreenLauncher> _logger;
     private readonly ILogger<PinnedImageWindow> _windowLogger;
+    private readonly ILogger<PinnedVideoWindow>? _videoWindowLogger;
+    private readonly IToastNotifier? _notifier;
+
+    /// <summary>Same key the clipboard panel's preview mute toggle persists to: a pinned video
+    /// starts with the user's last preview choice.</summary>
+    private const string PreviewMutedSettingKey = "clipboard.preview.muted";
 
     public PinToScreenLauncher(
         ICaptureSource captureSource,
@@ -36,7 +42,9 @@ public sealed class PinToScreenLauncher
         CaptureImageOutputService outputEncoder,
         ILogger<PinToScreenLauncher> logger,
         ILogger<PinnedImageWindow> windowLogger,
-        IClipboardListener? listener = null)
+        IClipboardListener? listener = null,
+        IToastNotifier? notifier = null,
+        ILogger<PinnedVideoWindow>? videoWindowLogger = null)
     {
         _captureSource = captureSource;
         _settings = settings;
@@ -46,7 +54,67 @@ public sealed class PinToScreenLauncher
         _listener = listener;
         _logger = logger;
         _windowLogger = windowLogger;
+        _notifier = notifier;
+        _videoWindowLogger = videoWindowLogger;
     }
+
+    /// <summary>Pin already-encoded image bytes (PNG / JPG / BMP / GIF first frame, anything WIC
+    /// decodes), centred on screen. Used by the clipboard panel's "Pin to screen" on image
+    /// entries. UI-thread only. Returns false (after a toast) when the bytes can't be decoded.</summary>
+    public async Task<bool> PinImageAsync(byte[] imageBytes, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(imageBytes);
+        BitmapSource? bitmap;
+        try { bitmap = DecodePng(imageBytes); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PinToScreenLauncher: image decode failed");
+            bitmap = null;
+        }
+        if (bitmap is null)
+        {
+            NotifyFailure(Resources.Strings.PinToScreen_ImageUnavailable);
+            return false;
+        }
+        return await PinBitmapAsync(bitmap, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>Pin a decoded bitmap, centred on screen. UI-thread only.</summary>
+    public async Task<bool> PinBitmapAsync(BitmapSource bitmap, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        if (!bitmap.IsFrozen && bitmap.CanFreeze) bitmap.Freeze();
+        var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
+        var w = new PinnedImageWindow(bitmap, settings: _settings, editor: _editor, initialBorderThickness: border, logger: _windowLogger,
+            items: _items, listener: _listener, outputEncoder: _outputEncoder);
+        w.ShowAtCapturedPixel();
+        return true;
+    }
+
+    /// <summary>Pin a video or animated GIF file: a looping <see cref="PinnedVideoWindow"/>
+    /// streaming from disk. UI-thread only. A missing file fails right away; a format the OS
+    /// can't decode fails asynchronously (MediaFailed). Both end in a toast.</summary>
+    public async Task<bool> PinVideoAsync(string path, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            _logger.LogWarning("PinToScreenLauncher: video file not found ({Path})", path);
+            NotifyFailure(Resources.Strings.PinToScreen_VideoUnavailable);
+            return false;
+        }
+        var border = await PinnedImageWindow.LoadStickyBorderAsync(_settings, cancellationToken).ConfigureAwait(true);
+        var mutedRaw = await _settings.GetAsync(PreviewMutedSettingKey, cancellationToken).ConfigureAwait(true);
+        var muted = mutedRaw != "0" && !string.Equals(mutedRaw, "false", StringComparison.OrdinalIgnoreCase);
+        var w = new PinnedVideoWindow(path, border, muted: muted,
+            onFailed: _ => NotifyFailure(Resources.Strings.PinToScreen_VideoUnavailable),
+            logger: _videoWindowLogger);
+        w.Show();
+        w.Activate();
+        return true;
+    }
+
+    private void NotifyFailure(string message)
+        => _notifier?.Show(Resources.Strings.Clipboard_MenuPinToScreen, message);
 
     /// <summary>Show the chooser and dispatch to the chosen source. UI-thread only. The chooser
     /// is shown <c>Show()</c>-modelessly (not <c>ShowDialog()</c>) so the rest of the app stays

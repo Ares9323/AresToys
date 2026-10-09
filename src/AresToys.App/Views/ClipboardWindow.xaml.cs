@@ -73,8 +73,9 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     private readonly AresToys.App.Services.Qr.QrCodeService? _qrService;
     private readonly AresToys.App.Services.ManualUploadService? _ingestion;
     private readonly AresToys.App.Services.Recording.VideoTrimService? _videoTrimmer;
+    private readonly AresToys.App.Services.PinToScreenLauncher? _pinLauncher;
 
-    public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, AresToys.Storage.Rotation.CategoryRotationService? categoryRotation = null, AresToys.App.Services.Qr.QrCodeService? qrService = null, AresToys.App.Services.ManualUploadService? ingestion = null, AresToys.App.Services.Recording.VideoTrimService? videoTrimmer = null)
+    public ClipboardWindow(PopupWindowViewModel viewModel, ISettingsStore settings, AresToys.Storage.Rotation.CategoryRotationService? categoryRotation = null, AresToys.App.Services.Qr.QrCodeService? qrService = null, AresToys.App.Services.ManualUploadService? ingestion = null, AresToys.App.Services.Recording.VideoTrimService? videoTrimmer = null, AresToys.App.Services.PinToScreenLauncher? pinLauncher = null)
     {
         InitializeComponent();
         AresToys.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
@@ -86,6 +87,7 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         _qrService = qrService;
         _ingestion = ingestion;
         _videoTrimmer = videoTrimmer;
+        _pinLauncher = pinLauncher;
         _current = this;
 
         // Hydrate the persisted "mute preview videos" preference so the first MediaElement load
@@ -1350,6 +1352,30 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         }
     }
 
+    /// <summary>Row context menu → "Pin to screen" (issue #27). Images pin through the regular
+    /// <see cref="PinnedImageWindow"/>; videos and animated GIFs open a looping
+    /// <see cref="PinnedVideoWindow"/>. The panel hides first (unless sticky) so the pin lands
+    /// on the screen the user is working on, not under the clipboard window.</summary>
+    private async void OnPinToScreenClicked(object sender, RoutedEventArgs e)
+    {
+        if (_pinLauncher is null) return;
+        var imageBytes = ViewModel.PinnableImageBytes;
+        var videoPath = ViewModel.PinnableVideoPath;
+        if (imageBytes is null && videoPath is null) return;
+        if (!ViewModel.IsPinned) BeginHide();
+        try
+        {
+            if (videoPath is not null)
+                await _pinLauncher.PinVideoAsync(videoPath, CancellationToken.None).ConfigureAwait(true);
+            else
+                await _pinLauncher.PinImageAsync(imageBytes!, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Pin to screen failed: {ex.Message}");
+        }
+    }
+
     private void OnGenerateQrFromItemClicked(object sender, RoutedEventArgs e)
     {
         if (_qrService is null) return;
@@ -1371,6 +1397,104 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     // ── Label edit: inline rename + preview-pane TextBox ─────────────────────────────
+
+    // ── Tags submenu (issue #4) ──────────────────────────────────────────────────────
+
+    private static string Loc(string key)
+        => AresToys.App.Resources.Strings.ResourceManager.GetString(key,
+               AresToys.App.Markup.LocalizedStrings.Instance.Culture ?? CultureInfo.CurrentUICulture) ?? key;
+
+    /// <summary>Rebuild the row menu's "Tags" submenu for the right-clicked row each time the
+    /// menu opens, so it reflects the current tag list and the row's current tags. A row that
+    /// can't take new tags (unpinned, in a category with retention) only lists the tags it
+    /// already has, for removal; with none, the entry is disabled with a tooltip saying why.</summary>
+    private void OnItemRowMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu) return;
+        if (menu.PlacementTarget is not FrameworkElement { DataContext: ItemRowViewModel row }) return;
+        if (menu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Tag is "tags") is not { } tagsItem) return;
+
+        tagsItem.Items.Clear();
+        tagsItem.ToolTip = null;
+        tagsItem.IsEnabled = true;
+        var taggable = ViewModel.IsTaggable(row);
+        var assigned = row.TagIds.ToHashSet();
+        foreach (var tag in ViewModel.AllTags)
+        {
+            var has = assigned.Contains(tag.Id);
+            if (!taggable && !has) continue;
+            var entry = new MenuItem { Header = BuildTagMenuHeader(tag), IsChecked = has };
+            var tagId = tag.Id;
+            entry.Click += async (_, _) =>
+            {
+                try { await ViewModel.ToggleItemTagAsync(row, tagId).ConfigureAwait(true); }
+                catch { /* storage failure: the row keeps its previous tags */ }
+            };
+            tagsItem.Items.Add(entry);
+        }
+
+        if (taggable)
+        {
+            if (tagsItem.Items.Count > 0) tagsItem.Items.Add(new Separator());
+            var create = new MenuItem { Header = Loc("Clipboard_MenuNewTag") };
+            create.Click += (_, _) =>
+                // Open the dialog once the menu has closed: same mouse-capture reason as the
+                // category rename box (see OnCategoryRenameClick).
+                Dispatcher.BeginInvoke(() => _ = CreateTagForRowAsync(row), DispatcherPriority.ContextIdle);
+            tagsItem.Items.Add(create);
+        }
+        else if (tagsItem.Items.Count > 0)
+        {
+            tagsItem.Items.Add(new Separator());
+            tagsItem.Items.Add(new MenuItem { Header = Loc("Clipboard_MenuTagsLocked"), IsEnabled = false });
+        }
+        else
+        {
+            tagsItem.IsEnabled = false;
+            tagsItem.ToolTip = Loc("Clipboard_MenuTagsLocked");
+            ToolTipService.SetShowOnDisabled(tagsItem, true);
+        }
+    }
+
+    private static StackPanel BuildTagMenuHeader(TagBadge tag)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        var dot = new System.Windows.Shapes.Ellipse
+        {
+            Width = 9, Height = 9,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            StrokeThickness = 1,
+        };
+        if (tag.ColorBrush is { } fill) dot.Fill = fill;
+        else dot.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentForegroundDarkBrush");
+        panel.Children.Add(dot);
+        panel.Children.Add(new TextBlock { Text = tag.Name, VerticalAlignment = VerticalAlignment.Center });
+        return panel;
+    }
+
+    private async Task CreateTagForRowAsync(ItemRowViewModel row)
+    {
+        // The dialog takes focus; keep the popup alive behind it (same guard as the QR
+        // generator and the category delete confirmation).
+        _suppressDeactivation = true;
+        TagEditDialog dialog;
+        bool? ok;
+        try
+        {
+            dialog = new TagEditDialog(Loc("TagDialog_NewTitle")) { Owner = this };
+            ok = dialog.ShowDialog();
+        }
+        finally
+        {
+            _suppressDeactivation = false;
+            Activate();
+        }
+        if (ok != true || dialog.ResultName is not { } name) return;
+        try { await ViewModel.CreateTagAndAssignAsync(row, name, dialog.ResultColor).ConfigureAwait(true); }
+        catch { /* storage failure: nothing assigned */ }
+        HistoryList.Focus();
+    }
 
     /// <summary>Right-click → "Rename label" menu handler. <see cref="OnItemRowPreviewRightClick"/>
     /// already selected the clicked row before the menu opens (WPF doesn't auto-select on

@@ -1,4 +1,6 @@
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace AresToys.App.Services.Launcher;
 
@@ -68,8 +70,19 @@ public sealed record LauncherDropTarget(
         var link = ShellShortcut.TryRead(dropped);
         if (link is null) return new LauncherDropTarget(dropped, string.Empty, label);
 
-        var target = link.TargetPath;
-        if (string.IsNullOrWhiteSpace(target) || !TargetExists(target))
+        // Explorer names a fresh shortcut "Hardware and Sound - Shortcut"; the suffix says what
+        // the file is, not what it opens, so it has no place on the cell caption.
+        label = StripShortcutSuffix(label);
+
+        // Advertised (MSI) shortcuts report the product's icon file as their path. Unwrapping
+        // that would store a cell that opens an .ico, so the .lnk stays the target.
+        if (link.IsAdvertised) return new LauncherDropTarget(dropped, string.Empty, label);
+
+        var target = string.IsNullOrWhiteSpace(link.TargetPath)
+            ? ShellItemTarget(link.TargetParsingName)
+            : link.TargetPath;
+        if (string.IsNullOrWhiteSpace(target)
+            || (!IsShellNamespaceTarget(target) && !TargetExists(target)))
             return new LauncherDropTarget(dropped, string.Empty, label);
 
         // Only carry the icon over when the shortcut names one of its own. Shortcuts normally
@@ -104,6 +117,126 @@ public sealed record LauncherDropTarget(
             return string.Empty;
         }
     }
+
+    /// <summary>CLSID of the Applications virtual folder, the one <c>shell:AppsFolder</c> names.
+    /// A shortcut to a packaged app reports its target as <c>::{this}\&lt;AUMID&gt;</c>.</summary>
+    private const string AppsFolderParsingPrefix = @"::{4234D49B-0245-4DF3-B780-3893943456E1}\";
+
+    /// <summary>Turn the parsing name of a path-less shortcut target into something
+    /// ShellExecute and the icon service both accept. Virtual items (<c>::{GUID}\…</c>, e.g.
+    /// a Control Panel page) get the <c>shell:</c> moniker in front, packaged apps their usual
+    /// <c>shell:AppsFolder\</c> form. Anything else is a plain path the shell only knew by ID
+    /// list, returned as is so the caller's existence check still applies. Empty in, empty
+    /// out.</summary>
+    public static string ShellItemTarget(string? parsingName)
+    {
+        if (string.IsNullOrWhiteSpace(parsingName)) return string.Empty;
+        var name = parsingName.Trim();
+        if (name.StartsWith(AppsFolderParsingPrefix, StringComparison.OrdinalIgnoreCase)
+            && name.Length > AppsFolderParsingPrefix.Length)
+            return PackagedAppPath.AppsFolderPrefix + name[AppsFolderParsingPrefix.Length..];
+        if (name.StartsWith("::{", StringComparison.Ordinal)) return "shell:" + name;
+        return name;
+    }
+
+    /// <summary>A <c>shell:</c> moniker: lives in the shell namespace, not on disk, so there is
+    /// no file to check for.</summary>
+    private static bool IsShellNamespaceTarget(string target) =>
+        target.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Suffixes Explorer appends when it names a new shortcut, for the languages we
+    /// can't read from the running system. The live one comes from shell32 (see
+    /// <see cref="SystemShortcutSuffix"/>); these cover shortcuts made on a machine with a
+    /// different UI language and copied over.</summary>
+    private static readonly string[] KnownShortcutSuffixes =
+    [
+        " - Shortcut",
+        " - Collegamento",
+        " - Verknüpfung",
+        " - Raccourci",
+        " - Acceso directo",
+        " - Atalho",
+        " - Snelkoppeling",
+        " - Skrót",
+        " - Zástupce",
+        " - Genväg",
+        " - Ярлык",
+    ];
+
+    private static readonly Lazy<string?> SystemShortcutSuffix = new(ReadSystemShortcutSuffix);
+
+    /// <summary>Remove the " - Shortcut" tail Explorer gives a freshly created shortcut, along
+    /// with the " (2)" counter it adds to duplicates. Only a trailing suffix is touched, and
+    /// never when it's all there is: "Shortcut tools" and a file literally named " - Shortcut"
+    /// keep their names.</summary>
+    public static string StripShortcutSuffix(string label)
+    {
+        if (string.IsNullOrEmpty(label)) return label;
+
+        var system = SystemShortcutSuffix.Value;
+        IEnumerable<string> suffixes = string.IsNullOrEmpty(system)
+            ? KnownShortcutSuffixes
+            : KnownShortcutSuffixes.Prepend(system);
+
+        foreach (var suffix in suffixes)
+        {
+            var match = Regex.Match(
+                label,
+                "^(?<name>.*\\S)" + Regex.Escape(suffix) + @"(?: \(\d+\))?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (match.Success) return match.Groups["name"].Value;
+        }
+        return label;
+    }
+
+    /// <summary>Read the naming template Explorer itself uses ("%s - Shortcut ().lnk" on an
+    /// English system, "%s - Collegamento ().lnk" on an Italian one) from shell32's string
+    /// table and keep the part between the name and the counter. Null when the resource isn't
+    /// there or doesn't have the expected shape.</summary>
+    private static string? ReadSystemShortcutSuffix()
+    {
+        const uint shortcutNameTemplateId = 4154;
+        const uint loadAsDataFileAndImageResource = 0x00000022;
+        var module = LoadLibraryEx("shell32.dll", IntPtr.Zero, loadAsDataFileAndImageResource);
+        if (module == IntPtr.Zero) return null;
+        try
+        {
+            var buffer = new char[256];
+            var length = LoadString(module, shortcutNameTemplateId, buffer, buffer.Length);
+            if (length <= 0) return null;
+            var template = new string(buffer, 0, length);
+
+            var nameAt = template.IndexOf("%s", StringComparison.Ordinal);
+            var extensionAt = template.LastIndexOf(".lnk", StringComparison.OrdinalIgnoreCase);
+            if (nameAt < 0 || extensionAt < nameAt + 2) return null;
+
+            var suffix = template[(nameAt + 2)..extensionAt];
+            // The "()" is where Explorer writes the duplicate counter; StripShortcutSuffix
+            // handles that on its own.
+            var counterAt = suffix.LastIndexOf("()", StringComparison.Ordinal);
+            if (counterAt >= 0) suffix = suffix[..counterAt];
+            suffix = suffix.TrimEnd();
+            return suffix.Trim().Length == 0 ? null : suffix;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            FreeLibrary(module);
+        }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadLibraryEx(string lpLibFileName, IntPtr hFile, uint dwFlags);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FreeLibrary(IntPtr hModule);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int LoadString(IntPtr hInstance, uint uID, [Out] char[] lpBuffer, int nBufferMax);
 
     /// <summary>Does the shortcut's target still exist? Environment variables get expanded first
     /// — shortcuts under the Start menu routinely store <c>%ProgramFiles%</c>-style paths.</summary>

@@ -25,8 +25,13 @@ public sealed record ItemRecord(
     string Category = "Clipboard",
     string? Label = null,
     int PinSortOrder = 0,
-    string? Trigger = null)
+    string? Trigger = null,
+    IReadOnlyList<long>? TagIds = null)
 {
+    /// <summary>Ids of the tags on this item (issue #4), never null. Resolve names / colours
+    /// through <see cref="ITagStore"/>.</summary>
+    public IReadOnlyList<long> Tags => TagIds ?? [];
+
     public Item ToDomain() => new(
         Id: Id,
         Kind: Kind,

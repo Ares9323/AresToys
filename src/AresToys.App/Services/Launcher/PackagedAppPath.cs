@@ -69,6 +69,18 @@ public static class PackagedAppPath
         !string.IsNullOrWhiteSpace(path) &&
         path.Trim().StartsWith(AppsFolderPrefix, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>True for any target that lives in the shell namespace rather than on disk: the
+    /// AppsFolder form, other <c>shell:</c> monikers (a Control Panel page unwrapped from its
+    /// shortcut is <c>shell:::{GUID}\…</c>) and raw <c>::{GUID}</c> parsing names. None of them has
+    /// a parent directory to use as a working directory.</summary>
+    public static bool IsShellNamespacePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var s = path.Trim();
+        return s.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+               || s.StartsWith("::{", StringComparison.Ordinal);
+    }
+
     /// <summary>Pull the AUMID back out of either form (normalised or bare). Returns null when
     /// the path isn't a packaged-app target at all.</summary>
     public static string? TryExtractAppUserModelId(string? path)

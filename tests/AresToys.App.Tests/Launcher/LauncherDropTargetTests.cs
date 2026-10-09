@@ -189,6 +189,66 @@ public sealed class LauncherDropTargetTests : IDisposable
     }
 
     [Fact]
+    public void ControlPanelShortcutResolvesToItsShellLocation()
+    {
+        // Issue #12 follow-up: Control Panel shortcuts carry no filesystem path, only an ID list.
+        // The cell gets the shell: form of the page, which ShellExecute opens directly.
+        var lnk = Path.Combine(_dir, "Hardware and Sound - Shortcut.lnk");
+        ShellShortcut.CreateForShellItem(@"::{26EE0668-A00A-44D7-9371-BEB064C98683}\2", lnk);
+
+        var result = LauncherDropTarget.Resolve(lnk);
+
+        Assert.Equal(@"shell:::{26EE0668-A00A-44D7-9371-BEB064C98683}\2", result.Path, ignoreCase: true);
+        Assert.Equal("Hardware and Sound", result.Label);
+    }
+
+    [Fact]
+    public void ShortcutSuffixIsDroppedFromTheLabel()
+    {
+        var target = MakeFile("tool.exe");
+        var lnk = Path.Combine(_dir, "tool.exe - Shortcut.lnk");
+        ShellShortcut.Create(target, lnk);
+
+        Assert.Equal("tool.exe", LauncherDropTarget.Resolve(lnk).Label);
+    }
+
+    [Fact]
+    public void PlainFilesKeepAShortcutLookingName()
+    {
+        // Only shortcuts get the suffix stripped: a real file named like that is the user's
+        // own choice of name.
+        Assert.Equal("Notes - Shortcut", LauncherDropTarget.Resolve(MakeFile("Notes - Shortcut.txt")).Label);
+    }
+
+    [Theory]
+    [InlineData("Hardware and Sound - Shortcut", "Hardware and Sound")]
+    [InlineData("Hardware and Sound - Shortcut (2)", "Hardware and Sound")]
+    [InlineData("Hardware e suoni - Collegamento", "Hardware e suoni")]
+    [InlineData("Hardware und Sound - Verknüpfung", "Hardware und Sound")]
+    [InlineData("notepad.exe - shortcut", "notepad.exe")]
+    [InlineData("Shortcut tools", "Shortcut tools")]
+    [InlineData("My - Shortcut thing", "My - Shortcut thing")]
+    [InlineData(" - Shortcut", " - Shortcut")]
+    [InlineData("Google Chrome", "Google Chrome")]
+    [InlineData("", "")]
+    public void StripShortcutSuffixOnlyTouchesATrailingSuffix(string label, string expected)
+    {
+        Assert.Equal(expected, LauncherDropTarget.StripShortcutSuffix(label));
+    }
+
+    [Theory]
+    [InlineData(@"::{26EE0668-A00A-44D7-9371-BEB064C98683}\2", @"shell:::{26EE0668-A00A-44D7-9371-BEB064C98683}\2")]
+    [InlineData(@"::{4234D49B-0245-4DF3-B780-3893943456E1}\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+                @"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App")]
+    [InlineData(@"C:\Some\Path.exe", @"C:\Some\Path.exe")]
+    [InlineData("", "")]
+    [InlineData(null, "")]
+    public void ShellItemTargetMapsParsingNamesToLaunchableForms(string? parsingName, string expected)
+    {
+        Assert.Equal(expected, LauncherDropTarget.ShellItemTarget(parsingName));
+    }
+
+    [Fact]
     public void EmptyInputProducesAnEmptyTarget()
     {
         var result = LauncherDropTarget.Resolve("");

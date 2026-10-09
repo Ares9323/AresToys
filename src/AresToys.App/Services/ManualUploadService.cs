@@ -64,7 +64,8 @@ public sealed class ManualUploadService
             source: ItemSource.Manual,
             searchText: fileName,
             profileId: profileId,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            sourcePath: path).ConfigureAwait(false);
     }
 
     public async Task UploadCurrentClipboardAsync(CancellationToken cancellationToken)
@@ -80,7 +81,8 @@ public sealed class ManualUploadService
             source: ItemSource.Manual,
             searchText: snapshot.SearchText,
             profileId: DefaultPipelineProfiles.ManualUploadId,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            sourcePath: snapshot.SourcePath).ConfigureAwait(false);
     }
 
     public async Task UploadTextAsync(string text, CancellationToken cancellationToken)
@@ -98,7 +100,8 @@ public sealed class ManualUploadService
     }
 
     private async Task RunPipelineAsync(
-        byte[] bytes, string extension, ItemKind kind, ItemSource source, string searchText, string profileId, CancellationToken cancellationToken)
+        byte[] bytes, string extension, ItemKind kind, ItemSource source, string searchText, string profileId, CancellationToken cancellationToken,
+        string? sourcePath = null)
     {
         var profile = await _profiles.GetAsync(profileId, cancellationToken).ConfigureAwait(false);
         if (profile is null && profileId != DefaultPipelineProfiles.ManualUploadId)
@@ -121,6 +124,8 @@ public sealed class ManualUploadService
             CreatedAt: DateTimeOffset.UtcNow,
             Payload: bytes,
             PayloadSize: bytes.LongLength,
+            // Video history items reference their file instead of storing it (issue #28).
+            BlobRef: kind == ItemKind.Video ? sourcePath : null,
             SearchText: searchText);
 
         await _executor.RunAsync(profile, ctx, cancellationToken).ConfigureAwait(false);
@@ -149,7 +154,7 @@ public sealed class ManualUploadService
                 var bytes = File.ReadAllBytes(first);
                 var ext = Path.GetExtension(first).TrimStart('.').ToLowerInvariant();
                 if (string.IsNullOrEmpty(ext)) ext = "bin";
-                return new ClipboardSnapshot(bytes, ext, KindForExtension(ext), Path.GetFileName(first));
+                return new ClipboardSnapshot(bytes, ext, KindForExtension(ext), Path.GetFileName(first), first);
             }
             if (System.Windows.Clipboard.ContainsText())
             {
@@ -176,5 +181,5 @@ public sealed class ManualUploadService
         _ => ItemKind.Files,
     };
 
-    private sealed record ClipboardSnapshot(byte[] Bytes, string Extension, ItemKind Kind, string SearchText);
+    private sealed record ClipboardSnapshot(byte[] Bytes, string Extension, ItemKind Kind, string SearchText, string? SourcePath = null);
 }

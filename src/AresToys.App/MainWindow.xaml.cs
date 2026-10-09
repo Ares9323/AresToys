@@ -1029,6 +1029,54 @@ public partial class MainWindow : FluentWindow
             row.Icon = dialog.PickedGlyph;
     }
 
+    // ── Tag editor (Settings → Categories & tags, issue #4) ──────────────────────────
+
+    private static string LocText(string key)
+        => AresToys.App.Resources.Strings.ResourceManager.GetString(key,
+               AresToys.App.Markup.LocalizedStrings.Instance.Culture ?? System.Globalization.CultureInfo.CurrentUICulture) ?? key;
+
+    private async void OnNewTagClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        var dialog = new AresToys.App.Views.TagEditDialog(LocText("TagDialog_NewTitle"),
+            isNameTaken: name => vm.Categories.IsTagNameTaken(name, exceptId: null)) { Owner = this };
+        if (dialog.ShowOwnerScopedDialog() != true || dialog.ResultName is not { } name) return;
+        try { await vm.Categories.CreateTagAsync(name, dialog.ResultColor).ConfigureAwait(true); }
+        catch (Exception ex) { ShowTagError(ex); }
+    }
+
+    private async void OnEditTagClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        if ((sender as FrameworkElement)?.Tag is not AresToys.App.ViewModels.TagBadge tag) return;
+        var dialog = new AresToys.App.Views.TagEditDialog(LocText("TagDialog_EditTitle"), tag.Name, tag.Color,
+            isNameTaken: name => vm.Categories.IsTagNameTaken(name, exceptId: tag.Id)) { Owner = this };
+        if (dialog.ShowOwnerScopedDialog() != true || dialog.ResultName is not { } name) return;
+        try { await vm.Categories.UpdateTagAsync(tag.Id, name, dialog.ResultColor).ConfigureAwait(true); }
+        catch (Exception ex) { ShowTagError(ex); }
+    }
+
+    private async void OnDeleteTagClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        if ((sender as FrameworkElement)?.Tag is not AresToys.App.ViewModels.TagBadge tag) return;
+        var culture = AresToys.App.Markup.LocalizedStrings.Instance.Culture ?? System.Globalization.CultureInfo.CurrentUICulture;
+        // CA1863 wants a cached CompositeFormat; a rare confirm dialog on a resx template that
+        // can change culture at runtime doesn't benefit from it.
+#pragma warning disable CA1863
+        var message = string.Format(culture, LocText("Tags_DeleteConfirm"), tag.Name);
+#pragma warning restore CA1863
+        var answer = System.Windows.MessageBox.Show(this, message, "AresToys",
+            System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
+        if (answer != System.Windows.MessageBoxResult.OK) return;
+        try { await vm.Categories.DeleteTagAsync(tag.Id).ConfigureAwait(true); }
+        catch (Exception ex) { ShowTagError(ex); }
+    }
+
+    private void ShowTagError(Exception ex)
+        => System.Windows.MessageBox.Show(this, ex.Message, "AresToys",
+            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+
     /// <summary>Autosave hook for category-row text / number fields. Fires on focus loss (after
     /// the binding has already pushed the new value to the VM via UpdateSourceTrigger=LostFocus)
     /// and runs the row's Save command. Default-row fields are disabled so this only ever fires
@@ -1412,9 +1460,9 @@ public partial class MainWindow : FluentWindow
         try
         {
             var result = await _settingsBackup.ImportAsync(dlg.FileName).ConfigureAwait(true);
-            var skippedNote = result.PinnedSkipped > 0 ? $" ({result.PinnedSkipped} duplicate pinned skipped)" : string.Empty;
+            var skippedNote = result.PinnedSkipped > 0 ? $" ({result.PinnedSkipped} duplicate item(s) skipped)" : string.Empty;
             System.Windows.MessageBox.Show(this,
-                $"Imported {result.Settings} setting(s), {result.Categories} categor{(result.Categories == 1 ? "y" : "ies")}, {result.PinnedItems} pinned item(s){skippedNote}.\n\nSome changes (theme, hotkeys) apply immediately; others may require restarting AresToys to take effect.",
+                $"Imported {result.Settings} setting(s), {result.Categories} categor{(result.Categories == 1 ? "y" : "ies")}, {result.Tags} tag(s), {result.PinnedItems} item(s){skippedNote}.\n\nSome changes (theme, hotkeys) apply immediately; others may require restarting AresToys to take effect.",
                 "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
         catch (Exception ex)

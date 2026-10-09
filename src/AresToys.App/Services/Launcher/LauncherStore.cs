@@ -238,6 +238,38 @@ public sealed class LauncherStore
         await SaveAsync(new LauncherState(state.Cells, titles), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Swap two tabs' pages: every cell and the title of <paramref name="tabA"/> move to
+    /// <paramref name="tabB"/> and vice versa (issue #25, dragging one tab header onto another
+    /// in docked mode). The number keys stay bound to their position, so after swapping tabs 1
+    /// and 3 the 1 key opens what used to be tab 3. One load, one save: the two halves of the
+    /// swap can't land separately. Unknown tab keys, the function strip, or the same tab twice
+    /// leave everything as it was.</summary>
+    public async Task SwapTabsAsync(string tabA, string tabB, CancellationToken cancellationToken)
+    {
+        if (string.Equals(tabA, tabB, StringComparison.OrdinalIgnoreCase)) return;
+        if (!LauncherKeyboardLayout.TabKeys.Contains(tabA, StringComparer.OrdinalIgnoreCase)
+            || !LauncherKeyboardLayout.TabKeys.Contains(tabB, StringComparer.OrdinalIgnoreCase)) return;
+
+        var state = await LoadAsync(cancellationToken).ConfigureAwait(false);
+
+        var cells = new Dictionary<string, LauncherCell>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cell in state.Cells.Values)
+        {
+            var moved = string.Equals(cell.TabKey, tabA, StringComparison.OrdinalIgnoreCase) ? cell with { TabKey = tabB }
+                      : string.Equals(cell.TabKey, tabB, StringComparison.OrdinalIgnoreCase) ? cell with { TabKey = tabA }
+                      : cell;
+            cells[moved.ComposedKey] = moved;
+        }
+
+        var titles = new Dictionary<string, string>(state.TabTitles, StringComparer.OrdinalIgnoreCase);
+        var titleA = state.TabTitle(tabA);
+        var titleB = state.TabTitle(tabB);
+        titles[tabA] = titleB;
+        titles[tabB] = titleA;
+
+        await SaveAsync(new LauncherState(cells, titles), cancellationToken).ConfigureAwait(false);
+    }
+
     private static void EnsureSlot(Dictionary<string, LauncherCell> cells, string tabKey, IEnumerable<string> keys)
     {
         foreach (var k in keys)

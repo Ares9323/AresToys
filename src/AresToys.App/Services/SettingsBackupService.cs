@@ -18,11 +18,16 @@ namespace AresToys.App.Services;
 /// import file are left alone (so a partial backup doesn't wipe categories the user didn't
 /// touch). Pinned items and user-defined categories are also bundled — pinned payloads
 /// travel in the clear (base64) on the assumption the user doesn't pin sensitive data,
-/// matching how the rest of the clipboard is treated. The version field lets future formats
-/// migrate forward.</summary>
+/// matching how the rest of the clipboard is treated. Tag definitions (v4) travel too, with the
+/// tag names of every exported item; unpinned items that carry tags (only possible in
+/// categories without retention) are exported in their own <c>TaggedItems</c> list so the
+/// tags survive a restore. The version field lets future formats migrate forward.</summary>
 public sealed class SettingsBackupService
 {
-    private const int CurrentVersion = 3;
+    /// <summary>Backup schema history: v2 pinned items, v3 adds the per-item label, v4 adds tag
+    /// definitions, per-item tag names and the <c>TaggedItems</c> list (issue #4). Older files
+    /// import fine: every added field is optional.</summary>
+    private const int CurrentVersion = 4;
     /// <summary>Cache one configured options instance — analyzer (CA1869) flags allocating a
     /// new one per call as a perf footgun. Indented output stays the default since users open
     /// these files in editors / diff tools. <see cref="JavaScriptEncoder.UnsafeRelaxedJsonEscaping"/>
@@ -38,6 +43,7 @@ public sealed class SettingsBackupService
     private readonly ISettingsStore _settings;
     private readonly ICategoryStore _categories;
     private readonly IItemStore _items;
+    private readonly ITagStore _tags;
     private readonly LauncherStore _launcher;
     private readonly ILogger<SettingsBackupService> _logger;
 
@@ -45,12 +51,14 @@ public sealed class SettingsBackupService
         ISettingsStore settings,
         ICategoryStore categories,
         IItemStore items,
+        ITagStore tags,
         LauncherStore launcher,
         ILogger<SettingsBackupService> logger)
     {
         _settings = settings;
         _categories = categories;
         _items = items;
+        _tags = tags;
         _launcher = launcher;
         _logger = logger;
     }
@@ -75,10 +83,26 @@ public sealed class SettingsBackupService
         // Page through pinned rows — passing int.MaxValue as Limit blows up because ItemStore
         // pre-sizes a List<>(capacity) with that value (2B refs). 1000 / page is plenty: pinned
         // counts are tiny by definition (rarely more than a few dozen).
+        var allTags = await _tags.ListAsync(cancellationToken).ConfigureAwait(false);
+        var tagNames = allTags.ToDictionary(t => t.Id, t => t.Name);
         var pinnedItems = new List<BackupPinnedItem>();
         await foreach (var rec in EnumerateAllAsync(pinnedOnly: true, includePayload: true, cancellationToken).ConfigureAwait(false))
         {
-            pinnedItems.Add(BackupPinnedItem.From(rec));
+            pinnedItems.Add(BackupPinnedItem.From(rec, tagNames));
+        }
+        // Unpinned items with tags: a separate list rather than PinnedItems so an older app
+        // reading this file doesn't import them as pinned (it ignores the unknown field).
+        var taggedItems = new List<BackupPinnedItem>();
+        if (allTags.Count > 0)
+        {
+            await foreach (var rec in EnumerateAllAsync(pinnedOnly: false, includePayload: false, cancellationToken).ConfigureAwait(false))
+            {
+                if (rec.Pinned || rec.Tags.Count == 0) continue;
+                // Second read with the payload only for the (few) rows that qualify, so the
+                // sweep doesn't decrypt the whole history.
+                var full = await _items.GetByIdAsync(rec.Id, includePayload: true, cancellationToken).ConfigureAwait(false);
+                if (full is not null) taggedItems.Add(BackupPinnedItem.From(full, tagNames));
+            }
         }
 
         var doc = new BackupDocument
@@ -87,13 +111,15 @@ public sealed class SettingsBackupService
             ExportedAt = DateTimeOffset.UtcNow,
             Settings = entries,
             Categories = customCategories,
+            Tags = allTags.Select(BackupTag.From).ToList(),
             PinnedItems = pinnedItems,
+            TaggedItems = taggedItems,
         };
         await using var stream = File.Create(filePath);
         await JsonSerializer.SerializeAsync(stream, doc, ExportOptions, cancellationToken).ConfigureAwait(false);
 
-        _logger.LogInformation("SettingsBackupService: exported {Settings} settings, {Categories} categories, {Pinned} pinned items to {Path}",
-            entries.Count, customCategories.Count, pinnedItems.Count, filePath);
+        _logger.LogInformation("SettingsBackupService: exported {Settings} settings, {Categories} categories, {Tags} tags, {Pinned} pinned items, {Tagged} tagged items to {Path}",
+            entries.Count, customCategories.Count, allTags.Count, pinnedItems.Count, taggedItems.Count, filePath);
     }
 
     public async Task<ImportResult> ImportAsync(string filePath, CancellationToken cancellationToken = default)
@@ -153,9 +179,31 @@ public sealed class SettingsBackupService
             }
         }
 
+        // Tag definitions first so the per-item names below resolve to them (and keep the
+        // file's colours). An existing tag with the same name is reused; its colour is only
+        // overwritten when the file carries one, mirroring how categories are updated.
+        var tagIdsByName = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var tagsImported = 0;
+        if (doc.Tags is not null)
+        {
+            foreach (var bt in doc.Tags)
+            {
+                if (TagRules.NormalizeName(bt.Name) is not { } name) continue;
+                var tag = await _tags.GetOrCreateAsync(name, bt.Color, cancellationToken).ConfigureAwait(false);
+                var color = TagRules.NormalizeColor(bt.Color);
+                if (color is not null && !string.Equals(color, tag.Color, StringComparison.Ordinal))
+                    await _tags.UpdateAsync(tag.Id, tag.Name, color, cancellationToken).ConfigureAwait(false);
+                tagIdsByName[tag.Name] = tag.Id;
+                tagsImported++;
+            }
+        }
+
         var pinnedImported = 0;
         var pinnedSkipped = 0;
-        if (doc.PinnedItems is { Count: > 0 } pinnedFromFile)
+        var fileItems = new List<(BackupPinnedItem Item, bool Pinned)>();
+        if (doc.PinnedItems is not null) fileItems.AddRange(doc.PinnedItems.Select(p => (p, true)));
+        if (doc.TaggedItems is not null) fileItems.AddRange(doc.TaggedItems.Select(p => (p, false)));
+        if (fileItems.Count > 0)
         {
             // Build the dedup index up-front: for every existing non-deleted item, hash its
             // payload so imported entries with identical (kind, payload) are skipped. We hash
@@ -163,14 +211,16 @@ public sealed class SettingsBackupService
             // which matches what's in the backup file. Pagination keeps memory bounded even on
             // large libraries — passing int.MaxValue as Limit overflows ItemStore's
             // List<>(capacity) pre-allocation.
-            var existingHashes = new HashSet<(ItemKind Kind, string Hash)>();
+            // The index maps to the existing item id so a skipped duplicate still receives the
+            // tags the file gives it.
+            var existingHashes = new Dictionary<(ItemKind Kind, string Hash), long>();
             await foreach (var rec in EnumerateAllAsync(pinnedOnly: false, includePayload: true, cancellationToken).ConfigureAwait(false))
             {
                 if (rec.Payload.IsEmpty) continue;
-                existingHashes.Add((rec.Kind, HashPayload(rec.Payload.Span)));
+                existingHashes.TryAdd((rec.Kind, HashPayload(rec.Payload.Span)), rec.Id);
             }
 
-            foreach (var bp in pinnedFromFile)
+            foreach (var (bp, pinned) in fileItems)
             {
                 if (string.IsNullOrEmpty(bp.PayloadBase64)) continue;
                 if (!Enum.TryParse<ItemKind>(bp.Kind, ignoreCase: false, out var kind)) continue;
@@ -181,8 +231,9 @@ public sealed class SettingsBackupService
                 catch (FormatException) { continue; }
 
                 var hash = HashPayload(payload);
-                if (!existingHashes.Add((kind, hash)))
+                if (existingHashes.TryGetValue((kind, hash), out var existingId))
                 {
+                    await ApplyTagsAsync(existingId, bp.Tags, tagIdsByName, cancellationToken).ConfigureAwait(false);
                     pinnedSkipped++;
                     continue;
                 }
@@ -193,7 +244,7 @@ public sealed class SettingsBackupService
                     CreatedAt: bp.CreatedAt == default ? DateTimeOffset.UtcNow : bp.CreatedAt,
                     Payload: payload,
                     PayloadSize: payload.LongLength,
-                    Pinned: true,
+                    Pinned: pinned,
                     SourceProcess: bp.SourceProcess,
                     SourceWindow: bp.SourceWindow,
                     UploadedUrl: bp.UploadedUrl,
@@ -201,14 +252,34 @@ public sealed class SettingsBackupService
                     SearchText: bp.SearchText,
                     Category: string.IsNullOrEmpty(bp.Category) ? Category.Default : bp.Category,
                     Label: bp.Label);
-                await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
+                var newId = await _items.AddAsync(newItem, cancellationToken).ConfigureAwait(false);
+                existingHashes[(kind, hash)] = newId;
+                await ApplyTagsAsync(newId, bp.Tags, tagIdsByName, cancellationToken).ConfigureAwait(false);
                 pinnedImported++;
             }
         }
 
-        _logger.LogInformation("SettingsBackupService: imported {Settings} settings, {Categories} categories, {Pinned} pinned ({Skipped} skipped) from {Path}",
-            settingsImported, categoriesImported, pinnedImported, pinnedSkipped, filePath);
-        return new ImportResult(settingsImported, categoriesImported, pinnedImported, pinnedSkipped);
+        _logger.LogInformation("SettingsBackupService: imported {Settings} settings, {Categories} categories, {Tags} tags, {Pinned} items ({Skipped} skipped) from {Path}",
+            settingsImported, categoriesImported, tagsImported, pinnedImported, pinnedSkipped, filePath);
+        return new ImportResult(settingsImported, categoriesImported, pinnedImported, pinnedSkipped, tagsImported);
+    }
+
+    /// <summary>Attach the tag names a backup item lists. A name missing from the file's tag
+    /// definitions (hand-edited file) is created on the fly with the neutral colour.</summary>
+    private async Task ApplyTagsAsync(long itemId, List<string>? names, Dictionary<string, long> tagIdsByName, CancellationToken ct)
+    {
+        if (names is not { Count: > 0 }) return;
+        foreach (var raw in names)
+        {
+            if (TagRules.NormalizeName(raw) is not { } name) continue;
+            if (!tagIdsByName.TryGetValue(name, out var tagId))
+            {
+                var created = await _tags.GetOrCreateAsync(name, null, ct).ConfigureAwait(false);
+                tagId = created.Id;
+                tagIdsByName[created.Name] = tagId;
+            }
+            await _items.AddTagAsync(itemId, tagId, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Pages through ItemStore in 1000-row chunks. ItemStore.ListAsync allocates a
@@ -245,7 +316,9 @@ public sealed class SettingsBackupService
         return Convert.ToHexString(hash);
     }
 
-    public readonly record struct ImportResult(int Settings, int Categories, int PinnedItems, int PinnedSkipped)
+    /// <summary><see cref="PinnedItems"/> / <see cref="PinnedSkipped"/> count every imported
+    /// item, unpinned tagged ones included; <see cref="Tags"/> counts the tag definitions.</summary>
+    public readonly record struct ImportResult(int Settings, int Categories, int PinnedItems, int PinnedSkipped, int Tags = 0)
     {
         public static ImportResult Empty => new(0, 0, 0, 0);
     }
@@ -256,7 +329,20 @@ public sealed class SettingsBackupService
         public DateTimeOffset ExportedAt { get; set; }
         public Dictionary<string, string>? Settings { get; set; }
         public List<BackupCategory>? Categories { get; set; }
+        /// <summary>Tag definitions. Added in backup schema v4.</summary>
+        public List<BackupTag>? Tags { get; set; }
         public List<BackupPinnedItem>? PinnedItems { get; set; }
+        /// <summary>Unpinned items that carry at least one tag, imported unpinned. Added in
+        /// backup schema v4.</summary>
+        public List<BackupPinnedItem>? TaggedItems { get; set; }
+    }
+
+    private sealed class BackupTag
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Color { get; set; }
+
+        public static BackupTag From(Tag t) => new() { Name = t.Name, Color = t.Color };
     }
 
     private sealed class BackupCategory
@@ -292,12 +378,15 @@ public sealed class SettingsBackupService
         /// field; <see cref="ImportAsync"/> imports them with a null label and the user can
         /// add one after the fact. Added in backup schema v3.</summary>
         public string? Label { get; set; }
+        /// <summary>Names of the tags on the item (names, not ids: ids are local to one
+        /// database). Absent in v2 / v3 backups. Added in backup schema v4.</summary>
+        public List<string>? Tags { get; set; }
         /// <summary>Raw item payload, base64-encoded. Stored in the clear: pinned items are
         /// assumed not to contain secrets (the user explicitly chose to pin them), and the
         /// alternative — DPAPI ciphertext — wouldn't survive a move to another machine.</summary>
         public string PayloadBase64 { get; set; } = string.Empty;
 
-        public static BackupPinnedItem From(ItemRecord r) => new()
+        public static BackupPinnedItem From(ItemRecord r, IReadOnlyDictionary<long, string> tagNames) => new()
         {
             Kind = r.Kind.ToString(),
             Source = r.Source.ToString(),
@@ -309,6 +398,9 @@ public sealed class SettingsBackupService
             SearchText = r.SearchText,
             Category = r.Category,
             Label = r.Label,
+            Tags = r.Tags.Count == 0
+                ? null
+                : r.Tags.Select(id => tagNames.TryGetValue(id, out var n) ? n : null).OfType<string>().ToList(),
             PayloadBase64 = r.Payload.IsEmpty ? string.Empty : Convert.ToBase64String(r.Payload.Span),
         };
     }

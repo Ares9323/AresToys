@@ -202,6 +202,7 @@
                         <Border Margin="3,0" CornerRadius="6,6,0,0"
                                 BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1,1,1,0"
                                 MouseLeftButtonDown="OnTabClick"
+                                MouseMove="OnTabMouseMove"
                                 MouseRightButtonDown="OnTabRightClick"
                                 Cursor="Hand"
                                 Tag="{Binding TabKey}"
@@ -209,6 +210,8 @@
                                 AllowDrop="True"
                                 DragEnter="OnTabDragOver"
                                 DragOver="OnTabDragOver"
+                                DragLeave="OnTabDragLeave"
+                                Drop="OnTabDrop"
                                 Visibility="{Binding HeaderVisibility}"
                                 ToolTip="{Markup:Loc Launcher_TabRenameHint}">
                             <Border.Style>

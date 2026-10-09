@@ -49,6 +49,10 @@ public interface IWormholeWindowManager
     /// <summary>Bring a tab to the front and remember it as the group's active one.</summary>
     Task SetActiveTabAsync(Guid wormholeId, CancellationToken cancellationToken);
 
+    /// <summary>Bring a tab to the front because the pointer is resting on it (collapsed group,
+    /// expand-on-hover on). Shown at once, remembered after a short debounce.</summary>
+    void ShowTabOnHover(Guid wormholeId);
+
     /// <summary>Which wormhole's header is under a screen point (physical pixels), ignoring the
     /// window being dragged. Used at the end of a drag to decide whether the user dropped one
     /// wormhole onto another's header, which is the gesture that merges them.</summary>

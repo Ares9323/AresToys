@@ -22,11 +22,16 @@ public sealed class ItemStore : IItemStore
     public async Task<long> AddAsync(NewItem item, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(item);
+        item = NormalizeVideoPayload(item);
         var conn = _database.GetOpenConnection();
 
         // Dedup: if the most recent non-deleted item has the same kind and identical payload,
         // bump its created_at instead of inserting a duplicate (e.g. user pastes "ciao" 5 times).
-        var dedupId = await TryDedupAsync(conn, item, cancellationToken).ConfigureAwait(false);
+        // Videos are skipped: two recordings are never "the same paste twice", and the probe
+        // would decrypt a legacy row's whole video payload just to compare it.
+        var dedupId = item.Kind == ItemKind.Video
+            ? null
+            : await TryDedupAsync(conn, item, cancellationToken).ConfigureAwait(false);
         if (dedupId is not null)
         {
             ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Added, dedupId.Value));
@@ -114,11 +119,15 @@ public sealed class ItemStore : IItemStore
     /// without having to subscribe to a separate event source.</summary>
     public void RaiseItemsChanged(ItemsChangedEventArgs args) => ItemsChanged?.Invoke(this, args);
 
-    public async Task<ItemRecord?> GetByIdAsync(long id, CancellationToken cancellationToken)
+    public Task<ItemRecord?> GetByIdAsync(long id, CancellationToken cancellationToken)
+        => GetByIdAsync(id, includePayload: true, cancellationToken);
+
+    public async Task<ItemRecord?> GetByIdAsync(long id, bool includePayload, CancellationToken cancellationToken)
     {
         var conn = _database.GetOpenConnection();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM items WHERE id = $id LIMIT 1;";
+        var payloadColumn = includePayload ? PayloadColumnSql : "NULL AS payload";
+        cmd.CommandText = $"SELECT {RecordColumnsSql}, {payloadColumn}, items.thumbnail FROM items WHERE items.id = $id LIMIT 1;";
         cmd.Parameters.AddWithValue("$id", id);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return null;
@@ -133,11 +142,12 @@ public sealed class ItemStore : IItemStore
         // When the caller doesn't need the payload (e.g. popup list), skip its column entirely so we
         // don't pay the per-row DPAPI decryption cost — for 200 image rows that's the difference
         // between instant and several seconds.
-        var payloadColumn = query.IncludePayload ? "payload" : "NULL AS payload";
+        var payloadColumn = query.IncludePayload ? PayloadColumnSql : "NULL AS payload";
         var thumbnailColumn = query.IncludeThumbnail ? "thumbnail" : "NULL AS thumbnail";
-        var sql = new System.Text.StringBuilder($"SELECT items.id, items.kind, items.source, items.created_at, items.payload_size, items.pinned, items.deleted_at, items.source_process, items.source_window, items.blob_ref, items.uploaded_url, items.uploader_id, items.search_text, items.category, items.label, items.pin_sort_order, items.trigger, {payloadColumn}, {thumbnailColumn} FROM items");
+        var sql = new System.Text.StringBuilder($"SELECT {RecordColumnsSql}, {payloadColumn}, {thumbnailColumn} FROM items");
         var hasFts = !string.IsNullOrWhiteSpace(query.Search);
         var hasCategory = !string.IsNullOrEmpty(query.Category);
+        var tagIds = query.TagIds is { Count: > 0 } ? query.TagIds.Distinct().ToList() : null;
         if (hasFts)
         {
             sql.Append(" JOIN items_fts ON items_fts.rowid = items.id");
@@ -148,9 +158,20 @@ public sealed class ItemStore : IItemStore
         if (query.Kind is not null) sql.Append(" AND items.kind = $kind");
         if (query.Pinned is not null) sql.Append(" AND items.pinned = $pinned");
         if (hasCategory) sql.Append(" AND items.category = $category");
+        // Tag filter. AND: the item must carry every requested tag, i.e. the number of its join
+        // rows among the requested ids equals the number of requested ids. OR: one is enough.
+        if (tagIds is not null)
+        {
+            var names = string.Join(", ", tagIds.Select((_, i) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"$tag{i}")));
+            if (query.TagMatchAny)
+                sql.Append(System.Globalization.CultureInfo.InvariantCulture, $" AND EXISTS (SELECT 1 FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id IN ({names}))");
+            else
+                sql.Append(System.Globalization.CultureInfo.InvariantCulture, $" AND (SELECT COUNT(*) FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id IN ({names})) = {tagIds.Count}");
+        }
         // Table-level FTS MATCH (no column prefix) searches every indexed column — currently
-        // search_text + label — so a labeled row remains findable by its content snippet AND a
-        // user-typed name. Schema v2 rebuilt items_fts with the label column for this.
+        // search_text + label + tag_text, so a labeled row remains findable by its content
+        // snippet, a user-typed name AND its tag names. Schema v2 added the label column, v5
+        // the tag column.
         if (hasFts) sql.Append(" AND items_fts MATCH $search");
 
         // Pinned rows always float to the top. Within the pinned group rows are sorted by
@@ -165,6 +186,10 @@ public sealed class ItemStore : IItemStore
         if (query.Kind is not null) cmd.Parameters.AddWithValue("$kind", query.Kind.Value.ToString());
         if (query.Pinned is not null) cmd.Parameters.AddWithValue("$pinned", query.Pinned.Value ? 1 : 0);
         if (hasCategory) cmd.Parameters.AddWithValue("$category", query.Category!);
+        if (tagIds is not null)
+        {
+            for (var i = 0; i < tagIds.Count; i++) cmd.Parameters.AddWithValue(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"$tag{i}"), tagIds[i]);
+        }
         if (hasFts) cmd.Parameters.AddWithValue("$search", BuildFtsQuery(query.Search!));
         cmd.Parameters.AddWithValue("$limit", query.Limit);
         cmd.Parameters.AddWithValue("$offset", query.Offset);
@@ -445,6 +470,37 @@ public sealed class ItemStore : IItemStore
         return rows == 1;
     }
 
+    /// <summary>Every column <see cref="Map"/> reads except payload and thumbnail, which the
+    /// callers pick per query (full, masked or NULL).
+    /// The tag ids ride along as a comma-joined correlated subquery on the (item_id, tag_id)
+    /// primary key, so the list needs no second round-trip per row.</summary>
+    private const string RecordColumnsSql =
+        "items.id, items.kind, items.source, items.created_at, items.payload_size, items.pinned, items.deleted_at, items.source_process, items.source_window, items.blob_ref, items.uploaded_url, items.uploader_id, items.search_text, items.category, items.label, items.pin_sort_order, items.trigger, "
+        + "(SELECT group_concat(item_tags.tag_id) FROM item_tags WHERE item_tags.item_id = items.id) AS tag_ids";
+
+    /// <summary>Largest Video payload a read will decrypt. New Video rows only carry their file
+    /// path (see <see cref="NormalizeVideoPayload"/>); rows written before issue #28 hold the
+    /// whole recording (hundreds of MB), and decrypting that on every preview / paste is what
+    /// filled the RAM. Those rows come back with an empty payload: their file lives at
+    /// <see cref="ItemRecord.BlobRef"/>, which is what every consumer reads anyway.
+    /// SQLite answers length() of a BLOB from the record header, without loading the content.</summary>
+    private const int MaxVideoPayloadBytes = 64 * 1024;
+
+    private static readonly string PayloadColumnSql =
+        $"CASE WHEN items.kind = 'Video' AND length(items.payload) > {MaxVideoPayloadBytes} THEN NULL ELSE items.payload END AS payload";
+
+    /// <summary>Video items never store the file bytes: the file stays on disk at BlobRef and
+    /// the payload is just that path (UTF-8). Enforced here so every producer (recorder, trim,
+    /// manual upload, backup import) gets the same shape even if it hands over the full bytes.
+    /// A Video item without a BlobRef is left untouched: there is no file to point at.</summary>
+    private static NewItem NormalizeVideoPayload(NewItem item)
+    {
+        if (item.Kind != ItemKind.Video || string.IsNullOrEmpty(item.BlobRef)) return item;
+        var pathBytes = Encoding.UTF8.GetBytes(item.BlobRef);
+        if (item.Payload.Span.SequenceEqual(pathBytes)) return item;
+        return item with { Payload = pathBytes };
+    }
+
     private ItemRecord Map(SqliteDataReader reader)
     {
         var payloadOrd = reader.GetOrdinal("payload");
@@ -498,6 +554,15 @@ public sealed class ItemStore : IItemStore
             if (!reader.IsDBNull(trigOrd)) trigger = reader.GetString(trigOrd);
         }
         catch (IndexOutOfRangeException) { /* pre-v4 schema — column missing */ }
+        // Tag ids (schema v5): comma-joined by the RecordColumnsSql subquery, NULL when the
+        // item has none. Hand-crafted SELECTs without the column fall back to "no tags".
+        IReadOnlyList<long>? tagIds = null;
+        try
+        {
+            var tagOrd = reader.GetOrdinal("tag_ids");
+            if (!reader.IsDBNull(tagOrd)) tagIds = ParseTagIds(reader.GetString(tagOrd));
+        }
+        catch (IndexOutOfRangeException) { /* column missing: no tags */ }
 
         return new ItemRecord(
             Id: reader.GetInt64(reader.GetOrdinal("id")),
@@ -519,7 +584,81 @@ public sealed class ItemStore : IItemStore
             Category: category,
             Label: label,
             PinSortOrder: pinSortOrder,
-            Trigger: trigger);
+            Trigger: trigger,
+            TagIds: tagIds);
+    }
+
+    private static long[] ParseTagIds(string joined)
+    {
+        var parts = joined.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var ids = new List<long>(parts.Length);
+        foreach (var part in parts)
+        {
+            if (long.TryParse(part, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var id))
+                ids.Add(id);
+        }
+        ids.Sort();
+        return [.. ids];
+    }
+
+    public async Task<bool> AddTagAsync(long itemId, long tagId, CancellationToken cancellationToken)
+    {
+        var conn = _database.GetOpenConnection();
+        int rows;
+        await using (var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using (var link = conn.CreateCommand())
+            {
+                link.Transaction = tx;
+                // The EXISTS guards turn a missing item / tag into a silent no-op (false) instead
+                // of a foreign-key exception; OR IGNORE does the same for an existing link.
+                link.CommandText = """
+                    INSERT OR IGNORE INTO item_tags (item_id, tag_id)
+                    SELECT $item, $tag
+                    WHERE EXISTS (SELECT 1 FROM items WHERE id = $item)
+                      AND EXISTS (SELECT 1 FROM tags WHERE id = $tag);
+                    """;
+                link.Parameters.AddWithValue("$item", itemId);
+                link.Parameters.AddWithValue("$tag", tagId);
+                rows = await link.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            if (rows > 0) await RefreshTagTextAsync(conn, tx, itemId, cancellationToken).ConfigureAwait(false);
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        if (rows > 0) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, itemId));
+        return rows > 0;
+    }
+
+    public async Task<bool> RemoveTagAsync(long itemId, long tagId, CancellationToken cancellationToken)
+    {
+        var conn = _database.GetOpenConnection();
+        int rows;
+        await using (var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using (var unlink = conn.CreateCommand())
+            {
+                unlink.Transaction = tx;
+                unlink.CommandText = "DELETE FROM item_tags WHERE item_id = $item AND tag_id = $tag;";
+                unlink.Parameters.AddWithValue("$item", itemId);
+                unlink.Parameters.AddWithValue("$tag", tagId);
+                rows = await unlink.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            if (rows > 0) await RefreshTagTextAsync(conn, tx, itemId, cancellationToken).ConfigureAwait(false);
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        if (rows > 0) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, itemId));
+        return rows > 0;
+    }
+
+    /// <summary>Rewrite the item's denormalised tag_text; the items_au trigger then re-syncs
+    /// its FTS row.</summary>
+    private static async Task RefreshTagTextAsync(SqliteConnection conn, SqliteTransaction tx, long itemId, CancellationToken ct)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = TagSql.RefreshItem;
+        cmd.Parameters.AddWithValue("$item", itemId);
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<bool> SetCategoryAsync(long id, string category, CancellationToken cancellationToken)

@@ -53,6 +53,75 @@
              ascent is taller), so tab icons looked high inside their buttons. A render-only
              shift fixes the optics without changing the tab height. -->
         <TranslateTransform x:Key="IconFontBaselineNudge" Y="2" />
+
+        <!-- Tag chip (issue #4), shared by the history rows. Neutral tags sit on the theme's
+             surface; a coloured tag uses its own fill and the contrast ink TagBadge picked. -->
+        <DataTemplate x:Key="TagBadgeChip" DataType="{x:Type vm:TagBadge}">
+            <Border CornerRadius="7" Padding="6,0,6,1" Margin="0,0,4,2">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource Surface1Brush}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasColor}" Value="True">
+                                <Setter Property="Background" Value="{Binding ColorBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding Name}" FontSize="10">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasColor}" Value="True">
+                                    <Setter Property="Foreground" Value="{Binding TextBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+        </DataTemplate>
+
+        <!-- Tag filter chip: same off / on / hover treatment as the image / text type chips
+             (neutral surface off, AccentBackgroundDark on, AccentBackground on hover). -->
+        <Style x:Key="TagFilterToggle" TargetType="ToggleButton">
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="{DynamicResource Surface3Brush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Surface3Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBackgroundDarkBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBackgroundBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </ui:FluentWindow.Resources>
     <!-- Accent-tinted 2px frame around the whole window content (titlebar + body), matching
          MainWindow / ImageEffectsWindow / GradientEditorWindow / QrGeneratorWindow. FluentWindow's
@@ -117,6 +186,7 @@
             <Grid Grid.Row="1" Margin="14,0,14,14">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />  <!-- type chips + tabs + Clear all + search (combined header) -->
+                    <RowDefinition Height="Auto" />  <!-- tag filter chips (collapsed when no tags exist) -->
                     <RowDefinition Height="*" />     <!-- history + toolbar + preview -->
                     <RowDefinition Height="Auto" />  <!-- footer -->
                 </Grid.RowDefinitions>
@@ -304,11 +374,69 @@
                                ToolTip="{Markup:Loc Clipboard_TooltipClearAll}" />
                 </Grid>
 
+                <!-- ── Tag filter strip (issue #4). One toggle chip per tag; the list shows the
+                      items carrying EVERY active tag, across all categories (no tab stays lit
+                      while a chip is on; clicking a tab turns the chips off). Collapsed when the
+                      user has no tags yet so the window looks exactly as before. -->
+                <Grid Grid.Row="1" Margin="0,0,0,6"
+                      Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- AND / OR mode toggle, the tags icon is part of the button. -->
+                    <ui:Button Grid.Column="0"
+                               Padding="7,2" Margin="0,0,8,4" VerticalAlignment="Top"
+                               Command="{Binding ToggleTagFilterModeCommand}"
+                               Focusable="False"
+                               ToolTip="{Markup:Loc Clipboard_TagFilterModeTooltip}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding TagFilterModeLabel}" FontSize="11" FontWeight="SemiBold"
+                                       MinWidth="22" TextAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xF02C;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+                    <ItemsControl Grid.Column="1" ItemsSource="{Binding TagChips}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:TagFilterChip}">
+                                <ToggleButton Style="{StaticResource TagFilterToggle}"
+                                              IsChecked="{Binding IsActive, Mode=TwoWay}"
+                                              Command="{Binding DataContext.TagFilterChangedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              Focusable="False"
+                                              ToolTip="{Binding DataContext.TagFilterTooltip, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="8" Height="8" Margin="0,0,5,0" VerticalAlignment="Center"
+                                                 Fill="{Binding Badge.ColorBrush}"
+                                                 Visibility="{Binding Badge.HasColor, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding Badge.Name}" FontSize="11" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ui:Button Grid.Column="2"
+                               Content="{Markup:Loc Clipboard_TagFilterClear}"
+                               Padding="8,2" FontSize="11"
+                               Margin="8,0,0,4" VerticalAlignment="Top"
+                               Command="{Binding ClearTagFilterCommand}"
+                               ToolTip="{Markup:Loc Clipboard_TagFilterClearTooltip}"
+                               Visibility="{Binding HasActiveTagFilter, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+
                 <!-- ── Body: history list | splitter | preview pane | vertical toolbar ────── -->
                 <!-- Toolbar lives in the rightmost (Auto) column so the GridSplitter (col 1)
                      resizes only the list and the preview — the toolbar stays anchored to the
                      window's right edge and never gets in the way of the resize handle. -->
-                <Grid Grid.Row="1">
+                <Grid Grid.Row="2">
                     <!-- MinWidths kept low so the toolbar (Auto column on the right) is always
                          guaranteed its ~40 px regardless of how aggressively the user shrinks the
                          window. The preview column's content (text + image) wraps/scales below
@@ -387,7 +515,8 @@
                                                      RelativeSource AncestorType=Window doesn't resolve from inside.
                                                      Stash the parent VM in Border.Tag and rebind the menu's
                                                      DataContext via PlacementTarget.Tag. -->
-                                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                             Opened="OnItemRowMenuOpened">
                                                     <MenuItem Header="{Markup:Loc Clipboard_MenuPinUnpin}"
                                                               Command="{Binding TogglePinSelectedCommand}" />
                                                     <Separator />
@@ -420,6 +549,11 @@
                                                          IsRenaming=true so the title TextBlock swaps for a TextBox. -->
                                                     <MenuItem Header="{Markup:Loc Clipboard_MenuRenameLabel}"
                                                               Click="OnRenameLabelClicked" />
+                                                    <!-- Tags submenu (issue #4): filled from code-behind every time
+                                                         the menu opens (OnItemRowMenuOpened), with one checkable
+                                                         entry per tag plus "New tag…". Rows that can't take new
+                                                         tags only list the tags they already carry, for removal. -->
+                                                    <MenuItem Tag="tags" Header="{Markup:Loc Clipboard_MenuTags}" />
                                                     <Separator />
                                                     <!-- Generate QR — only meaningful for text-shaped rows
                                                          (Text/Html/Rtf). On Image/Video/Files the entry hides
@@ -433,6 +567,11 @@
                                                     <MenuItem Header="{Markup:Loc Clipboard_MenuTrimVideo}"
                                                               Click="OnTrimVideoClicked"
                                                               Visibility="{Binding IsTrimmableVideoSelected, Converter={StaticResource BoolToVisibility}}" />
+                                                    <!-- Pin to screen: images (Image rows, image files) and
+                                                         videos / animated GIFs still on disk. Hidden otherwise. -->
+                                                    <MenuItem Header="{Markup:Loc Clipboard_MenuPinToScreen}"
+                                                              Click="OnPinToScreenClicked"
+                                                              Visibility="{Binding IsPinnableSelected, Converter={StaticResource BoolToVisibility}}" />
                                                     <Separator />
                                                     <MenuItem Header="{Markup:Loc Common_Delete}"
                                                               Command="{Binding DeleteSelectedCommand}" />
@@ -525,6 +664,20 @@
                                                                  LostFocus="OnRenameTextBoxLostFocus"
                                                                  Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}}" />
                                                     </Grid>
+                                                    <!-- Tag chips (issue #4) right after the title, on their own
+                                                         wrapping line so long titles and the metadata strip below
+                                                         keep their space. Collapsed on untagged rows. -->
+                                                    <ItemsControl ItemsSource="{Binding Tags}"
+                                                                  ItemTemplate="{StaticResource TagBadgeChip}"
+                                                                  Focusable="False" IsHitTestVisible="False"
+                                                                  Margin="0,3,0,0"
+                                                                  Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel Orientation="Horizontal" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
                                                     <!-- Secondary line: original content snippet shown under a label
                                                          when the user opts in via App Settings →
                                                          clipboard.show_snippet_with_label. ShowSnippet on the row VM
@@ -1002,7 +1155,7 @@
                 </Grid>
 
                 <!-- ── Footer hint ─────────────────────────────────────────────────────────── -->
-                <TextBlock Grid.Row="2"
+                <TextBlock Grid.Row="3"
                            Margin="0,10,0,0"
                            HorizontalAlignment="Center"
                            Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"

@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.Json.Nodes;
 using AresToys.App.Services.Recording;
+using AresToys.Core.Domain;
 using AresToys.Core.Pipeline;
 using AresToys.Pipeline.Tasks;
 using AresToys.Storage.Items;
@@ -11,21 +13,22 @@ using Microsoft.Extensions.Logging;
 
 namespace AresToys.App.Services.PipelineTasks;
 
-/// <summary>Saves a video payload produced by <see cref="RecordScreenTask"/> to the configured
+/// <summary>Saves a video produced by <see cref="RecordScreenTask"/> to the configured
 /// capture folder, optionally transcoding into a different container/codec. Mirrors
 /// <see cref="SaveToFileTask"/> for raster images but routes through ffmpeg when the user's
 /// target format doesn't match the recorded MP4.
 /// <para>
-/// Inputs (bag): <c>payload_bytes</c>, <c>file_extension</c>, <c>local_path</c> (the recorder's
-/// temp MP4 — used as ffmpeg's input file so we don't roundtrip the bytes through stdin).
+/// Inputs (bag): <c>local_path</c> (the recorder's temp MP4, moved to the destination or used
+/// as ffmpeg's input file), <c>file_extension</c>. <c>payload_bytes</c> is only a fallback for
+/// producers that hand over bytes instead of a file: recordings are never loaded into memory.
 /// </para>
 /// <para>
 /// Outputs (bag): <c>local_path</c> (final saved path), <c>text</c> (= local_path), updated
-/// <c>payload_bytes</c> + <c>file_extension</c> if a transcode happened, updated
-/// <c>new_item</c> BlobRef so AddToHistoryTask points the history row at the final file.
+/// <c>file_extension</c> if a transcode happened, updated <c>new_item</c> (BlobRef + path
+/// payload) so AddToHistoryTask points the history row at the final file.
 /// </para>
 /// <para>
-/// Config: <c>format</c> (mp4 / gif / webm / mov — default mp4), <c>folder</c>,
+/// Config: <c>format</c> (mp4 / gif / webm / mov, default mp4), <c>folder</c>,
 /// <c>subfolder_pattern</c>, <c>showNotification</c>.
 /// </para></summary>
 public sealed class SaveVideoFileTask : IPipelineTask
@@ -63,11 +66,21 @@ public sealed class SaveVideoFileTask : IPipelineTask
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) || rawBytes is not byte[] bytes)
+        // Primary input is the file at bag.local_path (RecordScreenTask's temp recording): the
+        // video is never loaded into memory (issue #28, a 250MB gif ended up copied dozens of
+        // times). bag.payload_bytes is only a fallback for producers that hand over bytes.
+        var sourcePath = context.Bag.TryGetValue(PipelineBagKeys.LocalPath, out var rawLocal) && rawLocal is string lp && File.Exists(lp)
+            ? lp
+            : null;
+        var bytes = context.Bag.TryGetValue(PipelineBagKeys.PayloadBytes, out var rawBytes) && rawBytes is byte[] b ? b : null;
+        if (sourcePath is null && bytes is null)
         {
-            _logger.LogWarning("SaveVideoFileTask: bag.payload_bytes missing or not byte[] — skipping (expected after RecordScreenTask).");
+            _logger.LogWarning("SaveVideoFileTask: neither bag.local_path nor bag.payload_bytes available, skipping (expected after RecordScreenTask).");
             return;
         }
+        // Only the recorder's own temp file may be moved or deleted: any other local_path
+        // belongs to the user (or to an earlier step) and is copied instead.
+        var ownsSource = sourcePath is not null && IsPipelineTempRecording(sourcePath);
 
         var sourceExt = context.Bag.TryGetValue(PipelineBagKeys.FileExtension, out var rawExt) && rawExt is string ext
             ? ext.TrimStart('.').ToLowerInvariant()
@@ -85,67 +98,129 @@ public sealed class SaveVideoFileTask : IPipelineTask
             context.Bag.TryGetValue(PipelineBagKeys.AppName, out var rawApp) ? rawApp as string : null,
             cancellationToken).ConfigureAwait(false);
         var fullPath = BuildDestinationPath(folder, baseName, targetExt);
+        var transcoded = false;
 
         // Fast path: target format == source format (i.e. user picked mp4 and recorder gave us
-        // mp4). Write the bytes directly to the destination, no ffmpeg roundtrip. Same shape as
+        // mp4). Move / copy the file to the destination, no ffmpeg roundtrip. Same shape as
         // SaveToFileTask when the format override matches the bag's existing extension.
         if (string.Equals(targetExt, sourceExt, StringComparison.OrdinalIgnoreCase))
         {
-            await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken).ConfigureAwait(false);
-            _logger.LogDebug("SaveVideoFileTask: copied {Bytes} bytes ({Ext}) to {Path}", bytes.Length, targetExt, fullPath);
+            await PlaceSourceAsync(sourcePath, bytes, ownsSource, fullPath, cancellationToken).ConfigureAwait(false);
+            _logger.LogDebug("SaveVideoFileTask: saved {Ext} to {Path}", targetExt, fullPath);
         }
         else
         {
-            // Transcode path: ffmpeg reads the existing temp file (bag.local_path set by
-            // RecordScreenTask) — passing a file is much cheaper than piping through stdin
-            // (no double buffering, ffmpeg seeks freely for the palette pass). If local_path
-            // is somehow missing or the file is gone, we materialise the payload_bytes into a
-            // fresh temp file ourselves so the transcode still has a source.
-            var sourcePath = await ResolveSourceFileAsync(context, bytes, sourceExt, cancellationToken)
-                .ConfigureAwait(false);
-            var transcodedOk = await TranscodeAsync(sourcePath, fullPath, targetExt, cancellationToken)
+            // Transcode path: ffmpeg reads the existing temp file. Passing a file is much
+            // cheaper than piping through stdin (no double buffering, ffmpeg seeks freely for
+            // the palette pass). Without a file (bytes-only producer) we materialise the payload
+            // into a scratch file ourselves so the transcode still has a source.
+            var scratch = sourcePath is null
+                ? await MaterializeAsync(bytes!, sourceExt, cancellationToken).ConfigureAwait(false)
+                : null;
+            var transcodedOk = await TranscodeAsync(sourcePath ?? scratch!, fullPath, targetExt, cancellationToken)
                 .ConfigureAwait(false);
             if (!transcodedOk)
             {
                 _logger.LogWarning("SaveVideoFileTask: ffmpeg transcode {Src} → {Dst} failed; falling back to source-format write",
                     sourceExt, targetExt);
-                // Fallback: write the original bytes with the source extension so the user at
-                // least gets the recording. Re-derive the path with the source ext.
+                // Fallback: keep the original recording with the source extension so the user
+                // at least gets it. Re-derive the path with the source ext.
+                TryDelete(fullPath);
                 fullPath = BuildDestinationPath(folder, baseName, sourceExt);
-                await File.WriteAllBytesAsync(fullPath, bytes, cancellationToken).ConfigureAwait(false);
+                await PlaceSourceAsync(sourcePath, bytes, ownsSource, fullPath, cancellationToken).ConfigureAwait(false);
                 targetExt = sourceExt;
             }
             else
             {
-                // Re-read the transcoded bytes back into the bag so downstream Upload /
-                // AddToHistory etc. see the transcoded format. The original mp4 payload is no
-                // longer the truth once we've changed format.
-                bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false);
-                context.Bag[PipelineBagKeys.PayloadBytes] = bytes;
+                transcoded = true;
+                // The temp recording has been fully consumed by the transcode.
+                if (ownsSource) TryDelete(sourcePath!);
                 context.Bag[PipelineBagKeys.FileExtension] = targetExt;
+                // Bytes handed over by the producer describe the old format: drop them so later
+                // steps (Upload, Save as) read the transcoded file from bag.local_path instead.
+                context.Bag.Remove(PipelineBagKeys.PayloadBytes);
             }
+            if (scratch is not null) TryDelete(scratch);
         }
 
         context.Bag[PipelineBagKeys.LocalPath] = fullPath;
         context.Bag[PipelineBagKeys.Text] = fullPath;
         // Point the pending NewItem (built by RecordScreenTask, will be consumed by
         // AddToHistoryTask) at the final destination so the history row's BlobRef is the saved
-        // file, not the temp recording. The payload bytes stored in the item already match the
-        // current bag.payload_bytes.
+        // file, not the temp recording. Video items carry only the path as payload.
         if (context.Bag.TryGetValue(PipelineBagKeys.NewItem, out var rawItem) && rawItem is NewItem ni)
         {
-            context.Bag[PipelineBagKeys.NewItem] = ni with
+            if (ni.Kind == ItemKind.Video)
             {
-                Payload = bytes,
-                PayloadSize = bytes.LongLength,
-                BlobRef = fullPath,
-            };
+                ni = ni with
+                {
+                    Payload = Encoding.UTF8.GetBytes(fullPath),
+                    PayloadSize = new FileInfo(fullPath).Length,
+                    BlobRef = fullPath,
+                };
+            }
+            else if (transcoded)
+            {
+                var newBytes = await File.ReadAllBytesAsync(fullPath, cancellationToken).ConfigureAwait(false);
+                ni = ni with { Payload = newBytes, PayloadSize = newBytes.LongLength, BlobRef = fullPath };
+            }
+            else
+            {
+                ni = ni with { BlobRef = fullPath };
+            }
+            context.Bag[PipelineBagKeys.NewItem] = ni;
         }
 
         if ((bool?)config?["showNotification"] == true && _notifier is not null)
         {
             _notifier.ShowFromBag(context, (string?)config?["notificationTitle"]);
         }
+    }
+
+    /// <summary>True when <paramref name="path"/> lives in the recorder's pipeline temp folder,
+    /// i.e. a file this pipeline owns and may move or delete.</summary>
+    internal static bool IsPipelineTempRecording(string path)
+    {
+        try
+        {
+            var root = Path.GetFullPath(RecordingCoordinator.PipelineTempFolder)
+                .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception) { return false; }
+    }
+
+    /// <summary>Put the source at <paramref name="destination"/>: move the owned temp recording,
+    /// copy any other file, or write the bytes when there is no file at all.</summary>
+    private async Task PlaceSourceAsync(string? sourcePath, byte[]? bytes, bool ownsSource, string destination, CancellationToken ct)
+    {
+        if (sourcePath is null)
+        {
+            await File.WriteAllBytesAsync(destination, bytes!, ct).ConfigureAwait(false);
+            return;
+        }
+        if (ownsSource)
+        {
+            try
+            {
+                File.Move(sourcePath, destination);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "SaveVideoFileTask: moving {Src} failed, copying instead", sourcePath);
+            }
+            File.Copy(sourcePath, destination);
+            TryDelete(sourcePath);
+            return;
+        }
+        File.Copy(sourcePath, destination);
+    }
+
+    private void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception ex) { _logger.LogWarning(ex, "SaveVideoFileTask: could not delete {Path}", path); }
     }
 
     private async Task<string> ResolveFolderAsync(JsonNode? config, CancellationToken ct)
@@ -179,16 +254,14 @@ public sealed class SaveVideoFileTask : IPipelineTask
         return candidate;
     }
 
-    private static async Task<string> ResolveSourceFileAsync(PipelineContext context, byte[] bytes, string sourceExt, CancellationToken ct)
+    /// <summary>Write bytes from a bytes-only producer into a scratch file ffmpeg can read.
+    /// The caller deletes it once the transcode is done.</summary>
+    private static async Task<string> MaterializeAsync(byte[] bytes, string sourceExt, CancellationToken ct)
     {
-        if (context.Bag.TryGetValue(PipelineBagKeys.LocalPath, out var raw) && raw is string p && File.Exists(p))
-            return p;
-        // Bag.local_path lost / temp file evicted — rematerialise so ffmpeg has a file to read.
-        var fallback = Path.Combine(Path.GetTempPath(), "AresToys", "recordings",
-            $"transcode-input-{Guid.NewGuid():N}.{sourceExt}");
-        Directory.CreateDirectory(Path.GetDirectoryName(fallback)!);
-        await File.WriteAllBytesAsync(fallback, bytes, ct).ConfigureAwait(false);
-        return fallback;
+        var scratch = Path.Combine(RecordingCoordinator.PipelineTempFolder, $"transcode-input-{Guid.NewGuid():N}.{sourceExt}");
+        Directory.CreateDirectory(Path.GetDirectoryName(scratch)!);
+        await File.WriteAllBytesAsync(scratch, bytes, ct).ConfigureAwait(false);
+        return scratch;
     }
 
     /// <summary>Launches ffmpeg with a target-format-specific encoder chain. Returns true on

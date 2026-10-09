@@ -30,6 +30,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IMigration, Migration002AddItemLabel>();
         services.AddSingleton<IMigration, Migration003AddPinSortOrder>();
         services.AddSingleton<IMigration, Migration004AddItemTrigger>();
+        services.AddSingleton<IMigration, Migration005AddTags>();
         services.AddSingleton<MigrationRunner>(sp =>
             new MigrationRunner(sp.GetServices<IMigration>()));
         services.AddSingleton<IAresToysDatabase, AresToysDatabase>();
@@ -37,6 +38,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<ItemSerializer>();
         services.AddSingleton<IItemStore, ItemStore>();
         services.AddSingleton<ICategoryStore, SqliteCategoryStore>();
+        services.AddSingleton<ITagStore, SqliteTagStore>();
 
         services.AddSingleton<IBlobStore, FileSystemBlobStore>();
 

@@ -764,6 +764,12 @@ namespace AresToys.App.Resources {
             }
         }
 
+        public static string Clipboard_MenuPinToScreen {
+            get {
+                return ResourceManager.GetString("Clipboard_MenuPinToScreen", resourceCulture);
+            }
+        }
+
         public static string Clipboard_TooltipTrimVideo {
             get {
                 return ResourceManager.GetString("Clipboard_TooltipTrimVideo", resourceCulture);
@@ -3448,7 +3454,11 @@ namespace AresToys.App.Resources {
         public static string PinnedImage_CopyTooltip => ResourceManager.GetString("PinnedImage_CopyTooltip", resourceCulture);
         public static string PinnedImage_OpenEditorTooltip => ResourceManager.GetString("PinnedImage_OpenEditorTooltip", resourceCulture);
         public static string PinnedImage_ResetZoomTooltip => ResourceManager.GetString("PinnedImage_ResetZoomTooltip", resourceCulture);
+        public static string PinnedImage_OpacityTooltip => ResourceManager.GetString("PinnedImage_OpacityTooltip", resourceCulture);
         public static string PinnedImage_SaveTooltip => ResourceManager.GetString("PinnedImage_SaveTooltip", resourceCulture);
+        public static string PinnedVideo_ControlsHint => ResourceManager.GetString("PinnedVideo_ControlsHint", resourceCulture);
+        public static string PinToScreen_VideoUnavailable => ResourceManager.GetString("PinToScreen_VideoUnavailable", resourceCulture);
+        public static string PinToScreen_ImageUnavailable => ResourceManager.GetString("PinToScreen_ImageUnavailable", resourceCulture);
         public static string QrCode_Title => ResourceManager.GetString("QrCode_Title", resourceCulture);
         public static string QrCode_ScanToOpen => ResourceManager.GetString("QrCode_ScanToOpen", resourceCulture);
         public static string RegionOverlay_Instructions => ResourceManager.GetString("RegionOverlay_Instructions", resourceCulture);
@@ -5508,7 +5518,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Clipboard Categories.
+        ///   Looks up a localized string similar to Categories &amp; tags.
         /// </summary>
         public static string Sidebar_ClipboardCategories {
             get {
@@ -8293,6 +8303,132 @@ namespace AresToys.App.Resources {
         public static string WormholePresets_OverwriteConfirm {
             get {
                 return ResourceManager.GetString("WormholePresets_OverwriteConfirm", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_MenuTags {
+            get {
+                return ResourceManager.GetString("Clipboard_MenuTags", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_MenuNewTag {
+            get {
+                return ResourceManager.GetString("Clipboard_MenuNewTag", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_MenuTagsLocked {
+            get {
+                return ResourceManager.GetString("Clipboard_MenuTagsLocked", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TagFilterTooltip {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterTooltip", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TagFilterTooltipAny {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterTooltipAny", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TagFilterModeTooltip {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterModeTooltip", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TagFilterClear {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterClear", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TagFilterClearTooltip {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterClearTooltip", resourceCulture);
+            }
+        }
+
+        public static string TagDialog_NewTitle {
+            get {
+                return ResourceManager.GetString("TagDialog_NewTitle", resourceCulture);
+            }
+        }
+
+        public static string TagDialog_EditTitle {
+            get {
+                return ResourceManager.GetString("TagDialog_EditTitle", resourceCulture);
+            }
+        }
+
+        public static string TagDialog_NameLabel {
+            get {
+                return ResourceManager.GetString("TagDialog_NameLabel", resourceCulture);
+            }
+        }
+
+        public static string TagDialog_ColorLabel {
+            get {
+                return ResourceManager.GetString("TagDialog_ColorLabel", resourceCulture);
+            }
+        }
+
+        public static string TagDialog_NoColor {
+            get {
+                return ResourceManager.GetString("TagDialog_NoColor", resourceCulture);
+            }
+        }
+
+        public static string TagDialog_NameTaken {
+            get {
+                return ResourceManager.GetString("TagDialog_NameTaken", resourceCulture);
+            }
+        }
+
+        public static string Tags_SectionTitle {
+            get {
+                return ResourceManager.GetString("Tags_SectionTitle", resourceCulture);
+            }
+        }
+
+        public static string Tags_Blurb {
+            get {
+                return ResourceManager.GetString("Tags_Blurb", resourceCulture);
+            }
+        }
+
+        public static string Tags_Empty {
+            get {
+                return ResourceManager.GetString("Tags_Empty", resourceCulture);
+            }
+        }
+
+        public static string Tags_ItemCountTooltip {
+            get {
+                return ResourceManager.GetString("Tags_ItemCountTooltip", resourceCulture);
+            }
+        }
+
+        public static string Tags_EditTooltip {
+            get {
+                return ResourceManager.GetString("Tags_EditTooltip", resourceCulture);
+            }
+        }
+
+        public static string Tags_DeleteTooltip {
+            get {
+                return ResourceManager.GetString("Tags_DeleteTooltip", resourceCulture);
+            }
+        }
+
+        public static string Tags_DeleteConfirm {
+            get {
+                return ResourceManager.GetString("Tags_DeleteConfirm", resourceCulture);
             }
         }
     }
