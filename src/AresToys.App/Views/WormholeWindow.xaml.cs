@@ -1171,7 +1171,8 @@ public partial class WormholeWindow : Window
                 var vm = new WormholeItemViewModel(
                     path, _icons,
                     EffectiveIconSize(), EffectiveTilePadding(), EffectiveLineSpacing(),
-                    EffectiveLabelFontSize(), EffectiveLabelMaxLines());
+                    EffectiveLabelFontSize(), EffectiveLabelMaxLines(),
+                    _defaults?.HideFileExtensions ?? false);
                 _items.Add(vm);
                 MaybeResolveFavicon(vm, path);
             }

@@ -475,6 +475,8 @@
   <data name="Pattern_MonthTooltip" xml:space="preserve"><value>Numero del mese — 01-12</value></data>
   <data name="Pattern_MonthNameTooltip" xml:space="preserve"><value>Nome del mese — March</value></data>
   <data name="Pattern_DayTooltip" xml:space="preserve"><value>Giorno del mese — 01-31</value></data>
+  <data name="Wormhole_HideFileExtensions" xml:space="preserve"><value>Nascondi le estensioni dei file</value></data>
+  <data name="Wormhole_HideFileExtensionsTooltip" xml:space="preserve"><value>Se attivo, i file mostrano il nome senza estensione (report.pdf appare come report). Le cartelle mantengono il nome completo. Rinominando un elemento si vede sempre il nome completo, quindi l'estensione resta modificabile. Disattivato di default.</value></data>
   <data name="Pattern_HourTooltip" xml:space="preserve"><value>Ora 24h — 00-23</value></data>
   <data name="Pattern_MinuteTooltip" xml:space="preserve"><value>Minuti — 00-59</value></data>
   <data name="Pattern_SecondTooltip" xml:space="preserve"><value>Secondi — 00-59</value></data>

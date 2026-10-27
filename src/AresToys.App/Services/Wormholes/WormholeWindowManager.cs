@@ -98,6 +98,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         _defaults.OpenWithOneClickChanged += (_, _) => RefreshAllLiveItemCursor();
         // The service-file filter decides which entries exist as tiles, so this one re-enumerates.
         _defaults.ServiceFilesVisibilityChanged += (_, _) => RefreshAllLivePortalItems();
+        // The label text is fixed when the item view models are built, so re-enumerating the
+        // sources rebuilds every tile with (or without) its extension.
+        _defaults.HideFileExtensionsChanged += (_, _) => RefreshAllLivePortalItems();
         // The shortcut arrow is painted into the bitmap when it's extracted, so flipping it means
         // telling the icon service (which drops its cache) and then re-rendering every tile.
         _defaults.ShortcutArrowOverlayChanged += (_, _) =>

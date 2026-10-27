@@ -97,6 +97,10 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// arrow in their bottom-left corner.</summary>
     [ObservableProperty] private bool _shortcutArrowOverlay = true;
 
+    /// <summary>When true (default false) tile labels drop the file extension; renaming a tile
+    /// still shows the full file name.</summary>
+    [ObservableProperty] private bool _hideFileExtensions;
+
     /// <summary>Snap drag / resize to a <see cref="SnapGridSizePx"/> lattice anchored to the
     /// monitor's work area.</summary>
     [ObservableProperty] private bool _snapToGrid;
@@ -137,6 +141,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         OpenWithOneClick = _defaults.OpenWithOneClick;
         HideServiceFiles = _defaults.HideServiceFiles;
         ShortcutArrowOverlay = _defaults.ShortcutArrowOverlay;
+        HideFileExtensions = _defaults.HideFileExtensions;
         SnapToGrid = _defaults.SnapToGrid;
         SnapGridSizePx = _defaults.SnapGridSizePx;
         SnapToWormholes = _defaults.SnapToWormholes;
@@ -239,6 +244,12 @@ public sealed partial class WormholesViewModel : ObservableObject
         _ = _defaults.SetShortcutArrowOverlayAsync(value, CancellationToken.None);
     }
 
+    partial void OnHideFileExtensionsChanged(bool value)
+    {
+        if (_suppressDefaultsPersist) return;
+        _ = _defaults.SetHideFileExtensionsAsync(value, CancellationToken.None);
+    }
+
     partial void OnHideServiceFilesChanged(bool value)
     {
         if (_suppressDefaultsPersist) return;
@@ -321,6 +332,7 @@ public sealed partial class WormholesViewModel : ObservableObject
             OpenWithOneClick        = _defaults.OpenWithOneClick;
             HideServiceFiles        = _defaults.HideServiceFiles;
             ShortcutArrowOverlay    = _defaults.ShortcutArrowOverlay;
+            HideFileExtensions      = _defaults.HideFileExtensions;
             SnapToGrid              = _defaults.SnapToGrid;
             SnapGridSizePx          = _defaults.SnapGridSizePx;
             SnapToWormholes         = _defaults.SnapToWormholes;

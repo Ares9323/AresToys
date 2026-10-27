@@ -72,6 +72,12 @@ public sealed partial class WormholeItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayNameWrappable))]
     private string _displayName = string.Empty;
 
+    /// <summary>The text the tile actually shows: <see cref="DisplayName"/>, minus the file
+    /// extension when the "hide file extensions" option is on. Decided once at construction,
+    /// because a toggle of the option rebuilds every item. Rename reads the real file name from
+    /// <see cref="AbsolutePath"/>, never this, so the extension is always visible while editing.</summary>
+    private readonly string _label = string.Empty;
+
     /// <summary><see cref="DisplayName"/> con zero-width space (U+200B) iniettati ai SOLI
     /// confini sensati, così WPF <c>TextWrapping="Wrap"</c> preferisca andare a capo fra parole
     /// vere quando possibile e ripieghi su rotture interne solo per run davvero impossibili.
@@ -91,7 +97,7 @@ public sealed partial class WormholeItemViewModel : ObservableObject
     {
         get
         {
-            var s = DisplayName;
+            var s = _label;
             if (string.IsNullOrEmpty(s) || s.Length < 2) return s;
             const int FallbackRunLimit = 8;
             var sb = new System.Text.StringBuilder(s.Length + 8);
@@ -153,7 +159,8 @@ public sealed partial class WormholeItemViewModel : ObservableObject
         int tilePaddingPx,
         int lineSpacingPx = 0,
         int labelFontSizePx = 11,
-        int labelMaxLines = 2)
+        int labelMaxLines = 2,
+        bool hideExtension = false)
     {
         AbsolutePath = absolutePath;
         IconSizePx = iconSizePx;
@@ -162,7 +169,22 @@ public sealed partial class WormholeItemViewModel : ObservableObject
         LabelFontSizePx = labelFontSizePx;
         LabelMaxLines = labelMaxLines;
         DisplayName = ResolveDisplayName(absolutePath);
+        _label = hideExtension ? StripExtension(absolutePath, DisplayName) : DisplayName;
         Icon = icons.GetIconAtSize(absolutePath, iconSizePx);
+    }
+
+    /// <summary>The label without the file extension. Folders keep their full name, and so does a
+    /// name that would end up empty (".gitignore"). A <c>.lnk</c> / <c>.url</c> already lost its
+    /// extension in <see cref="ResolveDisplayName"/>, so its label is returned as is.</summary>
+    private static string StripExtension(string absolutePath, string displayName)
+    {
+        var ext = Path.GetExtension(absolutePath);
+        if (string.Equals(ext, ".lnk", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(ext, ".url", StringComparison.OrdinalIgnoreCase))
+            return displayName;
+        if (Directory.Exists(absolutePath)) return displayName;
+        var stem = Path.GetFileNameWithoutExtension(displayName);
+        return string.IsNullOrEmpty(stem) ? displayName : stem;
     }
 
     /// <summary>Strip the <c>.lnk</c> / <c>.url</c> extension from the visible label (Explorer

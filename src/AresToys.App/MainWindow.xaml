@@ -2568,6 +2568,14 @@
                                       ToolTip="{Markup:Loc Settings_ModuleLauncherTooltip}" />
                             <CheckBox IsChecked="{Binding WormholesModuleEnabled, Mode=TwoWay}"
                                       Content="{Markup:Loc Settings_ModuleWormholes}"
+                            <!-- Labels without the file extension. Rename mode always shows the
+                                 full name, so the extension stays editable. -->
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.HideFileExtensions, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_HideFileExtensions}"
+                                      ToolTip="{Markup:Loc Wormhole_HideFileExtensionsTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_ModuleWormholesTooltip}" />

@@ -3343,6 +3343,8 @@ namespace AresToys.App.Resources {
         public static string Wormhole_WebLinkFaviconsTooltip => ResourceManager.GetString("Wormhole_WebLinkFaviconsTooltip", resourceCulture);
         public static string Wormhole_ShortcutArrow => ResourceManager.GetString("Wormhole_ShortcutArrow", resourceCulture);
         public static string Wormhole_ShortcutArrowTooltip => ResourceManager.GetString("Wormhole_ShortcutArrowTooltip", resourceCulture);
+        public static string Wormhole_HideFileExtensions => ResourceManager.GetString("Wormhole_HideFileExtensions", resourceCulture);
+        public static string Wormhole_HideFileExtensionsTooltip => ResourceManager.GetString("Wormhole_HideFileExtensionsTooltip", resourceCulture);
         public static string Wormhole_KeepVisibleOnShowDesktop => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktop", resourceCulture);
         public static string Wormhole_KeepVisibleOnShowDesktopTooltip => ResourceManager.GetString("Wormhole_KeepVisibleOnShowDesktopTooltip", resourceCulture);
         public static string Wormhole_ExpandCollapsedOnHover => ResourceManager.GetString("Wormhole_ExpandCollapsedOnHover", resourceCulture);

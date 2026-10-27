@@ -30,6 +30,7 @@ public sealed class WormholeDefaultsService
     public const string OpenWithOneClickKey = "app.wormholes.open_with_one_click";
     public const string HideServiceFilesKey = "app.wormholes.hide_service_files";
     public const string ShortcutArrowOverlayKey = "app.wormholes.shortcut_arrow_overlay";
+    public const string HideFileExtensionsKey = "app.wormholes.hide_file_extensions";
     public const string SnapToGridKey       = "app.wormholes.snap_to_grid";
     public const string SnapGridSizeKey     = "app.wormholes.snap_grid_size_px";
     public const string SnapToWormholesKey  = "app.wormholes.snap_to_wormholes";
@@ -106,6 +107,7 @@ public sealed class WormholeDefaultsService
     private bool _openWithOneClick;
     private bool _hideServiceFiles = true;
     private bool _shortcutArrowOverlay = true;
+    private bool _hideFileExtensions;
     private bool _snapToGrid;
     private int _snapGridSizePx = SnapGridFallback;
     private bool _snapToWormholes;
@@ -199,6 +201,11 @@ public sealed class WormholeDefaultsService
     /// better on a wall of tiles that are ALL shortcuts, where the arrow marks nothing.</summary>
     public bool ShortcutArrowOverlay => _shortcutArrowOverlay;
 
+    /// <summary>When true a tile's label drops the file extension ("report.pdf" reads "report").
+    /// Folders and extension-only names keep their full name, and renaming a tile still shows the
+    /// whole file name. Off by default, so labels read exactly as the files are called.</summary>
+    public bool HideFileExtensions => _hideFileExtensions;
+
     /// <summary>Snap a dragged / resized wormhole's edges to a <see cref="SnapGridSizePx"/> grid.</summary>
     public bool SnapToGrid => _snapToGrid;
 
@@ -232,6 +239,10 @@ public sealed class WormholeDefaultsService
     /// without) the arrow at extraction time and cached that way, so the handler has to drop the
     /// icon cache before re-rendering the live windows.</summary>
     public event EventHandler? ShortcutArrowOverlayChanged;
+
+    /// <summary>Raised when the hide-file-extensions option was toggled. The labels are built with
+    /// the item view models, so every live window rebuilds its tiles.</summary>
+    public event EventHandler? HideFileExtensionsChanged;
 
     /// <summary>Raised when the "keep visible on Show desktop" default changed. Live windows
     /// join or leave the desktop's z-order group in response (see <see cref="DesktopOwnership"/>).</summary>
@@ -331,6 +342,10 @@ public sealed class WormholeDefaultsService
             var shortcutArrowRaw = await _store.GetAsync(ShortcutArrowOverlayKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(shortcutArrowRaw, out var shortcutArrow))
                 _shortcutArrowOverlay = shortcutArrow;
+
+            var hideExtensionsRaw = await _store.GetAsync(HideFileExtensionsKey, cancellationToken).ConfigureAwait(false);
+            if (bool.TryParse(hideExtensionsRaw, out var hideExtensions))
+                _hideFileExtensions = hideExtensions;
 
             var snapGridRaw = await _store.GetAsync(SnapToGridKey, cancellationToken).ConfigureAwait(false);
             if (bool.TryParse(snapGridRaw, out var snapGrid))
@@ -483,6 +498,15 @@ public sealed class WormholeDefaultsService
         await _store.SetAsync(ShortcutArrowOverlayKey, enabled.ToString(CultureInfo.InvariantCulture),
             sensitive: false, cancellationToken).ConfigureAwait(true);
         ShortcutArrowOverlayChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async Task SetHideFileExtensionsAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled == _hideFileExtensions) return;
+        _hideFileExtensions = enabled;
+        await _store.SetAsync(HideFileExtensionsKey, enabled.ToString(CultureInfo.InvariantCulture),
+            sensitive: false, cancellationToken).ConfigureAwait(true);
+        HideFileExtensionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task SetSnapToGridAsync(bool enabled, CancellationToken cancellationToken)
