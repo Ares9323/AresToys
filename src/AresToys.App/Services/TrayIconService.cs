@@ -224,6 +224,8 @@ public sealed class TrayIconService : IDisposable
             () => Run<ScreenColorPickerService>(s => s.PickAtCursor())));
         tools.Items.Add(BuildShortcutMenuItem(Strings.Tray_ColorPicker, DefaultPipelineProfiles.ColorPickerId,
             () => Run<ColorWheelLauncher>(l => _ = l.ShowAsync())));
+        tools.Items.Add(BuildShortcutMenuItem(Strings.Tray_WindowSnappingEditor, DefaultPipelineProfiles.WindowSnappingEditorId,
+            () => Run<AresToys.App.Services.Zones.WindowSnappingService>(s => s.OpenEditor())));
         tools.Items.Add(BuildMenuItem(Strings.Tray_PinToScreen,
             () => Run<PinToScreenLauncher>(p => _ = p.ShowAsync(CancellationToken.None))));
         // Fallback for locked (click-through) pins: shown only while at least one exists. The

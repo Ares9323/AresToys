@@ -6842,11 +6842,587 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Window snapping.
+        /// </summary>
+        public static string Sidebar_WindowSnapping {
+            get {
+                return ResourceManager.GetString("Sidebar_WindowSnapping", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hold Shift while dragging a window by its title bar to see the layout and drop it into a zone. Without Shift nothing happens, so windows never snap by accident..
+        /// </summary>
+        public static string WindowSnappingTab_Blurb {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_Blurb", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enable window snapping.
+        /// </summary>
+        public static string WindowSnappingTab_Enable {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_Enable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Off by default. Turning it on starts watching window drags; turning it off stops everything..
+        /// </summary>
+        public static string WindowSnappingTab_EnableHint {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_EnableHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit snapping layouts....
+        /// </summary>
+        public static string WindowSnappingTab_EditLayouts {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_EditLayouts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zone color.
+        /// </summary>
+        public static string WindowSnappingTab_ZoneColor {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ZoneColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Highlighted zone color.
+        /// </summary>
+        public static string WindowSnappingTab_HighlightColor {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_HighlightColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zone border color.
+        /// </summary>
+        public static string WindowSnappingTab_BorderColor {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_BorderColor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zone opacity (%).
+        /// </summary>
+        public static string WindowSnappingTab_ZoneOpacity {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ZoneOpacity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Highlighted zone opacity (%).
+        /// </summary>
+        public static string WindowSnappingTab_HighlightOpacity {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_HighlightOpacity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Border thickness.
+        /// </summary>
+        public static string WindowSnappingTab_BorderThickness {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_BorderThickness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Corner radius.
+        /// </summary>
+        public static string WindowSnappingTab_CornerRadius {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_CornerRadius", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zone behavior.
+        /// </summary>
+        public static string WindowSnappingTab_SectionBehavior {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SectionBehavior", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zone appearance.
+        /// </summary>
+        public static string WindowSnappingTab_SectionAppearance {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SectionAppearance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Window behavior.
+        /// </summary>
+        public static string WindowSnappingTab_SectionWindow {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SectionWindow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Excluded apps.
+        /// </summary>
+        public static string WindowSnappingTab_SectionExcluded {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SectionExcluded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hold Shift key to activate zones while dragging a window.
+        /// </summary>
+        public static string WindowSnappingTab_ShiftToActivate {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ShiftToActivate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use a non-primary mouse button to toggle zone activation (for the drag in progress only).
+        /// </summary>
+        public static string WindowSnappingTab_NonPrimaryMouse {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_NonPrimaryMouse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use middle-click mouse button to toggle multiple zones spanning (for the drag in progress only).
+        /// </summary>
+        public static string WindowSnappingTab_MiddleClick {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_MiddleClick", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show zones on all monitors while dragging a window.
+        /// </summary>
+        public static string WindowSnappingTab_ShowAllMonitors {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ShowAllMonitors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to When multiple zones overlap.
+        /// </summary>
+        public static string WindowSnappingTab_OverlapLabel {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_OverlapLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activate the smallest zone by area.
+        /// </summary>
+        public static string WindowSnappingTab_OverlapSmallest {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_OverlapSmallest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activate the largest zone by area.
+        /// </summary>
+        public static string WindowSnappingTab_OverlapLargest {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_OverlapLargest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Split the overlapping area into equal parts and activate by cursor position.
+        /// </summary>
+        public static string WindowSnappingTab_OverlapPositional {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_OverlapPositional", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activate the zone whose center is closest to the cursor.
+        /// </summary>
+        public static string WindowSnappingTab_OverlapClosestCenter {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_OverlapClosestCenter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Windows default.
+        /// </summary>
+        public static string WindowSnappingTab_StyleWindows {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_StyleWindows", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Custom.
+        /// </summary>
+        public static string WindowSnappingTab_StyleCustom {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_StyleCustom", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show zone number.
+        /// </summary>
+        public static string WindowSnappingTab_ShowZoneNumber {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ShowZoneNumber", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Restore the original size of windows when unsnapping.
+        /// </summary>
+        public static string WindowSnappingTab_RestoreSize {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_RestoreSize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Make the dragged window transparent.
+        /// </summary>
+        public static string WindowSnappingTab_Transparent {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_Transparent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Allow child windows snapping.
+        /// </summary>
+        public static string WindowSnappingTab_ChildWindows {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ChildWindows", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Disable rounded corners when a window is snapped.
+        /// </summary>
+        public static string WindowSnappingTab_RoundedCorners {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_RoundedCorners", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Excludes an application from snapping. Add one application name per line, for example AresToys.exe.
+        /// </summary>
+        public static string WindowSnappingTab_ExcludedHint {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ExcludedHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep windows in their zones when the screen resolution or work area changes.
+        /// </summary>
+        public static string WindowSnappingTab_KeepOnDisplayChange {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_KeepOnDisplayChange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to During layout changes, windows assigned to a zone will match the new size and position.
+        /// </summary>
+        public static string WindowSnappingTab_ReapplyOnLayoutChange {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_ReapplyOnLayoutChange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move newly created windows to their last known zone.
+        /// </summary>
+        public static string WindowSnappingTab_NewWindowsLastZone {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_NewWindowsLastZone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move newly created windows to the current active monitor (experimental).
+        /// </summary>
+        public static string WindowSnappingTab_NewWindowsActiveMonitor {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_NewWindowsActiveMonitor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keyboard.
+        /// </summary>
+        public static string WindowSnappingTab_SectionKeyboard {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SectionKeyboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Override Windows Snap: Win + arrow keys move windows between zones.
+        /// </summary>
+        public static string WindowSnappingTab_OverrideWinSnap {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_OverrideWinSnap", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move windows based on.
+        /// </summary>
+        public static string WindowSnappingTab_MoveBasedLabel {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_MoveBasedLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Relative position.
+        /// </summary>
+        public static string WindowSnappingTab_MoveRelative {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_MoveRelative", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Zone index.
+        /// </summary>
+        public static string WindowSnappingTab_MoveIndex {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_MoveIndex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Move windows between zones across all monitors.
+        /// </summary>
+        public static string WindowSnappingTab_MoveAcrossMonitors {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_MoveAcrossMonitors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Uses a keyboard hook only while this option is on. Only Win + arrow with no other modifier is handled. Next and previous window in a zone are workflows with their own shortcuts in Hotkeys &amp; Workflows..
+        /// </summary>
+        public static string WindowSnappingTab_KeyboardHint {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_KeyboardHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enable quick layout switch (Win + Ctrl + Alt + digit, or the digit while dragging; the digit of each layout is set in the editor).
+        /// </summary>
+        public static string WindowSnappingTab_QuickLayoutSwitch {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_QuickLayoutSwitch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Launch editor on the display.
+        /// </summary>
+        public static string WindowSnappingTab_LaunchEditorLabel {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_LaunchEditorLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Where the mouse pointer is.
+        /// </summary>
+        public static string WindowSnappingTab_LaunchCursor {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_LaunchCursor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Primary display.
+        /// </summary>
+        public static string WindowSnappingTab_LaunchPrimary {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_LaunchPrimary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Where the active window is.
+        /// </summary>
+        public static string WindowSnappingTab_LaunchActiveWindow {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_LaunchActiveWindow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Allow zones to span across monitors.
+        /// </summary>
+        public static string WindowSnappingTab_SpanMonitors {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SpanMonitors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All monitors must have the same DPI scaling and will be treated as one large combined rectangle which contains all monitors. With different scaling this option has no effect..
+        /// </summary>
+        public static string WindowSnappingTab_SpanMonitorsHint {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_SpanMonitorsHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Always on top.
         /// </summary>
         public static string Workflow_AlwaysOnTop {
             get {
                 return ResourceManager.GetString("Workflow_AlwaysOnTop", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Window snapping editor.
+        /// </summary>
+        public static string Workflow_WindowSnappingEditor {
+            get {
+                return ResourceManager.GetString("Workflow_WindowSnappingEditor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle window snapping.
+        /// </summary>
+        public static string Workflow_WindowSnappingToggle {
+            get {
+                return ResourceManager.GetString("Workflow_WindowSnappingToggle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next window in zone.
+        /// </summary>
+        public static string Workflow_WindowSnappingNextWindow {
+            get {
+                return ResourceManager.GetString("Workflow_WindowSnappingNextWindow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Previous window in zone.
+        /// </summary>
+        public static string Workflow_WindowSnappingPreviousWindow {
+            get {
+                return ResourceManager.GetString("Workflow_WindowSnappingPreviousWindow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next window in zone.
+        /// </summary>
+        public static string WorkflowAction_arestoys_window_snapping_next_window {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_window_snapping_next_window", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Previous window in zone.
+        /// </summary>
+        public static string WorkflowAction_arestoys_window_snapping_previous_window {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_window_snapping_previous_window", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bring the next window snapped into the same zone as the fore.
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_window_snapping_next_window {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_window_snapping_next_window", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bring the previous window snapped into the same zone as the.
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_window_snapping_previous_window {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_window_snapping_previous_window", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Window snapping editor.
+        /// </summary>
+        public static string WorkflowAction_arestoys_window_snapping_editor {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_window_snapping_editor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle window snapping.
+        /// </summary>
+        public static string WorkflowAction_arestoys_window_snapping_toggle {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_window_snapping_toggle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open the Window snapping layout editor.
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_window_snapping_editor {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_window_snapping_editor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Turn Window snapping on or off.
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_window_snapping_toggle {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_window_snapping_toggle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Window snapping editor.
+        /// </summary>
+        public static string Tray_WindowSnappingEditor {
+            get {
+                return ResourceManager.GetString("Tray_WindowSnappingEditor", resourceCulture);
             }
         }
 
@@ -9317,6 +9893,266 @@ namespace AresToys.App.Resources {
             get {
                 return ResourceManager.GetString("ResizeQuick_NameRequired", resourceCulture);
             }
+        }
+
+        public static string WindowSnapping_Title {
+            get { return ResourceManager.GetString("WindowSnapping_Title", resourceCulture); }
+        }
+
+        public static string WindowSnapping_BuiltInFormat {
+            get { return ResourceManager.GetString("WindowSnapping_BuiltInFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_New {
+            get { return ResourceManager.GetString("WindowSnapping_New", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Duplicate {
+            get { return ResourceManager.GetString("WindowSnapping_Duplicate", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Rename {
+            get { return ResourceManager.GetString("WindowSnapping_Rename", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Delete {
+            get { return ResourceManager.GetString("WindowSnapping_Delete", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NewEmpty {
+            get { return ResourceManager.GetString("WindowSnapping_NewEmpty", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NewCustomGrid {
+            get { return ResourceManager.GetString("WindowSnapping_NewCustomGrid", resourceCulture); }
+        }
+
+        public static string WindowSnapping_GridNameFormat {
+            get { return ResourceManager.GetString("WindowSnapping_GridNameFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_GridDialogTitle {
+            get { return ResourceManager.GetString("WindowSnapping_GridDialogTitle", resourceCulture); }
+        }
+
+        public static string WindowSnapping_GridRows {
+            get { return ResourceManager.GetString("WindowSnapping_GridRows", resourceCulture); }
+        }
+
+        public static string WindowSnapping_GridColumns {
+            get { return ResourceManager.GetString("WindowSnapping_GridColumns", resourceCulture); }
+        }
+
+        public static string WindowSnapping_GridZonesFormat {
+            get { return ResourceManager.GetString("WindowSnapping_GridZonesFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_GridZoneOne {
+            get { return ResourceManager.GetString("WindowSnapping_GridZoneOne", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Identify {
+            get { return ResourceManager.GetString("WindowSnapping_Identify", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipIdentify {
+            get { return ResourceManager.GetString("WindowSnapping_TipIdentify", resourceCulture); }
+        }
+
+        public static string WindowSnapping_QuickKey {
+            get { return ResourceManager.GetString("WindowSnapping_QuickKey", resourceCulture); }
+        }
+
+        public static string WindowSnapping_QuickKeyNone {
+            get { return ResourceManager.GetString("WindowSnapping_QuickKeyNone", resourceCulture); }
+        }
+
+        public static string WindowSnapping_QuickKeyUsedFormat {
+            get { return ResourceManager.GetString("WindowSnapping_QuickKeyUsedFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_QuickKeyHint {
+            get { return ResourceManager.GetString("WindowSnapping_QuickKeyHint", resourceCulture); }
+        }
+
+        public static string WindowSnapping_MonitorEntryFormat {
+            get { return ResourceManager.GetString("WindowSnapping_MonitorEntryFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_MonitorPrimary {
+            get { return ResourceManager.GetString("WindowSnapping_MonitorPrimary", resourceCulture); }
+        }
+
+        public static string WindowSnapping_MonitorSpannedFormat {
+            get { return ResourceManager.GetString("WindowSnapping_MonitorSpannedFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_MonitorUsesLayout {
+            get { return ResourceManager.GetString("WindowSnapping_MonitorUsesLayout", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoLayoutAssigned {
+            get { return ResourceManager.GetString("WindowSnapping_NoLayoutAssigned", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NewLayoutName {
+            get { return ResourceManager.GetString("WindowSnapping_NewLayoutName", resourceCulture); }
+        }
+
+        public static string WindowSnapping_CopyFormat {
+            get { return ResourceManager.GetString("WindowSnapping_CopyFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Spacing {
+            get { return ResourceManager.GetString("WindowSnapping_Spacing", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Sensitivity {
+            get { return ResourceManager.GetString("WindowSnapping_Sensitivity", resourceCulture); }
+        }
+
+        public static string WindowSnapping_UseOn {
+            get { return ResourceManager.GetString("WindowSnapping_UseOn", resourceCulture); }
+        }
+
+        public static string WindowSnapping_UseOnThisMonitor {
+            get { return ResourceManager.GetString("WindowSnapping_UseOnThisMonitor", resourceCulture); }
+        }
+
+        public static string WindowSnapping_MonitorFormat {
+            get { return ResourceManager.GetString("WindowSnapping_MonitorFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ToolSelect {
+            get { return ResourceManager.GetString("WindowSnapping_ToolSelect", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ToolSplit {
+            get { return ResourceManager.GetString("WindowSnapping_ToolSplit", resourceCulture); }
+        }
+
+        public static string WindowSnapping_SplitVertical {
+            get { return ResourceManager.GetString("WindowSnapping_SplitVertical", resourceCulture); }
+        }
+
+        public static string WindowSnapping_SplitHorizontal {
+            get { return ResourceManager.GetString("WindowSnapping_SplitHorizontal", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Merge {
+            get { return ResourceManager.GetString("WindowSnapping_Merge", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Undo {
+            get { return ResourceManager.GetString("WindowSnapping_Undo", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Redo {
+            get { return ResourceManager.GetString("WindowSnapping_Redo", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipSelect {
+            get { return ResourceManager.GetString("WindowSnapping_TipSelect", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipSplit {
+            get { return ResourceManager.GetString("WindowSnapping_TipSplit", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipOrientation {
+            get { return ResourceManager.GetString("WindowSnapping_TipOrientation", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipMerge {
+            get { return ResourceManager.GetString("WindowSnapping_TipMerge", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipUndo {
+            get { return ResourceManager.GetString("WindowSnapping_TipUndo", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipRedo {
+            get { return ResourceManager.GetString("WindowSnapping_TipRedo", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ZoneOfFormat {
+            get { return ResourceManager.GetString("WindowSnapping_ZoneOfFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ZonesSelectedFormat {
+            get { return ResourceManager.GetString("WindowSnapping_ZonesSelectedFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoSelection {
+            get { return ResourceManager.GetString("WindowSnapping_NoSelection", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Left {
+            get { return ResourceManager.GetString("WindowSnapping_Left", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Top {
+            get { return ResourceManager.GetString("WindowSnapping_Top", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Width {
+            get { return ResourceManager.GetString("WindowSnapping_Width", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Height {
+            get { return ResourceManager.GetString("WindowSnapping_Height", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoteClamped {
+            get { return ResourceManager.GetString("WindowSnapping_NoteClamped", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoteInvalidNumber {
+            get { return ResourceManager.GetString("WindowSnapping_NoteInvalidNumber", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoteRangeFormat {
+            get { return ResourceManager.GetString("WindowSnapping_NoteRangeFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoteNoNeighbor {
+            get { return ResourceManager.GetString("WindowSnapping_NoteNoNeighbor", resourceCulture); }
+        }
+
+        public static string WindowSnapping_Hint {
+            get { return ResourceManager.GetString("WindowSnapping_Hint", resourceCulture); }
+        }
+
+        public static string WindowSnapping_SaveAsCopy {
+            get { return ResourceManager.GetString("WindowSnapping_SaveAsCopy", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NameTitle {
+            get { return ResourceManager.GetString("WindowSnapping_NameTitle", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NameLabel {
+            get { return ResourceManager.GetString("WindowSnapping_NameLabel", resourceCulture); }
+        }
+
+        public static string WindowSnapping_RenameTitle {
+            get { return ResourceManager.GetString("WindowSnapping_RenameTitle", resourceCulture); }
+        }
+
+        public static string WindowSnapping_DiscardMessage {
+            get { return ResourceManager.GetString("WindowSnapping_DiscardMessage", resourceCulture); }
+        }
+
+        public static string WindowSnapping_DeleteConfirmFormat {
+            get { return ResourceManager.GetString("WindowSnapping_DeleteConfirmFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_SaveErrorFormat {
+            get { return ResourceManager.GetString("WindowSnapping_SaveErrorFormat", resourceCulture); }
+        }
+
+        public static string WindowSnapping_DeleteErrorFormat {
+            get { return ResourceManager.GetString("WindowSnapping_DeleteErrorFormat", resourceCulture); }
         }
     }
 }

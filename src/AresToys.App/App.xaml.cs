@@ -326,6 +326,17 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, OpenEditorBeforeUploadTask>();
                 services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
                 services.AddSingleton<AresToys.App.Services.AlwaysOnTop.AlwaysOnTopService>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneLayoutStore>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneMonitors>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneWindowTracker>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneQuickSwitch>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneKeyboardSnapper>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneDragService>();
+                services.AddSingleton<AresToys.App.Services.Zones.WindowSnappingService>();
+                services.AddSingleton<IPipelineTask, OpenWindowSnappingEditorTask>();
+                services.AddSingleton<IPipelineTask, ToggleWindowSnappingTask>();
+                services.AddSingleton<IPipelineTask, NextWindowInZoneTask>();
+                services.AddSingleton<IPipelineTask, PreviousWindowInZoneTask>();
                 services.AddSingleton<IPipelineTask, AlwaysOnTopTask>();
                 services.AddSingleton<IPipelineTask, ColorSamplerTask>();
                 services.AddSingleton<IPipelineTask, ColorPickerTask>();
@@ -483,6 +494,7 @@ public partial class App : Application
                 services.AddSingleton<DebugViewModel>();
                 services.AddSingleton<WormholesViewModel>();
                 services.AddSingleton<AlwaysOnTopViewModel>();
+                services.AddSingleton<WindowSnappingViewModel>();
                 services.AddSingleton<SettingsViewModel>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<TrayIconService>();
@@ -610,6 +622,11 @@ public partial class App : Application
         // Bring the Explorer "Image Resizer" submenu in line with the seeded and user workflows.
         // Fire and forget: SyncAsync logs its own failures and never throws, startup never waits.
         _ = _host.Services.GetRequiredService<ResizerContextMenuSync>().SyncAsync();
+
+        // Window snapping is opt in: this loads the layouts and starts the drag hooks only when the
+        // user turned it on. InitializeAsync logs its own failures and never throws.
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Zones.WindowSnappingService>()
+            .InitializeAsync(CancellationToken.None);
 
         // Register the dynamic-options provider for the WorkflowActionCatalog ComboBox source
         // keyed by "image_effect_presets". The lookup is sync because the catalog is consumed

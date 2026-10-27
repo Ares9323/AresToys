@@ -1182,6 +1182,42 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    /// <summary>Swatches on the Window snapping tab: the Tag says which of the three colors the
+    /// swatch edits. Opens the shared colour picker seeded with the current value.</summary>
+    private void OnWindowSnappingSwatchClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm || sender is not FrameworkElement el) return;
+        var tag = el.Tag as string;
+        var snap = vm.WindowSnapping;
+        var currentHex = tag switch
+        {
+            "highlight" => snap.HighlightColorHex,
+            "border" => snap.BorderColorHex,
+            _ => snap.ZoneColorHex,
+        };
+        var current = TryParseShapeColor(currentHex) ?? ShapeColor.Black;
+        var dialog = new ColorPickerWindow(current) { Owner = this };
+        dialog.EyedropperRequested += (_, _) =>
+        {
+            var hex = _screenSampler.SampleAtCursor();
+            if (hex is null) return;
+            if (TryParseShapeColor(hex) is { } sampled) dialog.ApplySampledColor(sampled);
+        };
+        ColorSwatchButton.CurrentRecents = _colorRecents.Current;
+
+        if (dialog.ShowDialog() != true) return;
+        var picked = dialog.PickedColor;
+        var picked6 = $"#{picked.R:X2}{picked.G:X2}{picked.B:X2}";
+        switch (tag)
+        {
+            case "highlight": snap.HighlightColorHex = picked6; break;
+            case "border": snap.BorderColorHex = picked6; break;
+            default: snap.ZoneColorHex = picked6; break;
+        }
+
+        _ = _colorRecents.PushAsync(picked, System.Threading.CancellationToken.None);
+    }
+
     private void OnResizerMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.CheckBox cb)

@@ -71,16 +71,25 @@ public sealed class KeyboardHook : IDisposable
     /// <summary>Register or replace a key combination by id. <paramref name="callback"/> runs on the
     /// hook thread (the message-pump thread of whoever installed the hook) — keep it fast and
     /// dispatch heavy work elsewhere. Suppress=true makes us "win" against the foreground app and
-    /// any OS reservation (Win+V etc).</summary>
-    public void Register(string id, HotkeyModifiers modifiers, uint vkCode, Action callback, bool suppress = true)
+    /// any OS reservation (Win+V etc).
+    /// <para><paramref name="when"/> lets the binding decide per event whether it applies: it runs ON THE HOOK THREAD for
+    /// each matching key down, so it must only read cached state (no I/O, no locks, no logging). When it returns false the
+    /// event is not ours: it passes through untouched and later bindings for the same key are still tried.
+    /// <paramref name="repeat"/> fires the callback on every auto-repeat key down of a held key too, instead of once per
+    /// press (the dummy key that keeps Win combos away from the shell is still injected once per press).</para></summary>
+    public void Register(string id, HotkeyModifiers modifiers, uint vkCode, Action callback, bool suppress = true,
+        Func<bool>? when = null, bool repeat = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(callback);
         lock (_bindingsLock)
         {
-            _bindings[id] = new HookBinding(modifiers, vkCode, callback, suppress);
+            _bindings[id] = new HookBinding(modifiers, vkCode, callback, suppress, when, repeat);
         }
     }
+
+    /// <summary>True while the hook is installed (<see cref="Install"/> succeeded and <see cref="Uninstall"/> has not run).</summary>
+    public bool IsInstalled => _hookHandle != IntPtr.Zero;
 
     /// <summary>Remove a binding by id. Returns true if it existed.</summary>
     public bool Unregister(string id)
@@ -205,7 +214,7 @@ public sealed class KeyboardHook : IDisposable
         {
             foreach (var b in _bindings.Values)
             {
-                if (b.VkCode == data.vkCode && b.Modifiers == modifiers)
+                if (b.VkCode == data.vkCode && b.Modifiers == modifiers && (b.When is null || b.When()))
                 {
                     matched = b;
                     break;
@@ -273,7 +282,7 @@ public sealed class KeyboardHook : IDisposable
             lock (_heldKeysLock) firstPress = _heldKeys.Add(data.vkCode);
         }
 
-        if (firstPress)
+        if (firstPress || matched.Repeat)
         {
             FireCallback(matched);
         }
@@ -299,7 +308,7 @@ public sealed class KeyboardHook : IDisposable
         // KeyboardManager uses: inject a "dummy key" event (VK 0xFF — unmapped to any physical key)
         // which breaks the shell's tracking of the modifier+key combo. Without this, suppressing
         // Win+Shift+S still triggers the native Snipping Tool overlay.
-        if ((matched.Modifiers & HotkeyModifiers.Win) != 0)
+        if ((matched.Modifiers & HotkeyModifiers.Win) != 0 && (firstPress || !matched.Repeat))
         {
             InjectDummyKey();
         }
@@ -429,7 +438,8 @@ public sealed class KeyboardHook : IDisposable
         lock (_streamListenersLock) _streamListeners.Clear();
     }
 
-    private sealed record HookBinding(HotkeyModifiers Modifiers, uint VkCode, Action Callback, bool Suppress);
+    private sealed record HookBinding(HotkeyModifiers Modifiers, uint VkCode, Action Callback, bool Suppress,
+        Func<bool>? When = null, bool Repeat = false);
 
     /// <summary>Internal (not private) so the <see cref="InvokeHookForTest"/> seam can be
     /// called from the test assembly via <c>InternalsVisibleTo</c>. Stays an implementation

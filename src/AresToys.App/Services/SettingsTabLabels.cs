@@ -14,6 +14,7 @@ internal static class SettingsTabLabels
         "theme"      => "Theme",
         "categories" => "Clipboard categories",
         "alwaysontop" => "Always on top",
+        "windowsnapping" => "Window snapping",
         "wormholes"  => "Wormholes",
         "settings"   => "App settings",
         "debug"      => "Debug",

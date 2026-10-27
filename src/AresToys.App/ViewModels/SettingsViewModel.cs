@@ -44,6 +44,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DebugViewModel debug,
         WormholesViewModel wormholes,
         AlwaysOnTopViewModel alwaysOnTop,
+        WindowSnappingViewModel windowSnapping,
         PopupWindowViewModel clipboardVm,
         AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings,
         AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime,
@@ -61,6 +62,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         Debug = debug;
         Wormholes = wormholes;
         AlwaysOnTop = alwaysOnTop;
+        WindowSnapping = windowSnapping;
         // Initial state mirrors Task Scheduler — the on-disk task is the single source of truth
         // for the autostart toggle.
         _suppressAutostartPersist = true;
@@ -117,6 +119,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public DebugViewModel Debug { get; }
     public WormholesViewModel Wormholes { get; }
     public AlwaysOnTopViewModel AlwaysOnTop { get; }
+    public WindowSnappingViewModel WindowSnapping { get; }
 
     [ObservableProperty]
     private SettingsTab _selectedTab = SettingsTab.Hotkeys;
@@ -571,6 +574,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsCategoriesSelected => SelectedTab == SettingsTab.Categories;
     public bool IsWormholesSelected  => SelectedTab == SettingsTab.Wormholes;
     public bool IsAlwaysOnTopSelected => SelectedTab == SettingsTab.AlwaysOnTop;
+    public bool IsWindowSnappingSelected => SelectedTab == SettingsTab.WindowSnapping;
     public bool IsSettingsSelected   => SelectedTab == SettingsTab.Settings;
     public bool IsDebugSelected     => SelectedTab == SettingsTab.Debug;
     public bool IsAboutSelected     => SelectedTab == SettingsTab.About;
@@ -586,6 +590,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(IsCategoriesSelected));
         OnPropertyChanged(nameof(IsWormholesSelected));
         OnPropertyChanged(nameof(IsAlwaysOnTopSelected));
+        OnPropertyChanged(nameof(IsWindowSnappingSelected));
         OnPropertyChanged(nameof(IsSettingsSelected));
         OnPropertyChanged(nameof(IsDebugSelected));
         OnPropertyChanged(nameof(IsAboutSelected));
@@ -593,6 +598,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (value == SettingsTab.Hotkeys) _ = Hotkeys.ReloadAsync();
         if (value == SettingsTab.Wormholes) _ = Wormholes.ReloadAsync();
         if (value == SettingsTab.AlwaysOnTop) _ = AlwaysOnTop.LoadAsync();
+        if (value == SettingsTab.WindowSnapping) _ = WindowSnapping.LoadAsync();
     }
 
     [RelayCommand] private void ShowUploaders() => SelectedTab = SettingsTab.Uploaders;
@@ -602,9 +608,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand] private void ShowCategories() => SelectedTab = SettingsTab.Categories;
     [RelayCommand] private void ShowWormholes()  => SelectedTab = SettingsTab.Wormholes;
     [RelayCommand] private void ShowAlwaysOnTop() => SelectedTab = SettingsTab.AlwaysOnTop;
+    [RelayCommand] private void ShowWindowSnapping() => SelectedTab = SettingsTab.WindowSnapping;
     [RelayCommand] private void ShowSettings()   => SelectedTab = SettingsTab.Settings;
     [RelayCommand] private void ShowDebug()     => SelectedTab = SettingsTab.Debug;
     [RelayCommand] private void ShowAbout()     => SelectedTab = SettingsTab.About;
 }
 
-public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, Wormholes, Settings, Debug, About }
+public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, WindowSnapping, Wormholes, Settings, Debug, About }

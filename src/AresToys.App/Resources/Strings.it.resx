@@ -274,6 +274,19 @@
   <data name="Workflow_ShowPopup" xml:space="preserve"><value>Mostra popup appunti</value></data>
   <data name="Workflow_ToggleIncognito" xml:space="preserve"><value>Attiva/disattiva incognito</value></data>
   <data name="Workflow_AlwaysOnTop" xml:space="preserve"><value>Sempre in primo piano</value></data>
+  <data name="Workflow_WindowSnappingEditor" xml:space="preserve"><value>Editor Window snapping</value></data>
+  <data name="Workflow_WindowSnappingToggle" xml:space="preserve"><value>Attiva/disattiva Window snapping</value></data>
+  <data name="WorkflowAction_arestoys_window_snapping_editor" xml:space="preserve"><value>Editor Window snapping</value></data>
+  <data name="WorkflowAction_arestoys_window_snapping_toggle" xml:space="preserve"><value>Attiva/disattiva Window snapping</value></data>
+  <data name="WorkflowActionDesc_arestoys_window_snapping_editor" xml:space="preserve"><value>Apre l'editor dei layout di Window snapping per creare e assegnare le zone. Se è già aperto, lo porta in primo piano.</value></data>
+  <data name="WorkflowActionDesc_arestoys_window_snapping_toggle" xml:space="preserve"><value>Attiva o disattiva Window snapping. Quando è attivo, tieni premuto Maiusc mentre trascini una finestra dalla barra del titolo per agganciarla a una zona.</value></data>
+  <data name="Workflow_WindowSnappingNextWindow" xml:space="preserve"><value>Finestra successiva nella zona</value></data>
+  <data name="Workflow_WindowSnappingPreviousWindow" xml:space="preserve"><value>Finestra precedente nella zona</value></data>
+  <data name="WorkflowAction_arestoys_window_snapping_next_window" xml:space="preserve"><value>Finestra successiva nella zona</value></data>
+  <data name="WorkflowAction_arestoys_window_snapping_previous_window" xml:space="preserve"><value>Finestra precedente nella zona</value></data>
+  <data name="WorkflowActionDesc_arestoys_window_snapping_next_window" xml:space="preserve"><value>Porta in primo piano la finestra successiva agganciata alla stessa zona della finestra in primo piano. Richiede Window snapping attivo.</value></data>
+  <data name="WorkflowActionDesc_arestoys_window_snapping_previous_window" xml:space="preserve"><value>Porta in primo piano la finestra precedente agganciata alla stessa zona della finestra in primo piano. Richiede Window snapping attivo.</value></data>
+  <data name="Tray_WindowSnappingEditor" xml:space="preserve"><value>Editor Window snapping</value></data>
   <data name="Sidebar_AlwaysOnTop" xml:space="preserve"><value>Sempre in primo piano</value></data>
   <data name="AlwaysOnTop_Blurb" xml:space="preserve"><value>Cornice disegnata attorno alle finestre bloccate dal workflow Sempre in primo piano. Le modifiche si applicano subito, anche alle finestre già bloccate.</value></data>
   <data name="AlwaysOnTop_ShowFrame" xml:space="preserve"><value>Mostra una cornice attorno alle finestre bloccate</value></data>
@@ -283,6 +296,57 @@
   <data name="AlwaysOnTop_CornerRadius" xml:space="preserve"><value>Raggio degli angoli (px)</value></data>
   <data name="AlwaysOnTop_Opacity" xml:space="preserve"><value>Opacità (%)</value></data>
   <data name="AlwaysOnTop_Reset" xml:space="preserve"><value>Ripristina predefiniti</value></data>
+  <data name="Sidebar_WindowSnapping" xml:space="preserve"><value>Window snapping</value></data>
+  <data name="WindowSnappingTab_Blurb" xml:space="preserve"><value>Tieni premuto Shift mentre trascini una finestra dalla barra del titolo per vedere il layout e rilasciarla in una zona. Senza Shift non succede nulla, quindi le finestre non si agganciano mai per errore.</value></data>
+  <data name="WindowSnappingTab_Enable" xml:space="preserve"><value>Attiva il window snapping</value></data>
+  <data name="WindowSnappingTab_EnableHint" xml:space="preserve"><value>Disattivato di default. Attivandolo inizia a osservare il trascinamento delle finestre; disattivandolo si ferma tutto.</value></data>
+  <data name="WindowSnappingTab_EditLayouts" xml:space="preserve"><value>Modifica i layout di snapping...</value></data>
+  <data name="WindowSnappingTab_ZoneColor" xml:space="preserve"><value>Colore delle zone</value></data>
+  <data name="WindowSnappingTab_HighlightColor" xml:space="preserve"><value>Colore della zona evidenziata</value></data>
+  <data name="WindowSnappingTab_BorderColor" xml:space="preserve"><value>Colore del bordo delle zone</value></data>
+  <data name="WindowSnappingTab_ZoneOpacity" xml:space="preserve"><value>Opacità delle zone (%)</value></data>
+  <data name="WindowSnappingTab_HighlightOpacity" xml:space="preserve"><value>Opacità della zona evidenziata (%)</value></data>
+  <data name="WindowSnappingTab_BorderThickness" xml:space="preserve"><value>Spessore del bordo</value></data>
+  <data name="WindowSnappingTab_CornerRadius" xml:space="preserve"><value>Raggio degli angoli</value></data>
+  <data name="WindowSnappingTab_SectionBehavior" xml:space="preserve"><value>Comportamento delle zone</value></data>
+  <data name="WindowSnappingTab_SectionAppearance" xml:space="preserve"><value>Aspetto delle zone</value></data>
+  <data name="WindowSnappingTab_SectionWindow" xml:space="preserve"><value>Comportamento delle finestre</value></data>
+  <data name="WindowSnappingTab_SectionExcluded" xml:space="preserve"><value>App escluse</value></data>
+  <data name="WindowSnappingTab_ShiftToActivate" xml:space="preserve"><value>Tieni premuto Shift per attivare le zone mentre trascini una finestra</value></data>
+  <data name="WindowSnappingTab_NonPrimaryMouse" xml:space="preserve"><value>Usa un pulsante non primario del mouse per attivare o disattivare le zone (solo per il trascinamento in corso)</value></data>
+  <data name="WindowSnappingTab_MiddleClick" xml:space="preserve"><value>Usa il tasto centrale del mouse per attivare o disattivare l'unione di più zone (solo per il trascinamento in corso)</value></data>
+  <data name="WindowSnappingTab_ShowAllMonitors" xml:space="preserve"><value>Mostra le zone su tutti i monitor mentre trascini una finestra</value></data>
+  <data name="WindowSnappingTab_OverlapLabel" xml:space="preserve"><value>Quando più zone si sovrappongono</value></data>
+  <data name="WindowSnappingTab_OverlapSmallest" xml:space="preserve"><value>Attiva la zona più piccola per area</value></data>
+  <data name="WindowSnappingTab_OverlapLargest" xml:space="preserve"><value>Attiva la zona più grande per area</value></data>
+  <data name="WindowSnappingTab_OverlapPositional" xml:space="preserve"><value>Dividi l'area sovrapposta in parti uguali e attiva in base alla posizione del cursore</value></data>
+  <data name="WindowSnappingTab_OverlapClosestCenter" xml:space="preserve"><value>Attiva la zona il cui centro è più vicino al cursore</value></data>
+  <data name="WindowSnappingTab_StyleWindows" xml:space="preserve"><value>Predefinito di Windows</value></data>
+  <data name="WindowSnappingTab_StyleCustom" xml:space="preserve"><value>Personalizzato</value></data>
+  <data name="WindowSnappingTab_ShowZoneNumber" xml:space="preserve"><value>Mostra il numero della zona</value></data>
+  <data name="WindowSnappingTab_RestoreSize" xml:space="preserve"><value>Ripristina la dimensione originale delle finestre quando si sganciano</value></data>
+  <data name="WindowSnappingTab_Transparent" xml:space="preserve"><value>Rendi trasparente la finestra trascinata</value></data>
+  <data name="WindowSnappingTab_ChildWindows" xml:space="preserve"><value>Consenti lo snap delle finestre figlie</value></data>
+  <data name="WindowSnappingTab_RoundedCorners" xml:space="preserve"><value>Disattiva gli angoli arrotondati quando una finestra è agganciata</value></data>
+  <data name="WindowSnappingTab_ExcludedHint" xml:space="preserve"><value>Esclude un'applicazione dallo snap. Aggiungi un nome di applicazione per riga, ad esempio AresToys.exe</value></data>
+  <data name="WindowSnappingTab_KeepOnDisplayChange" xml:space="preserve"><value>Mantieni le finestre nelle loro zone quando cambia la risoluzione dello schermo o l'area di lavoro</value></data>
+  <data name="WindowSnappingTab_ReapplyOnLayoutChange" xml:space="preserve"><value>Quando cambia un layout, le finestre assegnate a una zona si adattano alla nuova dimensione e posizione</value></data>
+  <data name="WindowSnappingTab_NewWindowsLastZone" xml:space="preserve"><value>Sposta le finestre appena create nell'ultima zona nota</value></data>
+  <data name="WindowSnappingTab_NewWindowsActiveMonitor" xml:space="preserve"><value>Sposta le finestre appena create sul monitor attivo (sperimentale)</value></data>
+  <data name="WindowSnappingTab_SectionKeyboard" xml:space="preserve"><value>Tastiera</value></data>
+  <data name="WindowSnappingTab_OverrideWinSnap" xml:space="preserve"><value>Sostituisci Windows Snap: Win + frecce spostano le finestre tra le zone</value></data>
+  <data name="WindowSnappingTab_MoveBasedLabel" xml:space="preserve"><value>Sposta le finestre in base a</value></data>
+  <data name="WindowSnappingTab_MoveRelative" xml:space="preserve"><value>Posizione relativa</value></data>
+  <data name="WindowSnappingTab_MoveIndex" xml:space="preserve"><value>Indice della zona</value></data>
+  <data name="WindowSnappingTab_MoveAcrossMonitors" xml:space="preserve"><value>Sposta le finestre tra le zone su tutti i monitor</value></data>
+  <data name="WindowSnappingTab_KeyboardHint" xml:space="preserve"><value>Usa un hook di tastiera solo finché l'opzione è attiva. Viene gestito solo Win + freccia senza altri modificatori. Finestra successiva e precedente in una zona sono workflow con scorciatoie proprie in Hotkeys &amp; Workflows.</value></data>
+  <data name="WindowSnappingTab_QuickLayoutSwitch" xml:space="preserve"><value>Attiva il cambio rapido del layout (Win + Ctrl + Alt + cifra, o la cifra durante il trascinamento; la cifra di ogni layout si imposta nell'editor)</value></data>
+  <data name="WindowSnappingTab_LaunchEditorLabel" xml:space="preserve"><value>Apri l'editor sullo schermo</value></data>
+  <data name="WindowSnappingTab_LaunchCursor" xml:space="preserve"><value>Dove si trova il puntatore del mouse</value></data>
+  <data name="WindowSnappingTab_LaunchPrimary" xml:space="preserve"><value>Schermo principale</value></data>
+  <data name="WindowSnappingTab_LaunchActiveWindow" xml:space="preserve"><value>Dove si trova la finestra attiva</value></data>
+  <data name="WindowSnappingTab_SpanMonitors" xml:space="preserve"><value>Consenti alle zone di estendersi su più monitor</value></data>
+  <data name="WindowSnappingTab_SpanMonitorsHint" xml:space="preserve"><value>Tutti i monitor devono avere la stessa scalatura DPI e vengono trattati come un unico grande rettangolo che li contiene tutti. Con scalature diverse l'opzione non ha effetto.</value></data>
   <data name="WorkflowAction_arestoys_always_on_top" xml:space="preserve"><value>Sempre in primo piano</value></data>
   <data name="WorkflowActionDesc_arestoys_always_on_top" xml:space="preserve"><value>Tiene la finestra davanti a tutte le altre, con una cornice colorata attorno. Eseguila di nuovo sulla stessa finestra per rilasciarla.</value></data>
   <data name="Workflow_ColorSampler" xml:space="preserve"><value>Campiona colore</value></data>
@@ -411,6 +475,8 @@
   <data name="Wormhole_WebLinkFaviconsTooltip" xml:space="preserve"><value>Se attivo, i link web (file .url) mostrano la favicon reale del sito invece dell'icona generica del browser. La favicon viene scaricata una volta per sito (direttamente dal sito, con fallback a un servizio di favicon) e scritta nel .url, così si vede anche in Esplora file. Disattiva per non fare alcuna chiamata di rete e lasciare i file .url intatti.</value></data>
   <data name="Wormhole_ShortcutArrow" xml:space="preserve"><value>Freccia sulle icone dei collegamenti</value></data>
   <data name="Wormhole_ShortcutArrowTooltip" xml:space="preserve"><value>Se attivo (predefinito) le icone dei collegamenti portano la freccetta in basso a sinistra, come fa Esplora file. Vale per entrambi i tipi: collegamenti .lnk e link web .url. Disattiva per avere icone più pulite: di solito è quello che serve in un wormhole dove è tutto un collegamento e la freccia non distingue nulla.</value></data>
+  <data name="Wormhole_HideFileExtensions" xml:space="preserve"><value>Nascondi le estensioni dei file</value></data>
+  <data name="Wormhole_HideFileExtensionsTooltip" xml:space="preserve"><value>Se attivo, i file mostrano il nome senza estensione (report.pdf appare come report). Le cartelle mantengono il nome completo. Rinominando un elemento si vede sempre il nome completo, quindi l'estensione resta modificabile. Disattivato di default.</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktop" xml:space="preserve"><value>Mantieni le wormhole visibili con "Mostra desktop"</value></data>
   <data name="Wormhole_KeepVisibleOnShowDesktopTooltip" xml:space="preserve"><value>Se attivo, Win+D e il pulsante "Mostra desktop" nell'angolo della barra delle applicazioni non seppelliscono più le wormhole: restano sul desktop scoperto, come le icone. Le wormhole entrano nel gruppo di z-order del desktop, quindi continuano ad andare dietro a qualsiasi app porti in primo piano. Disattiva per farle sparire insieme alle altre finestre.</value></data>
   <data name="Wormhole_ExpandCollapsedOnHover" xml:space="preserve"><value>Mostra le wormhole collassate al passaggio del mouse</value></data>
@@ -475,8 +541,6 @@
   <data name="Pattern_MonthTooltip" xml:space="preserve"><value>Numero del mese — 01-12</value></data>
   <data name="Pattern_MonthNameTooltip" xml:space="preserve"><value>Nome del mese — March</value></data>
   <data name="Pattern_DayTooltip" xml:space="preserve"><value>Giorno del mese — 01-31</value></data>
-  <data name="Wormhole_HideFileExtensions" xml:space="preserve"><value>Nascondi le estensioni dei file</value></data>
-  <data name="Wormhole_HideFileExtensionsTooltip" xml:space="preserve"><value>Se attivo, i file mostrano il nome senza estensione (report.pdf appare come report). Le cartelle mantengono il nome completo. Rinominando un elemento si vede sempre il nome completo, quindi l'estensione resta modificabile. Disattivato di default.</value></data>
   <data name="Pattern_HourTooltip" xml:space="preserve"><value>Ora 24h — 00-23</value></data>
   <data name="Pattern_MinuteTooltip" xml:space="preserve"><value>Minuti — 00-59</value></data>
   <data name="Pattern_SecondTooltip" xml:space="preserve"><value>Secondi — 00-59</value></data>
@@ -1300,4 +1364,69 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="ResizeQuick_PresetName" xml:space="preserve"><value>Nome del preset</value></data>
   <data name="ResizeQuick_SavedAs" xml:space="preserve"><value>Salvato come {0}</value></data>
   <data name="ResizeQuick_NameRequired" xml:space="preserve"><value>Il nome è obbligatorio</value></data>
+  <data name="WindowSnapping_Title" xml:space="preserve"><value>Layout di window snapping</value></data>
+  <data name="WindowSnapping_BuiltInFormat" xml:space="preserve"><value>{0} (integrato)</value></data>
+  <data name="WindowSnapping_New" xml:space="preserve"><value>Nuovo</value></data>
+  <data name="WindowSnapping_Duplicate" xml:space="preserve"><value>Duplica</value></data>
+  <data name="WindowSnapping_Rename" xml:space="preserve"><value>Rinomina...</value></data>
+  <data name="WindowSnapping_Delete" xml:space="preserve"><value>Elimina</value></data>
+  <data name="WindowSnapping_NewEmpty" xml:space="preserve"><value>Vuoto (una zona)</value></data>
+  <data name="WindowSnapping_NewCustomGrid" xml:space="preserve"><value>Griglia personalizzata...</value></data>
+  <data name="WindowSnapping_GridNameFormat" xml:space="preserve"><value>Griglia {0} x {1}</value></data>
+  <data name="WindowSnapping_GridDialogTitle" xml:space="preserve"><value>Griglia personalizzata</value></data>
+  <data name="WindowSnapping_GridRows" xml:space="preserve"><value>Righe</value></data>
+  <data name="WindowSnapping_GridColumns" xml:space="preserve"><value>Colonne</value></data>
+  <data name="WindowSnapping_GridZonesFormat" xml:space="preserve"><value>{0} zone</value></data>
+  <data name="WindowSnapping_GridZoneOne" xml:space="preserve"><value>{0} zona</value></data>
+  <data name="WindowSnapping_Identify" xml:space="preserve"><value>Identifica monitor</value></data>
+  <data name="WindowSnapping_TipIdentify" xml:space="preserve"><value>Mostra per un attimo il numero di ogni monitor su tutti gli schermi</value></data>
+  <data name="WindowSnapping_QuickKey" xml:space="preserve"><value>Tasto rapido</value></data>
+  <data name="WindowSnapping_QuickKeyNone" xml:space="preserve"><value>Nessuno</value></data>
+  <data name="WindowSnapping_QuickKeyUsedFormat" xml:space="preserve"><value>{0} (usato da {1})</value></data>
+  <data name="WindowSnapping_QuickKeyHint" xml:space="preserve"><value>Premi Win+Ctrl+Alt+cifra per passare a questo layout sul monitor sotto il cursore</value></data>
+  <data name="WindowSnapping_MonitorEntryFormat" xml:space="preserve"><value>{0}: {1} x {2}</value></data>
+  <data name="WindowSnapping_MonitorPrimary" xml:space="preserve"><value>(principale)</value></data>
+  <data name="WindowSnapping_MonitorSpannedFormat" xml:space="preserve"><value>Tutti i monitor (unificati): {0} x {1}</value></data>
+  <data name="WindowSnapping_MonitorUsesLayout" xml:space="preserve"><value>(usa questo layout)</value></data>
+  <data name="WindowSnapping_NoLayoutAssigned" xml:space="preserve"><value>Nessun layout assegnato</value></data>
+  <data name="WindowSnapping_NewLayoutName" xml:space="preserve"><value>Nuovo layout</value></data>
+  <data name="WindowSnapping_CopyFormat" xml:space="preserve"><value>{0} copia</value></data>
+  <data name="WindowSnapping_Spacing" xml:space="preserve"><value>Spazio tra le zone (px)</value></data>
+  <data name="WindowSnapping_Sensitivity" xml:space="preserve"><value>Sensibilità di aggancio (px)</value></data>
+  <data name="WindowSnapping_UseOn" xml:space="preserve"><value>Usa su</value></data>
+  <data name="WindowSnapping_UseOnThisMonitor" xml:space="preserve"><value>Usa questo layout su questo monitor</value></data>
+  <data name="WindowSnapping_MonitorFormat" xml:space="preserve"><value>Monitor {0} ({1} x {2})</value></data>
+  <data name="WindowSnapping_ToolSelect" xml:space="preserve"><value>Seleziona</value></data>
+  <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Dividi</value></data>
+  <data name="WindowSnapping_SplitVertical" xml:space="preserve"><value>Verticale</value></data>
+  <data name="WindowSnapping_SplitHorizontal" xml:space="preserve"><value>Orizzontale</value></data>
+  <data name="WindowSnapping_Merge" xml:space="preserve"><value>Unisci</value></data>
+  <data name="WindowSnapping_Undo" xml:space="preserve"><value>Annulla</value></data>
+  <data name="WindowSnapping_Redo" xml:space="preserve"><value>Ripeti</value></data>
+  <data name="WindowSnapping_TipSelect" xml:space="preserve"><value>Clicca le zone per selezionarle, trascina un bordo per spostarlo</value></data>
+  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Clicca una zona per dividerla sulla linea guida</value></data>
+  <data name="WindowSnapping_TipOrientation" xml:space="preserve"><value>Cambia la direzione della divisione (R)</value></data>
+  <data name="WindowSnapping_TipMerge" xml:space="preserve"><value>Unisci le zone selezionate (Ctrl+M)</value></data>
+  <data name="WindowSnapping_TipUndo" xml:space="preserve"><value>Annulla (Ctrl+Z)</value></data>
+  <data name="WindowSnapping_TipRedo" xml:space="preserve"><value>Ripeti (Ctrl+Y)</value></data>
+  <data name="WindowSnapping_ZoneOfFormat" xml:space="preserve"><value>Zona {0} di {1}</value></data>
+  <data name="WindowSnapping_ZonesSelectedFormat" xml:space="preserve"><value>{0} zone selezionate</value></data>
+  <data name="WindowSnapping_NoSelection" xml:space="preserve"><value>Seleziona una zona per modificarne i valori</value></data>
+  <data name="WindowSnapping_Left" xml:space="preserve"><value>Sinistra (px)</value></data>
+  <data name="WindowSnapping_Top" xml:space="preserve"><value>Alto (px)</value></data>
+  <data name="WindowSnapping_Width" xml:space="preserve"><value>Larghezza (px)</value></data>
+  <data name="WindowSnapping_Height" xml:space="preserve"><value>Altezza (px)</value></data>
+  <data name="WindowSnapping_NoteClamped" xml:space="preserve"><value>Valore adattato al più vicino consentito: una zona non può essere più piccola del 3% dello schermo.</value></data>
+  <data name="WindowSnapping_NoteInvalidNumber" xml:space="preserve"><value>Inserisci un numero intero.</value></data>
+  <data name="WindowSnapping_NoteRangeFormat" xml:space="preserve"><value>Valore limitato all'intervallo da {0} a {1}.</value></data>
+  <data name="WindowSnapping_NoteNoNeighbor" xml:space="preserve"><value>Questa zona non ha una zona vicina a destra o sotto con cui unirsi.</value></data>
+  <data name="WindowSnapping_Hint" xml:space="preserve"><value>Tieni premuto Alt per disattivare l'aggancio</value></data>
+  <data name="WindowSnapping_SaveAsCopy" xml:space="preserve"><value>Salva come copia...</value></data>
+  <data name="WindowSnapping_NameTitle" xml:space="preserve"><value>Nome del layout</value></data>
+  <data name="WindowSnapping_NameLabel" xml:space="preserve"><value>Nome</value></data>
+  <data name="WindowSnapping_RenameTitle" xml:space="preserve"><value>Rinomina layout</value></data>
+  <data name="WindowSnapping_DiscardMessage" xml:space="preserve"><value>Ci sono modifiche non salvate. Scartarle?</value></data>
+  <data name="WindowSnapping_DeleteConfirmFormat" xml:space="preserve"><value>Eliminare il layout "{0}"?</value></data>
+  <data name="WindowSnapping_SaveErrorFormat" xml:space="preserve"><value>Impossibile salvare il layout: {0}</value></data>
+  <data name="WindowSnapping_DeleteErrorFormat" xml:space="preserve"><value>Impossibile eliminare il layout: {0}</value></data>
 </root>

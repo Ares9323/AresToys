@@ -303,6 +303,11 @@
                            Appearance="{Binding IsAlwaysOnTopSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
+                           Content="{Markup:Loc Sidebar_WindowSnapping}"
+                           Command="{Binding ShowWindowSnappingCommand}"
+                           Appearance="{Binding IsWindowSnappingSelected, Converter={StaticResource BoolToAppearance}}" />
+                <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                           Margin="0,0,0,4"
                            Content="{Markup:Loc Sidebar_WormholesSettings}"
                            Command="{Binding ShowWormholesCommand}"
                            Appearance="{Binding IsWormholesSelected, Converter={StaticResource BoolToAppearance}}" />
@@ -1955,6 +1960,230 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <!-- Window snapping: drag a window while holding Shift to snap it into a layout zone.
+                 Switch, layout editor entry and the look of the overlay shown while dragging. -->
+            <ScrollViewer Visibility="{Binding IsWindowSnappingSelected, Converter={StaticResource BoolToVisibility}}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="24,16,24,16" MaxWidth="900" HorizontalAlignment="Stretch">
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_WindowSnapping}"
+                                   FontSize="20" FontWeight="SemiBold" />
+                        <ui:Button Grid.Column="1" Content="{Markup:Loc AlwaysOnTop_Reset}"
+                                   Padding="14,4"
+                                   Command="{Binding WindowSnapping.ResetToDefaultsCommand}" />
+                    </Grid>
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc WindowSnappingTab_Blurb}" />
+
+                    <CheckBox
+                              IsChecked="{Binding WindowSnapping.Enabled, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_Enable}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                               FontSize="11" TextWrapping="Wrap" Margin="22,4,0,12"
+                               Text="{Markup:Loc WindowSnappingTab_EnableHint}" />
+                    <ui:Button Content="{Markup:Loc WindowSnappingTab_EditLayouts}"
+                               Padding="14,6" Margin="0,0,0,12"
+                               Command="{Binding WindowSnapping.EditLayoutsCommand}" />
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_LaunchEditorLabel}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox Margin="0,0,0,20" SelectedIndex="{Binding WindowSnapping.LaunchEditorOnIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_LaunchCursor}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_LaunchPrimary}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_LaunchActiveWindow}" />
+                    </ComboBox>
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_SectionBehavior}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.ShiftToActivate, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_ShiftToActivate}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.NonPrimaryMouseToggle, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_NonPrimaryMouse}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.MiddleClickSpanning, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_MiddleClick}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.ShowOnAllMonitors, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_ShowAllMonitors}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,2"
+                              IsChecked="{Binding WindowSnapping.SpanZonesAcrossMonitors, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_SpanMonitors}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                               TextWrapping="Wrap" Margin="22,0,0,12"
+                               Text="{Markup:Loc WindowSnappingTab_SpanMonitorsHint}" />
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_OverlapLabel}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox Margin="0,0,0,20" SelectedIndex="{Binding WindowSnapping.OverlapAlgorithmIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_OverlapSmallest}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_OverlapLargest}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_OverlapPositional}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_OverlapClosestCenter}" />
+                    </ComboBox>
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_SectionAppearance}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <ComboBox Margin="0,0,0,8" SelectedIndex="{Binding WindowSnapping.ZoneStyleIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_StyleWindows}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_StyleCustom}" />
+                    </ComboBox>
+                    <CheckBox Margin="0,0,0,12"
+                              IsChecked="{Binding WindowSnapping.ShowZoneNumber, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_ShowZoneNumber}" TextWrapping="Wrap" />
+                    </CheckBox>
+
+                    <StackPanel Visibility="{Binding WindowSnapping.IsCustomStyle, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_ZoneColor}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4" Tag="zone"
+                                Background="{Binding WindowSnapping.ZoneColorPreview}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
+                                Cursor="Hand" ToolTip="{Markup:Loc Theme_TooltipSwatch}"
+                                MouseLeftButtonDown="OnWindowSnappingSwatchClick" />
+                        <ui:TextBox Grid.Column="1" PlaceholderText="#9323AE" FontFamily="Consolas"
+                                    Text="{Binding WindowSnapping.ZoneColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_HighlightColor}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4" Tag="highlight"
+                                Background="{Binding WindowSnapping.HighlightColorPreview}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
+                                Cursor="Hand" ToolTip="{Markup:Loc Theme_TooltipSwatch}"
+                                MouseLeftButtonDown="OnWindowSnappingSwatchClick" />
+                        <ui:TextBox Grid.Column="1" PlaceholderText="#9323AE" FontFamily="Consolas"
+                                    Text="{Binding WindowSnapping.HighlightColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_BorderColor}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4" Tag="border"
+                                Background="{Binding WindowSnapping.BorderColorPreview}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
+                                Cursor="Hand" ToolTip="{Markup:Loc Theme_TooltipSwatch}"
+                                MouseLeftButtonDown="OnWindowSnappingSwatchClick" />
+                        <ui:TextBox Grid.Column="1" PlaceholderText="#9323AE" FontFamily="Consolas"
+                                    Text="{Binding WindowSnapping.BorderColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_ZoneOpacity}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding WindowSnapping.ZoneOpacity}" />
+                    </Grid>
+                    <Slider Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,16"
+                            Value="{Binding WindowSnapping.ZoneOpacity, Mode=TwoWay}" />
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_HighlightOpacity}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding WindowSnapping.HighlightOpacity}" />
+                    </Grid>
+                    <Slider Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,16"
+                            Value="{Binding WindowSnapping.HighlightOpacity, Mode=TwoWay}" />
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_BorderThickness}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding WindowSnapping.BorderThickness}" />
+                    </Grid>
+                    <Slider Minimum="0" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,16"
+                            Value="{Binding WindowSnapping.BorderThickness, Mode=TwoWay}" />
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_CornerRadius}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding WindowSnapping.CornerRadius}" />
+                    </Grid>
+                    <Slider Minimum="0" Maximum="64" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding WindowSnapping.CornerRadius, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_SectionWindow}" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,8" />
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.RestoreSizeOnUnsnap, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_RestoreSize}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.TransparentWhileDragging, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_Transparent}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.AllowChildWindows, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_ChildWindows}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.DisableRoundedCorners, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_RoundedCorners}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.KeepInZonesOnDisplayChange, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_KeepOnDisplayChange}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.ReapplyOnLayoutChange, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_ReapplyOnLayoutChange}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.MoveNewWindowsToLastZone, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_NewWindowsLastZone}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,20"
+                              IsChecked="{Binding WindowSnapping.MoveNewWindowsToActiveMonitor, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_NewWindowsActiveMonitor}" TextWrapping="Wrap" />
+                    </CheckBox>
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_SectionKeyboard}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.QuickLayoutSwitch, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_QuickLayoutSwitch}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <CheckBox Margin="0,0,0,6"
+                              IsChecked="{Binding WindowSnapping.OverrideWindowsSnap, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_OverrideWinSnap}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_MoveBasedLabel}" FontWeight="SemiBold" Margin="22,6,0,4" />
+                    <ComboBox Margin="22,0,0,8" IsEnabled="{Binding WindowSnapping.OverrideWindowsSnap}"
+                              SelectedIndex="{Binding WindowSnapping.MoveBasedOnIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_MoveRelative}" />
+                        <ComboBoxItem Content="{Markup:Loc WindowSnappingTab_MoveIndex}" />
+                    </ComboBox>
+                    <CheckBox Margin="22,0,0,6"
+                              IsEnabled="{Binding WindowSnapping.OverrideWindowsSnap}"
+                              IsChecked="{Binding WindowSnapping.MoveAcrossMonitors, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_MoveAcrossMonitors}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                               TextWrapping="Wrap" Margin="22,0,0,20"
+                               Text="{Markup:Loc WindowSnappingTab_KeyboardHint}" />
+
+                    <TextBlock Text="{Markup:Loc WindowSnappingTab_SectionExcluded}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,0,0,6"
+                               Text="{Markup:Loc WindowSnappingTab_ExcludedHint}" />
+                    <ui:TextBox AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="90" MaxHeight="200"
+                                VerticalScrollBarVisibility="Auto" FontFamily="Consolas"
+                                PlaceholderText="AresToys.exe"
+                                Text="{Binding WindowSnapping.ExcludedAppsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+            </ScrollViewer>
+
             <!-- Wormholes — list of every wormhole the user owns (Data + Portal), with their
                  current position / size / lock / hidden state and per-row actions (open folder,
                  delete). The "+ New wormhole" button at the top mirrors the tray entry and pops
@@ -2339,6 +2568,14 @@
                                       ToolTip="{Markup:Loc Wormhole_ShortcutArrowTooltip}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" />
+                            <!-- Labels without the file extension. Rename mode always shows the
+                                 full name, so the extension stays editable. -->
+                            <CheckBox Margin="0,8,0,0"
+                                      IsChecked="{Binding Wormholes.HideFileExtensions, Mode=TwoWay}"
+                                      Content="{Markup:Loc Wormhole_HideFileExtensions}"
+                                      ToolTip="{Markup:Loc Wormhole_HideFileExtensionsTooltip}"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                      HorizontalAlignment="Left" />
 
                             <!-- Desktop-widget behaviour: "Show desktop" (Win+D, Win+M, the
                                  taskbar's far-corner button) leaves the wormholes alone. ON by
@@ -2568,14 +2805,6 @@
                                       ToolTip="{Markup:Loc Settings_ModuleLauncherTooltip}" />
                             <CheckBox IsChecked="{Binding WormholesModuleEnabled, Mode=TwoWay}"
                                       Content="{Markup:Loc Settings_ModuleWormholes}"
-                            <!-- Labels without the file extension. Rename mode always shows the
-                                 full name, so the extension stays editable. -->
-                            <CheckBox Margin="0,8,0,0"
-                                      IsChecked="{Binding Wormholes.HideFileExtensions, Mode=TwoWay}"
-                                      Content="{Markup:Loc Wormhole_HideFileExtensions}"
-                                      ToolTip="{Markup:Loc Wormhole_HideFileExtensionsTooltip}"
-                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
-                                      HorizontalAlignment="Left" />
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc Settings_ModuleWormholesTooltip}" />

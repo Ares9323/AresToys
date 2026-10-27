@@ -20,6 +20,10 @@ public static class DefaultPipelineProfiles
     public const string ShowPopupId         = "show-popup";
     public const string ToggleIncognitoId   = "toggle-incognito";
     public const string AlwaysOnTopId       = "always-on-top";
+    public const string WindowSnappingEditorId = "window-snapping-editor";
+    public const string WindowSnappingToggleId = "window-snapping-toggle";
+    public const string WindowSnappingNextWindowId = "window-snapping-next-window";
+    public const string WindowSnappingPreviousWindowId = "window-snapping-previous-window";
     public const string ResizeFhdId         = "resize-fhd";
     public const string Resize2kId          = "resize-2k";
     public const string Resize4kId          = "resize-4k";
@@ -60,6 +64,10 @@ public static class DefaultPipelineProfiles
     public const string OpenPopupTaskId            = "arestoys.open-popup";
     public const string ToggleIncognitoTaskId      = "arestoys.toggle-incognito";
     public const string AlwaysOnTopTaskId          = "arestoys.always-on-top";
+    public const string WindowSnappingEditorTaskId = "arestoys.window-snapping-editor";
+    public const string WindowSnappingToggleTaskId = "arestoys.window-snapping-toggle";
+    public const string WindowSnappingNextWindowTaskId = "arestoys.window-snapping-next-window";
+    public const string WindowSnappingPreviousWindowTaskId = "arestoys.window-snapping-previous-window";
     public const string ResizeImageFilesTaskId     = "arestoys.resize-image-files";
     public const string ColorSamplerTaskId         = "arestoys.color-sampler";
     public const string ColorPickerTaskId          = "arestoys.color-picker";
@@ -127,6 +135,10 @@ public static class DefaultPipelineProfiles
         [ToggleIncognitoId]       = "Clipboard",
 
         [AlwaysOnTopId]           = "Tools",
+        [WindowSnappingEditorId]  = "Tools",
+        [WindowSnappingToggleId]  = "Tools",
+        [WindowSnappingNextWindowId] = "Tools",
+        [WindowSnappingPreviousWindowId] = "Tools",
         [ColorSamplerId]          = "Tools",
         [ColorPickerId]           = "Tools",
         [OpenScreenshotFolderId]  = "Tools",
@@ -432,6 +444,49 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(AlwaysOnTopTaskId, Id: "always-on-top")
             ],
             Hotkey: new HotkeyBinding(Win | Alt, 0x43),  // Win+Alt+C
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: WindowSnappingEditorId,
+            DisplayName: "Window snapping editor",
+            Trigger: "hotkey:window-snapping-editor",
+            Steps:
+            [
+                new PipelineStep(WindowSnappingEditorTaskId, Id: "window-snapping-editor")
+            ],
+            Hotkey: new HotkeyBinding(Win | Shift, 0xC0),  // Win+Shift+`
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: WindowSnappingToggleId,
+            DisplayName: "Toggle window snapping",
+            Trigger: "hotkey:window-snapping-toggle",
+            Steps:
+            [
+                new PipelineStep(WindowSnappingToggleTaskId, Id: "window-snapping-toggle")
+            ],
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: WindowSnappingNextWindowId,
+            DisplayName: "Next window in zone",
+            Trigger: "hotkey:window-snapping-next-window",
+            Steps:
+            [
+                new PipelineStep(WindowSnappingNextWindowTaskId, Id: "window-snapping-next-window")
+            ],
+            Hotkey: new HotkeyBinding(Win, 0x22),  // Win+PgDn
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: WindowSnappingPreviousWindowId,
+            DisplayName: "Previous window in zone",
+            Trigger: "hotkey:window-snapping-previous-window",
+            Steps:
+            [
+                new PipelineStep(WindowSnappingPreviousWindowTaskId, Id: "window-snapping-previous-window")
+            ],
+            Hotkey: new HotkeyBinding(Win, 0x21),  // Win+PgUp
             IsBuiltIn: true),
 
         // Colour-sampler workflow — 3-step composable chain that mirrors the image-capture

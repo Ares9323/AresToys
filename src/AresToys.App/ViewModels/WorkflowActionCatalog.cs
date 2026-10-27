@@ -662,6 +662,26 @@ public static class WorkflowActionCatalog
             "Pin the window in front to keep it above all others, with a colored frame around it. Run it again on the same window to release it.",
             "Actions"),
 
+        new("arestoys.window-snapping-editor",
+            "Window snapping editor",
+            "Open the Window snapping layout editor to design and assign zone layouts. If it is already open, bring it to the front.",
+            "Actions"),
+
+        new("arestoys.window-snapping-toggle",
+            "Toggle window snapping",
+            "Turn Window snapping on or off. When on, hold Shift while dragging a window by its title bar to snap it into a zone.",
+            "Actions"),
+
+        new("arestoys.window-snapping-next-window",
+            "Next window in zone",
+            "Bring the next window snapped into the same zone as the foreground window to the front. Needs Window snapping to be on.",
+            "Actions"),
+
+        new("arestoys.window-snapping-previous-window",
+            "Previous window in zone",
+            "Bring the previous window snapped into the same zone as the foreground window to the front. Needs Window snapping to be on.",
+            "Actions"),
+
         new("arestoys.open-screenshot-folder",
             "Open screenshot folder",
             "Open the configured capture folder (Settings → Capture) in Windows Explorer.",
