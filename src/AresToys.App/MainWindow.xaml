@@ -298,6 +298,11 @@
                            Appearance="{Binding IsCategoriesSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
+                           Content="{Markup:Loc Sidebar_AlwaysOnTop}"
+                           Command="{Binding ShowAlwaysOnTopCommand}"
+                           Appearance="{Binding IsAlwaysOnTopSelected, Converter={StaticResource BoolToAppearance}}" />
+                <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                           Margin="0,0,0,4"
                            Content="{Markup:Loc Sidebar_WormholesSettings}"
                            Command="{Binding ShowWormholesCommand}"
                            Appearance="{Binding IsWormholesSelected, Converter={StaticResource BoolToAppearance}}" />
@@ -1855,6 +1860,76 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Always on top — look of the frame drawn around windows pinned by the Always on top
+                 workflow. Every change saves and reaches already-pinned windows immediately. -->
+            <ScrollViewer Visibility="{Binding IsAlwaysOnTopSelected, Converter={StaticResource BoolToVisibility}}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="24,16,24,16" MaxWidth="560" HorizontalAlignment="Left">
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Markup:Loc Sidebar_AlwaysOnTop}"
+                                   FontSize="20" FontWeight="SemiBold" />
+                        <ui:Button Grid.Column="1" Content="{Markup:Loc AlwaysOnTop_Reset}"
+                                   Padding="14,4"
+                                   Command="{Binding AlwaysOnTop.ResetToDefaultsCommand}" />
+                    </Grid>
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc AlwaysOnTop_Blurb}" />
+
+                    <CheckBox Content="{Markup:Loc AlwaysOnTop_ShowFrame}" Margin="0,0,0,16"
+                              IsChecked="{Binding AlwaysOnTop.ShowFrame, Mode=TwoWay}" />
+
+                    <TextBlock Text="{Markup:Loc AlwaysOnTop_Color}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
+                                Background="{Binding AlwaysOnTop.ColorPreview}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1" Margin="0,0,8,0"
+                                Cursor="Hand"
+                                ToolTip="{Markup:Loc Theme_TooltipSwatch}"
+                                MouseLeftButtonDown="OnAlwaysOnTopSwatchClick" />
+                        <ui:TextBox Grid.Column="1"
+                                    Text="{Binding AlwaysOnTop.ColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    PlaceholderText="#9323AE"
+                                    FontFamily="Consolas" />
+                    </Grid>
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc AlwaysOnTop_Thickness}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding AlwaysOnTop.ThicknessPx}" />
+                    </Grid>
+                    <Slider Minimum="1" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Margin="0,0,0,16"
+                            Value="{Binding AlwaysOnTop.ThicknessPx, Mode=TwoWay}" />
+
+                    <CheckBox Content="{Markup:Loc AlwaysOnTop_AutoCorner}" Margin="0,0,0,8"
+                              IsChecked="{Binding AlwaysOnTop.AutoCorner, Mode=TwoWay}" />
+                    <Grid Margin="0,0,0,4" IsEnabled="{Binding AlwaysOnTop.ManualCorner}">
+                        <TextBlock Text="{Markup:Loc AlwaysOnTop_CornerRadius}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding AlwaysOnTop.CornerRadiusPx}" />
+                    </Grid>
+                    <Slider Minimum="0" Maximum="64" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Margin="0,0,0,16"
+                            IsEnabled="{Binding AlwaysOnTop.ManualCorner}"
+                            Value="{Binding AlwaysOnTop.CornerRadiusPx, Mode=TwoWay}" />
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc AlwaysOnTop_Opacity}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding AlwaysOnTop.OpacityPercent}" />
+                    </Grid>
+                    <Slider Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding AlwaysOnTop.OpacityPercent, Mode=TwoWay}" />
                 </StackPanel>
             </ScrollViewer>
 

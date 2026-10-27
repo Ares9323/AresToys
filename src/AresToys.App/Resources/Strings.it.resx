@@ -273,6 +273,18 @@
   <data name="Workflow_ShortenClipboardUrl" xml:space="preserve"><value>Accorcia URL dagli appunti</value></data>
   <data name="Workflow_ShowPopup" xml:space="preserve"><value>Mostra popup appunti</value></data>
   <data name="Workflow_ToggleIncognito" xml:space="preserve"><value>Attiva/disattiva incognito</value></data>
+  <data name="Workflow_AlwaysOnTop" xml:space="preserve"><value>Sempre in primo piano</value></data>
+  <data name="Sidebar_AlwaysOnTop" xml:space="preserve"><value>Sempre in primo piano</value></data>
+  <data name="AlwaysOnTop_Blurb" xml:space="preserve"><value>Cornice disegnata attorno alle finestre bloccate dal workflow Sempre in primo piano. Le modifiche si applicano subito, anche alle finestre già bloccate.</value></data>
+  <data name="AlwaysOnTop_ShowFrame" xml:space="preserve"><value>Mostra una cornice attorno alle finestre bloccate</value></data>
+  <data name="AlwaysOnTop_Color" xml:space="preserve"><value>Colore della cornice</value></data>
+  <data name="AlwaysOnTop_Thickness" xml:space="preserve"><value>Spessore (px)</value></data>
+  <data name="AlwaysOnTop_AutoCorner" xml:space="preserve"><value>Segui automaticamente gli angoli della finestra</value></data>
+  <data name="AlwaysOnTop_CornerRadius" xml:space="preserve"><value>Raggio degli angoli (px)</value></data>
+  <data name="AlwaysOnTop_Opacity" xml:space="preserve"><value>Opacità (%)</value></data>
+  <data name="AlwaysOnTop_Reset" xml:space="preserve"><value>Ripristina predefiniti</value></data>
+  <data name="WorkflowAction_arestoys_always_on_top" xml:space="preserve"><value>Sempre in primo piano</value></data>
+  <data name="WorkflowActionDesc_arestoys_always_on_top" xml:space="preserve"><value>Tiene la finestra davanti a tutte le altre, con una cornice colorata attorno. Eseguila di nuovo sulla stessa finestra per rilasciarla.</value></data>
   <data name="Workflow_ColorSampler" xml:space="preserve"><value>Campiona colore</value></data>
   <data name="Workflow_ColorPicker" xml:space="preserve"><value>Selettore colore</value></data>
   <data name="Workflow_RecordScreenMp4" xml:space="preserve"><value>Registrazione schermo (mp4)</value></data>

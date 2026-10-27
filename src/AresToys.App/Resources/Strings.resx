@@ -286,6 +286,18 @@
   <data name="Workflow_ShortenClipboardUrl" xml:space="preserve"><value>Shorten clipboard URL</value></data>
   <data name="Workflow_ShowPopup" xml:space="preserve"><value>Show clipboard popup</value></data>
   <data name="Workflow_ToggleIncognito" xml:space="preserve"><value>Toggle incognito</value></data>
+  <data name="Workflow_AlwaysOnTop" xml:space="preserve"><value>Always on top</value></data>
+  <data name="Sidebar_AlwaysOnTop" xml:space="preserve"><value>Always on top</value></data>
+  <data name="AlwaysOnTop_Blurb" xml:space="preserve"><value>Frame drawn around windows pinned with the Always on top workflow. Changes apply at once, including to windows already pinned.</value></data>
+  <data name="AlwaysOnTop_ShowFrame" xml:space="preserve"><value>Show a frame around pinned windows</value></data>
+  <data name="AlwaysOnTop_Color" xml:space="preserve"><value>Frame color</value></data>
+  <data name="AlwaysOnTop_Thickness" xml:space="preserve"><value>Thickness (px)</value></data>
+  <data name="AlwaysOnTop_AutoCorner" xml:space="preserve"><value>Match the window corners automatically</value></data>
+  <data name="AlwaysOnTop_CornerRadius" xml:space="preserve"><value>Corner radius (px)</value></data>
+  <data name="AlwaysOnTop_Opacity" xml:space="preserve"><value>Opacity (%)</value></data>
+  <data name="AlwaysOnTop_Reset" xml:space="preserve"><value>Reset to defaults</value></data>
+  <data name="WorkflowAction_arestoys_always_on_top" xml:space="preserve"><value>Always on top</value></data>
+  <data name="WorkflowActionDesc_arestoys_always_on_top" xml:space="preserve"><value>Pin the window in front to keep it above all others, with a colored frame around it. Run it again on the same window to release it.</value></data>
   <data name="Workflow_ColorSampler" xml:space="preserve"><value>Color sampler</value></data>
   <data name="Workflow_ColorPicker" xml:space="preserve"><value>Color picker</value></data>
   <data name="Workflow_RecordScreenMp4" xml:space="preserve"><value>Screen recording (mp4)</value></data>

@@ -13,6 +13,7 @@ internal static class SettingsTabLabels
         "capture"    => "Capture",
         "theme"      => "Theme",
         "categories" => "Clipboard categories",
+        "alwaysontop" => "Always on top",
         "wormholes"  => "Wormholes",
         "settings"   => "App settings",
         "debug"      => "Debug",

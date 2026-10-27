@@ -972,6 +972,27 @@ public partial class MainWindow : FluentWindow
         _ = _colorRecents.PushAsync(picked, System.Threading.CancellationToken.None);
     }
 
+    /// <summary>Swatch on the Always on top tab: open the colour picker seeded with the current
+    /// frame colour and write the pick back as hex.</summary>
+    private void OnAlwaysOnTopSwatchClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm) return;
+        var current = TryParseShapeColor(vm.AlwaysOnTop.ColorHex) ?? ShapeColor.Black;
+        var dialog = new ColorPickerWindow(current) { Owner = this };
+        dialog.EyedropperRequested += (_, _) =>
+        {
+            var hex = _screenSampler.SampleAtCursor();
+            if (hex is null) return;
+            if (TryParseShapeColor(hex) is { } sampled) dialog.ApplySampledColor(sampled);
+        };
+        ColorSwatchButton.CurrentRecents = _colorRecents.Current;
+
+        if (dialog.ShowDialog() != true) return;
+        var picked = dialog.PickedColor;
+        vm.AlwaysOnTop.ColorHex = $"#{picked.R:X2}{picked.G:X2}{picked.B:X2}";
+        _ = _colorRecents.PushAsync(picked, System.Threading.CancellationToken.None);
+    }
+
     private void OnSxcuAssociationCheckBoxLoaded(object sender, RoutedEventArgs e)
     {
         // Read live registry state every time the checkbox renders — the user might have

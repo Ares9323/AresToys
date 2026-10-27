@@ -6759,6 +6759,114 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Always on top.
+        /// </summary>
+        public static string Sidebar_AlwaysOnTop {
+            get {
+                return ResourceManager.GetString("Sidebar_AlwaysOnTop", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Frame drawn around windows pinned with the Always on top workflow. Changes apply at once, including to windows already pinned..
+        /// </summary>
+        public static string AlwaysOnTop_Blurb {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_Blurb", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show a frame around pinned windows.
+        /// </summary>
+        public static string AlwaysOnTop_ShowFrame {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_ShowFrame", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Frame color.
+        /// </summary>
+        public static string AlwaysOnTop_Color {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_Color", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Thickness (px).
+        /// </summary>
+        public static string AlwaysOnTop_Thickness {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_Thickness", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Match the window corners automatically.
+        /// </summary>
+        public static string AlwaysOnTop_AutoCorner {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_AutoCorner", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Corner radius (px).
+        /// </summary>
+        public static string AlwaysOnTop_CornerRadius {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_CornerRadius", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Opacity (%).
+        /// </summary>
+        public static string AlwaysOnTop_Opacity {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_Opacity", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reset to defaults.
+        /// </summary>
+        public static string AlwaysOnTop_Reset {
+            get {
+                return ResourceManager.GetString("AlwaysOnTop_Reset", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Always on top.
+        /// </summary>
+        public static string Workflow_AlwaysOnTop {
+            get {
+                return ResourceManager.GetString("Workflow_AlwaysOnTop", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Always on top.
+        /// </summary>
+        public static string WorkflowAction_arestoys_always_on_top {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_always_on_top", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pin the window in front to keep it above all others, with a colored frame around it. Run it again on the same window to release it..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_always_on_top {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_always_on_top", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Toggle incognito.
         /// </summary>
         public static string Workflow_ToggleIncognito {

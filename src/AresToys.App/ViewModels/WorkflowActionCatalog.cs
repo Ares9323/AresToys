@@ -594,6 +594,11 @@ public static class WorkflowActionCatalog
             "Flip incognito on/off — when on, clipboard items aren't captured into history.",
             "Actions"),
 
+        new("arestoys.always-on-top",
+            "Always on top",
+            "Pin the window in front to keep it above all others, with a colored frame around it. Run it again on the same window to release it.",
+            "Actions"),
+
         new("arestoys.open-screenshot-folder",
             "Open screenshot folder",
             "Open the configured capture folder (Settings → Capture) in Windows Explorer.",

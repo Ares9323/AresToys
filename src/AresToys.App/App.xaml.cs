@@ -291,6 +291,8 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, RemoveBackgroundTask>();
                 services.AddSingleton<IPipelineTask, OpenEditorBeforeUploadTask>();
                 services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
+                services.AddSingleton<AresToys.App.Services.AlwaysOnTop.AlwaysOnTopService>();
+                services.AddSingleton<IPipelineTask, AlwaysOnTopTask>();
                 services.AddSingleton<IPipelineTask, ColorSamplerTask>();
                 services.AddSingleton<IPipelineTask, ColorPickerTask>();
                 services.AddSingleton<IPipelineTask, ConvertColorTask>();
@@ -444,6 +446,7 @@ public partial class App : Application
                 services.AddSingleton<CategoriesViewModel>();
                 services.AddSingleton<DebugViewModel>();
                 services.AddSingleton<WormholesViewModel>();
+                services.AddSingleton<AlwaysOnTopViewModel>();
                 services.AddSingleton<SettingsViewModel>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<TrayIconService>();

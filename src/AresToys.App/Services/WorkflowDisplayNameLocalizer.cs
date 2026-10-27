@@ -26,6 +26,7 @@ public static class WorkflowDisplayNameLocalizer
         [DefaultPipelineProfiles.ShortenClipboardUrlId]    = nameof(Strings.Workflow_ShortenClipboardUrl),
         [DefaultPipelineProfiles.ShowPopupId]              = nameof(Strings.Workflow_ShowPopup),
         [DefaultPipelineProfiles.ToggleIncognitoId]        = nameof(Strings.Workflow_ToggleIncognito),
+        [DefaultPipelineProfiles.AlwaysOnTopId]            = nameof(Strings.Workflow_AlwaysOnTop),
         [DefaultPipelineProfiles.ColorSamplerId]           = nameof(Strings.Workflow_ColorSampler),
         [DefaultPipelineProfiles.ColorPickerId]            = nameof(Strings.Workflow_ColorPicker),
         [DefaultPipelineProfiles.RecordScreenMp4Id]        = nameof(Strings.Workflow_RecordScreenMp4),

@@ -19,6 +19,7 @@ public static class DefaultPipelineProfiles
     public const string ShortenClipboardUrlId = "shorten-clipboard-url";
     public const string ShowPopupId         = "show-popup";
     public const string ToggleIncognitoId   = "toggle-incognito";
+    public const string AlwaysOnTopId       = "always-on-top";
     public const string ColorSamplerId      = "color-sampler";
     public const string ColorPickerId       = "color-picker";
     public const string RecordScreenMp4Id   = "record-screen";
@@ -51,6 +52,7 @@ public static class DefaultPipelineProfiles
     public const string ApplyImageEffectsPresetTaskId = "arestoys.apply-image-effects-preset";
     public const string OpenPopupTaskId            = "arestoys.open-popup";
     public const string ToggleIncognitoTaskId      = "arestoys.toggle-incognito";
+    public const string AlwaysOnTopTaskId          = "arestoys.always-on-top";
     public const string ColorSamplerTaskId         = "arestoys.color-sampler";
     public const string ColorPickerTaskId          = "arestoys.color-picker";
     public const string ConvertColorTaskId         = "arestoys.convert-color";
@@ -116,6 +118,7 @@ public static class DefaultPipelineProfiles
         [ShowPopupId]             = "Clipboard",
         [ToggleIncognitoId]       = "Clipboard",
 
+        [AlwaysOnTopId]           = "Tools",
         [ColorSamplerId]          = "Tools",
         [ColorPickerId]           = "Tools",
         [OpenScreenshotFolderId]  = "Tools",
@@ -394,6 +397,17 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(ToggleIncognitoTaskId, Id: "toggle-incognito")
             ],
             Hotkey: new HotkeyBinding(Win | Shift, 0x4E),  // Win+Shift+N
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: AlwaysOnTopId,
+            DisplayName: "Always on top",
+            Trigger: "hotkey:always-on-top",
+            Steps:
+            [
+                new PipelineStep(AlwaysOnTopTaskId, Id: "always-on-top")
+            ],
+            Hotkey: new HotkeyBinding(Win | Alt, 0x43),  // Win+Alt+C
             IsBuiltIn: true),
 
         // Colour-sampler workflow — 3-step composable chain that mirrors the image-capture
