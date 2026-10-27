@@ -11,10 +11,12 @@ public class DefaultPipelineProfilesTests
         // Every hotkey-driven built-in workflow must have an entry in CategoriesById, otherwise
         // it falls through to the "Other" bucket and the user finds it orphaned at the bottom of
         // a tab labelled neither Capture / Clipboard / Upload / Tools. This test catches a new
-        // built-in being added without remembering to categorise it.
+        // built-in being added without remembering to categorise it. The category is decided by
+        // CategoryOf (by content first, then the id map), so a built-in decided by its content,
+        // like the resize presets, counts as categorised.
         var uncategorised = DefaultPipelineProfiles.All
             .Where(p => p.Trigger.StartsWith("hotkey:", StringComparison.Ordinal))
-            .Where(p => !DefaultPipelineProfiles.CategoriesById.ContainsKey(p.Id))
+            .Where(p => DefaultPipelineProfiles.CategoryOf(p) == DefaultPipelineProfiles.DefaultCategory)
             .Select(p => p.Id)
             .ToArray();
         Assert.True(uncategorised.Length == 0,
