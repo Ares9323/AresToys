@@ -19,6 +19,7 @@ public sealed class SingleInstanceGuard : IDisposable
 {
     private const string MutexName = "Global\\AresToys.SingleInstance";
     private const string PipeName = "AresToys.SingleInstance.Pipe";
+    private const int DefaultConnectTimeoutMs = 1000;
 
     /// <summary>Conventional payload used by a re-launch with no args — primary brings UI front.</summary>
     public const string ShowMessage = "show";
@@ -39,6 +40,14 @@ public sealed class SingleInstanceGuard : IDisposable
     /// folder right-click context-menu entry. Secondary instance forwards the folder path, the
     /// primary spawns a wormhole record + window with no dialog.</summary>
     public const string CreateWormholePrefix = "create-wormhole:";
+
+    /// <summary>Prefix for "run this workflow on this file" messages from the Explorer image
+    /// resize verbs (<c>arestoys.exe --resize &lt;workflowId&gt; "&lt;path&gt;"</c>, one process per
+    /// selected file). The payload after the prefix is the workflow id, a TAB, then the absolute
+    /// file path (workflow ids and Windows paths never contain a tab). The primary batches the
+    /// messages that arrive close together into one workflow run and does NOT bring its main
+    /// window forward for them.</summary>
+    public const string ResizePrefix = "resize:";
 
     /// <summary>"Show the NewWormholeDialog so the user can pick a source folder." Used by the
     /// Background variant of the shell verb (right-click on empty desktop / folder area) — there
@@ -69,14 +78,21 @@ public sealed class SingleInstanceGuard : IDisposable
     public Task NotifyExistingInstanceAsync(CancellationToken cancellationToken)
         => NotifyExistingInstanceAsync(ShowMessage, cancellationToken);
 
-    public async Task NotifyExistingInstanceAsync(string message, CancellationToken cancellationToken)
+    public Task NotifyExistingInstanceAsync(string message, CancellationToken cancellationToken)
+        => NotifyExistingInstanceAsync(message, DefaultConnectTimeoutMs, cancellationToken);
+
+    /// <summary>Same as the overload without a timeout, but waits up to
+    /// <paramref name="connectTimeoutMs"/> for the primary's pipe to appear. A primary that is
+    /// still starting up only opens the pipe after its host is built, so callers that must not
+    /// lose their message (one process per file from Explorer) pass a longer wait.</summary>
+    public async Task NotifyExistingInstanceAsync(string message, int connectTimeoutMs, CancellationToken cancellationToken)
     {
         if (_isPrimary)
             throw new InvalidOperationException("This process owns the mutex; nothing to notify.");
         ArgumentNullException.ThrowIfNull(message);
 
         await using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
-        await client.ConnectAsync(timeout: 1000, cancellationToken).ConfigureAwait(false);
+        await client.ConnectAsync(connectTimeoutMs, cancellationToken).ConfigureAwait(false);
         var bytes = Encoding.UTF8.GetBytes(message);
         await client.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
         await client.FlushAsync(cancellationToken).ConfigureAwait(false);

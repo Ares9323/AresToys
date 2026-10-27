@@ -29,6 +29,7 @@ public partial class MainWindow : FluentWindow
     private readonly AresToys.Storage.Settings.ISettingsStore _settingsStore;
     private readonly AresToys.Storage.ImageEffects.IImageEffectPresetStore _imageEffectPresetStore;
     private readonly AresToys.App.Services.LocalizationService _localization;
+    private readonly AresToys.App.Services.ResizerContextMenuSync _resizerMenu;
     // Set true during the initial Loaded sync so SelectionChanged doesn't immediately overwrite
     // the persisted value with the default-selected item.
     private bool _suppressContextMenuWorkflowChange;
@@ -52,8 +53,10 @@ public partial class MainWindow : FluentWindow
         AresToys.Pipeline.Profiles.IPipelineProfileStore profileStore,
         AresToys.Storage.Settings.ISettingsStore settingsStore,
         AresToys.Storage.ImageEffects.IImageEffectPresetStore imageEffectPresetStore,
-        AresToys.App.Services.LocalizationService localization)
+        AresToys.App.Services.LocalizationService localization,
+        AresToys.App.Services.ResizerContextMenuSync resizerMenu)
     {
+        _resizerMenu = resizerMenu;
         InitializeComponent();
         AresToys.App.Services.DarkTitleBar.SuppressResizeFlicker(this);
         AresToys.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
@@ -1175,6 +1178,28 @@ public partial class MainWindow : FluentWindow
             cb.IsChecked = AresToys.App.Services.SxcuFileAssociation.IsRegistered();
             System.Windows.MessageBox.Show(this,
                 $"Couldn't update file association:\n{ex.Message}",
+                "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    private void OnResizerMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.CheckBox cb)
+            cb.IsChecked = _resizerMenu.IsEnabled;
+    }
+
+    private async void OnResizerMenuToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox cb) return;
+        try
+        {
+            await _resizerMenu.SetEnabledAsync(cb.IsChecked == true);
+        }
+        catch (Exception ex)
+        {
+            cb.IsChecked = _resizerMenu.IsEnabled;
+            System.Windows.MessageBox.Show(this,
+                $"Couldn't update the Image Resizer menu entry:\n{ex.Message}",
                 "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }

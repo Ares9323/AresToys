@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json.Nodes;
 using System.Windows;
 using Microsoft.Extensions.Logging;
+using AresToys.App.Services.Shell;
 using AresToys.Core.Domain;
 using AresToys.Core.Pipeline;
 using AresToys.Storage.Items;
@@ -95,57 +96,12 @@ public sealed class CaptureSelectedExplorerFileTask : IPipelineTask
             fileName, bytes.Length);
     }
 
-    /// <summary>Walk every open Shell window and return the first selected file in the one whose
-    /// HWND matches <c>GetForegroundWindow</c>. Pure best-effort — returns null on any kind of
-    /// failure (no foreground match, no selection, Explorer's automation surface throws). The
-    /// dynamic dispatch keeps us free of a SHDocVw / Microsoft.mshtml interop reference.</summary>
+    /// <summary>First selected item of the foreground Explorer window, or null when there is none.
+    /// The lookup itself lives in <see cref="ExplorerSelection"/>, shared with the batch tasks.</summary>
     private string? ResolveSelectedFilePath()
     {
-        var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero) return null;
-
-        try
-        {
-            var shellType = Type.GetTypeFromProgID("Shell.Application");
-            if (shellType is null)
-            {
-                _logger.LogWarning("CaptureSelectedExplorerFileTask: Shell.Application ProgID not registered");
-                return null;
-            }
-            dynamic? shell = Activator.CreateInstance(shellType);
-            if (shell is null) return null;
-
-            dynamic windows = shell.Windows();
-            foreach (dynamic window in windows)
-            {
-                IntPtr hwnd;
-                try { hwnd = new IntPtr((int)window.HWND); }
-                catch { continue; } // Some shell windows don't expose HWND (e.g. older IE remnants)
-
-                if (hwnd != foreground) continue;
-
-                dynamic? document;
-                try { document = window.Document; }
-                catch { continue; } // Non-folder windows (e.g. legacy IE) throw on .Document
-
-                dynamic items;
-                try { items = document.SelectedItems(); }
-                catch { return null; } // Folder window with no items / unsupported view mode
-
-                foreach (dynamic item in items)
-                {
-                    string? path = item.Path as string;
-                    if (!string.IsNullOrEmpty(path)) return path;
-                }
-                return null; // Foreground Explorer matched but nothing selected
-            }
-            return null; // Foreground isn't an Explorer window we can introspect
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "CaptureSelectedExplorerFileTask: COM call into Shell.Application failed");
-            return null;
-        }
+        var paths = ExplorerSelection.GetSelectedPaths(_logger);
+        return paths.Count > 0 ? paths[0] : null;
     }
 
     private static ItemKind KindForExtension(string ext) => ext switch
@@ -157,7 +113,4 @@ public sealed class CaptureSelectedExplorerFileTask : IPipelineTask
         "rtf" => ItemKind.Rtf,
         _ => ItemKind.Files,
     };
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
 }

@@ -21,11 +21,19 @@ public sealed partial class HotkeysViewModel : ObservableObject
 {
     private readonly HotkeyConfigService _config;
     private readonly WorkflowsViewModel _workflows;
+    private readonly IPipelineProfileStore _profiles;
 
-    public HotkeysViewModel(HotkeyConfigService config, WorkflowsViewModel workflows, AresToys.App.Services.LocalizationService localization)
+    // Category of every listed workflow id, decided by DefaultPipelineProfiles.CategoryOf on the
+    // stored profile (so a duplicated resize preset still resolves to Resizer). Rebuilt by ReloadAsync.
+    private readonly Dictionary<string, string> _categoryById = new(StringComparer.Ordinal);
+    // User workflows whose category is Resizer: shown in the Resizer tab instead of CustomItems.
+    private readonly List<HotkeyItemViewModel> _customResizerItems = [];
+
+    public HotkeysViewModel(HotkeyConfigService config, WorkflowsViewModel workflows, AresToys.App.Services.LocalizationService localization, IPipelineProfileStore profiles)
     {
         _config = config;
         _workflows = workflows;
+        _profiles = profiles;
         BuiltInItems = [];
         BuiltInGroups = [];
         CustomItems = [];
@@ -83,6 +91,9 @@ public sealed partial class HotkeysViewModel : ObservableObject
     public ObservableCollection<HotkeyItemViewModel> ClipboardItems { get; } = [];
     public ObservableCollection<HotkeyItemViewModel> UploadItems { get; } = [];
     public ObservableCollection<HotkeyItemViewModel> ToolsItems { get; } = [];
+    /// <summary>Every workflow whose category is Resizer: the built-in presets plus any user
+    /// workflow that contains a resize files step (see <see cref="DefaultPipelineProfiles.CategoryOf"/>).</summary>
+    public ObservableCollection<HotkeyItemViewModel> ResizerItems { get; } = [];
     public ObservableCollection<HotkeyItemViewModel> WormholeItems { get; } = [];
 
     public ObservableCollection<HotkeyItemViewModel> CustomItems { get; }
@@ -118,10 +129,14 @@ public sealed partial class HotkeysViewModel : ObservableObject
     {
         BuiltInItems.Clear();
         CustomItems.Clear();
+        _customResizerItems.Clear();
+        _categoryById.Clear();
+        foreach (var profile in await _profiles.ListAsync(CancellationToken.None).ConfigureAwait(true))
+            _categoryById[profile.Id] = DefaultPipelineProfiles.CategoryOf(profile);
         var catalog = await _config.GetCatalogAsync(CancellationToken.None).ConfigureAwait(true);
         var sorted = catalog
             .Select(e => (Entry: e, Display: AresToys.App.Services.WorkflowDisplayNameLocalizer.Localize(e.Id, e.DisplayName)))
-            .OrderBy(p => p.Display, StringComparer.OrdinalIgnoreCase);
+            .OrderBy(p => p.Display, AresToys.App.Services.NaturalStringComparer.Instance);
         foreach (var (entry, display) in sorted)
         {
             var current = await _config.GetEffectiveAsync(entry.Id, CancellationToken.None).ConfigureAwait(true);
@@ -133,14 +148,19 @@ public sealed partial class HotkeysViewModel : ObservableObject
                 _config,
                 refreshList: RefreshNoOp,
                 openInWorkflows: id => _ = BeginEditAsync(id));
-            (entry.IsBuiltIn ? BuiltInItems : CustomItems).Add(item);
+            if (entry.IsBuiltIn) BuiltInItems.Add(item);
+            else if (CategoryFor(item.Id) == DefaultPipelineProfiles.ResizerCategory) _customResizerItems.Add(item);
+            else CustomItems.Add(item);
         }
         RebuildBuiltInGroups();
     }
 
     /// <summary>Order in which categories render. Anything not listed is appended at the end in
     /// alphabetical order (so a future built-in we forget to categorise still shows up).</summary>
-    private static readonly string[] CategoryOrder = ["Capture", "Clipboard", "Upload", "Tools", "Wormholes"];
+    private static readonly string[] CategoryOrder = ["Capture", "Clipboard", "Upload", "Tools", "Resizer", "Wormholes"];
+
+    private string CategoryFor(string id) =>
+        _categoryById.TryGetValue(id, out var category) ? category : DefaultPipelineProfiles.DefaultCategory;
 
     private void RebuildBuiltInGroups()
     {
@@ -149,6 +169,7 @@ public sealed partial class HotkeysViewModel : ObservableObject
         ClipboardItems.Clear();
         UploadItems.Clear();
         ToolsItems.Clear();
+        ResizerItems.Clear();
         WormholeItems.Clear();
 
         // Bucket every built-in item by its category. Items whose id isn't in the map fall under
@@ -156,15 +177,23 @@ public sealed partial class HotkeysViewModel : ObservableObject
         var byCategory = new Dictionary<string, List<HotkeyItemViewModel>>(StringComparer.Ordinal);
         foreach (var item in BuiltInItems)
         {
-            var category = DefaultPipelineProfiles.CategoriesById.TryGetValue(item.Id, out var c)
-                ? c
-                : DefaultPipelineProfiles.DefaultCategory;
+            var category = CategoryFor(item.Id);
             if (!byCategory.TryGetValue(category, out var list))
             {
                 list = [];
                 byCategory[category] = list;
             }
             list.Add(item);
+        }
+        // User workflows recognised as resizers join the built-in presets in the same bucket.
+        if (_customResizerItems.Count > 0)
+        {
+            if (!byCategory.TryGetValue(DefaultPipelineProfiles.ResizerCategory, out var resizers))
+            {
+                resizers = [];
+                byCategory[DefaultPipelineProfiles.ResizerCategory] = resizers;
+            }
+            resizers.AddRange(_customResizerItems);
         }
 
         // Pour the bucketed items into the per-tab collections the Settings UI binds to.
@@ -174,10 +203,11 @@ public sealed partial class HotkeysViewModel : ObservableObject
         if (byCategory.TryGetValue("Clipboard", out var clip)) foreach (var i in clip) ClipboardItems.Add(i);
         if (byCategory.TryGetValue("Upload", out var up)) foreach (var i in up) UploadItems.Add(i);
         if (byCategory.TryGetValue("Tools", out var tools)) foreach (var i in tools) ToolsItems.Add(i);
+        if (byCategory.TryGetValue(DefaultPipelineProfiles.ResizerCategory, out var rs)) foreach (var i in rs) ResizerItems.Add(i);
         if (byCategory.TryGetValue("Wormholes", out var wh)) foreach (var i in wh) WormholeItems.Add(i);
         foreach (var (cat, list) in byCategory)
         {
-            if (cat is "Capture" or "Clipboard" or "Upload" or "Tools" or "Wormholes") continue;
+            if (cat is "Capture" or "Clipboard" or "Upload" or "Tools" or "Resizer" or "Wormholes") continue;
             foreach (var i in list) ToolsItems.Add(i);
         }
 

@@ -20,6 +20,13 @@ public static class DefaultPipelineProfiles
     public const string ShowPopupId         = "show-popup";
     public const string ToggleIncognitoId   = "toggle-incognito";
     public const string AlwaysOnTopId       = "always-on-top";
+    public const string ResizeFhdId         = "resize-fhd";
+    public const string Resize2kId          = "resize-2k";
+    public const string Resize4kId          = "resize-4k";
+    public const string ResizeTexture512Id  = "resize-texture-512";
+    public const string ResizeTexture1024Id = "resize-texture-1024";
+    public const string ResizeTexture2048Id = "resize-texture-2048";
+    public const string ResizeTexture4096Id = "resize-texture-4096";
     public const string ColorSamplerId      = "color-sampler";
     public const string ColorPickerId       = "color-picker";
     public const string RecordScreenMp4Id   = "record-screen";
@@ -53,6 +60,7 @@ public static class DefaultPipelineProfiles
     public const string OpenPopupTaskId            = "arestoys.open-popup";
     public const string ToggleIncognitoTaskId      = "arestoys.toggle-incognito";
     public const string AlwaysOnTopTaskId          = "arestoys.always-on-top";
+    public const string ResizeImageFilesTaskId     = "arestoys.resize-image-files";
     public const string ColorSamplerTaskId         = "arestoys.color-sampler";
     public const string ColorPickerTaskId          = "arestoys.color-picker";
     public const string ConvertColorTaskId         = "arestoys.convert-color";
@@ -134,6 +142,22 @@ public static class DefaultPipelineProfiles
         [WormholesCreateId]        = "Wormholes",
         [WormholesSwitchPresetId]  = "Wormholes",
     };
+
+    /// <summary>Category of the Resizer tab. Decided by content in <see cref="CategoryOf"/>, so the
+    /// resize presets are deliberately absent from <see cref="CategoriesById"/>.</summary>
+    public const string ResizerCategory = "Resizer";
+
+    /// <summary>The one rule that decides a workflow's category, for built-ins and user workflows
+    /// alike. A profile with any step running <see cref="ResizeImageFilesTaskId"/> is a Resizer
+    /// (so a duplicated preset stays in its tab); otherwise the built-in map by id; otherwise
+    /// <see cref="DefaultCategory"/>.</summary>
+    public static string CategoryOf(PipelineProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (profile.Steps.Any(s => string.Equals(s.TaskId, ResizeImageFilesTaskId, StringComparison.Ordinal)))
+            return ResizerCategory;
+        return CategoriesById.TryGetValue(profile.Id, out var category) ? category : DefaultCategory;
+    }
 
     private static IReadOnlyList<PipelineProfile> BuildAll() =>
     [
@@ -620,5 +644,33 @@ public static class DefaultPipelineProfiles
             Trigger: "hotkey:wormholes-switch-preset",
             Steps: [new PipelineStep(WormholeRestorePresetTaskId, Config: System.Text.Json.Nodes.JsonNode.Parse("{\"preset\":\"\"}"), Id: "restore")],
             IsBuiltIn: true),
+        // Image resize presets: one step on the files selected in Explorer. No default hotkey; the
+        // user binds one, or duplicates a preset and edits its parameters.
+        ResizePreset(ResizeFhdId,   "1080p 16:9 FHD", "fit", 1920, 1080),
+        ResizePreset(Resize2kId,    "1440p 16:9 2K", "fit", 2560, 1440),
+        ResizePreset(Resize4kId,    "2160p 16:9 4K", "fit", 3840, 2160),
+        ResizePreset(ResizeTexture512Id,  "square 512p 1:1", "fit", 512,  512),
+        ResizePreset(ResizeTexture1024Id, "square 1024p 1:1", "fit", 1024, 1024),
+        ResizePreset(ResizeTexture2048Id, "square 2048p 1:1", "fit", 2048, 2048),
+        ResizePreset(ResizeTexture4096Id, "square 4096p 1:1", "fit", 4096, 4096),
     ];
+
+    /// <summary>A built-in "Resize image files" workflow for a fixed target box. Every preset uses
+    /// Fit, and the output is named with the box height ("{name}_{h}").</summary>
+    private static PipelineProfile ResizePreset(string id, string name, string mode, int width, int height) => new(
+        Id: id,
+        DisplayName: name,
+        Trigger: "hotkey:" + id,
+        Steps:
+        [
+            new PipelineStep(ResizeImageFilesTaskId,
+                Config: System.Text.Json.Nodes.JsonNode.Parse(
+                    "{\"mode\":\"" + mode + "\",\"unit\":\"px\",\"width\":\"" + width + "\",\"height\":\"" + height + "\","
+                    + "\"shrink_only\":false,\"ignore_orientation\":true,\"format\":\"keep\",\"quality\":90,"
+                    + "\"strip_metadata\":false,\"output_folder\":\"\",\"file_name_template\":\"{name}_{h}\","
+                    + "\"preset_name\":\"" + name + "\",\"replace_original\":false,\"keep_date_modified\":false,"
+                    + "\"on_collision\":\"uniquify\",\"show_notification\":true}"),
+                Id: "resize-files"),
+        ],
+        IsBuiltIn: true);
 }

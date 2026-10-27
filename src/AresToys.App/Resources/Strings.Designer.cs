@@ -8248,6 +8248,15 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WorkflowCategory_Tools", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resizer.
+        /// </summary>
+        public static string WorkflowCategory_Resizer {
+            get {
+                return ResourceManager.GetString("WorkflowCategory_Resizer", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Upload.
@@ -8585,6 +8594,726 @@ namespace AresToys.App.Resources {
         public static string Tags_DeleteConfirm {
             get {
                 return ResourceManager.GetString("Tags_DeleteConfirm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resize image.
+        /// </summary>
+        public static string WorkflowAction_arestoys_resize_image {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_resize_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resize the image in the pipeline and optionally re-encode it. Fit keeps the aspect ratio inside the box, Fill covers the box and crops the overflow, Stretch ignores the aspect ratio. A width or height of 0 is calculated from the other side. Units can be pixels, percent of the original, inches or centimeters (using the image DPI)..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_resize_image {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_resize_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mode.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_mode {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_mode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unit.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_unit {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_unit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Width (0 = auto).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_width {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_width", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Height (0 = auto).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_height {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_height", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Only shrink (never enlarge).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_shrink_only {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_shrink_only", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ignore orientation (portrait and landscape use the same box).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_ignore_orientation {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_ignore_orientation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Format.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_format {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_format", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Quality (1-100).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_quality {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_quality", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Strip metadata.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_strip_metadata {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_strip_metadata", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Convert image.
+        /// </summary>
+        public static string WorkflowAction_arestoys_convert_image {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_convert_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Re-encode the image in the pipeline to another format without changing its size. Quality applies to JPEG and WebP. Strip metadata drops EXIF and other embedded data..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_convert_image {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_convert_image", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Format.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_convert_image_format {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_convert_image_format", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Quality (1-100).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_convert_image_quality {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_convert_image_quality", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Strip metadata.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_convert_image_strip_metadata {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_convert_image_strip_metadata", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fit (keep aspect ratio).
+        /// </summary>
+        public static string EnumValue_fit {
+            get {
+                return ResourceManager.GetString("EnumValue_fit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fill (crop to cover).
+        /// </summary>
+        public static string EnumValue_fill {
+            get {
+                return ResourceManager.GetString("EnumValue_fill", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stretch.
+        /// </summary>
+        public static string EnumValue_stretch {
+            get {
+                return ResourceManager.GetString("EnumValue_stretch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pixels.
+        /// </summary>
+        public static string EnumValue_px {
+            get {
+                return ResourceManager.GetString("EnumValue_px", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Percent.
+        /// </summary>
+        public static string EnumValue_percent {
+            get {
+                return ResourceManager.GetString("EnumValue_percent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Inches.
+        /// </summary>
+        public static string EnumValue_inch {
+            get {
+                return ResourceManager.GetString("EnumValue_inch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Centimeters.
+        /// </summary>
+        public static string EnumValue_cm {
+            get {
+                return ResourceManager.GetString("EnumValue_cm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep original format.
+        /// </summary>
+        public static string EnumValue_keep {
+            get {
+                return ResourceManager.GetString("EnumValue_keep", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to PNG.
+        /// </summary>
+        public static string EnumValue_png {
+            get {
+                return ResourceManager.GetString("EnumValue_png", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to JPEG.
+        /// </summary>
+        public static string EnumValue_jpg {
+            get {
+                return ResourceManager.GetString("EnumValue_jpg", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to WebP.
+        /// </summary>
+        public static string EnumValue_webp {
+            get {
+                return ResourceManager.GetString("EnumValue_webp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to BMP.
+        /// </summary>
+        public static string EnumValue_bmp {
+            get {
+                return ResourceManager.GetString("EnumValue_bmp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to TIFF.
+        /// </summary>
+        public static string EnumValue_tiff {
+            get {
+                return ResourceManager.GetString("EnumValue_tiff", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to GIF.
+        /// </summary>
+        public static string EnumValue_gif {
+            get {
+                return ResourceManager.GetString("EnumValue_gif", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resize image files.
+        /// </summary>
+        public static string WorkflowAction_arestoys_resize_image_files {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_resize_image_files", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resizes and converts the images selected in the foreground Explorer window and saves the results with no dialog, using a file name template. Existing names are never overwritten unless 'If the file exists' says so. 'Replace the original' sends the original to the Recycle Bin and writes the result under its name (the template is ignored). Files that are not images are skipped, and a failure on one file never stops the others. Toggle 'Show notification' for a summary toast..
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_resize_image_files {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_resize_image_files", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mode.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_mode {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_mode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unit.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_unit {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_unit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Width (0 = auto).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_width {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_width", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Height (0 = auto).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_height {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_height", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only shrink (never enlarge).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_shrink_only {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_shrink_only", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ignore orientation (portrait and landscape use the same box).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_ignore_orientation {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_ignore_orientation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Format.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_format {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_format", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quality (1-100).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_quality {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_quality", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Strip metadata.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_strip_metadata {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_strip_metadata", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Output folder (empty = next to each file).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_output_folder {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_output_folder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to File name template ({name} {preset} {w} {h} {ow} {oh} {format} {date} {time} {counter}).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_file_name_template {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_file_name_template", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preset name (the {preset} token).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_preset_name {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_preset_name", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Replace the original (sent to the Recycle Bin).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_replace_original {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_replace_original", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep the original modified date.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_keep_date_modified {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_keep_date_modified", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to If the file exists.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_on_collision {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_on_collision", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show notification.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_resize_image_files_show_notification {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_resize_image_files_show_notification", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add a number.
+        /// </summary>
+        public static string EnumValue_uniquify {
+            get {
+                return ResourceManager.GetString("EnumValue_uniquify", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Overwrite.
+        /// </summary>
+        public static string EnumValue_overwrite {
+            get {
+                return ResourceManager.GetString("EnumValue_overwrite", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Skip.
+        /// </summary>
+        public static string EnumValue_skip {
+            get {
+                return ResourceManager.GetString("EnumValue_skip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} resized, {1} skipped, {2} failed.
+        /// </summary>
+        public static string ResizeImageFiles_Toast_Summary {
+            get {
+                return ResourceManager.GetString("ResizeImageFiles_Toast_Summary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys Resize.
+        /// </summary>
+        public static string ResizeQuick_Title {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Files to resize: {0}.
+        /// </summary>
+        public static string ResizeQuick_FileCount {
+            get {
+                return ResourceManager.GetString("ResizeQuick_FileCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preset.
+        /// </summary>
+        public static string ResizeQuick_Preset {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Preset", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Custom.
+        /// </summary>
+        public static string ResizeQuick_PresetCustom {
+            get {
+                return ResourceManager.GetString("ResizeQuick_PresetCustom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Width.
+        /// </summary>
+        public static string ResizeQuick_Width {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Width", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Height.
+        /// </summary>
+        public static string ResizeQuick_Height {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Height", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to 0 = automatic.
+        /// </summary>
+        public static string ResizeQuick_AutoHint {
+            get {
+                return ResourceManager.GetString("ResizeQuick_AutoHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fit.
+        /// </summary>
+        public static string ResizeQuick_Mode {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Mode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unit.
+        /// </summary>
+        public static string ResizeQuick_Unit {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Unit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only shrink (never enlarge).
+        /// </summary>
+        public static string ResizeQuick_ShrinkOnly {
+            get {
+                return ResourceManager.GetString("ResizeQuick_ShrinkOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ignore orientation.
+        /// </summary>
+        public static string ResizeQuick_IgnoreOrientation {
+            get {
+                return ResourceManager.GetString("ResizeQuick_IgnoreOrientation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Overwrite files (original goes to the Recycle Bin).
+        /// </summary>
+        public static string ResizeQuick_Overwrite {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Overwrite", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Strip metadata.
+        /// </summary>
+        public static string ResizeQuick_StripMetadata {
+            get {
+                return ResourceManager.GetString("ResizeQuick_StripMetadata", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Advanced.
+        /// </summary>
+        public static string ResizeQuick_Advanced {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Advanced", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Format.
+        /// </summary>
+        public static string ResizeQuick_Format {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Format", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quality.
+        /// </summary>
+        public static string ResizeQuick_Quality {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Quality", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to File name template.
+        /// </summary>
+        public static string ResizeQuick_Template {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Template", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Output folder (empty = next to the original).
+        /// </summary>
+        public static string ResizeQuick_OutputFolder {
+            get {
+                return ResourceManager.GetString("ResizeQuick_OutputFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resize.
+        /// </summary>
+        public static string ResizeQuick_Resize {
+            get {
+                return ResourceManager.GetString("ResizeQuick_Resize", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a width, a height, or both, greater than 0..
+        /// </summary>
+        public static string ResizeQuick_InvalidSize {
+            get {
+                return ResourceManager.GetString("ResizeQuick_InvalidSize", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Image Resizer.
+        /// </summary>
+        public static string ResizerMenu_Label {
+            get {
+                return ResourceManager.GetString("ResizerMenu_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Custom....
+        /// </summary>
+        public static string ResizerMenu_Custom {
+            get {
+                return ResourceManager.GetString("ResizerMenu_Custom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show "Image Resizer" in the Explorer menu for images.
+        /// </summary>
+        public static string ResizerMenu_Setting {
+            get {
+                return ResourceManager.GetString("ResizerMenu_Setting", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Adds a submenu with the workflows listed below and a Custom entry..
+        /// </summary>
+        public static string ResizerMenu_SettingHint {
+            get {
+                return ResourceManager.GetString("ResizerMenu_SettingHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save as preset....
+        /// </summary>
+        public static string ResizeQuick_SaveAsPreset {
+            get {
+                return ResourceManager.GetString("ResizeQuick_SaveAsPreset", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preset name.
+        /// </summary>
+        public static string ResizeQuick_PresetName {
+            get {
+                return ResourceManager.GetString("ResizeQuick_PresetName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saved as {0}.
+        /// </summary>
+        public static string ResizeQuick_SavedAs {
+            get {
+                return ResourceManager.GetString("ResizeQuick_SavedAs", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Name is required.
+        /// </summary>
+        public static string ResizeQuick_NameRequired {
+            get {
+                return ResourceManager.GetString("ResizeQuick_NameRequired", resourceCulture);
             }
         }
     }

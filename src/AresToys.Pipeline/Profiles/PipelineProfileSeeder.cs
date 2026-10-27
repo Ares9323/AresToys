@@ -77,6 +77,16 @@ public sealed class PipelineProfileSeeder
                 _logger.LogInformation("Pipeline profile {Id} migrated 0.1.16 → 0.1.17 color chain.", profile.Id);
             }
 
+            // The first resize presets (FHD 1080p, Texture 512, ...) were renamed and switched to
+            // Fit with a "{name}_{h}" file name. A row still carrying one of the old names was
+            // never renamed by the user, so it gets the new default; the hotkey the user bound
+            // survives. A renamed or otherwise customised row is left alone.
+            if (profile.IsBuiltIn && LegacyResizePresetNames.Contains(existing.DisplayName))
+            {
+                upgraded = profile with { Hotkey = existing.Hotkey };
+                _logger.LogInformation("Pipeline profile {Id} upgraded to the renamed resize preset.", profile.Id);
+            }
+
             // 0.1.22 → 0.1.23 migration: region-capture's Save step shipped with
             // skipIfNotModified:true, which meant any region capture where the user closed
             // the editor without painting produced no file on disk — opposite of the muscle-
@@ -120,6 +130,12 @@ public sealed class PipelineProfileSeeder
     /// emits bytes into the bag — so we proactively replace them with the multi-step default.
     /// Anything else (extra steps, different first task) is treated as a real customisation and
     /// preserved.</summary>
+    private static readonly HashSet<string> LegacyResizePresetNames = new(StringComparer.Ordinal)
+    {
+        "FHD 1080p", "2K 1440p", "4K 2160p", "Texture 512", "Texture 1024", "Texture 2048", "Texture 4096",
+        "512p 1:1", "1024p 1:1", "2048p 1:1", "4096p 1:1",
+    };
+
     private static bool IsLegacyRecordScreenProfile(string profileId, AresToys.Core.Pipeline.PipelineProfile existing)
     {
         if (profileId != DefaultPipelineProfiles.RecordScreenMp4Id

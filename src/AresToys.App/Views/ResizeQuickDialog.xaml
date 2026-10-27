@@ -1,0 +1,136 @@
+<!-- Quick configurator for the Explorer "Custom" resize verb. Same FluentWindow chrome as
+     NewWormholeDialog (dark integrated title bar, Surface2 background, accent frame). -->
+<ui:FluentWindow x:Class="AresToys.App.Views.ResizeQuickDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        WindowStartupLocation="CenterScreen"
+        Title="{Markup:Loc ResizeQuick_Title}"
+        Width="480"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowBackdropType="None"
+        ExtendsContentIntoTitleBar="True"
+        Background="{DynamicResource Surface2Brush}"
+        ShowInTaskbar="True">
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <ui:TitleBar Grid.Row="0" Title="{Markup:Loc ResizeQuick_Title}">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="pack://application:,,,/Assets/icon.ico" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+            <StackPanel Grid.Row="1" Margin="20">
+                <TextBlock x:Name="FileCountText" Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           FontSize="12" Margin="0,0,0,12" TextTrimming="CharacterEllipsis" />
+
+                <!-- Preset -->
+                <TextBlock Text="{Markup:Loc ResizeQuick_Preset}" Foreground="{DynamicResource AccentForegroundBrush}"
+                           FontSize="12" Margin="0,0,0,4" />
+                <ComboBox x:Name="PresetBox" DisplayMemberPath="Name" FontSize="13" Margin="0,0,0,12"
+                          SelectionChanged="OnPresetChanged" />
+
+                <!-- Width and height -->
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Markup:Loc ResizeQuick_Width}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <TextBox x:Name="WidthBox" FontSize="13" TextChanged="OnParamChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Markup:Loc ResizeQuick_Height}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <TextBox x:Name="HeightBox" FontSize="13" TextChanged="OnParamChanged" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Text="{Markup:Loc ResizeQuick_AutoHint}" Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           FontSize="11" Margin="0,-8,0,12" />
+
+                <!-- Fit and unit -->
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Markup:Loc ResizeQuick_Mode}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <ComboBox x:Name="ModeBox" DisplayMemberPath="Label" FontSize="13"
+                                  SelectionChanged="OnParamChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Markup:Loc ResizeQuick_Unit}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <ComboBox x:Name="UnitBox" DisplayMemberPath="Label" FontSize="13"
+                                  SelectionChanged="OnParamChanged" />
+                    </StackPanel>
+                </Grid>
+
+                <CheckBox x:Name="ShrinkOnlyBox" Content="{Markup:Loc ResizeQuick_ShrinkOnly}" Margin="0,0,0,4"
+                          Checked="OnParamChanged" Unchecked="OnParamChanged" />
+                <CheckBox x:Name="IgnoreOrientationBox" Content="{Markup:Loc ResizeQuick_IgnoreOrientation}" Margin="0,0,0,4"
+                          Checked="OnParamChanged" Unchecked="OnParamChanged" />
+                <CheckBox x:Name="OverwriteBox" Content="{Markup:Loc ResizeQuick_Overwrite}" Margin="0,0,0,4"
+                          Checked="OnParamChanged" Unchecked="OnParamChanged" />
+                <CheckBox x:Name="StripMetadataBox" Content="{Markup:Loc ResizeQuick_StripMetadata}" Margin="0,0,0,8"
+                          Checked="OnParamChanged" Unchecked="OnParamChanged" />
+
+                <!-- Advanced -->
+                <Expander Header="{Markup:Loc ResizeQuick_Advanced}" Margin="0,0,0,8">
+                    <StackPanel Margin="0,8,0,0">
+                        <TextBlock Text="{Markup:Loc ResizeQuick_Format}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <ComboBox x:Name="FormatBox" DisplayMemberPath="Label" FontSize="13" Margin="0,0,0,12"
+                                  SelectionChanged="OnParamChanged" />
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="36" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc ResizeQuick_Quality}"
+                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                                       VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <Slider x:Name="QualitySlider" Grid.Column="1" Minimum="1" Maximum="100"
+                                    SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center" ValueChanged="OnQualityChanged" />
+                            <TextBlock x:Name="QualityText" Grid.Column="2" Foreground="{DynamicResource AccentForegroundBrush}"
+                                       FontSize="12" VerticalAlignment="Center" TextAlignment="Right" />
+                        </Grid>
+
+                        <TextBlock Text="{Markup:Loc ResizeQuick_Template}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <TextBox x:Name="TemplateBox" FontSize="13" Margin="0,0,0,12" TextChanged="OnParamChanged" />
+
+                        <TextBlock Text="{Markup:Loc ResizeQuick_OutputFolder}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   FontSize="12" Margin="0,0,0,4" />
+                        <TextBox x:Name="OutputFolderBox" FontSize="13" TextChanged="OnParamChanged" />
+                    </StackPanel>
+                </Expander>
+
+                <TextBlock x:Name="SavedText" Visibility="Collapsed" Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <ui:Button x:Name="SavePresetButton" Content="{Markup:Loc ResizeQuick_SaveAsPreset}" Padding="14,4" Margin="0,0,8,0"
+                               Click="OnSavePresetClicked" />
+                    <ui:Button x:Name="ResizeButton" Content="{Markup:Loc ResizeQuick_Resize}" Padding="14,4" Margin="0,0,8,0"
+                               Appearance="Primary" IsDefault="True" Click="OnResizeClicked" />
+                    <ui:Button Content="{Markup:Loc Common_Cancel}" Padding="14,4" IsCancel="True" Click="OnCancelClicked" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

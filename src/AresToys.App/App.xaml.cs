@@ -115,14 +115,37 @@ public partial class App : Application
         var newWormholeDialogRequested = e.Args.Any(a =>
             string.Equals(a, "--new-wormhole-dialog", StringComparison.OrdinalIgnoreCase));
 
+        // --resize <workflowId|custom> <path>: Explorer image resize verbs. Explorer starts one
+        // process per selected file, so the primary collects the files that arrive close together
+        // (ResizeRequestBatcher) and runs the workflow once on all of them.
+        string? resizeWorkflowId = null;
+        string? resizePath = null;
+        for (var i = 0; i < e.Args.Length - 2; i++)
+        {
+            if (string.Equals(e.Args[i], "--resize", StringComparison.OrdinalIgnoreCase))
+            {
+                resizeWorkflowId = e.Args[i + 1];
+                resizePath = e.Args[i + 2];
+                break;
+            }
+        }
+        var resizeRequested = !string.IsNullOrWhiteSpace(resizeWorkflowId) && !string.IsNullOrWhiteSpace(resizePath);
+
         var guard = new SingleInstanceGuard();
         if (!guard.IsPrimary)
         {
             // Priority: upload (most specific) → sxcu → sxie → bare relaunch. Each prefix routes
             // the payload to the matching handler in the primary's AnotherInstanceStarted listener.
             string msg;
+            var connectTimeoutMs = 1000;
             if (uploadPath is not null)
                 msg = SingleInstanceGuard.UploadPrefix + Path.GetFullPath(uploadPath);
+            else if (resizeRequested)
+            {
+                msg = SingleInstanceGuard.ResizePrefix + resizeWorkflowId!.Trim() + "\t" + Path.GetFullPath(resizePath!);
+                // One process per selected file: a primary still starting up must not lose any.
+                connectTimeoutMs = 15000;
+            }
             else if (createWormholePath is not null)
                 msg = SingleInstanceGuard.CreateWormholePrefix + Path.GetFullPath(createWormholePath);
             else if (newWormholeDialogRequested)
@@ -133,7 +156,7 @@ public partial class App : Application
                 msg = SingleInstanceGuard.SxiePrefix + Path.GetFullPath(sxiePath);
             else
                 msg = SingleInstanceGuard.ShowMessage;
-            try { await guard.NotifyExistingInstanceAsync(msg, CancellationToken.None); }
+            try { await guard.NotifyExistingInstanceAsync(msg, connectTimeoutMs, CancellationToken.None); }
             catch { /* primary may have died */ }
             guard.Dispose();
             Shutdown();
@@ -165,6 +188,12 @@ public partial class App : Application
                 services.AddAresToysClipboard();
                 services.AddAresToysCapture();
                 services.AddAresToysPipeline();
+                // Wrap the profile store so every workflow write raises ProfilesChanged; the
+                // Explorer resize submenu (ResizerContextMenuSync) rebuilds itself from that.
+                services.AddSingleton<NotifyingPipelineProfileStore>(sp =>
+                    new NotifyingPipelineProfileStore(ActivatorUtilities.CreateInstance<SqlitePipelineProfileStore>(sp)));
+                services.AddSingleton<IPipelineProfileStore>(sp => sp.GetRequiredService<NotifyingPipelineProfileStore>());
+                services.AddSingleton<ResizerContextMenuSync>();
                 services.AddAresToysPlugins();
                 services.AddAresToysEditor();
 
@@ -282,6 +311,11 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, TextToQrPngTask>();
                 services.AddSingleton<IPipelineTask, TextToQrSvgTask>();
                 services.AddSingleton<IPipelineTask, ApplyImageEffectsPresetTask>();
+                services.AddSingleton<IPipelineTask, ResizeImageTask>();
+                services.AddSingleton<IPipelineTask, ConvertImageTask>();
+                // Concrete singleton too: the Explorer "Custom" quick dialog calls RunBatchAsync on it.
+                services.AddSingleton<ResizeImageFilesTask>();
+                services.AddSingleton<IPipelineTask>(sp => sp.GetRequiredService<ResizeImageFilesTask>());
                 services.AddSingleton<IPipelineTask, UploadClipboardTextTask>();
                 services.AddSingleton<AresToys.App.Services.Notifications.ToastBuilderService>();
                 services.AddSingleton<AresToys.Core.Pipeline.IPipelineNotifier>(
@@ -414,6 +448,8 @@ public partial class App : Application
 
                 services.AddSingleton<AresToys.App.Services.Hotkeys.HotkeyConfigService>();
                 services.AddSingleton<WorkflowRunner>();
+                services.AddSingleton<AresToys.App.Services.ImageResize.ResizeRequestBatcher>();
+                services.AddSingleton<AresToys.App.Services.ImageResize.ResizePresetSaver>();
 
                 // Key Sequences module — see docs/superpowers/specs/2026-05-16-key-sequences-design.md
                 // The KeyboardHook is also pulled from DI (was a private field; promoted so the
@@ -571,6 +607,10 @@ public partial class App : Application
         var seeder = _host.Services.GetRequiredService<PipelineProfileSeeder>();
         await seeder.SeedAsync(CancellationToken.None);
 
+        // Bring the Explorer "Image Resizer" submenu in line with the seeded and user workflows.
+        // Fire and forget: SyncAsync logs its own failures and never throws, startup never waits.
+        _ = _host.Services.GetRequiredService<ResizerContextMenuSync>().SyncAsync();
+
         // Register the dynamic-options provider for the WorkflowActionCatalog ComboBox source
         // keyed by "image_effect_presets". The lookup is sync because the catalog is consumed
         // on the UI thread when each step row materialises; .GetAwaiter().GetResult() is safe
@@ -612,6 +652,21 @@ public partial class App : Application
         // Settings → Capture). Explicit format = re-encode through IImageEncoder before write.
         AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["image_formats"] = () =>
             new[] { string.Empty, "PNG", "JPEG", "BMP", "GIF" };
+
+        // Dropdowns for Resize image / Convert image. Raw values are the config keys read by
+        // ImageResizeOptions.FromConfig and ImageEncodeOptions.FromConfig; labels come from the
+        // EnumValue_<raw> resx keys via LocalizeOptionsAsEnum.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_modes"] = () =>
+            new[] { "fit", "fill", "stretch" };
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_units"] = () =>
+            new[] { "px", "percent", "inch", "cm" };
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_formats"] = () =>
+            new[] { "keep", "png", "jpg", "webp", "bmp", "tiff", "gif" };
+
+        // Collision policy for Resize image files; the raw values are read by
+        // ImageFileWriter.ParsePolicy, labels come from the EnumValue_<raw> resx keys.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_collisions"] = () =>
+            new[] { "uniquify", "overwrite", "skip" };
 
         // Video-format dropdown for SaveVideoFile's "format". mp4 is the fast path (the
         // recorder always produces mp4, so picking mp4 is a verbatim file write); gif / webm /
@@ -834,6 +889,13 @@ public partial class App : Application
 
         guard.AnotherInstanceStarted += (_, message) =>
         {
+            // Explorer resize verbs run silently: no main window flash, so they skip the
+            // activation below and only feed the batcher.
+            if (message.StartsWith(SingleInstanceGuard.ResizePrefix, StringComparison.Ordinal))
+            {
+                QueueResizeRequest(message[SingleInstanceGuard.ResizePrefix.Length..]);
+                return;
+            }
             Dispatcher.Invoke(() =>
             {
                 // Always bring the main window forward — both for plain re-launches and for
@@ -907,11 +969,22 @@ public partial class App : Application
             _ = Dispatcher.BeginInvoke(new Action(() => HandleNewWormholeDialog()),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
+        // Subscribe before the cold-start request below feeds the batcher, so a "Custom" batch
+        // that fires right after startup is not lost.
+        SubscribeResizeQuickDialog();
+        // Cold-start from an Explorer resize verb: feed the same batcher the pipe messages use,
+        // so files from sibling processes that arrive while we start up join this batch.
+        if (resizeRequested)
+        {
+            _ = Dispatcher.BeginInvoke(
+                new Action(() => QueueResizeRequest(resizeWorkflowId + "\t" + Path.GetFullPath(resizePath!))),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
         guard.StartListening();
 
         // Cold-start from the context menu is silent: tray-only, no Settings popup. Sxcu / sxie
         // still want the main window because their import dialogs need an Owner.
-        var startSilent = (uploadPath is not null || createWormholePath is not null || newWormholeDialogRequested)
+        var startSilent = (uploadPath is not null || createWormholePath is not null || newWormholeDialogRequested || resizeRequested)
                           && sxcuPath is null && sxiePath is null;
         // User-controlled "Start minimized" (Settings → Settings tab): same effect as
         // --upload's silent start — tray-only on launch, the user pops the window via the
@@ -1282,6 +1355,115 @@ public partial class App : Application
             MessageBox.Show($"Couldn't create wormhole:\n{ex.Message}",
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>Hand one Explorer resize request to <see cref="AresToys.App.Services.ImageResize.ResizeRequestBatcher"/>.
+    /// <paramref name="payload"/> is the workflow id, a TAB, then the absolute file path (the
+    /// pipe message minus its prefix). A malformed payload is logged and ignored.</summary>
+    private void QueueResizeRequest(string payload)
+    {
+        var tab = payload.IndexOf('\t');
+        if (tab <= 0 || tab == payload.Length - 1)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogWarning("Ignoring malformed resize request");
+            return;
+        }
+        _host?.Services.GetRequiredService<AresToys.App.Services.ImageResize.ResizeRequestBatcher>()
+            .Add(payload[..tab], payload[(tab + 1)..]);
+    }
+
+    private const string ResizeQuickLastKey = "resizer.quick.last";
+    private bool _resizeQuickBusy;
+    private AresToys.App.Views.ResizeQuickDialog? _resizeQuickDialog;
+
+    /// <summary>Route the Explorer "Custom" resize batch to the quick dialog. The batcher raises
+    /// the event on a pool thread, so the work is marshalled to the Dispatcher. The dialog is
+    /// non-modal and single: a second request while one is open or opening just activates it.
+    /// On Resize the files go through <see cref="ResizeImageFilesTask.RunBatchAsync"/>, the same
+    /// loop the "Resize image files" task runs.</summary>
+    private void SubscribeResizeQuickDialog()
+    {
+        var batcher = _host!.Services.GetRequiredService<AresToys.App.Services.ImageResize.ResizeRequestBatcher>();
+        batcher.CustomRequested += files =>
+            Dispatcher.BeginInvoke(new Action(async () => await ShowResizeQuickDialogAsync(files)));
+    }
+
+    private async Task ShowResizeQuickDialogAsync(IReadOnlyList<string> files)
+    {
+        if (_resizeQuickBusy)
+        {
+            _resizeQuickDialog?.Activate();
+            return;
+        }
+        _resizeQuickBusy = true;
+        var sp = _host!.Services;
+        var logger = sp.GetService<ILogger<App>>();
+        try
+        {
+            var profiles = await sp.GetRequiredService<IPipelineProfileStore>().ListAsync(CancellationToken.None);
+            var presets = new List<AresToys.App.Views.ResizePresetItem>();
+            foreach (var profile in profiles)
+            {
+                if (DefaultPipelineProfiles.CategoryOf(profile) != DefaultPipelineProfiles.ResizerCategory) continue;
+                var step = profile.Steps.FirstOrDefault(
+                    s => s.TaskId == DefaultPipelineProfiles.ResizeImageFilesTaskId);
+                if (step?.Config is not System.Text.Json.Nodes.JsonObject config) continue;
+                presets.Add(new AresToys.App.Views.ResizePresetItem(
+                    WorkflowDisplayNameLocalizer.Localize(profile.Id, profile.DisplayName), config));
+            }
+
+            var settings = sp.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+            System.Text.Json.Nodes.JsonObject? last = null;
+            try
+            {
+                var json = await settings.GetAsync(ResizeQuickLastKey, CancellationToken.None);
+                if (!string.IsNullOrWhiteSpace(json))
+                    last = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                logger?.LogWarning(ex, "Ignoring unreadable stored quick resize values");
+            }
+
+            var saver = sp.GetRequiredService<AresToys.App.Services.ImageResize.ResizePresetSaver>();
+            var dialog = new AresToys.App.Views.ResizeQuickDialog(
+                files, presets, last ?? new System.Text.Json.Nodes.JsonObject(),
+                async (name, config) => (await saver.SaveAsync(name, config)).Name);
+            _resizeQuickDialog = dialog;
+            dialog.Closed += (_, _) =>
+            {
+                _resizeQuickDialog = null;
+                _resizeQuickBusy = false;
+                if (dialog.ResultConfig is { } config) StartQuickResize(files, config);
+            };
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            _resizeQuickBusy = false;
+            _resizeQuickDialog = null;
+            logger?.LogError(ex, "Could not open the quick resize dialog");
+        }
+    }
+
+    private void StartQuickResize(IReadOnlyList<string> files, System.Text.Json.Nodes.JsonObject config)
+    {
+        var sp = _host!.Services;
+        var logger = sp.GetService<ILogger<App>>();
+        var task = sp.GetRequiredService<ResizeImageFilesTask>();
+        var settings = sp.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await settings.SetAsync(ResizeQuickLastKey, config.ToJsonString(), sensitive: false, CancellationToken.None);
+                await task.RunBatchAsync(files, config, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Quick resize failed");
+            }
+        });
     }
 
     /// <summary>Open <see cref="AresToys.App.Views.NewWormholeDialog"/> so the user picks a

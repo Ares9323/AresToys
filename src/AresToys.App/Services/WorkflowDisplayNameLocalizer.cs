@@ -47,6 +47,7 @@ public static class WorkflowDisplayNameLocalizer
         ["Upload"]    = nameof(Strings.WorkflowCategory_Upload),
         ["Clipboard"] = nameof(Strings.WorkflowCategory_Clipboard),
         ["Tools"]     = nameof(Strings.WorkflowCategory_Tools),
+        [DefaultPipelineProfiles.ResizerCategory] = nameof(Strings.WorkflowCategory_Resizer),
         ["Other"]     = nameof(Strings.WorkflowCategory_Other),
     };
 

@@ -18,6 +18,12 @@ public static class PipelineBagKeys
     /// <summary>Absolute path written by save-to-file. Type: <c>string</c>.</summary>
     public const string LocalPath = "local_path";
 
+    /// <summary>Files a workflow must work on instead of looking for its own input. Seeded by
+    /// the Explorer resize verbs (<c>--resize</c>) through <c>WorkflowRunner</c>'s initial bag;
+    /// <c>arestoys.resize-image-files</c> reads it before the Explorer selection. Type:
+    /// <c>string[]</c> of absolute paths.</summary>
+    public const string SelectedFiles = "selected_files";
+
     /// <summary>Id of the uploader that produced the URL currently in <see cref="Text"/>.
     /// Persisted onto the just-inserted history row by <c>UpdateItemUrlTask</c> so the popup
     /// window can attribute "this item was uploaded via X" later. Also serves as the "did an

@@ -74,11 +74,13 @@ public static class ExplorerContextMenuRegistration
         NotifyShell();
     }
 
-    private static string CurrentExePath()
+    internal static string CurrentExePath()
         => Environment.ProcessPath
            ?? throw new InvalidOperationException("Couldn't resolve AresToys executable path for context-menu registration.");
 
-    private static void NotifyShell()
+    /// <summary>Tell Explorer the file associations changed so a new or removed verb shows up
+    /// without restarting it. Shared with <see cref="ResizerContextMenuRegistration"/>.</summary>
+    internal static void NotifyShell()
     {
         const uint SHCNE_ASSOCCHANGED = 0x08000000;
         const uint SHCNF_IDLIST = 0x0000;

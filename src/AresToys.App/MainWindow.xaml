@@ -631,6 +631,28 @@
                                               Margin="0,12,0,0" />
                             </ScrollViewer>
                         </TabItem>
+                        <TabItem Header="{Markup:Loc WorkflowCategory_Resizer}" Style="{StaticResource UploaderTabItemStyle}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel>
+                                    <!-- Explorer right-click "Image Resizer" cascade for images. Per-user registry
+                                         entry under SystemFileAssociations; on Windows 11 it sits under "Show more
+                                         options". The submenu follows the workflows listed below. -->
+                                    <Border Background="{DynamicResource Surface3Brush}" CornerRadius="4" Padding="12" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <CheckBox Content="{Markup:Loc ResizerMenu_Setting}"
+                                                      Loaded="OnResizerMenuCheckBoxLoaded"
+                                                      Click="OnResizerMenuToggled" />
+                                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="22,4,0,0"
+                                                       Text="{Markup:Loc ResizerMenu_SettingHint}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding Hotkeys.ResizerItems}"
+                                                  ItemTemplate="{StaticResource HotkeyRowTemplate}"
+                                                  Margin="0,12,0,0" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
                         <TabItem Header="Wormholes" Style="{StaticResource UploaderTabItemStyle}">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding Hotkeys.WormholeItems}"

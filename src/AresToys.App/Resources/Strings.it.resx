@@ -299,6 +299,7 @@
   <data name="WorkflowCategory_Upload" xml:space="preserve"><value>Upload</value></data>
   <data name="WorkflowCategory_Clipboard" xml:space="preserve"><value>Appunti</value></data>
   <data name="WorkflowCategory_Tools" xml:space="preserve"><value>Strumenti</value></data>
+  <data name="WorkflowCategory_Resizer" xml:space="preserve"><value>Resizer</value></data>
   <data name="WorkflowCategory_Other" xml:space="preserve"><value>Altro</value></data>
 
   <data name="Settings_StartWithWindows" xml:space="preserve"><value>Avvia AresToys all'accensione di Windows</value></data>
@@ -1217,4 +1218,84 @@ I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano 
   <data name="Tags_DeleteConfirm" xml:space="preserve"><value>Eliminare il tag '{0}'?
 
 Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value></data>
+  <data name="WorkflowAction_arestoys_resize_image" xml:space="preserve"><value>Ridimensiona immagine</value></data>
+  <data name="WorkflowActionDesc_arestoys_resize_image" xml:space="preserve"><value>Ridimensiona l'immagine nella pipeline e, se serve, la ricodifica. Adatta mantiene le proporzioni dentro il riquadro, Riempi copre il riquadro e taglia l'eccedenza, Stira ignora le proporzioni. Una larghezza o altezza pari a 0 viene calcolata dall'altro lato. Le unità possono essere pixel, percentuale dell'originale, pollici o centimetri (in base al DPI dell'immagine).</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_mode" xml:space="preserve"><value>Modalità</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_unit" xml:space="preserve"><value>Unità</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_width" xml:space="preserve"><value>Larghezza (0 = auto)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_height" xml:space="preserve"><value>Altezza (0 = auto)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_shrink_only" xml:space="preserve"><value>Solo riduzione (mai ingrandire)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_ignore_orientation" xml:space="preserve"><value>Ignora orientamento (verticale e orizzontale usano lo stesso riquadro)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_format" xml:space="preserve"><value>Formato</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_quality" xml:space="preserve"><value>Qualità (1-100)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_strip_metadata" xml:space="preserve"><value>Rimuovi metadati</value></data>
+  <data name="WorkflowAction_arestoys_convert_image" xml:space="preserve"><value>Converti immagine</value></data>
+  <data name="WorkflowActionDesc_arestoys_convert_image" xml:space="preserve"><value>Ricodifica l'immagine nella pipeline in un altro formato senza cambiarne la dimensione. La qualità vale per JPEG e WebP. Rimuovi metadati elimina EXIF e altri dati incorporati.</value></data>
+  <data name="WorkflowActionParam_arestoys_convert_image_format" xml:space="preserve"><value>Formato</value></data>
+  <data name="WorkflowActionParam_arestoys_convert_image_quality" xml:space="preserve"><value>Qualità (1-100)</value></data>
+  <data name="WorkflowActionParam_arestoys_convert_image_strip_metadata" xml:space="preserve"><value>Rimuovi metadati</value></data>
+  <data name="EnumValue_fit" xml:space="preserve"><value>Adatta (mantieni proporzioni)</value></data>
+  <data name="EnumValue_fill" xml:space="preserve"><value>Riempi (taglia per coprire)</value></data>
+  <data name="EnumValue_stretch" xml:space="preserve"><value>Stira</value></data>
+  <data name="EnumValue_px" xml:space="preserve"><value>Pixel</value></data>
+  <data name="EnumValue_percent" xml:space="preserve"><value>Percentuale</value></data>
+  <data name="EnumValue_inch" xml:space="preserve"><value>Pollici</value></data>
+  <data name="EnumValue_cm" xml:space="preserve"><value>Centimetri</value></data>
+  <data name="EnumValue_keep" xml:space="preserve"><value>Mantieni formato originale</value></data>
+  <data name="EnumValue_png" xml:space="preserve"><value>PNG</value></data>
+  <data name="EnumValue_jpg" xml:space="preserve"><value>JPEG</value></data>
+  <data name="EnumValue_webp" xml:space="preserve"><value>WebP</value></data>
+  <data name="EnumValue_bmp" xml:space="preserve"><value>BMP</value></data>
+  <data name="EnumValue_tiff" xml:space="preserve"><value>TIFF</value></data>
+  <data name="EnumValue_gif" xml:space="preserve"><value>GIF</value></data>
+  <data name="WorkflowAction_arestoys_resize_image_files" xml:space="preserve"><value>Ridimensiona file immagine</value></data>
+  <data name="WorkflowActionDesc_arestoys_resize_image_files" xml:space="preserve"><value>Ridimensiona e converte le immagini selezionate nella finestra di Esplora file in primo piano e salva i risultati senza finestre di dialogo, usando un modello per il nome del file. I nomi già esistenti non vengono mai sovrascritti, salvo diversa scelta in 'Se il file esiste'. 'Sostituisci l'originale' manda l'originale nel Cestino e scrive il risultato con il suo nome (il modello viene ignorato). I file che non sono immagini vengono saltati e un errore su un file non ferma gli altri. Attiva 'Mostra notifica' per un riepilogo.</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_mode" xml:space="preserve"><value>Modalità</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_unit" xml:space="preserve"><value>Unità</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_width" xml:space="preserve"><value>Larghezza (0 = auto)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_height" xml:space="preserve"><value>Altezza (0 = auto)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_shrink_only" xml:space="preserve"><value>Solo riduzione (mai ingrandire)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_ignore_orientation" xml:space="preserve"><value>Ignora orientamento (verticale e orizzontale usano lo stesso riquadro)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_format" xml:space="preserve"><value>Formato</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_quality" xml:space="preserve"><value>Qualità (1-100)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_strip_metadata" xml:space="preserve"><value>Rimuovi metadati</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_output_folder" xml:space="preserve"><value>Cartella di output (vuota = accanto a ogni file)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_file_name_template" xml:space="preserve"><value>Modello nome file ({name} {preset} {w} {h} {ow} {oh} {format} {date} {time} {counter})</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_preset_name" xml:space="preserve"><value>Nome preset (il token {preset})</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_replace_original" xml:space="preserve"><value>Sostituisci l'originale (finisce nel Cestino)</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_keep_date_modified" xml:space="preserve"><value>Mantieni la data di modifica originale</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_on_collision" xml:space="preserve"><value>Se il file esiste</value></data>
+  <data name="WorkflowActionParam_arestoys_resize_image_files_show_notification" xml:space="preserve"><value>Mostra notifica</value></data>
+  <data name="EnumValue_uniquify" xml:space="preserve"><value>Aggiungi un numero</value></data>
+  <data name="EnumValue_overwrite" xml:space="preserve"><value>Sovrascrivi</value></data>
+  <data name="EnumValue_skip" xml:space="preserve"><value>Salta</value></data>
+  <data name="ResizeImageFiles_Toast_Summary" xml:space="preserve"><value>{0} ridimensionate, {1} saltate, {2} non riuscite</value></data>
+  <data name="ResizeQuick_Title" xml:space="preserve"><value>AresToys Resize</value></data>
+  <data name="ResizeQuick_FileCount" xml:space="preserve"><value>File da ridimensionare: {0}</value></data>
+  <data name="ResizeQuick_Preset" xml:space="preserve"><value>Preset</value></data>
+  <data name="ResizeQuick_PresetCustom" xml:space="preserve"><value>Personalizzato</value></data>
+  <data name="ResizeQuick_Width" xml:space="preserve"><value>Larghezza</value></data>
+  <data name="ResizeQuick_Height" xml:space="preserve"><value>Altezza</value></data>
+  <data name="ResizeQuick_AutoHint" xml:space="preserve"><value>0 = automatico</value></data>
+  <data name="ResizeQuick_Mode" xml:space="preserve"><value>Adattamento</value></data>
+  <data name="ResizeQuick_Unit" xml:space="preserve"><value>Unità</value></data>
+  <data name="ResizeQuick_ShrinkOnly" xml:space="preserve"><value>Solo riduzione (mai ingrandire)</value></data>
+  <data name="ResizeQuick_IgnoreOrientation" xml:space="preserve"><value>Ignora l'orientamento</value></data>
+  <data name="ResizeQuick_Overwrite" xml:space="preserve"><value>Sovrascrivi i file (l'originale va nel Cestino)</value></data>
+  <data name="ResizeQuick_StripMetadata" xml:space="preserve"><value>Rimuovi i metadati</value></data>
+  <data name="ResizeQuick_Advanced" xml:space="preserve"><value>Avanzate</value></data>
+  <data name="ResizeQuick_Format" xml:space="preserve"><value>Formato</value></data>
+  <data name="ResizeQuick_Quality" xml:space="preserve"><value>Qualità</value></data>
+  <data name="ResizeQuick_Template" xml:space="preserve"><value>Modello del nome file</value></data>
+  <data name="ResizeQuick_OutputFolder" xml:space="preserve"><value>Cartella di output (vuota = accanto all'originale)</value></data>
+  <data name="ResizeQuick_Resize" xml:space="preserve"><value>Ridimensiona</value></data>
+  <data name="ResizeQuick_InvalidSize" xml:space="preserve"><value>Inserisci una larghezza, un'altezza o entrambe, maggiori di 0.</value></data>
+  <data name="ResizerMenu_Label" xml:space="preserve"><value>Image Resizer</value></data>
+  <data name="ResizerMenu_Custom" xml:space="preserve"><value>Personalizzato...</value></data>
+  <data name="ResizerMenu_Setting" xml:space="preserve"><value>Mostra "Image Resizer" nel menu di Explorer per le immagini</value></data>
+  <data name="ResizerMenu_SettingHint" xml:space="preserve"><value>Aggiunge un sottomenu con i workflow elencati qui sotto e una voce Personalizzato. Su Windows 11 compare sotto "Mostra altre opzioni". L'elenco si aggiorna quando aggiungi, duplichi, rinomini o cancelli un workflow resizer.</value></data>
+  <data name="ResizeQuick_SaveAsPreset" xml:space="preserve"><value>Salva come preset...</value></data>
+  <data name="ResizeQuick_PresetName" xml:space="preserve"><value>Nome del preset</value></data>
+  <data name="ResizeQuick_SavedAs" xml:space="preserve"><value>Salvato come {0}</value></data>
+  <data name="ResizeQuick_NameRequired" xml:space="preserve"><value>Il nome è obbligatorio</value></data>
 </root>
