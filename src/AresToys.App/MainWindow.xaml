@@ -308,6 +308,11 @@
                            Appearance="{Binding IsWindowSnappingSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
+                           Content="{Markup:Loc Sidebar_NewPlus}"
+                           Command="{Binding ShowNewPlusCommand}"
+                           Appearance="{Binding IsNewPlusSelected, Converter={StaticResource BoolToAppearance}}" />
+                <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                           Margin="0,0,0,4"
                            Content="{Markup:Loc Sidebar_WormholesSettings}"
                            Command="{Binding ShowWormholesCommand}"
                            Appearance="{Binding IsWormholesSelected, Converter={StaticResource BoolToAppearance}}" />
@@ -1960,6 +1965,63 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <!-- New+: create files and folders from templates through the Explorer menu. Same options
+                 as PowerToys; every change saves and rewrites the Explorer menu at once. -->
+            <ScrollViewer Visibility="{Binding IsNewPlusSelected, Converter={StaticResource BoolToVisibility}}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="24,16,24,16" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock Text="{Markup:Loc Sidebar_NewPlus}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc NewPlus_Blurb}" />
+
+                    <CheckBox Content="{Markup:Loc NewPlus_Enable}" Margin="0,0,0,16"
+                              IsChecked="{Binding NewPlus.Enabled, Mode=TwoWay}" />
+
+                    <StackPanel IsEnabled="{Binding NewPlus.Enabled}">
+                        <TextBlock Text="{Markup:Loc NewPlus_Templates}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <TextBlock Text="{Markup:Loc NewPlus_Location}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" IsReadOnly="True" Text="{Binding NewPlus.TemplateFolder, Mode=OneWay}" />
+                            <ui:Button Grid.Column="1" Margin="8,0,0,0" Padding="14,4"
+                                       Content="{Markup:Loc NewPlus_Change}"
+                                       Command="{Binding NewPlus.ChangeFolderCommand}" />
+                        </Grid>
+                        <ui:Button Content="{Markup:Loc NewPlus_OpenFolder}" Padding="14,6" Margin="0,0,0,8"
+                                   Command="{Binding NewPlus.OpenFolderCommand}" />
+                        <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                   TextWrapping="Wrap" Margin="0,0,0,20"
+                                   Text="{Markup:Loc NewPlus_BackupWarning}" />
+
+                        <TextBlock Text="{Markup:Loc NewPlus_DisplayOptions}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <CheckBox Content="{Markup:Loc NewPlus_HideExtension}" Margin="0,0,0,8"
+                                  IsChecked="{Binding NewPlus.HideFileExtension, Mode=TwoWay}" />
+                        <CheckBox Content="{Markup:Loc NewPlus_HideDigits}"
+                                  IsChecked="{Binding NewPlus.HideStartingDigits, Mode=TwoWay}" />
+                        <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                   TextWrapping="Wrap" Margin="22,4,0,8"
+                                   Text="{Markup:Loc NewPlus_HideDigitsHint}" />
+                        <CheckBox Content="{Markup:Loc NewPlus_HideBuiltIn}" Margin="0,0,0,4"
+                                  IsChecked="{Binding NewPlus.HideBuiltInNew, Mode=TwoWay}" />
+                        <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="22,0,0,8"
+                                   Text="{Binding NewPlus.ErrorText}" />
+
+                        <TextBlock Text="{Markup:Loc NewPlus_Behavior}" FontSize="15" FontWeight="SemiBold" Margin="0,12,0,8" />
+                        <CheckBox Content="{Markup:Loc NewPlus_ReplaceVariables}" Margin="0,0,0,8"
+                                  IsChecked="{Binding NewPlus.ReplaceVariables, Mode=TwoWay}" />
+                        <TextBlock Text="{Markup:Loc NewPlus_Variables}" FontWeight="SemiBold" Margin="22,0,0,4" />
+                        <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                   TextWrapping="Wrap" Margin="22,0,0,0"
+                                   Text="{Markup:Loc NewPlus_VariablesList}" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
             <!-- Window snapping: drag a window while holding Shift to snap it into a layout zone.
                  Switch, layout editor entry and the look of the overlay shown while dragging. -->
             <ScrollViewer Visibility="{Binding IsWindowSnappingSelected, Converter={StaticResource BoolToVisibility}}"
@@ -3248,6 +3310,9 @@
                     <Run Text=" · " Foreground="{DynamicResource AccentForegroundDarkBrush}" />
                     <Hyperlink NavigateUri="https://maxlauncher.sourceforge.io/" RequestNavigate="OnHyperlinkClicked"
                                Foreground="{DynamicResource AccentForegroundBrush}">MaxLauncher</Hyperlink>
+                    <Run Text=" · " Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                    <Hyperlink NavigateUri="https://github.com/microsoft/PowerToys" RequestNavigate="OnHyperlinkClicked"
+                               Foreground="{DynamicResource AccentForegroundBrush}">PowerToys</Hyperlink>
                 </TextBlock>
 
                 <!-- Manual update check. Disabled when running outside a Velopack-managed install

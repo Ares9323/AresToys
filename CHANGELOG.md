@@ -3,6 +3,49 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.37] — 2026-10-28
+
+### New File from Template
+- New Explorer entry "New" (right-click the desktop or the empty area of a
+  folder) that creates files and folders from your own templates, a rewrite of
+  PowerToys New+. Off by default: turn it on in Settings → New File from
+  Template. On Windows 11 it appears under "Show more options".
+- Templates live in `%LocalAppData%\AresToys-Data\NewPlus\Templates` (changeable
+  in the tab). A template can be a file or a whole folder; the copy goes through
+  the shell, so Ctrl+Z in Explorer undoes it, and the new item opens in rename
+  mode.
+- Same options as PowerToys: hide the extension and the leading digits of
+  template names, replace variables in names (`$YYYY`, `$MM`, `$DD`, `$hh`,
+  `$mm`, `$ss`, `$PARENT_FOLDER_NAME`, `%ENV%`) and hide the built-in "New"
+  menu. Templates sort naturally, so "2." comes before "10.".
+
+### Always on top
+- Pin the foreground window with a colored frame from a mappable hotkey, with
+  its own settings tab (#37).
+
+### Image Resizer
+- Resize and convert tasks, a Resizer tab, an Explorer menu for images and a
+  Custom dialog (#33).
+
+### Window snapping
+- FancyZones style snapping with the PowerToys settings and a layout editor
+  (#32).
+
+### Wormholes
+- Option to hide file extensions in tile labels (#29).
+
+### Screen capture
+- The magnifier of the region overlay now stays inside the monitor under the
+  cursor, like the colour picker, instead of being cut off at the screen edge.
+- The window detected under the cursor (yellow dashed border) shows its X, Y,
+  W and H before you click, like a dragged selection does.
+
+### About
+- PowerToys added to "Inspired by".
+
+### Tests
+- The categorisation check follows the content based category rule.
+
 ## [0.1.36] — 2026-10-09
 
 ### Pin to screen

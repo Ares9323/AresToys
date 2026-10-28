@@ -312,6 +312,8 @@ public partial class RegionOverlayWindow : Window
         if (hover is null)
         {
             SnapRect.Visibility = Visibility.Collapsed;
+            // The label is shared with the drag selection, which owns it while a drag runs.
+            SizeLabelBorder.Visibility = Visibility.Collapsed;
             return;
         }
         // Convert physical pixels (screen-space) to overlay-canvas DIPs.
@@ -325,6 +327,13 @@ public partial class RegionOverlayWindow : Window
         SnapRect.Width = Math.Max(0, w);
         SnapRect.Height = Math.Max(0, h);
         SnapRect.Visibility = Visibility.Visible;
+
+        // Same X / Y / W / H readout the drag shows, so the size of the detected window is visible
+        // before clicking. Kept inside the screen when the window starts off it.
+        SizeLabel.Text = $"X: {hover.X}  Y: {hover.Y}  W: {hover.Width}  H: {hover.Height}";
+        Canvas.SetLeft(SizeLabelBorder, Math.Max(x + 6, 6));
+        Canvas.SetTop(SizeLabelBorder, Math.Max(y + 6, 6));
+        SizeLabelBorder.Visibility = Visibility.Visible;
     }
 
     public CaptureRegion? PickRegion()
@@ -590,7 +599,7 @@ public partial class RegionOverlayWindow : Window
         MagnifierCoords.Text = $"X: {physicalX}  Y: {physicalY}";
         MagnifierGroup.Visibility = Visibility.Visible;
         MagnifierCoordsBorder.Visibility = Visibility.Visible;
-        PositionMagnifierNearCursor(cursorInWindow);
+        PositionMagnifierNearCursor(cursorInWindow, physicalX, physicalY);
         // Position is also updated from OnMouseMove for snappy real-time tracking; here we
         // just animate the dashes so the visual phase scrolls.
         // Screen-spanning crosshair + marching-ants intentionally disabled — reported as
@@ -601,27 +610,75 @@ public partial class RegionOverlayWindow : Window
         // restructure.
     }
 
-    private void PositionMagnifierNearCursor(Point cursor)
+    private bool _magnifierFlippedX, _magnifierFlippedY;
+
+    /// <summary>Same rules as the colour picker: the circle and its coordinates label are one block
+    /// that stays inside the work area of the monitor under the cursor, flipping to the other side
+    /// of the cursor (and staying there while it fits) instead of being cut off by a screen edge.
+    /// The overlay spans the whole virtual screen, so testing against the window alone never
+    /// fired at the edge of a monitor.</summary>
+    private void PositionMagnifierNearCursor(Point cursor, int screenX, int screenY)
     {
-        const double margin = 8;
         var w = MagnifierGroup.ActualWidth > 0 ? MagnifierGroup.ActualWidth : MagnifierBoxPx;
         var h = MagnifierGroup.ActualHeight > 0 ? MagnifierGroup.ActualHeight : MagnifierBoxPx;
-
-        // Default: bottom-right of cursor; flip to other side near edges.
-        var x = cursor.X + MagnifierCursorOffset;
-        var y = cursor.Y + MagnifierCursorOffset;
-        if (x + w + margin > ActualWidth) x = cursor.X - MagnifierCursorOffset - w;
-        if (y + h + margin > ActualHeight) y = cursor.Y - MagnifierCursorOffset - h;
-        if (x < margin) x = margin;
-        if (y < margin) y = margin;
-        Canvas.SetLeft(MagnifierGroup, x);
-        Canvas.SetTop(MagnifierGroup, y);
-
-        // Coords label sits just below the magnifier circle.
         var labelW = MagnifierCoordsBorder.ActualWidth > 0 ? MagnifierCoordsBorder.ActualWidth : 120;
-        Canvas.SetLeft(MagnifierCoordsBorder, x + (w - labelW) / 2);
-        Canvas.SetTop(MagnifierCoordsBorder, y + h + 4);
+        var labelH = MagnifierCoordsBorder.ActualHeight > 0 ? MagnifierCoordsBorder.ActualHeight : 28;
+
+        var placement = AresToys.App.Services.MagnifierPlacement.Compute(
+            cursor.X, cursor.Y, w, h, labelW, labelH,
+            CurrentMonitorBoundsInWindow(screenX, screenY),
+            wasFlippedX: _magnifierFlippedX,
+            wasFlippedY: _magnifierFlippedY,
+            cursorOffset: MagnifierCursorOffset);
+        _magnifierFlippedX = placement.FlippedX;
+        _magnifierFlippedY = placement.FlippedY;
+
+        Canvas.SetLeft(MagnifierGroup, placement.CircleX);
+        Canvas.SetTop(MagnifierGroup, placement.CircleY);
+        Canvas.SetLeft(MagnifierCoordsBorder, placement.LabelsX);
+        Canvas.SetTop(MagnifierCoordsBorder, placement.LabelsY);
     }
+
+    /// <summary>Work area of the monitor under the cursor in the overlay's own coordinates (DIPs from
+    /// the window's top-left). Falls back to the whole window if the monitor query fails.</summary>
+    private AresToys.App.Services.MagnifierPlacement.Rect CurrentMonitorBoundsInWindow(int screenX, int screenY)
+    {
+        var fallback = new AresToys.App.Services.MagnifierPlacement.Rect(0, 0, ActualWidth, ActualHeight);
+        var monitor = MonitorFromPoint(new POINT { X = screenX, Y = screenY }, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return fallback;
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref info)) return fallback;
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var (vsLeft, vsTop, _, _) = VirtualScreen.GetBounds();
+        var left = (info.rcWork.Left - vsLeft) / dpi.DpiScaleX;
+        var top = (info.rcWork.Top - vsTop) / dpi.DpiScaleY;
+        var right = (info.rcWork.Right - vsLeft) / dpi.DpiScaleX;
+        var bottom = (info.rcWork.Bottom - vsTop) / dpi.DpiScaleY;
+        if (right <= left || bottom <= top) return fallback;
+        return new AresToys.App.Services.MagnifierPlacement.Rect(left, top, right - left, bottom - top);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
     [DllImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -10154,5 +10154,90 @@ namespace AresToys.App.Resources {
         public static string WindowSnapping_DeleteErrorFormat {
             get { return ResourceManager.GetString("WindowSnapping_DeleteErrorFormat", resourceCulture); }
         }
+
+        public static string Sidebar_NewPlus {
+            get { return ResourceManager.GetString("Sidebar_NewPlus", resourceCulture); }
+        }
+
+        public static string NewPlus_Blurb {
+            get { return ResourceManager.GetString("NewPlus_Blurb", resourceCulture); }
+        }
+
+        public static string NewPlus_Enable {
+            get { return ResourceManager.GetString("NewPlus_Enable", resourceCulture); }
+        }
+
+        public static string NewPlus_Templates {
+            get { return ResourceManager.GetString("NewPlus_Templates", resourceCulture); }
+        }
+
+        public static string NewPlus_Location {
+            get { return ResourceManager.GetString("NewPlus_Location", resourceCulture); }
+        }
+
+        public static string NewPlus_Change {
+            get { return ResourceManager.GetString("NewPlus_Change", resourceCulture); }
+        }
+
+        public static string NewPlus_OpenFolder {
+            get { return ResourceManager.GetString("NewPlus_OpenFolder", resourceCulture); }
+        }
+
+        public static string NewPlus_PickFolderTitle {
+            get { return ResourceManager.GetString("NewPlus_PickFolderTitle", resourceCulture); }
+        }
+
+        public static string NewPlus_BackupWarning {
+            get { return ResourceManager.GetString("NewPlus_BackupWarning", resourceCulture); }
+        }
+
+        public static string NewPlus_DisplayOptions {
+            get { return ResourceManager.GetString("NewPlus_DisplayOptions", resourceCulture); }
+        }
+
+        public static string NewPlus_HideExtension {
+            get { return ResourceManager.GetString("NewPlus_HideExtension", resourceCulture); }
+        }
+
+        public static string NewPlus_HideDigits {
+            get { return ResourceManager.GetString("NewPlus_HideDigits", resourceCulture); }
+        }
+
+        public static string NewPlus_HideDigitsHint {
+            get { return ResourceManager.GetString("NewPlus_HideDigitsHint", resourceCulture); }
+        }
+
+        public static string NewPlus_HideBuiltIn {
+            get { return ResourceManager.GetString("NewPlus_HideBuiltIn", resourceCulture); }
+        }
+
+        public static string NewPlus_BuiltInError {
+            get { return ResourceManager.GetString("NewPlus_BuiltInError", resourceCulture); }
+        }
+
+        public static string NewPlus_Behavior {
+            get { return ResourceManager.GetString("NewPlus_Behavior", resourceCulture); }
+        }
+
+        public static string NewPlus_ReplaceVariables {
+            get { return ResourceManager.GetString("NewPlus_ReplaceVariables", resourceCulture); }
+        }
+
+        public static string NewPlus_Variables {
+            get { return ResourceManager.GetString("NewPlus_Variables", resourceCulture); }
+        }
+
+        public static string NewPlus_VariablesList {
+            get { return ResourceManager.GetString("NewPlus_VariablesList", resourceCulture); }
+        }
+
+        public static string NewPlusMenu_Label {
+            get { return ResourceManager.GetString("NewPlusMenu_Label", resourceCulture); }
+        }
+
+        public static string NewPlusMenu_OpenTemplates {
+            get { return ResourceManager.GetString("NewPlusMenu_OpenTemplates", resourceCulture); }
+        }
+
     }
 }

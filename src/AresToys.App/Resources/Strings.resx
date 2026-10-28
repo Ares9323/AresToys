@@ -1497,4 +1497,25 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="WindowSnapping_DeleteConfirmFormat" xml:space="preserve"><value>Delete the layout "{0}"?</value></data>
   <data name="WindowSnapping_SaveErrorFormat" xml:space="preserve"><value>Could not save the layout: {0}</value></data>
   <data name="WindowSnapping_DeleteErrorFormat" xml:space="preserve"><value>Could not delete the layout: {0}</value></data>
+  <data name="Sidebar_NewPlus" xml:space="preserve"><value>New File from Template</value></data>
+  <data name="NewPlusMenu_Label" xml:space="preserve"><value>New</value></data>
+  <data name="NewPlus_Blurb" xml:space="preserve"><value>Create files and folders from a personalized set of templates. Right-click the desktop or the empty area of a folder, open New and pick a template. On Windows 11 it appears under "Show more options".</value></data>
+  <data name="NewPlus_Enable" xml:space="preserve"><value>Show "New" in the Explorer menu</value></data>
+  <data name="NewPlus_Templates" xml:space="preserve"><value>Templates</value></data>
+  <data name="NewPlus_Location" xml:space="preserve"><value>Location</value></data>
+  <data name="NewPlus_Change" xml:space="preserve"><value>Change...</value></data>
+  <data name="NewPlus_OpenFolder" xml:space="preserve"><value>Open templates folder</value></data>
+  <data name="NewPlus_PickFolderTitle" xml:space="preserve"><value>Choose the template folder</value></data>
+  <data name="NewPlus_BackupWarning" xml:space="preserve"><value>The settings backup does not include templates. If you use it, copy the template folder by hand.</value></data>
+  <data name="NewPlus_DisplayOptions" xml:space="preserve"><value>Display options</value></data>
+  <data name="NewPlus_HideExtension" xml:space="preserve"><value>Hide the file extension in template names</value></data>
+  <data name="NewPlus_HideDigits" xml:space="preserve"><value>Hide leading digits, spaces, and dots in template filenames</value></data>
+  <data name="NewPlus_HideDigitsHint" xml:space="preserve"><value>Ignores digits, spaces, and dots at the start of filenames: useful for sorting templates without showing those characters.</value></data>
+  <data name="NewPlus_HideBuiltIn" xml:space="preserve"><value>Hide the built-in "New" context menu</value></data>
+  <data name="NewPlus_BuiltInError" xml:space="preserve"><value>Couldn't update the built-in "New" context menu setting.</value></data>
+  <data name="NewPlus_Behavior" xml:space="preserve"><value>Behavior</value></data>
+  <data name="NewPlus_ReplaceVariables" xml:space="preserve"><value>Replace variables in template filename</value></data>
+  <data name="NewPlus_Variables" xml:space="preserve"><value>Supported variables</value></data>
+  <data name="NewPlus_VariablesList" xml:space="preserve"><value>$YYYY  Year, represented by a full four or five digits, depending on the calendar used.&#10;$MM  Month, as digits with leading zeros for single-digit months.&#10;$DD  Day of the month, as digits with leading zeros for single-digit days.&#10;$hh  Hours, with leading zeros for single-digit hours.&#10;$mm  Minutes, with leading zeros for single-digit minutes.&#10;$ss  Seconds, with leading zeros for single-digit seconds.&#10;$PARENT_FOLDER_NAME  Name of the folder the item is created in.&#10;%NAME%  An environment variable, such as %USERNAME%.&#10;Also $YY, $Y, $MMMM, $MMM, $M, $DDDD, $DDD, $D, $HH, $H, $TT, $tt, $h, $m, $s, $fff, $ff, $f. Write $$ in front of a variable to keep it as typed.</value></data>
+  <data name="NewPlusMenu_OpenTemplates" xml:space="preserve"><value>Open templates</value></data>
 </root>

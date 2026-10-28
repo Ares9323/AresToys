@@ -1429,4 +1429,25 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="WindowSnapping_DeleteConfirmFormat" xml:space="preserve"><value>Eliminare il layout "{0}"?</value></data>
   <data name="WindowSnapping_SaveErrorFormat" xml:space="preserve"><value>Impossibile salvare il layout: {0}</value></data>
   <data name="WindowSnapping_DeleteErrorFormat" xml:space="preserve"><value>Impossibile eliminare il layout: {0}</value></data>
+  <data name="Sidebar_NewPlus" xml:space="preserve"><value>Nuovo file da template</value></data>
+  <data name="NewPlusMenu_Label" xml:space="preserve"><value>Nuovo</value></data>
+  <data name="NewPlus_Blurb" xml:space="preserve"><value>Crea file e cartelle da un insieme personalizzato di template. Fai clic destro sul desktop o sull'area vuota di una cartella, apri Nuovo e scegli un template. Su Windows 11 compare sotto "Mostra altre opzioni".</value></data>
+  <data name="NewPlus_Enable" xml:space="preserve"><value>Mostra "Nuovo" nel menu di Explorer</value></data>
+  <data name="NewPlus_Templates" xml:space="preserve"><value>Template</value></data>
+  <data name="NewPlus_Location" xml:space="preserve"><value>Posizione</value></data>
+  <data name="NewPlus_Change" xml:space="preserve"><value>Cambia...</value></data>
+  <data name="NewPlus_OpenFolder" xml:space="preserve"><value>Apri la cartella dei template</value></data>
+  <data name="NewPlus_PickFolderTitle" xml:space="preserve"><value>Scegli la cartella dei template</value></data>
+  <data name="NewPlus_BackupWarning" xml:space="preserve"><value>Il backup delle impostazioni non include i template. Se lo usi, copia a mano la cartella dei template.</value></data>
+  <data name="NewPlus_DisplayOptions" xml:space="preserve"><value>Opzioni di visualizzazione</value></data>
+  <data name="NewPlus_HideExtension" xml:space="preserve"><value>Nascondi l'estensione nei nomi dei template</value></data>
+  <data name="NewPlus_HideDigits" xml:space="preserve"><value>Nascondi cifre, spazi e punti iniziali nei nomi dei template</value></data>
+  <data name="NewPlus_HideDigitsHint" xml:space="preserve"><value>Ignora cifre, spazi e punti all'inizio dei nomi: utile per ordinare i template senza mostrare quei caratteri.</value></data>
+  <data name="NewPlus_HideBuiltIn" xml:space="preserve"><value>Nascondi il menu contestuale "Nuovo" integrato</value></data>
+  <data name="NewPlus_BuiltInError" xml:space="preserve"><value>Impossibile aggiornare l'impostazione del menu contestuale "Nuovo" integrato.</value></data>
+  <data name="NewPlus_Behavior" xml:space="preserve"><value>Comportamento</value></data>
+  <data name="NewPlus_ReplaceVariables" xml:space="preserve"><value>Sostituisci le variabili nel nome del template</value></data>
+  <data name="NewPlus_Variables" xml:space="preserve"><value>Variabili supportate</value></data>
+  <data name="NewPlus_VariablesList" xml:space="preserve"><value>$YYYY  Anno, con quattro o cinque cifre a seconda del calendario usato.&#10;$MM  Mese, in cifre con lo zero iniziale per i mesi di una cifra.&#10;$DD  Giorno del mese, in cifre con lo zero iniziale per i giorni di una cifra.&#10;$hh  Ore, con lo zero iniziale per le ore di una cifra.&#10;$mm  Minuti, con lo zero iniziale per i minuti di una cifra.&#10;$ss  Secondi, con lo zero iniziale per i secondi di una cifra.&#10;$PARENT_FOLDER_NAME  Nome della cartella in cui viene creato l'elemento.&#10;%NOME%  Una variabile d'ambiente, per esempio %USERNAME%.&#10;Anche $YY, $Y, $MMMM, $MMM, $M, $DDDD, $DDD, $D, $HH, $H, $TT, $tt, $h, $m, $s, $fff, $ff, $f. Scrivi $$ davanti a una variabile per lasciarla com'è.</value></data>
+  <data name="NewPlusMenu_OpenTemplates" xml:space="preserve"><value>Apri i template</value></data>
 </root>

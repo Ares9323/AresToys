@@ -49,6 +49,12 @@ public sealed class SingleInstanceGuard : IDisposable
     /// window forward for them.</summary>
     public const string ResizePrefix = "resize:";
 
+    /// <summary>Prefix for "create this New+ template in this folder" messages from the Explorer
+    /// New+ verbs (<c>arestoys.exe --newplus "&lt;template&gt;" "&lt;folder&gt;"</c>). The payload after
+    /// the prefix is the template path, a TAB, then the folder path. Handled silently like
+    /// <see cref="ResizePrefix"/>.</summary>
+    public const string NewPlusPrefix = "newplus:";
+
     /// <summary>"Show the NewWormholeDialog so the user can pick a source folder." Used by the
     /// Background variant of the shell verb (right-click on empty desktop / folder area) — there
     /// the right-click target is the folder being viewed, which is rarely what the user wants
