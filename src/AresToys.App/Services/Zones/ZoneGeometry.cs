@@ -29,6 +29,29 @@ public static class ZoneGeometry
         return any ? new PixelRect(left, top, right, bottom) : new PixelRect(0, 0, 0, 0);
     }
 
+    /// <summary>Zone rectangles of a grid or canvas layout, indexed by zone index, in the coordinates of
+    /// <paramref name="workArea"/>. Empty when the layout is invalid or the area is empty. Canvas zones may overlap.</summary>
+    public static IReadOnlyList<PixelRect> Compute(ZoneLayout layout, PixelRect workArea)
+    {
+        if (workArea.IsEmpty || ZoneLayout.Validate(layout) is not null) return [];
+        if (layout.Canvas is not { } canvas) return Compute(layout.Grid, workArea);
+
+        const long total = GridLayout.PercentTotal;
+        long w = workArea.Width, h = workArea.Height;
+        var zones = new PixelRect[canvas.Zones.Count];
+        for (int i = 0; i < zones.Length; i++)
+        {
+            var z = canvas.Zones[i];
+            zones[i] = new PixelRect(
+                (int)(workArea.Left + w * z.Left / total),
+                (int)(workArea.Top + h * z.Top / total),
+                (int)(workArea.Left + w * z.Right / total),
+                (int)(workArea.Top + h * z.Bottom / total));
+        }
+
+        return zones;
+    }
+
     /// <summary>Zone rectangles indexed by zone index, in the coordinates of <paramref name="workArea"/>.
     /// Empty when the layout is invalid or the area is empty.</summary>
     public static IReadOnlyList<PixelRect> Compute(GridLayout layout, PixelRect workArea)

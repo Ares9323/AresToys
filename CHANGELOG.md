@@ -3,6 +3,36 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.38] — 2026-10-29
+
+### Window snapping
+- The layout editor is rebuilt around cards: one strip of monitors, one strip of
+  layout cards with a miniature of each, and a preview of the selected layout.
+- Clicking a card assigns that layout to the selected monitor at once. Apply and
+  Close are gone (the X closes). A new layout is assigned to the monitor on its
+  first Save.
+- Free form layouts: zones that can overlap, drawn with the Draw tool and moved
+  or resized by dragging. Grid layouts keep Split and Merge. Hold Shift while
+  dragging a divider to snap it to whole percents.
+- The New menu offers an empty layout, a custom grid and a free form layout.
+  The built-in example layouts and the quick layout switch key are removed.
+- One layout bar: New, Save, Duplicate and Delete, then Padding and Snap
+  tolerance. The layout name is edited in place. The number boxes can be
+  changed by dragging, like the Wormhole settings.
+- The editor remembers its last size, can be made narrower, and keeps the
+  monitor on the left when the window is widened.
+- New workflow task "Set snapping layout" to pick the layout of a monitor from
+  a pipeline.
+
+### New File from Template
+- The "New" Explorer entry now works with AresToys closed.
+
+### Wormholes
+- Fix for wormholes in the taskbar.
+
+### Explorer
+- SVG preview in the Explorer preview pane.
+
 ## [0.1.37] — 2026-10-28
 
 ### New File from Template

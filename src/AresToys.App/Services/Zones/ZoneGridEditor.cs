@@ -217,31 +217,6 @@ public static class ZoneGridEditor
         return lines;
     }
 
-    /// <summary>Snaps a position: the nearest candidate within <paramref name="tolerancePercent"/> wins;
-    /// otherwise the value is rounded to the nearest multiple of <paramref name="stepPercent"/> (0 or less
-    /// means no rounding). The result is not clamped to 0..10000; the operations clamp it.</summary>
-    public static int SnapPosition(int value, IEnumerable<int> candidates, int stepPercent, int tolerancePercent)
-    {
-        int best = value;
-        int bestDistance = int.MaxValue;
-        if (candidates is not null)
-        {
-            foreach (int candidate in candidates)
-            {
-                int distance = Math.Abs(candidate - value);
-                if (distance <= tolerancePercent && distance < bestDistance)
-                {
-                    best = candidate;
-                    bestDistance = distance;
-                }
-            }
-        }
-
-        if (bestDistance != int.MaxValue) return best;
-        if (stepPercent <= 0) return value;
-        return (int)(Math.Round(value / (double)stepPercent, MidpointRounding.AwayFromZero) * stepPercent);
-    }
-
     // ---- vertical (column) logic; horizontal edits run on the transposed layout ----
 
     private static EditResult SplitVertical(GridLayout work, int zoneIndex, int position, int min)

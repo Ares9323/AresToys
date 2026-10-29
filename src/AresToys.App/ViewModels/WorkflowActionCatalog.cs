@@ -672,6 +672,18 @@ public static class WorkflowActionCatalog
             "Turn Window snapping on or off. When on, hold Shift while dragging a window by its title bar to snap it into a zone.",
             "Actions"),
 
+        new("arestoys.window_snapping.set_layout",
+            "Set snapping layout",
+            "Makes a monitor use a Window snapping layout.",
+            "Actions",
+            DefaultConfigJson: "{\"layout\":\"\",\"monitor\":\"cursor\"}",
+            StringParameters:
+            [
+                new StringParameter("layout", "Layout", string.Empty, OptionsKey: "snap_layouts", IsEditable: false),
+                new StringParameter("monitor", "Monitor", "cursor", OptionsKey: "snap_monitors", IsEditable: false),
+            ],
+            LocalizationKey: "arestoys_window_snapping_set_layout"),
+
         new("arestoys.window-snapping-next-window",
             "Next window in zone",
             "Bring the next window snapped into the same zone as the foreground window to the front. Needs Window snapping to be on.",

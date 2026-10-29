@@ -1,13 +1,13 @@
 namespace AresToys.App.Services.Zones;
 
-/// <summary>Maps a cursor position to zone indexes. Follows PowerToys Layout::ZonesFromPoint, with one change:
-/// a strict hit always wins over the sensitivity margin, so the shared boundary of two zones picks the zone
-/// that really contains the point. The overlap algorithm is also applied to margin candidates that do not
-/// overlap, so a cursor in the gap between two grid zones gets a deliberate choice instead of the first index.</summary>
+/// <summary>Maps a cursor position to zone indexes. Follows PowerToys Layout::ZonesFromPoint: every zone within the
+/// sensitivity radius of the cursor is captured. Captured zones that do not overlap are all returned, so a cursor
+/// near the line between two zones snaps to both, as if Ctrl were held. When some captured zones overlap, exactly
+/// one is chosen by the overlap algorithm.</summary>
 public static class ZoneHitTester
 {
-    /// <summary>The zone index under the point. When several zones remain candidates (zones that overlap, or the
-    /// margin around a gap between two zones) exactly one is chosen by <paramref name="algorithm"/>.</summary>
+    /// <summary>The zone indexes under the point, in ascending order: every captured zone when they do not overlap,
+    /// otherwise the single one <paramref name="algorithm"/> picks.</summary>
     public static IReadOnlyList<int> ZonesFromPoint(IReadOnlyList<PixelRect> zones, int x, int y, int sensitivityRadius,
         ZoneOverlapAlgorithm algorithm = ZoneOverlapAlgorithm.ClosestCenter)
     {
@@ -28,10 +28,30 @@ public static class ZoneHitTester
         // A lone zone reached only through the margin does not count (PowerToys Layout.cpp 199-211).
         if (captured.Count == 1 && strict.Count == 0) return [];
 
-        var candidates = strict.Count > 0 ? strict : captured;
-        if (candidates.Count <= 1) return candidates;
+        // Captured zones that do not overlap are all returned (PowerToys Layout.cpp 213-270).
+        if (!AnyOverlap(zones, captured, sensitivityRadius)) return captured;
 
-        return [Choose(zones, candidates, x, y, sensitivityRadius, algorithm)];
+        return [Choose(zones, captured, x, y, sensitivityRadius, algorithm)];
+    }
+
+    // Two zones overlap when their intersection is deeper than the sensitivity radius in both directions.
+    private static bool AnyOverlap(IReadOnlyList<PixelRect> zones, List<int> indexes, int radius)
+    {
+        for (int i = 0; i < indexes.Count; i++)
+        {
+            for (int j = i + 1; j < indexes.Count; j++)
+            {
+                var a = zones[indexes[i]];
+                var b = zones[indexes[j]];
+                if ((long)Math.Max(a.Top, b.Top) + radius < Math.Min(a.Bottom, b.Bottom) &&
+                    (long)Math.Max(a.Left, b.Left) + radius < Math.Min(a.Right, b.Right))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>The zones highlighted when several are merged (Ctrl held): the bounding box of the given

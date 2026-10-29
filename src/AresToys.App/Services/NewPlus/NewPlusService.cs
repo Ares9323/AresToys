@@ -1,44 +1,13 @@
 using System.IO;
-using AresToys.Storage.Paths;
-using AresToys.Storage.Settings;
-using Microsoft.Extensions.Logging;
 
 namespace AresToys.App.Services.NewPlus;
 
 /// <summary>Turns a template into a file or folder in the Explorer folder the menu was opened in.
-/// Runs in the primary instance: the Explorer verb starts <c>arestoys.exe --newplus</c>, the secondary
-/// forwards the template and the folder over the single instance pipe (<see cref="SingleInstanceGuard.NewPlusPrefix"/>).</summary>
-public sealed class NewPlusService
+/// Static and free of any app state: the Explorer verb starts <c>arestoys.exe --newplus</c> and
+/// <see cref="NewPlusHeadless"/> calls <see cref="Create"/> from <c>Program.Main</c>, before the
+/// WPF app, the host or the database exist.</summary>
+public static class NewPlusService
 {
-    private readonly ISettingsStore _store;
-    private readonly IStoragePathResolver _paths;
-    private readonly ILogger<NewPlusService> _logger;
-
-    public NewPlusService(ISettingsStore store, IStoragePathResolver paths, ILogger<NewPlusService> logger)
-    {
-        _store = store;
-        _paths = paths;
-        _logger = logger;
-    }
-
-    /// <summary>Copies <paramref name="templatePath"/> into <paramref name="targetFolder"/>, resolves
-    /// the variables when the option is on, and leaves the result in rename mode. Never throws:
-    /// a failure is logged.</summary>
-    public async Task CreateAsync(string templatePath, string targetFolder)
-    {
-        try
-        {
-            var settings = await NewPlusSettings.LoadAsync(_store, _paths, CancellationToken.None).ConfigureAwait(false);
-            var created = await Task.Run(() => Create(templatePath, targetFolder, settings)).ConfigureAwait(false);
-            NewPlusNative.NotifyCreated(created);
-            NewPlusExplorer.BeginRename(created);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "New+ could not create {Template} in {Folder}", templatePath, targetFolder);
-        }
-    }
-
     /// <summary>The copy itself, without the Explorer niceties. Returns the path that was created.</summary>
     internal static string Create(string templatePath, string targetFolder, NewPlusSettings settings)
     {

@@ -49,21 +49,37 @@ internal static class DesktopOwnership
         if (hwnd == IntPtr.Zero) return false;
         var desktop = FindDesktopWindow();
         if (desktop == IntPtr.Zero) return false;
-        if (GetWindowLongPtr(hwnd, GWLP_HWNDPARENT) == desktop) return true; // already owned
+        var current = GetWindowLongPtr(hwnd, GWLP_HWNDPARENT);
+        if (current == desktop) return true; // already owned
+        // A wormhole has ShowInTaskbar=False, which WPF implements with a hidden owner window.
+        // Remember it so Detach can give it back: a window with no owner and no tool-window
+        // style gets a taskbar button.
+        lock (PreviousOwners) PreviousOwners[hwnd] = current;
         Marshal.SetLastSystemError(0);
         SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, desktop);
         return GetWindowLongPtr(hwnd, GWLP_HWNDPARENT) == desktop;
     }
 
-    /// <summary>Drop the desktop ownership, restoring plain top-level behaviour (the wormhole
-    /// then gets buried by Show desktop again). Used when the user turns the setting off.</summary>
+    /// <summary>Undo <see cref="Attach"/>: hand the window back the owner it had before (the
+    /// wormhole then gets buried by Show desktop again). Used when the user turns the setting
+    /// off. A window the desktop doesn't own is left alone, so its own owner survives.</summary>
     public static bool Detach(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return false;
-        if (GetWindowLongPtr(hwnd, GWLP_HWNDPARENT) == IntPtr.Zero) return true;
-        SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, IntPtr.Zero);
-        return GetWindowLongPtr(hwnd, GWLP_HWNDPARENT) == IntPtr.Zero;
+        var desktop = FindDesktopWindow();
+        var current = GetWindowLongPtr(hwnd, GWLP_HWNDPARENT);
+        if (current == IntPtr.Zero || current != desktop) return true;
+        IntPtr previous;
+        lock (PreviousOwners)
+        {
+            if (!PreviousOwners.Remove(hwnd, out previous)) previous = IntPtr.Zero;
+        }
+        SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, previous);
+        return GetWindowLongPtr(hwnd, GWLP_HWNDPARENT) == previous;
     }
+
+    /// <summary>The owner each attached window had before the desktop took over.</summary>
+    private static readonly Dictionary<IntPtr, IntPtr> PreviousOwners = new();
 
     /// <summary>Broadcast message Explorer sends to every top-level window after the shell
     /// restarts. The old Progman handle dies with the old Explorer, so ownership has to be

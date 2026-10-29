@@ -17,7 +17,6 @@ public sealed partial class WindowSnappingService : IDisposable
     private readonly ZoneDragService _drag;
     private readonly ZoneKeyboardSnapper _keyboard;
     private readonly ZoneWindowTracker _tracker;
-    private readonly ZoneQuickSwitch _quickSwitch;
     private readonly ZoneMonitors _monitors;
     private readonly ISettingsStore _settings;
     private readonly ILogger<WindowSnappingService> _logger;
@@ -32,7 +31,6 @@ public sealed partial class WindowSnappingService : IDisposable
         ZoneDragService drag,
         ZoneKeyboardSnapper keyboard,
         ZoneWindowTracker tracker,
-        ZoneQuickSwitch quickSwitch,
         ZoneMonitors monitors,
         ISettingsStore settings,
         ILogger<WindowSnappingService> logger)
@@ -41,7 +39,6 @@ public sealed partial class WindowSnappingService : IDisposable
         _drag = drag;
         _keyboard = keyboard;
         _tracker = tracker;
-        _quickSwitch = quickSwitch;
         _monitors = monitors;
         _settings = settings;
         _logger = logger;
@@ -98,7 +95,6 @@ public sealed partial class WindowSnappingService : IDisposable
             else
             {
                 _keyboard.Stop();
-                _quickSwitch.Stop();
                 _drag.Stop();
             }
         }
@@ -144,7 +140,6 @@ public sealed partial class WindowSnappingService : IDisposable
     private async Task StartKeyboardAsync()
     {
         _keyboard.Start();
-        _quickSwitch.Start();
         await ApplyKeyboardSettingsAsync().ConfigureAwait(false);
     }
 
@@ -157,7 +152,6 @@ public sealed partial class WindowSnappingService : IDisposable
             var options = await WindowSnappingSettings.LoadAsync(_settings, CancellationToken.None).ConfigureAwait(false);
             _monitors.ApplySettings(options);
             _keyboard.ApplySettings(options);
-            _quickSwitch.ApplySettings(options);
         }
         catch (Exception ex)
         {
@@ -197,7 +191,14 @@ public sealed partial class WindowSnappingService : IDisposable
                 return;
             }
 
-            var window = new ZoneEditorWindow(_store, _monitors, appearance, layoutId, launchMonitor);
+            var savedSize = await ZoneEditorWindow.LoadSizeAsync(_settings, CancellationToken.None);
+            if (_editor is not null)
+            {
+                _editor.Activate();
+                return;
+            }
+
+            var window = new ZoneEditorWindow(_store, _monitors, appearance, layoutId, _settings, savedSize, launchMonitor);
             _editor = window;
             window.Closed += (_, _) => _editor = null;
             window.Show();

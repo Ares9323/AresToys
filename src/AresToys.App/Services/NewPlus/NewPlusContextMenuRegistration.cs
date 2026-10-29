@@ -8,15 +8,16 @@ namespace AresToys.App.Services.NewPlus;
 /// Registers the Explorer entry "New" for the empty area of a folder and of the desktop: ONE verb
 /// with a cascading submenu that lists the templates, then a separator and "Open templates". Picking
 /// a template runs <c>"arestoys.exe" --newplus "&lt;template&gt;" "%V"</c> (%V is the folder the menu was
-/// opened in), which the app already forwards to the running instance (see
-/// <see cref="SingleInstanceGuard.NewPlusPrefix"/>).
+/// opened in), followed by <c>--np-hide-digits</c> and <c>--np-replace-vars</c> when those options are
+/// on. <see cref="NewPlusHeadless"/> handles it in <c>Program.Main</c>, so the entry works with the
+/// app closed.
 ///
 /// Pure registry like <see cref="ResizerContextMenuRegistration"/>, no shell extension. Layout:
 /// <code>
 /// HKCU\Software\Classes\Directory\Background\shell\AresToysNewPlus
-///     MUIVerb = "New", Icon = "&lt;exe&gt;", Position = "Top", SubCommands = ""
+///     MUIVerb = "New", Icon = "&lt;exe&gt;", Position = "Top", SubCommands = "", CommandsVersion = 2
 ///     shell\001_template\   MUIVerb = "&lt;title&gt;", Icon = "&lt;file,index&gt;"
-///         command\(default) = "&lt;exe&gt;" --newplus "&lt;template&gt;" "%V"
+///         command\(default) = "&lt;exe&gt;" --newplus "&lt;template&gt;" "%V" [--np-hide-digits] [--np-replace-vars]
 ///     shell\999_open\       MUIVerb = "Open templates", CommandFlags = 0x20 (separator above)
 ///         command\(default) = explorer.exe "&lt;template folder&gt;"
 /// </code>
@@ -34,22 +35,29 @@ internal static class NewPlusContextMenuRegistration
     private const int SeparatorAbove = 0x20;
     private const int MaxTemplates = 998;
 
-    /// <summary>True when the open-templates verb points at the current exe's menu. A cascade left by
-    /// another install location reads as "not registered".</summary>
+    // Bumped whenever the shape of the verb commands changes, so IsRegistered reports an older
+    // registration as stale and the sync rewrites it once (1 = commands without option flags).
+    private const string CommandsVersionValue = "CommandsVersion";
+    private const int CommandsVersion = 2;
+
+    /// <summary>True when the cascade points at the current exe's menu and carries the current command
+    /// shape. A cascade left by another install location or by an older version reads as "not registered".</summary>
     public static bool IsRegistered()
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(VerbKeyPath);
             return key?.GetValue("Icon") is string icon
-                && string.Equals(icon, ExplorerContextMenuRegistration.CurrentExePath(), StringComparison.OrdinalIgnoreCase);
+                && string.Equals(icon, ExplorerContextMenuRegistration.CurrentExePath(), StringComparison.OrdinalIgnoreCase)
+                && key.GetValue(CommandsVersionValue) is int version && version == CommandsVersion;
         }
         catch { return false; }
     }
 
     /// <summary>Rewrites the whole cascade: delete, then create, so a removed or renamed template
-    /// leaves no trace. Throws on registry failures so the caller can log them.</summary>
-    public static void Register(IReadOnlyList<Entry> entries, string templateFolder)
+    /// leaves no trace. The two options travel in each command as flags, because the exe runs without
+    /// the settings store. Throws on registry failures so the caller can log them.</summary>
+    public static void Register(IReadOnlyList<Entry> entries, string templateFolder, bool hideStartingDigits, bool replaceVariables)
     {
         ArgumentNullException.ThrowIfNull(entries);
         var exe = ExplorerContextMenuRegistration.CurrentExePath();
@@ -60,13 +68,16 @@ internal static class NewPlusContextMenuRegistration
         verb.SetValue("Icon", exe);
         verb.SetValue("Position", "Top");
         verb.SetValue("SubCommands", string.Empty);
+        verb.SetValue(CommandsVersionValue, CommandsVersion, RegistryValueKind.DWord);
 
+        var flags = (hideStartingDigits ? " " + NewPlusHeadless.HideDigitsFlag : string.Empty)
+                    + (replaceVariables ? " " + NewPlusHeadless.ReplaceVarsFlag : string.Empty);
         using var sub = verb.CreateSubKey("shell");
         for (var i = 0; i < entries.Count && i < MaxTemplates; i++)
         {
             var entry = entries[i];
             WriteSubVerb(sub, $"{i + 1:D3}_template", entry.Title, entry.Icon,
-                $"\"{exe}\" --newplus \"{entry.TemplatePath}\" \"%V\"", separatorAbove: false);
+                $"\"{exe}\" {NewPlusHeadless.NewPlusSwitch} \"{entry.TemplatePath}\" \"%V\"{flags}", separatorAbove: false);
         }
         WriteSubVerb(sub, OpenKeyName, ResolveString(nameof(Strings.NewPlusMenu_OpenTemplates)), null,
             $"explorer.exe \"{templateFolder}\"", separatorAbove: entries.Count > 0);

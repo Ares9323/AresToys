@@ -131,22 +131,6 @@ public partial class App : Application
         }
         var resizeRequested = !string.IsNullOrWhiteSpace(resizeWorkflowId) && !string.IsNullOrWhiteSpace(resizePath);
 
-        // --newplus <template> <folder>: New+ Explorer verbs. %V is the folder the menu was opened
-        // in; the primary copies the template there, silently, and puts the copy in rename mode.
-        string? newPlusTemplate = null;
-        string? newPlusFolder = null;
-        for (var i = 0; i < e.Args.Length - 2; i++)
-        {
-            if (string.Equals(e.Args[i], "--newplus", StringComparison.OrdinalIgnoreCase))
-            {
-                newPlusTemplate = e.Args[i + 1];
-                // A drive root arrives as C:\" (the backslash escapes the closing quote): repair it.
-                newPlusFolder = AresToys.App.Services.NewPlus.NewPlusTemplates.RepairQuotedFolderArg(e.Args[i + 2]);
-                break;
-            }
-        }
-        var newPlusRequested = !string.IsNullOrWhiteSpace(newPlusTemplate) && !string.IsNullOrWhiteSpace(newPlusFolder);
-
         var guard = new SingleInstanceGuard();
         if (!guard.IsPrimary)
         {
@@ -162,8 +146,6 @@ public partial class App : Application
                 // One process per selected file: a primary still starting up must not lose any.
                 connectTimeoutMs = 15000;
             }
-            else if (newPlusRequested)
-                msg = SingleInstanceGuard.NewPlusPrefix + Path.GetFullPath(newPlusTemplate!) + "\t" + newPlusFolder;
             else if (createWormholePath is not null)
                 msg = SingleInstanceGuard.CreateWormholePrefix + Path.GetFullPath(createWormholePath);
             else if (newWormholeDialogRequested)
@@ -212,7 +194,6 @@ public partial class App : Application
                     new NotifyingPipelineProfileStore(ActivatorUtilities.CreateInstance<SqlitePipelineProfileStore>(sp)));
                 services.AddSingleton<IPipelineProfileStore>(sp => sp.GetRequiredService<NotifyingPipelineProfileStore>());
                 services.AddSingleton<ResizerContextMenuSync>();
-                services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusService>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>();
                 services.AddAresToysPlugins();
                 services.AddAresToysEditor();
@@ -349,12 +330,12 @@ public partial class App : Application
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneLayoutStore>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneMonitors>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneWindowTracker>();
-                services.AddSingleton<AresToys.App.Services.Zones.ZoneQuickSwitch>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneKeyboardSnapper>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneDragService>();
                 services.AddSingleton<AresToys.App.Services.Zones.WindowSnappingService>();
                 services.AddSingleton<IPipelineTask, OpenWindowSnappingEditorTask>();
                 services.AddSingleton<IPipelineTask, ToggleWindowSnappingTask>();
+                services.AddSingleton<IPipelineTask, SetSnapLayoutTask>();
                 services.AddSingleton<IPipelineTask, NextWindowInZoneTask>();
                 services.AddSingleton<IPipelineTask, PreviousWindowInZoneTask>();
                 services.AddSingleton<IPipelineTask, AlwaysOnTopTask>();
@@ -688,6 +669,21 @@ public partial class App : Application
             }
         };
 
+        // Set snapping layout: layout names (built-in first, then user) and the monitor choices. Provider
+        // values are what the step stores, so the layout list holds names and the monitors hold "cursor",
+        // "primary" and the editor tile numbers.
+        var snapStore = _host.Services.GetRequiredService<AresToys.App.Services.Zones.ZoneLayoutStore>();
+        var snapMonitors = _host.Services.GetRequiredService<AresToys.App.Services.Zones.ZoneMonitors>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["snap_layouts"] = () =>
+            snapStore.Layouts.Select(l => l.Name).ToList();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["snap_monitors"] = () =>
+        {
+            var list = new List<string> { "cursor", "primary" };
+            list.AddRange(Enumerable.Range(1, snapMonitors.Real().Count)
+                .Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            return list;
+        };
+
         // Image-format dropdown for SaveToFile's "format" override. Empty entry = "use the
         // bag's current extension" (default — typically the global capture format set in
         // Settings → Capture). Explicit format = re-encode through IImageEncoder before write.
@@ -937,11 +933,6 @@ public partial class App : Application
                 QueueResizeRequest(message[SingleInstanceGuard.ResizePrefix.Length..]);
                 return;
             }
-            if (message.StartsWith(SingleInstanceGuard.NewPlusPrefix, StringComparison.Ordinal))
-            {
-                RunNewPlusRequest(message[SingleInstanceGuard.NewPlusPrefix.Length..]);
-                return;
-            }
             Dispatcher.Invoke(() =>
             {
                 // Always bring the main window forward — both for plain re-launches and for
@@ -1026,18 +1017,11 @@ public partial class App : Application
                 new Action(() => QueueResizeRequest(resizeWorkflowId + "\t" + Path.GetFullPath(resizePath!))),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
-        // Cold-start from a New+ verb: same request the pipe carries.
-        if (newPlusRequested)
-        {
-            _ = Dispatcher.BeginInvoke(
-                new Action(() => RunNewPlusRequest(Path.GetFullPath(newPlusTemplate!) + "\t" + newPlusFolder)),
-                System.Windows.Threading.DispatcherPriority.Loaded);
-        }
         guard.StartListening();
 
         // Cold-start from the context menu is silent: tray-only, no Settings popup. Sxcu / sxie
         // still want the main window because their import dialogs need an Owner.
-        var startSilent = (uploadPath is not null || createWormholePath is not null || newWormholeDialogRequested || resizeRequested || newPlusRequested)
+        var startSilent = (uploadPath is not null || createWormholePath is not null || newWormholeDialogRequested || resizeRequested)
                           && sxcuPath is null && sxiePath is null;
         // User-controlled "Start minimized" (Settings → Settings tab): same effect as
         // --upload's silent start — tray-only on launch, the user pops the window via the
@@ -1423,20 +1407,6 @@ public partial class App : Application
         }
         _host?.Services.GetRequiredService<AresToys.App.Services.ImageResize.ResizeRequestBatcher>()
             .Add(payload[..tab], payload[(tab + 1)..]);
-    }
-
-    /// <summary>Run one Explorer New+ request: <paramref name="payload"/> is the template path, a TAB,
-    /// then the folder to create it in (the pipe message minus its prefix).</summary>
-    private void RunNewPlusRequest(string payload)
-    {
-        var tab = payload.IndexOf('\t');
-        if (tab <= 0 || tab == payload.Length - 1)
-        {
-            _host?.Services.GetService<ILogger<App>>()?.LogWarning("Ignoring malformed New+ request");
-            return;
-        }
-        var service = _host?.Services.GetRequiredService<AresToys.App.Services.NewPlus.NewPlusService>();
-        if (service is not null) _ = service.CreateAsync(payload[..tab], payload[(tab + 1)..]);
     }
 
     private const string ResizeQuickLastKey = "resizer.quick.last";

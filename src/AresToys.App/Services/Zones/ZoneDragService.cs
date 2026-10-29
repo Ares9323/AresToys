@@ -14,9 +14,6 @@ namespace AresToys.App.Services.Zones;
 /// place where a window is placed into a zone. Start and Stop are safe to call twice.</summary>
 public sealed class ZoneDragService : IDisposable
 {
-    /// <summary>Layout used for a monitor that has no assignment (or whose assigned layout is gone).</summary>
-    public const string FallbackLayoutId = "preset-priority-3";
-
     private const int TickMilliseconds = 16;
     private const long ButtonUpGraceMilliseconds = 500;
     private const int PlaceAttempts = 3;
@@ -26,7 +23,6 @@ public sealed class ZoneDragService : IDisposable
 
     private readonly ZoneLayoutStore _store;
     private readonly ZoneWindowTracker _tracker;
-    private readonly ZoneQuickSwitch _quickSwitch;
     private readonly ZoneMonitors _monitors;
     private readonly ISettingsStore _settings;
     private readonly ILogger<ZoneDragService> _logger;
@@ -55,9 +51,6 @@ public sealed class ZoneDragService : IDisposable
     private bool _prevExtra2;
     private bool _prevMiddle;
 
-    // Digit keys (main row and numpad, bit n is digit n) held at the previous tick, for rising edges. Primed at drag start.
-    private int _prevDigits;
-
     // The dragged window's layered state before it was made see through, so it can be put back exactly.
     private TransparencyState? _transparency;
 
@@ -67,11 +60,10 @@ public sealed class ZoneDragService : IDisposable
     // Zone rects per monitor and layout seen during the drag, so a tick does not recompute the geometry.
     private readonly Dictionary<string, ZoneCacheEntry> _zoneCache = new(StringComparer.Ordinal);
 
-    public ZoneDragService(ZoneLayoutStore store, ZoneWindowTracker tracker, ZoneQuickSwitch quickSwitch, ZoneMonitors monitors, ISettingsStore settings, ILogger<ZoneDragService> logger)
+    public ZoneDragService(ZoneLayoutStore store, ZoneWindowTracker tracker, ZoneMonitors monitors, ISettingsStore settings, ILogger<ZoneDragService> logger)
     {
         _store = store;
         _tracker = tracker;
-        _quickSwitch = quickSwitch;
         _monitors = monitors;
         _settings = settings;
         _logger = logger;
@@ -311,7 +303,6 @@ public sealed class ZoneDragService : IDisposable
 
         PollToggleInputs();
         var snap = Evaluate();
-        PollQuickKeys(snap.Active);
         _lastTickHighlighted = snap.Indexes.Count > 0;
         if (snap.Active && _options.TransparentWhileDragging) MakeDragWindowTransparent(_dragWindow);
         else RestoreDragWindow();
@@ -389,61 +380,12 @@ public sealed class ZoneDragService : IDisposable
         _prevMiddle = middle;
     }
 
-    /// <summary>Starts a drag with no toggles on and the buttons and digits already held counted as "previous".</summary>
+    /// <summary>Starts a drag with no toggles on and the buttons already held counted as "previous".</summary>
     private void ResetToggleInputs()
     {
         _activationToggled = false;
         _spanToggled = false;
         (_prevSecondary, _prevExtra1, _prevExtra2, _prevMiddle) = ReadToggleButtons();
-        _prevDigits = ReadDigits();
-    }
-
-    // Bit n is set while digit n is down on the main row or the numpad (both count as the same digit, as in PowerToys).
-    private static int ReadDigits()
-    {
-        var mask = 0;
-        for (var digit = 0; digit <= 9; digit++)
-        {
-            if (KeyDown(VkDigit0 + digit) || KeyDown(VkNumpad0 + digit)) mask |= 1 << digit;
-        }
-
-        return mask;
-    }
-
-    /// <summary>The quick layout switch during a drag: with the option on and snapping active, a digit pressed since
-    /// the previous tick gives the monitor under the cursor the layout with that quick key (no modifier needed, as in
-    /// PowerToys). The previous digit states are refreshed every tick, so a digit held from before the drag, or pressed
-    /// while snapping was off, never fires later.</summary>
-    private void PollQuickKeys(bool snapActive)
-    {
-        var digits = ReadDigits();
-        var pressed = digits & ~_prevDigits;
-        _prevDigits = digits;
-        if (pressed == 0 || !snapActive || !_options.QuickLayoutSwitch) return;
-
-        // Several digits in one tick (rare): the lowest one wins.
-        var key = System.Numerics.BitOperations.TrailingZeroCount(pressed);
-        if (!GetCursorPos(out var cursor)) return;
-        _ = SwitchLayoutAsync(key, cursor.X, cursor.Y);
-    }
-
-    /// <summary>Asks the quick switch to apply the key, then, back on the UI thread, forgets what depended on the old
-    /// layout (zone rects, the multi zone anchor, and the "was shown" flag, so a drop cannot snap into a layout the user
-    /// never saw). The next tick draws the new layout.</summary>
-    private async Task SwitchLayoutAsync(int key, int x, int y)
-    {
-        try
-        {
-            if (!await _quickSwitch.ApplyQuickKeyAsync(key, x, y)) return;
-            if (_disposed) return;
-            _zoneCache.Clear();
-            ClearAnchor();
-            _lastTickHighlighted = false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Zones: quick layout switch to key {Key} failed", key);
-        }
     }
 
     // GetAsyncKeyState reports physical buttons: with swapped buttons the logical secondary one is the left.
@@ -480,7 +422,7 @@ public sealed class ZoneDragService : IDisposable
             return Snap.ActiveOnly;
         }
 
-        var hits = ZoneHitTester.ZonesFromPoint(zones, cursor.X, cursor.Y, layout.Grid.SensitivityRadius, _options.OverlapAlgorithm);
+        var hits = ZoneHitTester.ZonesFromPoint(zones, cursor.X, cursor.Y, layout.SensitivityRadius, _options.OverlapAlgorithm);
         var current = hits.Count > 0 ? hits[0] : -1;
 
         var multi = KeyDown(VkControl) || (_options.MiddleClickSpanning && _spanToggled);
@@ -491,7 +433,8 @@ public sealed class ZoneDragService : IDisposable
 
         if (!multi)
         {
-            return new Snap(true, monitor, zones, current >= 0 ? [current] : []);
+            // Every zone the cursor captured: near the line between two zones that is both of them.
+            return new Snap(true, monitor, zones, hits);
         }
 
         if (_anchor < 0 && current >= 0)
@@ -509,15 +452,14 @@ public sealed class ZoneDragService : IDisposable
         _anchorMonitorId = null;
     }
 
-    /// <summary>The layout in force on a monitor: its assignment, or the fallback layout when it has none (or the
-    /// assigned one is gone). Shared with the window tracker so both always agree.</summary>
+    /// <summary>The layout in force on a monitor: its assignment, or the first saved layout when it has none (or the
+    /// assigned one is gone), or null when no layout is saved (the monitor then does not snap). Shared with the
+    /// window tracker so both always agree.</summary>
     internal static ZoneLayout? ResolveLayout(ZoneLayoutStore store, string monitorId)
     {
         var assigned = store.GetAssignment(monitorId);
         var layout = assigned is null ? null : store.Find(assigned);
-        return layout
-            ?? store.Find(FallbackLayoutId)
-            ?? ZoneLayoutPresets.BuiltIn.FirstOrDefault(l => l.Id == FallbackLayoutId);
+        return layout ?? (store.Layouts is { Count: > 0 } all ? all[0] : null);
     }
 
     /// <summary>The layout of a monitor and its zone rectangles, or false when the monitor has no usable zones.
@@ -533,7 +475,7 @@ public sealed class ZoneDragService : IDisposable
         if (!_zoneCache.TryGetValue(monitor.Id, out var entry)
             || entry.Area != monitor.WorkArea || !ReferenceEquals(entry.Layout, resolved))
         {
-            entry = new ZoneCacheEntry(monitor.WorkArea, resolved, ZoneGeometry.Compute(resolved.Grid, monitor.WorkArea));
+            entry = new ZoneCacheEntry(monitor.WorkArea, resolved, ZoneGeometry.Compute(resolved, monitor.WorkArea));
             _zoneCache[monitor.Id] = entry;
         }
 

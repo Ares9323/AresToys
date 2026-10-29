@@ -109,13 +109,14 @@ public sealed class NewPlusContextMenuSync : IDisposable
         var signature = string.Join('\n', entries.Select(e => e.TemplatePath + '\t' + e.Title + '\t' + e.Icon))
             + '\n' + settings.TemplateFolder
             + '\n' + (Markup.LocalizedStrings.Instance.Culture?.Name ?? string.Empty)
-            + '\n' + settings.HideBuiltInNew;
+            + '\n' + settings.HideBuiltInNew
+            + '\n' + settings.HideStartingDigits + settings.ReplaceVariables;
         if (signature == _lastSignature && NewPlusContextMenuRegistration.IsRegistered()) return;
 
         // Registry and shell notification off the caller's thread (it may be the UI thread).
         await Task.Run(() =>
         {
-            NewPlusContextMenuRegistration.Register(entries, settings.TemplateFolder);
+            NewPlusContextMenuRegistration.Register(entries, settings.TemplateFolder, settings.HideStartingDigits, settings.ReplaceVariables);
             SafeSetBuiltInHidden(settings.HideBuiltInNew);
         }).ConfigureAwait(false);
         _lastSignature = signature;

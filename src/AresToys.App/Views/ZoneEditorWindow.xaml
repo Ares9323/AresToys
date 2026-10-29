@@ -6,16 +6,52 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:Markup="clr-namespace:AresToys.App.Markup"
         xmlns:local="clr-namespace:AresToys.App.Views"
+        xmlns:behaviors="clr-namespace:AresToys.App.Behaviors"
         WindowStartupLocation="CenterScreen"
         Title="{Markup:Loc WindowSnapping_Title}"
-        Width="1020"
+        Width="920"
         Height="760"
-        MinWidth="860"
-        MinHeight="620"
+        MinWidth="640"
+        MinHeight="680"
         WindowBackdropType="None"
         ExtendsContentIntoTitleBar="True"
         Background="{DynamicResource Surface2Brush}"
         ShowInTaskbar="True">
+    <ui:FluentWindow.Resources>
+        <!-- Select and Split tool toggles. Replaces the WPF-UI ToggleButton template, whose checked state is a
+             pale fill with light text; checked here is the accent background dark the user picked (AccentBackgroundDarkBrush). -->
+        <Style x:Key="ToolToggleButton" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="4" BorderThickness="1" Padding="{TemplateBinding Padding}"
+                                Background="{DynamicResource Surface3Brush}"
+                                BorderBrush="{DynamicResource InnerBorderBrush}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentForegroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBackgroundDarkBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBackgroundDarkBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
     <Border Background="{DynamicResource Surface2Brush}"
             BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
         <Grid>
@@ -29,7 +65,7 @@
                 </ui:TitleBar.Icon>
             </ui:TitleBar>
 
-            <Grid Grid.Row="1" Margin="20,12,20,16">
+            <Grid Grid.Row="1" Margin="20,12,20,12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -37,139 +73,179 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- 1. Layout picker and layout level commands -->
-                <Grid Grid.Row="0" Margin="0,0,0,10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <ComboBox x:Name="LayoutBox" Grid.Column="0" DisplayMemberPath="Text" FontSize="13"
-                              SelectionChanged="OnLayoutSelectionChanged" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
-                        <ui:Button x:Name="NewButton" Content="{Markup:Loc WindowSnapping_New}" Padding="12,4" Margin="0,0,6,0"
-                                   Click="OnNewClicked" />
-                        <ui:Button x:Name="DuplicateButton" Content="{Markup:Loc WindowSnapping_Duplicate}" Padding="12,4" Margin="0,0,6,0"
-                                   Click="OnDuplicateClicked" />
-                        <ui:Button x:Name="RenameButton" Content="{Markup:Loc WindowSnapping_Rename}" Padding="12,4" Margin="0,0,6,0"
-                                   Click="OnRenameClicked" />
-                        <ui:Button x:Name="DeleteButton" Content="{Markup:Loc WindowSnapping_Delete}" Padding="12,4"
-                                   Click="OnDeleteClicked" />
-                    </StackPanel>
-                </Grid>
-
-                <!-- 2. Layout settings and monitor -->
-                <WrapPanel Grid.Row="1" Margin="0,0,0,10" Orientation="Horizontal">
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="{Markup:Loc WindowSnapping_Spacing}" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   FontSize="12" Margin="0,0,0,4" />
-                        <TextBox x:Name="SpacingBox" Width="150" FontSize="13" KeyDown="OnSettingKeyDown" LostFocus="OnSettingLostFocus" />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="{Markup:Loc WindowSnapping_Sensitivity}" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   FontSize="12" Margin="0,0,0,4" />
-                        <TextBox x:Name="SensitivityBox" Width="150" FontSize="13" KeyDown="OnSettingKeyDown" LostFocus="OnSettingLostFocus" />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,16,6">
-                        <TextBlock Text="{Markup:Loc WindowSnapping_QuickKey}" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   FontSize="12" Margin="0,0,0,4" />
-                        <ComboBox x:Name="QuickKeyBox" Width="190" DisplayMemberPath="Text" FontSize="13"
-                                  ToolTip="{Markup:Loc WindowSnapping_QuickKeyHint}"
-                                  SelectionChanged="OnQuickKeySelectionChanged" />
-                    </StackPanel>
-                    <TextBlock Text="{Markup:Loc WindowSnapping_QuickKeyHint}" MaxWidth="230" TextWrapping="Wrap" FontSize="11"
-                               VerticalAlignment="Bottom" Margin="0,0,16,6"
-                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
-                    <StackPanel Margin="0,0,16,6">
+                <!-- 1. Use on: one tile per monitor, the layout shown below is the one that monitor gets -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                         <TextBlock Text="{Markup:Loc WindowSnapping_UseOn}" Foreground="{DynamicResource AccentForegroundBrush}"
-                                   FontSize="12" Margin="0,0,0,4" />
-                        <StackPanel Orientation="Horizontal">
-                            <ComboBox x:Name="MonitorBox" Width="300" DisplayMemberPath="Text" FontSize="13"
-                                      SelectionChanged="OnMonitorSelectionChanged" />
-                            <ui:Button x:Name="IdentifyButton" Content="{Markup:Loc WindowSnapping_Identify}" Padding="12,4" Margin="6,0,0,0"
-                                       ToolTip="{Markup:Loc WindowSnapping_TipIdentify}" Click="OnIdentifyClicked" />
+                                   FontSize="12" VerticalAlignment="Center" />
+                        <ui:Button x:Name="IdentifyButton" Content="{Markup:Loc WindowSnapping_Identify}"
+                                   Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   ToolTip="{Markup:Loc WindowSnapping_TipIdentify}" Click="OnIdentifyClicked" />
+                    </StackPanel>
+                    <local:ZoneMonitorStrip x:Name="MonitorStrip" Height="80"
+                                            SelectionChanged="OnMonitorSelectionChanged" />
+                </StackPanel>
+
+                <!-- 2. Layout: one row with New and the layout settings, then the full width cards -->
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc WindowSnapping_LayoutLabel}"
+                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button x:Name="NewButton" Content="{Markup:Loc WindowSnapping_New}" Padding="12,4"
+                                           Click="OnNewClicked" />
+                                <Border Width="1" Height="22" Margin="10,0" VerticalAlignment="Center"
+                                        Background="{DynamicResource OuterBorderBrush}" />
+                                <ui:Button x:Name="SaveButton" Content="{Markup:Loc Common_Save}" Padding="12,4" Margin="0,0,6,0"
+                                           Appearance="Primary" ToolTip="{Markup:Loc WindowSnapping_TipSave}"
+                                           Click="OnSaveClicked" />
+                                <ui:Button x:Name="DuplicateButton" Content="{Markup:Loc WindowSnapping_Duplicate}" Padding="12,4" Margin="0,0,6,0"
+                                           Click="OnDuplicateClicked" />
+                                <ui:Button x:Name="DeleteButton" Content="{Markup:Loc WindowSnapping_Delete}" Padding="12,4"
+                                           Appearance="Danger" Click="OnDeleteClicked" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Border Width="1" Margin="12,0" VerticalAlignment="Stretch"
+                                Background="{DynamicResource OuterBorderBrush}" />
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc WindowSnapping_Spacing}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                       FontSize="12" Margin="0,0,0,4" />
+                            <TextBox x:Name="SpacingBox" behaviors:NumericDragScrub.IsEnabled="True" Width="100" FontSize="13"
+                                     KeyDown="OnSettingKeyDown" LostFocus="OnSettingLostFocus" TextChanged="OnLiveTextChanged" />
+                        </StackPanel>
+                        <Border Width="1" Margin="12,0" VerticalAlignment="Stretch"
+                                Background="{DynamicResource OuterBorderBrush}" />
+                        <StackPanel>
+                            <TextBlock Text="{Markup:Loc WindowSnapping_Sensitivity}" Foreground="{DynamicResource AccentForegroundBrush}"
+                                       FontSize="12" Margin="0,0,0,4" />
+                            <TextBox x:Name="SensitivityBox" behaviors:NumericDragScrub.IsEnabled="True" Width="100" FontSize="13"
+                                     KeyDown="OnSettingKeyDown" LostFocus="OnSettingLostFocus" TextChanged="OnLiveTextChanged" />
                         </StackPanel>
                     </StackPanel>
-                    <CheckBox x:Name="UseOnBox" Content="{Markup:Loc WindowSnapping_UseOnThisMonitor}" VerticalAlignment="Bottom"
-                              Margin="0,0,0,6" Click="OnUseOnClicked" />
-                </WrapPanel>
+                    <local:ZoneLayoutStrip x:Name="LayoutStrip" Grid.Row="1" MaxHeight="200" VerticalAlignment="Top" Margin="0,6,0,10" />
+                </Grid>
 
-                <!-- 3. Tools -->
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+                <!-- 3. Tools: layout name, then the tools, then undo and redo -->
+                <Grid Grid.Row="2" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="90" MaxWidth="225" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="NameBox" Grid.Column="0" FontSize="13" VerticalAlignment="Center"
+                             TextChanged="OnNameTextChanged" KeyDown="OnNameKeyDown" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Border Width="1" Height="22" Margin="10,0" VerticalAlignment="Center"
+                            Background="{DynamicResource OuterBorderBrush}" />
                     <ToggleButton x:Name="SelectToolButton" Content="{Markup:Loc WindowSnapping_ToolSelect}" Padding="14,5" Margin="0,0,6,0"
+                                  Style="{StaticResource ToolToggleButton}"
                                   ToolTip="{Markup:Loc WindowSnapping_TipSelect}" IsChecked="True" Click="OnSelectToolClicked" />
                     <ToggleButton x:Name="SplitToolButton" Content="{Markup:Loc WindowSnapping_ToolSplit}" Padding="14,5" Margin="0,0,6,0"
+                                  Style="{StaticResource ToolToggleButton}"
                                   ToolTip="{Markup:Loc WindowSnapping_TipSplit}" Click="OnSplitToolClicked" />
-                    <ui:Button x:Name="SplitAxisButton" Padding="12,4" Margin="0,0,16,0" IsEnabled="False"
-                               ToolTip="{Markup:Loc WindowSnapping_TipOrientation}" Click="OnSplitAxisClicked" />
-                    <ui:Button x:Name="MergeButton" Content="{Markup:Loc WindowSnapping_Merge}" Padding="12,4" Margin="0,0,16,0"
+                    <ToggleButton x:Name="DrawToolButton" Content="{Markup:Loc WindowSnapping_ToolDraw}" Padding="14,5" Margin="0,0,6,0"
+                                  Style="{StaticResource ToolToggleButton}"
+                                  ToolTip="{Markup:Loc WindowSnapping_TipDraw}" Click="OnDrawToolClicked" />
+                    <ui:Button x:Name="MergeButton" Content="{Markup:Loc WindowSnapping_Merge}" Padding="12,4"
                                ToolTip="{Markup:Loc WindowSnapping_TipMerge}" Click="OnMergeClicked" />
+                    <Border Width="1" Height="22" Margin="10,0" VerticalAlignment="Center"
+                            Background="{DynamicResource OuterBorderBrush}" />
                     <ui:Button x:Name="UndoButton" Content="{Markup:Loc WindowSnapping_Undo}" Padding="12,4" Margin="0,0,6,0"
                                ToolTip="{Markup:Loc WindowSnapping_TipUndo}" Click="OnUndoClicked" />
                     <ui:Button x:Name="RedoButton" Content="{Markup:Loc WindowSnapping_Redo}" Padding="12,4"
                                ToolTip="{Markup:Loc WindowSnapping_TipRedo}" Click="OnRedoClicked" />
-                </StackPanel>
-
-                <!-- 4. Preview -->
-                <Border Grid.Row="3" Margin="0,0,0,10" CornerRadius="6" BorderThickness="1"
-                        BorderBrush="{DynamicResource OuterBorderBrush}" Background="{DynamicResource Surface1Brush}">
-                    <local:ZonePreviewCanvas x:Name="Preview" MinHeight="200" />
-                </Border>
-
-                <!-- 5. Selected zone -->
-                <StackPanel Grid.Row="4" Margin="0,0,0,4">
-                    <TextBlock x:Name="ZoneHeaderText" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="13"
-                               FontWeight="SemiBold" Margin="0,0,0,6" />
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="{Markup:Loc WindowSnapping_Left}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12" Margin="0,0,0,4" />
-                            <TextBox x:Name="LeftBox" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="{Markup:Loc WindowSnapping_Top}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12" Margin="0,0,0,4" />
-                            <TextBox x:Name="TopBox" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="4">
-                            <TextBlock Text="{Markup:Loc WindowSnapping_Width}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12" Margin="0,0,0,4" />
-                            <TextBox x:Name="WidthBox" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="6">
-                            <TextBlock Text="{Markup:Loc WindowSnapping_Height}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12" Margin="0,0,0,4" />
-                            <TextBox x:Name="HeightBox" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" />
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-
-                <TextBlock x:Name="NoteText" Grid.Row="5" MinHeight="18" Margin="0,2,0,8" FontSize="12" TextWrapping="Wrap"
-                           Foreground="{DynamicResource AccentForegroundDarkBrush}" />
-
-                <!-- 6. Footer -->
-                <Grid Grid.Row="6">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Markup:Loc WindowSnapping_Hint}" VerticalAlignment="Center" FontSize="11"
-                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <ui:Button x:Name="SaveButton" Content="{Markup:Loc Common_Save}" Padding="14,4" Margin="0,0,8,0"
-                                   Appearance="Primary" Click="OnSaveClicked" />
-                        <ui:Button x:Name="SaveCopyButton" Content="{Markup:Loc WindowSnapping_SaveAsCopy}" Padding="14,4" Margin="0,0,8,0"
-                                   Click="OnSaveCopyClicked" />
-                        <ui:Button Content="{Markup:Loc Common_Cancel}" Padding="14,4" IsCancel="True" Click="OnCancelClicked" />
                     </StackPanel>
                 </Grid>
+
+                <!-- 5. Preview, full width -->
+                <Grid Grid.Row="3" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" CornerRadius="6" BorderThickness="0"
+                                Background="Transparent">
+                            <local:ZonePreviewCanvas x:Name="Preview" ClipToBounds="True" />
+                        </Border>
+                        <!-- Zone position and Zone size, side by side under the preview -->
+                        <Grid Grid.Row="1" Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Markup:Loc WindowSnapping_Left}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11" Margin="0,0,0,2" />
+                                        <TextBox x:Name="LeftBox" behaviors:NumericDragScrub.IsEnabled="True" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" TextChanged="OnLiveTextChanged" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{Markup:Loc WindowSnapping_Top}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11" Margin="0,0,0,2" />
+                                        <TextBox x:Name="TopBox" behaviors:NumericDragScrub.IsEnabled="True" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" TextChanged="OnLiveTextChanged" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Markup:Loc WindowSnapping_Width}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11" Margin="0,0,0,2" />
+                                        <TextBox x:Name="WidthBox" behaviors:NumericDragScrub.IsEnabled="True" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" TextChanged="OnLiveTextChanged" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{Markup:Loc WindowSnapping_Height}" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11" Margin="0,0,0,2" />
+                                        <TextBox x:Name="HeightBox" behaviors:NumericDragScrub.IsEnabled="True" FontSize="13" KeyDown="OnFieldKeyDown" LostFocus="OnFieldLostFocus" TextChanged="OnLiveTextChanged" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Grid>
+
+                <!-- Both lines collapse when empty, so no blank band is left under the number boxes -->
+                <TextBlock x:Name="NoteText" Grid.Row="4" Margin="0,8,0,0" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!-- 6. Footer -->
+                <TextBlock x:Name="HintText" Grid.Row="5" Margin="0,4,0,0" FontSize="11"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </Grid>
     </Border>

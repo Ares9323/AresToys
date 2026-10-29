@@ -11,20 +11,23 @@ public enum ZoneEditTool
 {
     Select,
     Split,
+    Draw,
 }
 
 /// <summary>The interactive zone preview of the zone editor: draws a layout scaled to the aspect ratio of a
 /// monitor work area, selects zones, drags boundary lines and shows the split guide. It never owns the layout:
 /// every gesture ends in <see cref="EditCommitted"/> with a layout produced by <see cref="ZoneGridEditor"/>, and
-/// the window pushes it into its <see cref="ZoneEditHistory"/> and hands the new state back through
-/// <see cref="SetLayout"/>.</summary>
+/// the window pushes it into its <see cref="ZoneEditHistory{T}"/> and hands the new state back through
+/// <see cref="SetLayout"/>. The same control also edits a canvas layout (free rectangles that may overlap): after
+/// <see cref="SetCanvasLayout"/> it draws, selects, moves and resizes those zones with <see cref="ZoneCanvasEditor"/>
+/// and raises <see cref="CanvasEditCommitted"/>; the layout kind that was set last decides the mode.</summary>
 public sealed class ZonePreviewCanvas : FrameworkElement
 {
     private const double OuterMargin = 12;
     private const double LineHitTolerance = 5;
-    private const int SnapStepPercent = 100;
-    private const int SnapTolerancePercent = 150;
-    private static readonly int[] ReferencePoints = [2500, 5000, 7500];
+    private const double HandleTolerance = 6;
+    private const double DragThreshold = 4;
+    private const int CanvasFillOpacityPercent = 55;
     private static readonly Typeface LabelFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
 
     private readonly HashSet<int> _selection = [];
@@ -42,12 +45,38 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     private bool _dragging;
     private int _splitZone = -1;
     private int _splitPosition;
+    // The axis the current split preview was built with: Alt flips it for the gesture, so it can differ from _splitAxis.
+    private ZoneAxis _splitPreviewAxis = ZoneAxis.Vertical;
     private EditResult? _splitPreview;
 
+    // Canvas mode (free rectangles). It is active while _canvas is set; the grid fields above are then all idle.
+    private enum CanvasDragKind { None, Create, Move, Resize }
+
+    [Flags]
+    private enum CanvasHandle { None = 0, Left = 1, Top = 2, Right = 4, Bottom = 8 }
+
+    private CanvasLayout? _canvas;
+    // The layout shown while a move or resize drag is active (null: nothing to preview, draw _canvas).
+    private CanvasLayout? _canvasPreview;
+    private CanvasDragKind _canvasDrag;
+    private CanvasHandle _canvasHandle;
+    private int _canvasZone = -1;
+    private CanvasZone? _canvasStartZone;
+    private Point _canvasStartMouse;
+    private Point _canvasStartPercent;
+    // Where a Draw drag began (percent units).
+    private int _canvasAnchorX;
+    private int _canvasAnchorY;
+    // False until the mouse moved DragThreshold from where it went down, so a plain click never edits anything.
+    private bool _canvasDragMoved;
+    // The rubber band of a draw or resize drag, and the editor's verdict on it.
+    private CanvasZone? _canvasBand;
+    private CanvasEditResult? _canvasResult;
+
     private Brush _areaBrush = Brushes.Black;
-    private Pen _areaPen = new(Brushes.Gray, 1);
     private Brush _fillBrush = Brushes.Transparent;
     private Brush _highlightBrush = Brushes.Transparent;
+    private Brush _canvasFillBrush = Brushes.Transparent;
     private Pen _zonePen = new(Brushes.Gray, 1);
     private Pen _selectedPen = new(Brushes.Gray, 1);
     private Pen _guidePen = new(Brushes.White, 2);
@@ -58,11 +87,18 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     {
         ClipToBounds = true;
         SnapsToDevicePixels = true;
+        // Focus lets Escape cancel a canvas drag (the control takes focus on mouse down in canvas mode).
+        Focusable = true;
+        FocusVisualStyle = null;
         RebuildBrushes();
     }
 
     /// <summary>Raised when a gesture produced a new layout that should be recorded in the history.</summary>
     public event EventHandler<GridLayout>? EditCommitted;
+
+    /// <summary>Raised in canvas mode when a gesture (draw, move, resize) produced a new layout. The window records
+    /// it and pushes it back through <see cref="SetCanvasLayout"/>.</summary>
+    public event EventHandler<CanvasLayout>? CanvasEditCommitted;
 
     /// <summary>Raised when the set of selected zones changed because of a click.</summary>
     public event EventHandler? SelectionChanged;
@@ -108,11 +144,53 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     /// <summary>The layout to draw. Selected indexes that no longer exist are dropped.</summary>
     public void SetLayout(GridLayout layout)
     {
+        LeaveCanvasMode();
         _layout = layout;
         _dragLayout = null;
         if (_selection.RemoveWhere(i => i >= layout.ZoneCount) > 0) SelectionChanged?.Invoke(this, EventArgs.Empty);
         UpdateHover();
         InvalidateVisual();
+    }
+
+    /// <summary>Shows a canvas layout and switches the control to canvas mode (the grid layout is cleared), or with
+    /// null returns to grid mode. The selection is cleared when the zone count changed or the layout is null; an
+    /// unchanged count keeps it, so the window can push every committed layout back without losing the selected
+    /// zone. A drag in progress is cancelled.</summary>
+    public void SetCanvasLayout(CanvasLayout? layout)
+    {
+        if (layout is null)
+        {
+            LeaveCanvasMode();
+            UpdateHover();
+            InvalidateVisual();
+            return;
+        }
+
+        bool countChanged = _canvas is null || _canvas.ZoneCount != layout.ZoneCount;
+        if (_dragging)
+        {
+            _dragging = false;
+            if (IsMouseCaptured) ReleaseMouseCapture();
+        }
+
+        CancelCanvasDrag();
+        _layout = null;
+        _dragLayout = null;
+        _dragSegment = null;
+        _hoverSegment = null;
+        _splitZone = -1;
+        _splitPreview = null;
+        _canvas = layout;
+        bool selectionChanged = false;
+        if (countChanged && _selection.Count > 0)
+        {
+            _selection.Clear();
+            selectionChanged = true;
+        }
+
+        UpdateHover();
+        InvalidateVisual();
+        if (selectionChanged) SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>The work area size in physical pixels: it sets the aspect ratio and the pixel numbers in labels.</summary>
@@ -129,7 +207,19 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         _selection.Clear();
         foreach (int zone in zones)
         {
-            if (_layout is null || (zone >= 0 && zone < _layout.ZoneCount)) _selection.Add(zone);
+            if (_canvas is not null)
+            {
+                // Canvas mode holds at most one zone.
+                if (zone >= 0 && zone < _canvas.ZoneCount)
+                {
+                    _selection.Add(zone);
+                    break;
+                }
+            }
+            else if (_layout is null || (zone >= 0 && zone < _layout.ZoneCount))
+            {
+                _selection.Add(zone);
+            }
         }
 
         InvalidateVisual();
@@ -140,6 +230,7 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     {
         UpdateHover();
         if (_dragging) UpdateDrag(_mouse);
+        if (_canvasDrag != CanvasDragKind.None) UpdateCanvasDrag(_mouse);
         InvalidateVisual();
     }
 
@@ -171,7 +262,8 @@ public sealed class ZonePreviewCanvas : FrameworkElement
             w = h * aspect;
         }
 
-        return new Rect((ActualWidth - w) / 2, (ActualHeight - h) / 2, w, h);
+        // Left aligned, so widening the window never moves the screen sideways.
+        return new Rect(OuterMargin, (ActualHeight - h) / 2, w, h);
     }
 
     private static int[] Prefix(IReadOnlyList<int> percents)
@@ -294,23 +386,16 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         return best;
     }
 
-    private static int Snap(int value, GridLayout g, ZoneAxis axis, int skipLine)
-    {
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) return value;
-        var candidates = new List<int>(ReferencePoints);
-        var lines = ZoneGridEditor.InteriorLines(g, axis);
-        for (int i = 0; i < lines.Count; i++)
-        {
-            if (i != skipLine) candidates.Add(lines[i]);
-        }
-
-        return ZoneGridEditor.SnapPosition(value, candidates, SnapStepPercent, SnapTolerancePercent);
-    }
-
     // ---- hover, drag, split ----
 
     private void UpdateHover()
     {
+        if (_canvas is not null)
+        {
+            UpdateCanvasHover();
+            return;
+        }
+
         _hoverSegment = null;
         _splitZone = -1;
         _splitPreview = null;
@@ -339,11 +424,26 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         }
 
         Cursor = Cursors.Cross;
-        double raw = _splitAxis == ZoneAxis.Vertical ? PercentX(area, _mouse) : PercentY(area, _mouse);
-        int position = Snap((int)Math.Round(Math.Clamp(raw, 0, 10000)), g, _splitAxis, -1);
+        // Alt flips the cut to the other axis while it is held; Shift puts the cut at the centre of the zone.
+        var axis = Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)
+            ? (_splitAxis == ZoneAxis.Vertical ? ZoneAxis.Horizontal : ZoneAxis.Vertical)
+            : _splitAxis;
+        int position;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            var bounds = ZoneGridEditor.ZoneBounds(g, zone);
+            position = axis == ZoneAxis.Vertical ? (bounds.Left + bounds.Right) / 2 : (bounds.Top + bounds.Bottom) / 2;
+        }
+        else
+        {
+            double raw = axis == ZoneAxis.Vertical ? PercentX(area, _mouse) : PercentY(area, _mouse);
+            position = RoundPercent(raw);
+        }
+
         _splitZone = zone;
         _splitPosition = position;
-        _splitPreview = ZoneGridEditor.Split(g, zone, _splitAxis, position);
+        _splitPreviewAxis = axis;
+        _splitPreview = ZoneGridEditor.Split(g, zone, axis, position);
     }
 
     private void UpdateDrag(Point p)
@@ -351,7 +451,9 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         if (_dragSegment is not { } s || _layout is null) return;
         var area = AreaRect();
         double raw = s.Axis == ZoneAxis.Vertical ? PercentX(area, p) : PercentY(area, p);
-        int position = Snap((int)Math.Round(Math.Clamp(raw, 0, 10000)), _layout, s.Axis, s.LineIndex);
+        int position = RoundPercent(raw);
+        // Shift rounds the line to a whole 1% (100 units) so the percentages stay clean
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) position = (int)Math.Round(position / 100.0) * 100;
         _dragLayout = ZoneGridEditor.MoveLine(_layout, s.Axis, s.LineIndex, position).Layout;
     }
 
@@ -376,6 +478,7 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         _mouseInside = true;
         _mouse = e.GetPosition(this);
         if (_dragging) UpdateDrag(_mouse);
+        else if (_canvasDrag != CanvasDragKind.None) UpdateCanvasDrag(_mouse);
         else UpdateHover();
         InvalidateVisual();
     }
@@ -383,7 +486,7 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-        if (_dragging) return;
+        if (_dragging || _canvasDrag != CanvasDragKind.None) return;
         _mouseInside = false;
         UpdateHover();
         InvalidateVisual();
@@ -392,6 +495,12 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        if (_canvas is not null)
+        {
+            CanvasMouseDown(e);
+            return;
+        }
+
         var g = DisplayLayout;
         if (g is null || _dragging) return;
         _mouse = e.GetPosition(this);
@@ -458,6 +567,15 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_canvasDrag != CanvasDragKind.None)
+        {
+            _mouse = e.GetPosition(this);
+            UpdateCanvasDrag(_mouse);
+            EndCanvasDrag();
+            e.Handled = true;
+            return;
+        }
+
         if (_dragging)
         {
             _mouse = e.GetPosition(this);
@@ -471,6 +589,305 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     {
         base.OnLostMouseCapture(e);
         if (_dragging) EndDrag(commit: false);
+        CancelCanvasDrag();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.Escape && _canvasDrag != CanvasDragKind.None)
+        {
+            CancelCanvasDrag();
+            e.Handled = true;
+        }
+    }
+
+    // ---- canvas mode: hit testing, gestures ----
+
+    private int SelectedCanvasZone()
+    {
+        if (_canvas is null || _selection.Count != 1) return -1;
+        int zone = _selection.First();
+        return zone >= 0 && zone < _canvas.ZoneCount ? zone : -1;
+    }
+
+    /// <summary>The top-most zone (highest index) containing a point in percent units, or -1.</summary>
+    private static int CanvasZoneAt(CanvasLayout layout, double xPercent, double yPercent)
+    {
+        for (int i = layout.ZoneCount - 1; i >= 0; i--)
+        {
+            var z = layout.Zones[i];
+            if (xPercent >= z.Left && xPercent <= z.Right && yPercent >= z.Top && yPercent <= z.Bottom) return i;
+        }
+
+        return -1;
+    }
+
+    /// <summary>The edges of a zone rectangle the point grabs: within <see cref="HandleTolerance"/> of an edge,
+    /// outside or inside the rectangle (inside, a small zone keeps a middle third as body). None for the body.</summary>
+    private static CanvasHandle HitHandle(Rect rect, Point p)
+    {
+        int horizontal = NearEdge(p.X, rect.Left, rect.Right);
+        int vertical = NearEdge(p.Y, rect.Top, rect.Bottom);
+        // The point must be within reach of the rectangle on both axes, or an edge far away on the other axis would count.
+        if (p.X < rect.Left - HandleTolerance || p.X > rect.Right + HandleTolerance) return CanvasHandle.None;
+        if (p.Y < rect.Top - HandleTolerance || p.Y > rect.Bottom + HandleTolerance) return CanvasHandle.None;
+        var handle = CanvasHandle.None;
+        if (horizontal < 0) handle |= CanvasHandle.Left;
+        else if (horizontal > 0) handle |= CanvasHandle.Right;
+        if (vertical < 0) handle |= CanvasHandle.Top;
+        else if (vertical > 0) handle |= CanvasHandle.Bottom;
+        return handle;
+    }
+
+    // -1: the low edge, 1: the high edge, 0: neither.
+    private static int NearEdge(double v, double low, double high)
+    {
+        if (v < low) return low - v <= HandleTolerance ? -1 : 0;
+        if (v > high) return v - high <= HandleTolerance ? 1 : 0;
+        double inner = Math.Min(HandleTolerance, (high - low) / 3);
+        double toLow = v - low;
+        double toHigh = high - v;
+        if (toLow <= inner && toLow <= toHigh) return -1;
+        return toHigh <= inner ? 1 : 0;
+    }
+
+    private static Cursor CursorFor(CanvasHandle handle)
+    {
+        bool horizontal = handle.HasFlag(CanvasHandle.Left) || handle.HasFlag(CanvasHandle.Right);
+        bool vertical = handle.HasFlag(CanvasHandle.Top) || handle.HasFlag(CanvasHandle.Bottom);
+        if (horizontal && vertical)
+        {
+            bool diagonal = handle.HasFlag(CanvasHandle.Left) == handle.HasFlag(CanvasHandle.Top);
+            return diagonal ? Cursors.SizeNWSE : Cursors.SizeNESW;
+        }
+
+        return horizontal ? Cursors.SizeWE : vertical ? Cursors.SizeNS : Cursors.SizeAll;
+    }
+
+    private CanvasHandle SelectedHandleAt(Rect area, Point p)
+    {
+        int selected = SelectedCanvasZone();
+        if (selected < 0 || _canvas is null) return CanvasHandle.None;
+        var z = _canvas.Zones[selected];
+        return HitHandle(ToRect(area, z.Left, z.Top, z.Right, z.Bottom), p);
+    }
+
+    private void UpdateCanvasHover()
+    {
+        // During a drag the cursor chosen at its start stays.
+        if (_canvasDrag != CanvasDragKind.None) return;
+        if (_canvas is null || !_mouseInside || ActualWidth < 40)
+        {
+            Cursor = Cursors.Arrow;
+            return;
+        }
+
+        switch (_tool)
+        {
+            case ZoneEditTool.Draw:
+                Cursor = Cursors.Cross;
+                break;
+            case ZoneEditTool.Select:
+                var area = AreaRect();
+                var handle = SelectedHandleAt(area, _mouse);
+                if (handle != CanvasHandle.None) Cursor = CursorFor(handle);
+                else if (CanvasZoneAt(_canvas, PercentX(area, _mouse), PercentY(area, _mouse)) >= 0) Cursor = Cursors.SizeAll;
+                else Cursor = Cursors.Arrow;
+                break;
+            default:
+                Cursor = Cursors.Arrow;
+                break;
+        }
+    }
+
+    /// <summary>A raw position in percent units, rounded and kept inside the work area.</summary>
+    private static int RoundPercent(double raw) => (int)Math.Round(Math.Clamp(raw, 0, 10000));
+
+    private void CanvasMouseDown(MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_canvas is null || _canvasDrag != CanvasDragKind.None) return;
+        _mouse = e.GetPosition(this);
+        _mouseInside = true;
+        var area = AreaRect();
+        Focus();
+
+        if (_tool == ZoneEditTool.Draw)
+        {
+            _canvasAnchorX = RoundPercent(PercentX(area, _mouse));
+            _canvasAnchorY = RoundPercent(PercentY(area, _mouse));
+            BeginCanvasDrag(CanvasDragKind.Create, CanvasHandle.None, -1, Cursors.Cross);
+            return;
+        }
+
+        if (_tool != ZoneEditTool.Select) return;
+
+        int selected = SelectedCanvasZone();
+        var handle = SelectedHandleAt(area, _mouse);
+        if (handle != CanvasHandle.None)
+        {
+            BeginCanvasDrag(CanvasDragKind.Resize, handle, selected, CursorFor(handle));
+            return;
+        }
+
+        int zone = CanvasZoneAt(_canvas, PercentX(area, _mouse), PercentY(area, _mouse));
+        if (zone != selected)
+        {
+            _selection.Clear();
+            if (zone >= 0) _selection.Add(zone);
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        // Pressing a body also arms a move: it only happens once the mouse travelled, so a click just selects.
+        if (zone >= 0) BeginCanvasDrag(CanvasDragKind.Move, CanvasHandle.None, zone, Cursors.SizeAll);
+        InvalidateVisual();
+    }
+
+    private void BeginCanvasDrag(CanvasDragKind kind, CanvasHandle handle, int zone, Cursor cursor)
+    {
+        if (_canvas is null) return;
+        var area = AreaRect();
+        _canvasDrag = kind;
+        _canvasHandle = handle;
+        _canvasZone = zone;
+        _canvasStartZone = zone >= 0 ? _canvas.Zones[zone] : null;
+        _canvasStartMouse = _mouse;
+        _canvasStartPercent = new Point(PercentX(area, _mouse), PercentY(area, _mouse));
+        _canvasDragMoved = false;
+        _canvasPreview = null;
+        _canvasBand = null;
+        _canvasResult = null;
+        Cursor = cursor;
+        CaptureMouse();
+        Notice?.Invoke(this, null);
+        InvalidateVisual();
+    }
+
+    private void UpdateCanvasDrag(Point p)
+    {
+        if (_canvas is null || _canvasDrag == CanvasDragKind.None) return;
+        if (!_canvasDragMoved)
+        {
+            if ((p - _canvasStartMouse).Length < DragThreshold) return;
+            _canvasDragMoved = true;
+        }
+
+        var area = AreaRect();
+        double x = PercentX(area, p);
+        double y = PercentY(area, p);
+        switch (_canvasDrag)
+        {
+            case CanvasDragKind.Create:
+            {
+                int cx = RoundPercent(x);
+                int cy = RoundPercent(y);
+                var band = new CanvasZone(
+                    Math.Min(_canvasAnchorX, cx), Math.Min(_canvasAnchorY, cy),
+                    Math.Max(_canvasAnchorX, cx), Math.Max(_canvasAnchorY, cy));
+                _canvasBand = band;
+                _canvasResult = ZoneCanvasEditor.AddZone(_canvas, band.Left, band.Top, band.Right, band.Bottom);
+                _canvasPreview = null;
+                break;
+            }
+
+            case CanvasDragKind.Resize when _canvasStartZone is { } start:
+            {
+                double dx = x - _canvasStartPercent.X;
+                double dy = y - _canvasStartPercent.Y;
+                int? left = null, top = null, right = null, bottom = null;
+                if (_canvasHandle.HasFlag(CanvasHandle.Left)) left = RoundPercent(start.Left + dx);
+                if (_canvasHandle.HasFlag(CanvasHandle.Right)) right = RoundPercent(start.Right + dx);
+                if (_canvasHandle.HasFlag(CanvasHandle.Top)) top = RoundPercent(start.Top + dy);
+                if (_canvasHandle.HasFlag(CanvasHandle.Bottom)) bottom = RoundPercent(start.Bottom + dy);
+                int l = left ?? start.Left, t = top ?? start.Top, r = right ?? start.Right, b = bottom ?? start.Bottom;
+                _canvasBand = new CanvasZone(Math.Min(l, r), Math.Min(t, b), Math.Max(l, r), Math.Max(t, b));
+                var result = ZoneCanvasEditor.SetZoneEdges(_canvas, _canvasZone, left, top, right, bottom);
+                _canvasResult = result;
+                _canvasPreview = result.Changed ? result.Layout : null;
+                break;
+            }
+
+            case CanvasDragKind.Move when _canvasStartZone is { } start:
+            {
+                int dx = (int)Math.Round(x - _canvasStartPercent.X);
+                int dy = (int)Math.Round(y - _canvasStartPercent.Y);
+                var result = ZoneCanvasEditor.MoveZone(_canvas, _canvasZone, dx, dy);
+                _canvasResult = result;
+                _canvasPreview = result.Changed ? result.Layout : null;
+                break;
+            }
+        }
+
+        InvalidateVisual();
+    }
+
+    private void ResetCanvasDrag()
+    {
+        _canvasDrag = CanvasDragKind.None;
+        _canvasHandle = CanvasHandle.None;
+        _canvasZone = -1;
+        _canvasStartZone = null;
+        _canvasDragMoved = false;
+        _canvasPreview = null;
+        _canvasBand = null;
+        _canvasResult = null;
+    }
+
+    /// <summary>Drops a canvas drag in progress without committing it (Escape, a new layout, lost capture).</summary>
+    private void CancelCanvasDrag()
+    {
+        if (_canvasDrag == CanvasDragKind.None) return;
+        ResetCanvasDrag();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        UpdateHover();
+        InvalidateVisual();
+    }
+
+    /// <summary>Finishes a canvas drag: raises <see cref="CanvasEditCommitted"/> once when the layout changed, or
+    /// <see cref="Notice"/> with the reason when the editor refused.</summary>
+    private void EndCanvasDrag()
+    {
+        var kind = _canvasDrag;
+        var result = _canvasResult;
+        var layout = _canvas;
+        ResetCanvasDrag();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        UpdateHover();
+        InvalidateVisual();
+        if (result is null || layout is null) return;
+
+        if (result.Changed && !ZoneCanvasEditor.SameLayout(result.Layout, layout))
+        {
+            Notice?.Invoke(this, null);
+            CanvasEditCommitted?.Invoke(this, result.Layout);
+            // The window pushed the new layout back by now: a drawn zone ends up selected.
+            int added = result.Layout.ZoneCount - 1;
+            if (kind == CanvasDragKind.Create && _canvas is not null && added < _canvas.ZoneCount)
+            {
+                _selection.Clear();
+                _selection.Add(added);
+                InvalidateVisual();
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        else if (result.Reason is { } reason)
+        {
+            Notice?.Invoke(this, reason);
+        }
+    }
+
+    /// <summary>Leaves canvas mode (grid layout set, or a null canvas layout): drops any drag and the selection.</summary>
+    private void LeaveCanvasMode()
+    {
+        if (_canvas is null) return;
+        CancelCanvasDrag();
+        _canvas = null;
+        if (_selection.Count > 0)
+        {
+            _selection.Clear();
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     // ---- drawing ----
@@ -478,12 +895,13 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     private void RebuildBrushes()
     {
         var a = _appearance;
-        _areaBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x1B, 0x1B, 0x1B)));
-        _areaPen = new Pen(Freeze(new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55))), 1);
-        _areaPen.Freeze();
+        // Darker than the window background, so the monitor area stands out as the single container.
+        _areaBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)));
         // The saved opacities are tuned for an overlay on a desktop; floors keep the preview readable.
         _fillBrush = Freeze(new SolidColorBrush(ZoneAppearance.WithOpacity(a.Fill, Math.Max(a.FillOpacityPercent, 28))));
         _highlightBrush = Freeze(new SolidColorBrush(ZoneAppearance.WithOpacity(a.HighlightFill, Math.Max(a.HighlightOpacityPercent, 55))));
+        // Canvas zones overlap, so the fill stays partly transparent whatever the saved opacity is.
+        _canvasFillBrush = Freeze(new SolidColorBrush(ZoneAppearance.WithOpacity(a.Fill, CanvasFillOpacityPercent)));
         var border = Freeze(new SolidColorBrush(a.Border));
         _zonePen = new Pen(border, Math.Clamp(a.BorderThickness, 1, 3));
         _zonePen.Freeze();
@@ -507,11 +925,17 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     {
         // A transparent backdrop so clicks on the empty background reach the mouse handlers.
         drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, ActualWidth, ActualHeight));
+        if (_canvas is not null)
+        {
+            RenderCanvas(drawingContext);
+            return;
+        }
+
         var g = DisplayLayout;
         if (g is null || ActualWidth < 40 || ActualHeight < 40) return;
 
         var area = AreaRect();
-        drawingContext.DrawRoundedRectangle(_areaBrush, _areaPen, area, 4, 4);
+        drawingContext.DrawRoundedRectangle(_areaBrush, null, area, 4, 4);
 
         double scale = area.Width / _workWidth;
         double spacing = g.Spacing * scale;
@@ -527,20 +951,7 @@ public sealed class ZonePreviewCanvas : FrameworkElement
             bool selected = _selection.Contains(zone);
             double radius = Math.Min(_appearance.CornerRadius, Math.Min(rect.Width, rect.Height) / 4);
             drawingContext.DrawRoundedRectangle(selected ? _highlightBrush : _fillBrush, selected ? _selectedPen : _zonePen, rect, radius, radius);
-
-            double fontSize = Math.Clamp(Math.Min(rect.Width, rect.Height) / 2.5, 11, 30);
-            var number = MakeText((zone + 1).ToString(CultureInfo.CurrentCulture), fontSize, Brushes.White);
-            double blockHeight = number.Height;
-            string size = $"{PixelsX(r - l)} x {PixelsY(b - t)}";
-            bool showSize = rect.Height > 64 && rect.Width > 80;
-            var sizeText = showSize ? MakeText(size, 11, Brushes.Gainsboro) : null;
-            if (sizeText is not null) blockHeight += sizeText.Height;
-            double top = rect.Y + (rect.Height - blockHeight) / 2;
-            drawingContext.DrawText(number, new Point(rect.X + (rect.Width - number.Width) / 2, top));
-            if (sizeText is not null)
-            {
-                drawingContext.DrawText(sizeText, new Point(rect.X + (rect.Width - sizeText.Width) / 2, top + number.Height));
-            }
+            DrawZoneLabel(drawingContext, rect, zone, r - l, b - t);
         }
 
         // The hovered or dragged boundary line, on top of the zones.
@@ -572,12 +983,66 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         }
     }
 
+    // The zone number centred in a rectangle and, when it is big enough, the pixel size below it.
+    private void DrawZoneLabel(DrawingContext dc, Rect rect, int zone, int widthPercent, int heightPercent)
+    {
+        double fontSize = Math.Clamp(Math.Min(rect.Width, rect.Height) / 2.5, 11, 30);
+        var number = MakeText((zone + 1).ToString(CultureInfo.CurrentCulture), fontSize, Brushes.White);
+        double blockHeight = number.Height;
+        string size = $"{PixelsX(widthPercent)} x {PixelsY(heightPercent)}";
+        bool showSize = rect.Height > 64 && rect.Width > 80;
+        var sizeText = showSize ? MakeText(size, 11, Brushes.Gainsboro) : null;
+        if (sizeText is not null) blockHeight += sizeText.Height;
+        double top = rect.Y + (rect.Height - blockHeight) / 2;
+        dc.DrawText(number, new Point(rect.X + (rect.Width - number.Width) / 2, top));
+        if (sizeText is not null)
+        {
+            dc.DrawText(sizeText, new Point(rect.X + (rect.Width - sizeText.Width) / 2, top + number.Height));
+        }
+    }
+
+    private void RenderCanvas(DrawingContext dc)
+    {
+        var canvas = _canvasPreview ?? _canvas;
+        if (canvas is null || ActualWidth < 40 || ActualHeight < 40) return;
+
+        var area = AreaRect();
+        dc.DrawRoundedRectangle(_areaBrush, null, area, 4, 4);
+
+        // Index order, so later zones paint over earlier ones; the selected zone goes last, over its neighbours.
+        int selected = SelectedCanvasZone();
+        for (int zone = 0; zone < canvas.ZoneCount; zone++)
+        {
+            if (zone != selected) DrawCanvasZone(dc, area, canvas, zone, selected: false);
+        }
+
+        if (selected >= 0 && selected < canvas.ZoneCount) DrawCanvasZone(dc, area, canvas, selected, selected: true);
+
+        if (_canvasBand is { } band)
+        {
+            bool refused = _canvasResult is { Changed: false, Reason: not null };
+            var rect = ToRect(area, band.Left, band.Top, band.Right, band.Bottom);
+            dc.DrawRectangle(null, refused ? _refusedGuidePen : _guidePen, rect);
+            DrawLabel(dc, $"{PixelsX(band.Right - band.Left)} x {PixelsY(band.Bottom - band.Top)}", _mouse);
+        }
+    }
+
+    private void DrawCanvasZone(DrawingContext dc, Rect area, CanvasLayout canvas, int zone, bool selected)
+    {
+        var z = canvas.Zones[zone];
+        var rect = ToRect(area, z.Left, z.Top, z.Right, z.Bottom);
+        rect = new Rect(rect.X, rect.Y, Math.Max(2, rect.Width), Math.Max(2, rect.Height));
+        double radius = Math.Min(_appearance.CornerRadius, Math.Min(rect.Width, rect.Height) / 4);
+        dc.DrawRoundedRectangle(selected ? _highlightBrush : _canvasFillBrush, selected ? _selectedPen : _zonePen, rect, radius, radius);
+        DrawZoneLabel(dc, rect, zone, z.Right - z.Left, z.Bottom - z.Top);
+    }
+
     private void DrawSplitGuide(DrawingContext dc, Rect area, GridLayout g, EditResult preview)
     {
         var (l, t, r, b) = ZoneGridEditor.ZoneBounds(g, _splitZone);
         var pen = preview.Changed ? _guidePen : _refusedGuidePen;
         string text;
-        if (_splitAxis == ZoneAxis.Vertical)
+        if (_splitPreviewAxis == ZoneAxis.Vertical)
         {
             double x = area.X + area.Width * _splitPosition / 10000.0;
             double y0 = area.Y + area.Height * t / 10000.0;

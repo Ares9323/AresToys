@@ -7238,15 +7238,6 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Enable quick layout switch (Win + Ctrl + Alt + digit, or the digit while dragging; the digit of each layout is set in the editor).
-        /// </summary>
-        public static string WindowSnappingTab_QuickLayoutSwitch {
-            get {
-                return ResourceManager.GetString("WindowSnappingTab_QuickLayoutSwitch", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Launch editor on the display.
         /// </summary>
         public static string WindowSnappingTab_LaunchEditorLabel {
@@ -7414,6 +7405,42 @@ namespace AresToys.App.Resources {
         public static string WorkflowActionDesc_arestoys_window_snapping_toggle {
             get {
                 return ResourceManager.GetString("WorkflowActionDesc_arestoys_window_snapping_toggle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Set snapping layout.
+        /// </summary>
+        public static string WorkflowAction_arestoys_window_snapping_set_layout {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_window_snapping_set_layout", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Makes a monitor use a Window snapping layout.
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_window_snapping_set_layout {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_window_snapping_set_layout", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Layout.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_window_snapping_set_layout_layout {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_window_snapping_set_layout_layout", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitor.
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_window_snapping_set_layout_monitor {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_window_snapping_set_layout_monitor", resourceCulture);
             }
         }
 
@@ -9899,20 +9926,12 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_Title", resourceCulture); }
         }
 
-        public static string WindowSnapping_BuiltInFormat {
-            get { return ResourceManager.GetString("WindowSnapping_BuiltInFormat", resourceCulture); }
-        }
-
         public static string WindowSnapping_New {
             get { return ResourceManager.GetString("WindowSnapping_New", resourceCulture); }
         }
 
         public static string WindowSnapping_Duplicate {
             get { return ResourceManager.GetString("WindowSnapping_Duplicate", resourceCulture); }
-        }
-
-        public static string WindowSnapping_Rename {
-            get { return ResourceManager.GetString("WindowSnapping_Rename", resourceCulture); }
         }
 
         public static string WindowSnapping_Delete {
@@ -9925,6 +9944,14 @@ namespace AresToys.App.Resources {
 
         public static string WindowSnapping_NewCustomGrid {
             get { return ResourceManager.GetString("WindowSnapping_NewCustomGrid", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NewFreeForm {
+            get { return ResourceManager.GetString("WindowSnapping_NewFreeForm", resourceCulture); }
+        }
+
+        public static string WindowSnapping_NoteDrawFirst {
+            get { return ResourceManager.GetString("WindowSnapping_NoteDrawFirst", resourceCulture); }
         }
 
         public static string WindowSnapping_GridNameFormat {
@@ -9959,36 +9986,8 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_TipIdentify", resourceCulture); }
         }
 
-        public static string WindowSnapping_QuickKey {
-            get { return ResourceManager.GetString("WindowSnapping_QuickKey", resourceCulture); }
-        }
-
-        public static string WindowSnapping_QuickKeyNone {
-            get { return ResourceManager.GetString("WindowSnapping_QuickKeyNone", resourceCulture); }
-        }
-
-        public static string WindowSnapping_QuickKeyUsedFormat {
-            get { return ResourceManager.GetString("WindowSnapping_QuickKeyUsedFormat", resourceCulture); }
-        }
-
-        public static string WindowSnapping_QuickKeyHint {
-            get { return ResourceManager.GetString("WindowSnapping_QuickKeyHint", resourceCulture); }
-        }
-
-        public static string WindowSnapping_MonitorEntryFormat {
-            get { return ResourceManager.GetString("WindowSnapping_MonitorEntryFormat", resourceCulture); }
-        }
-
-        public static string WindowSnapping_MonitorPrimary {
-            get { return ResourceManager.GetString("WindowSnapping_MonitorPrimary", resourceCulture); }
-        }
-
-        public static string WindowSnapping_MonitorSpannedFormat {
-            get { return ResourceManager.GetString("WindowSnapping_MonitorSpannedFormat", resourceCulture); }
-        }
-
-        public static string WindowSnapping_MonitorUsesLayout {
-            get { return ResourceManager.GetString("WindowSnapping_MonitorUsesLayout", resourceCulture); }
+        public static string WindowSnapping_MonitorAll {
+            get { return ResourceManager.GetString("WindowSnapping_MonitorAll", resourceCulture); }
         }
 
         public static string WindowSnapping_NoLayoutAssigned {
@@ -10011,16 +10010,20 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_Sensitivity", resourceCulture); }
         }
 
+        public static string WindowSnapping_ZonePosition {
+            get { return ResourceManager.GetString("WindowSnapping_ZonePosition", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ZoneSize {
+            get { return ResourceManager.GetString("WindowSnapping_ZoneSize", resourceCulture); }
+        }
+
         public static string WindowSnapping_UseOn {
             get { return ResourceManager.GetString("WindowSnapping_UseOn", resourceCulture); }
         }
 
-        public static string WindowSnapping_UseOnThisMonitor {
-            get { return ResourceManager.GetString("WindowSnapping_UseOnThisMonitor", resourceCulture); }
-        }
-
-        public static string WindowSnapping_MonitorFormat {
-            get { return ResourceManager.GetString("WindowSnapping_MonitorFormat", resourceCulture); }
+        public static string WindowSnapping_LayoutLabel {
+            get { return ResourceManager.GetString("WindowSnapping_LayoutLabel", resourceCulture); }
         }
 
         public static string WindowSnapping_ToolSelect {
@@ -10031,12 +10034,20 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_ToolSplit", resourceCulture); }
         }
 
-        public static string WindowSnapping_SplitVertical {
-            get { return ResourceManager.GetString("WindowSnapping_SplitVertical", resourceCulture); }
+        public static string WindowSnapping_ToolDraw {
+            get { return ResourceManager.GetString("WindowSnapping_ToolDraw", resourceCulture); }
         }
 
-        public static string WindowSnapping_SplitHorizontal {
-            get { return ResourceManager.GetString("WindowSnapping_SplitHorizontal", resourceCulture); }
+        public static string WindowSnapping_TipDraw {
+            get { return ResourceManager.GetString("WindowSnapping_TipDraw", resourceCulture); }
+        }
+
+        public static string WindowSnapping_HintDraw {
+            get { return ResourceManager.GetString("WindowSnapping_HintDraw", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ConvertMessage {
+            get { return ResourceManager.GetString("WindowSnapping_ConvertMessage", resourceCulture); }
         }
 
         public static string WindowSnapping_Merge {
@@ -10059,10 +10070,6 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_TipSplit", resourceCulture); }
         }
 
-        public static string WindowSnapping_TipOrientation {
-            get { return ResourceManager.GetString("WindowSnapping_TipOrientation", resourceCulture); }
-        }
-
         public static string WindowSnapping_TipMerge {
             get { return ResourceManager.GetString("WindowSnapping_TipMerge", resourceCulture); }
         }
@@ -10073,18 +10080,6 @@ namespace AresToys.App.Resources {
 
         public static string WindowSnapping_TipRedo {
             get { return ResourceManager.GetString("WindowSnapping_TipRedo", resourceCulture); }
-        }
-
-        public static string WindowSnapping_ZoneOfFormat {
-            get { return ResourceManager.GetString("WindowSnapping_ZoneOfFormat", resourceCulture); }
-        }
-
-        public static string WindowSnapping_ZonesSelectedFormat {
-            get { return ResourceManager.GetString("WindowSnapping_ZonesSelectedFormat", resourceCulture); }
-        }
-
-        public static string WindowSnapping_NoSelection {
-            get { return ResourceManager.GetString("WindowSnapping_NoSelection", resourceCulture); }
         }
 
         public static string WindowSnapping_Left {
@@ -10119,24 +10114,16 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_NoteNoNeighbor", resourceCulture); }
         }
 
-        public static string WindowSnapping_Hint {
-            get { return ResourceManager.GetString("WindowSnapping_Hint", resourceCulture); }
+        public static string WindowSnapping_HintSplit {
+            get { return ResourceManager.GetString("WindowSnapping_HintSplit", resourceCulture); }
         }
 
-        public static string WindowSnapping_SaveAsCopy {
-            get { return ResourceManager.GetString("WindowSnapping_SaveAsCopy", resourceCulture); }
+        public static string WindowSnapping_TipSave {
+            get { return ResourceManager.GetString("WindowSnapping_TipSave", resourceCulture); }
         }
 
-        public static string WindowSnapping_NameTitle {
-            get { return ResourceManager.GetString("WindowSnapping_NameTitle", resourceCulture); }
-        }
-
-        public static string WindowSnapping_NameLabel {
-            get { return ResourceManager.GetString("WindowSnapping_NameLabel", resourceCulture); }
-        }
-
-        public static string WindowSnapping_RenameTitle {
-            get { return ResourceManager.GetString("WindowSnapping_RenameTitle", resourceCulture); }
+        public static string WindowSnapping_NoteSaved {
+            get { return ResourceManager.GetString("WindowSnapping_NoteSaved", resourceCulture); }
         }
 
         public static string WindowSnapping_DiscardMessage {
@@ -10189,6 +10176,10 @@ namespace AresToys.App.Resources {
 
         public static string NewPlus_BackupWarning {
             get { return ResourceManager.GetString("NewPlus_BackupWarning", resourceCulture); }
+        }
+
+        public static string NewPlus_CreateFailedFormat {
+            get { return ResourceManager.GetString("NewPlus_CreateFailedFormat", resourceCulture); }
         }
 
         public static string NewPlus_DisplayOptions {

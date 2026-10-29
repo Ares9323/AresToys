@@ -2213,10 +2213,6 @@
 
                     <TextBlock Text="{Markup:Loc WindowSnappingTab_SectionKeyboard}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
                     <CheckBox Margin="0,0,0,6"
-                              IsChecked="{Binding WindowSnapping.QuickLayoutSwitch, Mode=TwoWay}">
-                        <TextBlock Text="{Markup:Loc WindowSnappingTab_QuickLayoutSwitch}" TextWrapping="Wrap" />
-                    </CheckBox>
-                    <CheckBox Margin="0,0,0,6"
                               IsChecked="{Binding WindowSnapping.OverrideWindowsSnap, Mode=TwoWay}">
                         <TextBlock Text="{Markup:Loc WindowSnappingTab_OverrideWinSnap}" TextWrapping="Wrap" />
                     </CheckBox>

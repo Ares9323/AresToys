@@ -77,7 +77,6 @@ public sealed record WindowSnappingSettings(
     bool OverrideWindowsSnap,
     ZoneMoveBasis MoveBasedOn,
     bool MoveAcrossMonitors,
-    bool QuickLayoutSwitch,
     bool SpanZonesAcrossMonitors,
     ZoneEditorDisplay LaunchEditorOn)
 {
@@ -101,7 +100,6 @@ public sealed record WindowSnappingSettings(
     public const string KeyOverrideWindowsSnap = "windowsnapping.override_win_snap";
     public const string KeyMoveBasedOn = "windowsnapping.move_based_on";
     public const string KeyMoveAcrossMonitors = "windowsnapping.move_across_monitors";
-    public const string KeyQuickLayoutSwitch = "windowsnapping.quick_layout_switch";
     public const string KeySpanZonesAcrossMonitors = "windowsnapping.span_monitors";
     public const string KeyLaunchEditorOn = "windowsnapping.launch_editor_on";
 
@@ -125,7 +123,6 @@ public sealed record WindowSnappingSettings(
         OverrideWindowsSnap: false,
         MoveBasedOn: ZoneMoveBasis.RelativePosition,
         MoveAcrossMonitors: true,
-        QuickLayoutSwitch: true,
         SpanZonesAcrossMonitors: false,
         LaunchEditorOn: ZoneEditorDisplay.CursorMonitor);
 
@@ -152,7 +149,6 @@ public sealed record WindowSnappingSettings(
             ParseBool(await store.GetAsync(KeyOverrideWindowsSnap, ct).ConfigureAwait(false), d.OverrideWindowsSnap),
             ParseEnum(await store.GetAsync(KeyMoveBasedOn, ct).ConfigureAwait(false), d.MoveBasedOn),
             ParseBool(await store.GetAsync(KeyMoveAcrossMonitors, ct).ConfigureAwait(false), d.MoveAcrossMonitors),
-            ParseBool(await store.GetAsync(KeyQuickLayoutSwitch, ct).ConfigureAwait(false), d.QuickLayoutSwitch),
             ParseBool(await store.GetAsync(KeySpanZonesAcrossMonitors, ct).ConfigureAwait(false), d.SpanZonesAcrossMonitors),
             ParseEnum(await store.GetAsync(KeyLaunchEditorOn, ct).ConfigureAwait(false), d.LaunchEditorOn));
     }
@@ -180,7 +176,6 @@ public sealed record WindowSnappingSettings(
         await store.SetAsync(KeyOverrideWindowsSnap, ToValue(OverrideWindowsSnap), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyMoveBasedOn, MoveBasedOn.ToString(), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyMoveAcrossMonitors, ToValue(MoveAcrossMonitors), false, ct).ConfigureAwait(false);
-        await store.SetAsync(KeyQuickLayoutSwitch, ToValue(QuickLayoutSwitch), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeySpanZonesAcrossMonitors, ToValue(SpanZonesAcrossMonitors), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyLaunchEditorOn, LaunchEditorOn.ToString(), false, ct).ConfigureAwait(false);
     }

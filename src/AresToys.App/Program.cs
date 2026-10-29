@@ -25,6 +25,10 @@ public static class Program
         // path. On normal launches it's effectively a no-op and falls through.
         VelopackApp.Build().Run();
 
+        // Explorer New+ verbs: the exe does the whole job here and exits, with no WPF app, host,
+        // database or running instance needed.
+        if (AresToys.App.Services.NewPlus.NewPlusHeadless.TryRun(args)) return;
+
         var app = new App();
         app.InitializeComponent();
         app.Run();

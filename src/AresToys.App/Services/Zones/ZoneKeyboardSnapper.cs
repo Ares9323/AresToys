@@ -305,7 +305,7 @@ public sealed class ZoneKeyboardSnapper : IDisposable
         foreach (var monitor in _monitors.All())
         {
             if (ZoneDragService.ResolveLayout(_store, monitor.Id) is not { } layout) continue;
-            var zones = ZoneGeometry.Compute(layout.Grid, monitor.WorkArea);
+            var zones = ZoneGeometry.Compute(layout, monitor.WorkArea);
             if (zones.Count > 0) views.Add(new MonitorZones(monitor, layout, zones));
         }
 

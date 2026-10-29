@@ -74,9 +74,6 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
     [ObservableProperty] private int _moveBasedOnIndex = (int)ZoneMoveBasis.RelativePosition;
     [ObservableProperty] private bool _moveAcrossMonitors = true;
 
-    // Quick layout switch (PowerToys "Enable quick layout switch")
-    [ObservableProperty] private bool _quickLayoutSwitch = true;
-
     // Multiple monitors: one combined zone area, and the display the layout editor opens on
     // (the index maps 0 CursorMonitor, 1 PrimaryMonitor, 2 ActiveWindowMonitor)
     [ObservableProperty] private bool _spanZonesAcrossMonitors;
@@ -123,7 +120,6 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
             OverrideWindowsSnap = o.OverrideWindowsSnap;
             MoveBasedOnIndex = (int)o.MoveBasedOn;
             MoveAcrossMonitors = o.MoveAcrossMonitors;
-            QuickLayoutSwitch = o.QuickLayoutSwitch;
             SpanZonesAcrossMonitors = o.SpanZonesAcrossMonitors;
             LaunchEditorOnIndex = (int)o.LaunchEditorOn;
             ExcludedAppsText = WindowSnappingSettings.FormatApps(o.ExcludedApps);
@@ -167,7 +163,6 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
         OverrideWindowsSnap = o.OverrideWindowsSnap;
         MoveBasedOnIndex = (int)o.MoveBasedOn;
         MoveAcrossMonitors = o.MoveAcrossMonitors;
-        QuickLayoutSwitch = o.QuickLayoutSwitch;
         SpanZonesAcrossMonitors = o.SpanZonesAcrossMonitors;
         LaunchEditorOnIndex = (int)o.LaunchEditorOn;
         ExcludedAppsText = WindowSnappingSettings.FormatApps(o.ExcludedApps);
@@ -204,7 +199,6 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
     partial void OnOverrideWindowsSnapChanged(bool value) => QueuePersist();
     partial void OnMoveBasedOnIndexChanged(int value) => QueuePersist();
     partial void OnMoveAcrossMonitorsChanged(bool value) => QueuePersist();
-    partial void OnQuickLayoutSwitchChanged(bool value) => QueuePersist();
     partial void OnSpanZonesAcrossMonitorsChanged(bool value) => QueuePersist();
     partial void OnLaunchEditorOnIndexChanged(int value) => QueuePersist();
     partial void OnExcludedAppsTextChanged(string value) => QueuePersist();
@@ -247,7 +241,7 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
                 DisableRoundedCorners, WindowSnappingSettings.ParseApps(ExcludedAppsText),
                 KeepInZonesOnDisplayChange, ReapplyOnLayoutChange, MoveNewWindowsToLastZone, MoveNewWindowsToActiveMonitor,
                 OverrideWindowsSnap, (ZoneMoveBasis)Math.Clamp(MoveBasedOnIndex, 0, 1), MoveAcrossMonitors,
-                QuickLayoutSwitch, SpanZonesAcrossMonitors,
+                SpanZonesAcrossMonitors,
                 (ZoneEditorDisplay)Math.Clamp(LaunchEditorOnIndex, 0, 2));
             await options.SaveAsync(_store, token).ConfigureAwait(false);
             await _service.ReloadSettingsAsync().ConfigureAwait(false);

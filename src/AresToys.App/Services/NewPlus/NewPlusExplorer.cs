@@ -19,13 +19,15 @@ internal static class NewPlusExplorer
         TimeSpan.FromMilliseconds(600), TimeSpan.FromMilliseconds(1000),
     ];
 
-    /// <summary>Starts the attempt on its own STA thread and returns at once. Explorer needs a
-    /// moment to show the new item, so the thread retries a few times.</summary>
-    public static void BeginRename(string createdPath)
+    /// <summary>Starts the attempt on its own STA thread and returns it at once. Explorer needs a
+    /// moment to show the new item, so the thread retries a few times. The thread is a background
+    /// one: a caller that is about to exit the process joins it first.</summary>
+    public static Thread BeginRename(string createdPath)
     {
         var thread = new Thread(() => RenameWithRetries(createdPath)) { IsBackground = true, Name = "NewPlus-Rename" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
+        return thread;
     }
 
     private static void RenameWithRetries(string createdPath)

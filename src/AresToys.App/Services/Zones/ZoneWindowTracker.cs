@@ -528,7 +528,7 @@ public sealed class ZoneWindowTracker : IDisposable
     private static bool TryUnion(ZoneLayout layout, PixelRect workArea, IReadOnlyList<int> indexes, out PixelRect union)
     {
         union = default;
-        var zones = ZoneGeometry.Compute(layout.Grid, workArea);
+        var zones = ZoneGeometry.Compute(layout, workArea);
         if (indexes.Count == 0 || indexes.Any(i => i < 0 || i >= zones.Count)) return false;
 
         union = ZoneGeometry.Union(zones, indexes.ToArray());

@@ -299,6 +299,10 @@
   <data name="WorkflowAction_arestoys_window_snapping_previous_window" xml:space="preserve"><value>Previous window in zone</value></data>
   <data name="WorkflowActionDesc_arestoys_window_snapping_next_window" xml:space="preserve"><value>Bring the next window snapped into the same zone as the foreground window to the front. Needs Window snapping to be on.</value></data>
   <data name="WorkflowActionDesc_arestoys_window_snapping_previous_window" xml:space="preserve"><value>Bring the previous window snapped into the same zone as the foreground window to the front. Needs Window snapping to be on.</value></data>
+  <data name="WorkflowAction_arestoys_window_snapping_set_layout" xml:space="preserve"><value>Set snapping layout</value></data>
+  <data name="WorkflowActionDesc_arestoys_window_snapping_set_layout" xml:space="preserve"><value>Makes a monitor use a Window snapping layout.</value></data>
+  <data name="WorkflowActionParam_arestoys_window_snapping_set_layout_layout" xml:space="preserve"><value>Layout</value></data>
+  <data name="WorkflowActionParam_arestoys_window_snapping_set_layout_monitor" xml:space="preserve"><value>Monitor</value></data>
   <data name="Tray_WindowSnappingEditor" xml:space="preserve"><value>Window snapping editor</value></data>
   <data name="Sidebar_AlwaysOnTop" xml:space="preserve"><value>Always on top</value></data>
   <data name="AlwaysOnTop_Blurb" xml:space="preserve"><value>Frame drawn around windows pinned with the Always on top workflow. Changes apply at once, including to windows already pinned.</value></data>
@@ -353,7 +357,6 @@
   <data name="WindowSnappingTab_MoveIndex" xml:space="preserve"><value>Zone index</value></data>
   <data name="WindowSnappingTab_MoveAcrossMonitors" xml:space="preserve"><value>Move windows between zones across all monitors</value></data>
   <data name="WindowSnappingTab_KeyboardHint" xml:space="preserve"><value>Uses a keyboard hook only while this option is on. Only Win + arrow with no other modifier is handled. Next and previous window in a zone are workflows with their own shortcuts in Hotkeys &amp; Workflows.</value></data>
-  <data name="WindowSnappingTab_QuickLayoutSwitch" xml:space="preserve"><value>Enable quick layout switch (Win + Ctrl + Alt + digit, or the digit while dragging; the digit of each layout is set in the editor)</value></data>
   <data name="WindowSnappingTab_LaunchEditorLabel" xml:space="preserve"><value>Launch editor on the display</value></data>
   <data name="WindowSnappingTab_LaunchCursor" xml:space="preserve"><value>Where the mouse pointer is</value></data>
   <data name="WindowSnappingTab_LaunchPrimary" xml:space="preserve"><value>Primary display</value></data>
@@ -1433,13 +1436,13 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="ResizeQuick_SavedAs" xml:space="preserve"><value>Saved as {0}</value></data>
   <data name="ResizeQuick_NameRequired" xml:space="preserve"><value>Name is required</value></data>
   <data name="WindowSnapping_Title" xml:space="preserve"><value>Window snapping layouts</value></data>
-  <data name="WindowSnapping_BuiltInFormat" xml:space="preserve"><value>{0} (built-in)</value></data>
   <data name="WindowSnapping_New" xml:space="preserve"><value>New</value></data>
   <data name="WindowSnapping_Duplicate" xml:space="preserve"><value>Duplicate</value></data>
-  <data name="WindowSnapping_Rename" xml:space="preserve"><value>Rename...</value></data>
   <data name="WindowSnapping_Delete" xml:space="preserve"><value>Delete</value></data>
   <data name="WindowSnapping_NewEmpty" xml:space="preserve"><value>Empty (one zone)</value></data>
   <data name="WindowSnapping_NewCustomGrid" xml:space="preserve"><value>Custom grid...</value></data>
+  <data name="WindowSnapping_NewFreeForm" xml:space="preserve"><value>Free form</value></data>
+  <data name="WindowSnapping_NoteDrawFirst" xml:space="preserve"><value>Draw at least one zone.</value></data>
   <data name="WindowSnapping_GridNameFormat" xml:space="preserve"><value>Grid {0} x {1}</value></data>
   <data name="WindowSnapping_GridDialogTitle" xml:space="preserve"><value>Custom grid</value></data>
   <data name="WindowSnapping_GridRows" xml:space="preserve"><value>Rows</value></data>
@@ -1448,38 +1451,30 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="WindowSnapping_GridZoneOne" xml:space="preserve"><value>{0} zone</value></data>
   <data name="WindowSnapping_Identify" xml:space="preserve"><value>Identify monitors</value></data>
   <data name="WindowSnapping_TipIdentify" xml:space="preserve"><value>Show the monitor numbers on every screen for a moment</value></data>
-  <data name="WindowSnapping_QuickKey" xml:space="preserve"><value>Quick key</value></data>
-  <data name="WindowSnapping_QuickKeyNone" xml:space="preserve"><value>None</value></data>
-  <data name="WindowSnapping_QuickKeyUsedFormat" xml:space="preserve"><value>{0} (used by {1})</value></data>
-  <data name="WindowSnapping_QuickKeyHint" xml:space="preserve"><value>Press Win+Ctrl+Alt+digit to switch to this layout on the monitor under the cursor</value></data>
-  <data name="WindowSnapping_MonitorEntryFormat" xml:space="preserve"><value>{0}: {1} x {2}</value></data>
-  <data name="WindowSnapping_MonitorPrimary" xml:space="preserve"><value>(primary)</value></data>
-  <data name="WindowSnapping_MonitorSpannedFormat" xml:space="preserve"><value>All monitors (spanned): {0} x {1}</value></data>
-  <data name="WindowSnapping_MonitorUsesLayout" xml:space="preserve"><value>(uses this layout)</value></data>
+  <data name="WindowSnapping_MonitorAll" xml:space="preserve"><value>All monitors</value></data>
   <data name="WindowSnapping_NoLayoutAssigned" xml:space="preserve"><value>No layout assigned</value></data>
   <data name="WindowSnapping_NewLayoutName" xml:space="preserve"><value>New layout</value></data>
   <data name="WindowSnapping_CopyFormat" xml:space="preserve"><value>{0} copy</value></data>
-  <data name="WindowSnapping_Spacing" xml:space="preserve"><value>Space between zones (px)</value></data>
-  <data name="WindowSnapping_Sensitivity" xml:space="preserve"><value>Snap sensitivity (px)</value></data>
-  <data name="WindowSnapping_UseOn" xml:space="preserve"><value>Use on</value></data>
-  <data name="WindowSnapping_UseOnThisMonitor" xml:space="preserve"><value>Use this layout on this monitor</value></data>
-  <data name="WindowSnapping_MonitorFormat" xml:space="preserve"><value>Monitor {0} ({1} x {2})</value></data>
+  <data name="WindowSnapping_Spacing" xml:space="preserve"><value>Padding (px)</value></data>
+  <data name="WindowSnapping_Sensitivity" xml:space="preserve"><value>Snap tolerance (px)</value></data>
+  <data name="WindowSnapping_ZonePosition" xml:space="preserve"><value>Zone position (px)</value></data>
+  <data name="WindowSnapping_ZoneSize" xml:space="preserve"><value>Zone size (px)</value></data>
+  <data name="WindowSnapping_UseOn" xml:space="preserve"><value>Your monitors</value></data>
+  <data name="WindowSnapping_LayoutLabel" xml:space="preserve"><value>Layout</value></data>
   <data name="WindowSnapping_ToolSelect" xml:space="preserve"><value>Select</value></data>
   <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Split</value></data>
-  <data name="WindowSnapping_SplitVertical" xml:space="preserve"><value>Vertical</value></data>
-  <data name="WindowSnapping_SplitHorizontal" xml:space="preserve"><value>Horizontal</value></data>
+  <data name="WindowSnapping_ToolDraw" xml:space="preserve"><value>Draw</value></data>
+  <data name="WindowSnapping_TipDraw" xml:space="preserve"><value>Drag in the preview to draw a zone; zones can overlap</value></data>
+  <data name="WindowSnapping_HintDraw" xml:space="preserve"><value>Drag to draw a zone</value></data>
+  <data name="WindowSnapping_ConvertMessage" xml:space="preserve"><value>Draw converts this layout to free-form zones that you can move, resize and overlap. The conversion cannot be undone. Convert?</value></data>
   <data name="WindowSnapping_Merge" xml:space="preserve"><value>Merge</value></data>
   <data name="WindowSnapping_Undo" xml:space="preserve"><value>Undo</value></data>
   <data name="WindowSnapping_Redo" xml:space="preserve"><value>Redo</value></data>
   <data name="WindowSnapping_TipSelect" xml:space="preserve"><value>Click zones to select them, drag a boundary to move it</value></data>
-  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Click a zone to split it at the guide line</value></data>
-  <data name="WindowSnapping_TipOrientation" xml:space="preserve"><value>Switch the split direction (R)</value></data>
+  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Click a zone to split it at the guide line. Shift cuts at the centre of the zone, Alt flips the direction.</value></data>
   <data name="WindowSnapping_TipMerge" xml:space="preserve"><value>Merge the selected zones (Ctrl+M)</value></data>
   <data name="WindowSnapping_TipUndo" xml:space="preserve"><value>Undo (Ctrl+Z)</value></data>
   <data name="WindowSnapping_TipRedo" xml:space="preserve"><value>Redo (Ctrl+Y)</value></data>
-  <data name="WindowSnapping_ZoneOfFormat" xml:space="preserve"><value>Zone {0} of {1}</value></data>
-  <data name="WindowSnapping_ZonesSelectedFormat" xml:space="preserve"><value>{0} zones selected</value></data>
-  <data name="WindowSnapping_NoSelection" xml:space="preserve"><value>Select a zone to edit its numbers</value></data>
   <data name="WindowSnapping_Left" xml:space="preserve"><value>Left (px)</value></data>
   <data name="WindowSnapping_Top" xml:space="preserve"><value>Top (px)</value></data>
   <data name="WindowSnapping_Width" xml:space="preserve"><value>Width (px)</value></data>
@@ -1488,11 +1483,9 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="WindowSnapping_NoteInvalidNumber" xml:space="preserve"><value>Enter a whole number.</value></data>
   <data name="WindowSnapping_NoteRangeFormat" xml:space="preserve"><value>Value limited to the range {0} to {1}.</value></data>
   <data name="WindowSnapping_NoteNoNeighbor" xml:space="preserve"><value>This zone has no neighbor on its right or below to merge with.</value></data>
-  <data name="WindowSnapping_Hint" xml:space="preserve"><value>Hold Alt to turn snapping off</value></data>
-  <data name="WindowSnapping_SaveAsCopy" xml:space="preserve"><value>Save as copy...</value></data>
-  <data name="WindowSnapping_NameTitle" xml:space="preserve"><value>Layout name</value></data>
-  <data name="WindowSnapping_NameLabel" xml:space="preserve"><value>Name</value></data>
-  <data name="WindowSnapping_RenameTitle" xml:space="preserve"><value>Rename layout</value></data>
+  <data name="WindowSnapping_HintSplit" xml:space="preserve"><value>Hold Shift: snap to middle   |   Hold Alt: swap vertical/horizontal</value></data>
+  <data name="WindowSnapping_TipSave" xml:space="preserve"><value>Save the layout you are editing</value></data>
+  <data name="WindowSnapping_NoteSaved" xml:space="preserve"><value>Layout saved.</value></data>
   <data name="WindowSnapping_DiscardMessage" xml:space="preserve"><value>You have unsaved changes. Discard them?</value></data>
   <data name="WindowSnapping_DeleteConfirmFormat" xml:space="preserve"><value>Delete the layout "{0}"?</value></data>
   <data name="WindowSnapping_SaveErrorFormat" xml:space="preserve"><value>Could not save the layout: {0}</value></data>
@@ -1507,6 +1500,7 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="NewPlus_OpenFolder" xml:space="preserve"><value>Open templates folder</value></data>
   <data name="NewPlus_PickFolderTitle" xml:space="preserve"><value>Choose the template folder</value></data>
   <data name="NewPlus_BackupWarning" xml:space="preserve"><value>The settings backup does not include templates. If you use it, copy the template folder by hand.</value></data>
+  <data name="NewPlus_CreateFailedFormat" xml:space="preserve"><value>New+ could not create {0}: {1}</value></data>
   <data name="NewPlus_DisplayOptions" xml:space="preserve"><value>Display options</value></data>
   <data name="NewPlus_HideExtension" xml:space="preserve"><value>Hide the file extension in template names</value></data>
   <data name="NewPlus_HideDigits" xml:space="preserve"><value>Hide leading digits, spaces, and dots in template filenames</value></data>
