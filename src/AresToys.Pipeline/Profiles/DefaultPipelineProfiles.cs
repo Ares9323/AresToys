@@ -22,6 +22,7 @@ public static class DefaultPipelineProfiles
     public const string AlwaysOnTopId       = "always-on-top";
     public const string WindowSnappingEditorId = "window-snapping-editor";
     public const string WindowSnappingToggleId = "window-snapping-toggle";
+    public const string DictateId = "dictate";
     public const string WindowSnappingNextWindowId = "window-snapping-next-window";
     public const string WindowSnappingPreviousWindowId = "window-snapping-previous-window";
     public const string ResizeFhdId         = "resize-fhd";
@@ -66,6 +67,7 @@ public static class DefaultPipelineProfiles
     public const string AlwaysOnTopTaskId          = "arestoys.always-on-top";
     public const string WindowSnappingEditorTaskId = "arestoys.window-snapping-editor";
     public const string WindowSnappingToggleTaskId = "arestoys.window-snapping-toggle";
+    public const string DictateTaskId = "arestoys.dictate";
     public const string WindowSnappingNextWindowTaskId = "arestoys.window-snapping-next-window";
     public const string WindowSnappingPreviousWindowTaskId = "arestoys.window-snapping-previous-window";
     public const string ResizeImageFilesTaskId     = "arestoys.resize-image-files";
@@ -135,6 +137,7 @@ public static class DefaultPipelineProfiles
         [ToggleIncognitoId]       = "Clipboard",
 
         [AlwaysOnTopId]           = "Tools",
+        [DictateId]               = "Tools",
         [WindowSnappingEditorId]  = "Tools",
         [WindowSnappingToggleId]  = "Tools",
         [WindowSnappingNextWindowId] = "Tools",
@@ -455,6 +458,16 @@ public static class DefaultPipelineProfiles
                 new PipelineStep(WindowSnappingEditorTaskId, Id: "window-snapping-editor")
             ],
             Hotkey: new HotkeyBinding(Win | Shift, 0xC0),  // Win+Shift+`
+            IsBuiltIn: true),
+
+        new PipelineProfile(
+            Id: DictateId,
+            DisplayName: "Dictate",
+            Trigger: "hotkey:dictate",
+            Steps:
+            [
+                new PipelineStep(DictateTaskId, Id: "dictate")
+            ],
             IsBuiltIn: true),
 
         new PipelineProfile(

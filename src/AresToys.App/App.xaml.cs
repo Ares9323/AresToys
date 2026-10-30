@@ -334,6 +334,8 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, RemoveBackgroundTask>();
                 services.AddSingleton<IPipelineTask, OpenEditorBeforeUploadTask>();
                 services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
+                services.AddSingleton<AresToys.App.Services.Dictation.DictationService>();
+                services.AddSingleton<IPipelineTask, DictateTask>();
                 services.AddSingleton<AresToys.App.Services.AlwaysOnTop.AlwaysOnTopService>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneLayoutStore>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneMonitors>();
@@ -503,6 +505,7 @@ public partial class App : Application
                 services.AddSingleton<DebugViewModel>();
                 services.AddSingleton<WormholesViewModel>();
                 services.AddSingleton<AlwaysOnTopViewModel>();
+                services.AddSingleton<DictationViewModel>();
                 services.AddSingleton<WindowSnappingViewModel>();
                 services.AddSingleton<NewPlusViewModel>();
                 services.AddSingleton<SettingsViewModel>();

@@ -64,6 +64,12 @@
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.21.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.21.0" />
 
+    <!-- Dictation: local speech to text (whisper.cpp bindings, CPU runtime) and microphone capture. -->
+    <PackageVersion Include="Whisper.net" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+    <PackageVersion Include="NAudio" Version="2.2.1" />
+
     <!-- QR code generation (used by the QR pipeline task + Show QR window) -->
     <PackageVersion Include="QRCoder" Version="1.6.0" />
 

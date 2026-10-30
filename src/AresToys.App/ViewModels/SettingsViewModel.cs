@@ -44,6 +44,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DebugViewModel debug,
         WormholesViewModel wormholes,
         AlwaysOnTopViewModel alwaysOnTop,
+        DictationViewModel dictation,
         WindowSnappingViewModel windowSnapping,
         NewPlusViewModel newPlus,
         PopupWindowViewModel clipboardVm,
@@ -63,6 +64,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         Debug = debug;
         Wormholes = wormholes;
         AlwaysOnTop = alwaysOnTop;
+        Dictation = dictation;
         WindowSnapping = windowSnapping;
         NewPlus = newPlus;
         // Initial state mirrors Task Scheduler — the on-disk task is the single source of truth
@@ -121,6 +123,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public DebugViewModel Debug { get; }
     public WormholesViewModel Wormholes { get; }
     public AlwaysOnTopViewModel AlwaysOnTop { get; }
+    public DictationViewModel Dictation { get; }
     public WindowSnappingViewModel WindowSnapping { get; }
     public NewPlusViewModel NewPlus { get; }
 
@@ -577,6 +580,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsCategoriesSelected => SelectedTab == SettingsTab.Categories;
     public bool IsWormholesSelected  => SelectedTab == SettingsTab.Wormholes;
     public bool IsAlwaysOnTopSelected => SelectedTab == SettingsTab.AlwaysOnTop;
+    public bool IsDictationSelected => SelectedTab == SettingsTab.Dictation;
     public bool IsWindowSnappingSelected => SelectedTab == SettingsTab.WindowSnapping;
     public bool IsNewPlusSelected => SelectedTab == SettingsTab.NewPlus;
     public bool IsSettingsSelected   => SelectedTab == SettingsTab.Settings;
@@ -594,6 +598,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(IsCategoriesSelected));
         OnPropertyChanged(nameof(IsWormholesSelected));
         OnPropertyChanged(nameof(IsAlwaysOnTopSelected));
+        OnPropertyChanged(nameof(IsDictationSelected));
         OnPropertyChanged(nameof(IsWindowSnappingSelected));
         OnPropertyChanged(nameof(IsNewPlusSelected));
         OnPropertyChanged(nameof(IsSettingsSelected));
@@ -603,6 +608,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (value == SettingsTab.Hotkeys) _ = Hotkeys.ReloadAsync();
         if (value == SettingsTab.Wormholes) _ = Wormholes.ReloadAsync();
         if (value == SettingsTab.AlwaysOnTop) _ = AlwaysOnTop.LoadAsync();
+        if (value == SettingsTab.Dictation) _ = Dictation.LoadAsync();
         if (value == SettingsTab.WindowSnapping) _ = WindowSnapping.LoadAsync();
         if (value == SettingsTab.NewPlus) _ = NewPlus.LoadAsync();
     }
@@ -614,6 +620,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand] private void ShowCategories() => SelectedTab = SettingsTab.Categories;
     [RelayCommand] private void ShowWormholes()  => SelectedTab = SettingsTab.Wormholes;
     [RelayCommand] private void ShowAlwaysOnTop() => SelectedTab = SettingsTab.AlwaysOnTop;
+    [RelayCommand] private void ShowDictation() => SelectedTab = SettingsTab.Dictation;
     [RelayCommand] private void ShowWindowSnapping() => SelectedTab = SettingsTab.WindowSnapping;
     [RelayCommand] private void ShowNewPlus() => SelectedTab = SettingsTab.NewPlus;
     [RelayCommand] private void ShowSettings()   => SelectedTab = SettingsTab.Settings;
@@ -621,4 +628,4 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand] private void ShowAbout()     => SelectedTab = SettingsTab.About;
 }
 
-public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, WindowSnapping, NewPlus, Wormholes, Settings, Debug, About }
+public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, Dictation, WindowSnapping, NewPlus, Wormholes, Settings, Debug, About }

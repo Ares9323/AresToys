@@ -13,6 +13,11 @@
          (Central Package Management is enabled at the repo root). -->
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
+    <!-- Dictation: whisper.cpp bindings with the CPU runtime (the GPU one is optional and separate) and microphone capture. -->
+    <PackageReference Include="Whisper.net" />
+    <PackageReference Include="Whisper.net.Runtime" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" />
+    <PackageReference Include="NAudio" />
   </ItemGroup>
   <ItemGroup>
     <!-- ~4.5 MB binary embedded into the assembly so we don't need a side-channel download

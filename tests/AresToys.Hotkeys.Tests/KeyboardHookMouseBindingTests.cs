@@ -27,6 +27,19 @@ public class KeyboardHookMouseBindingTests
     }
 
     [Fact]
+    public void BoundButton_IsHeldFromPressToRelease()
+    {
+        using var hook = new KeyboardHook();
+        hook.Register("x1", HotkeyModifiers.None, 0x05, () => { });
+
+        Assert.False(hook.IsHeld(0x05));
+        hook.InvokeMouseHookForTest(WM_XBUTTONDOWN, XButton1);
+        Assert.True(hook.IsHeld(0x05));
+        hook.InvokeMouseHookForTest(WM_XBUTTONUP, XButton1);
+        Assert.False(hook.IsHeld(0x05));
+    }
+
+    [Fact]
     public void OtherButtons_PassThrough()
     {
         using var hook = new KeyboardHook();

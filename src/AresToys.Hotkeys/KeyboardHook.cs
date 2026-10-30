@@ -206,6 +206,7 @@ public sealed class KeyboardHook : IDisposable
 
         if (!isDown)
         {
+            lock (_heldKeysLock) _heldKeys.Remove(vk);
             bool wasSuppressed;
             lock (_suppressedMouseUpsLock) wasSuppressed = _suppressedMouseUps.Remove(vk);
             return wasSuppressed ? (IntPtr)1 : CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
@@ -229,12 +230,21 @@ public sealed class KeyboardHook : IDisposable
         }
         if (matched is null) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
 
+        lock (_heldKeysLock) _heldKeys.Add(vk);
         FireCallback(matched);
         if (!matched.Suppress) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
 
         lock (_suppressedMouseUpsLock) _suppressedMouseUps.Add(vk);
         if ((matched.Modifiers & HotkeyModifiers.Win) != 0) InjectDummyKey();
         return (IntPtr)1;
+    }
+
+    /// <summary>True from the press that matched a binding until its release. Unlike GetAsyncKeyState this
+    /// stays right for suppressed keys and buttons, whose state Windows never sees. Mouse buttons use their
+    /// virtual-key numbers (1 left, 2 right, 4 middle, 5/6 side).</summary>
+    public bool IsHeld(uint vkCode)
+    {
+        lock (_heldKeysLock) return _heldKeys.Contains(vkCode);
     }
 
     /// <summary>Test-only seam: drive <see cref="MouseHookProc"/> with a synthetic mouse message.</summary>

@@ -29,6 +29,7 @@ public static class WorkflowDisplayNameLocalizer
         [DefaultPipelineProfiles.AlwaysOnTopId]            = nameof(Strings.Workflow_AlwaysOnTop),
         [DefaultPipelineProfiles.WindowSnappingEditorId]   = nameof(Strings.Workflow_WindowSnappingEditor),
         [DefaultPipelineProfiles.WindowSnappingToggleId]   = nameof(Strings.Workflow_WindowSnappingToggle),
+        [DefaultPipelineProfiles.DictateId]                = nameof(Strings.Workflow_Dictate),
         [DefaultPipelineProfiles.WindowSnappingNextWindowId]     = nameof(Strings.Workflow_WindowSnappingNextWindow),
         [DefaultPipelineProfiles.WindowSnappingPreviousWindowId] = nameof(Strings.Workflow_WindowSnappingPreviousWindow),
         [DefaultPipelineProfiles.ColorSamplerId]           = nameof(Strings.Workflow_ColorSampler),

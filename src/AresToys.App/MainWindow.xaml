@@ -303,6 +303,11 @@
                            Appearance="{Binding IsAlwaysOnTopSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
+                           Content="{Markup:Loc Sidebar_Dictation}"
+                           Command="{Binding ShowDictationCommand}"
+                           Appearance="{Binding IsDictationSelected, Converter={StaticResource BoolToAppearance}}" />
+                <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                           Margin="0,0,0,4"
                            Content="{Markup:Loc Sidebar_WindowSnapping}"
                            Command="{Binding ShowWindowSnappingCommand}"
                            Appearance="{Binding IsWindowSnappingSelected, Converter={StaticResource BoolToAppearance}}" />
@@ -1976,6 +1981,71 @@
                     </Grid>
                     <Slider Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
                             Value="{Binding AlwaysOnTop.OpacityPercent, Mode=TwoWay}" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Dictation: hold the hotkey of the Dictate workflow, speak, release to type. -->
+            <ScrollViewer Visibility="{Binding IsDictationSelected, Converter={StaticResource BoolToVisibility}}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="24,16,24,16" MaxWidth="560" HorizontalAlignment="Left">
+                    <TextBlock Text="{Markup:Loc Sidebar_Dictation}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc Dictation_Blurb}" />
+
+                    <CheckBox Margin="0,0,0,16" IsChecked="{Binding Dictation.Enabled, Mode=TwoWay}">
+                        <TextBlock TextWrapping="Wrap" Text="{Markup:Loc Dictation_Enabled}" />
+                    </CheckBox>
+
+                    <TextBlock Text="{Markup:Loc Dictation_Language}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox Margin="0,0,0,16" ItemsSource="{Binding Dictation.Languages}"
+                              DisplayMemberPath="Label"
+                              SelectedItem="{Binding Dictation.SelectedLanguage, Mode=TwoWay}" />
+
+                    <TextBlock Text="{Markup:Loc Dictation_Microphone}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox Margin="0,0,0,16" ItemsSource="{Binding Dictation.Devices}"
+                              DisplayMemberPath="Label"
+                              SelectedItem="{Binding Dictation.SelectedDevice, Mode=TwoWay}" />
+
+                    <Grid Margin="0,0,0,4">
+                        <TextBlock Text="{Markup:Loc Dictation_IdleUnload}" FontWeight="SemiBold" />
+                        <TextBlock HorizontalAlignment="Right" Text="{Binding Dictation.IdleUnloadMinutes}" />
+                    </Grid>
+                    <Slider Minimum="0" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Margin="0,0,0,4"
+                            Value="{Binding Dictation.IdleUnloadMinutes, Mode=TwoWay}" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc Dictation_IdleUnloadHint}" />
+
+                    <TextBlock Text="{Markup:Loc Dictation_Processor}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox Margin="0,0,0,4" ItemsSource="{Binding Dictation.Processors}"
+                              DisplayMemberPath="Label"
+                              SelectedItem="{Binding Dictation.SelectedProcessor, Mode=TwoWay}" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,0,0,16"
+                               Text="{Markup:Loc Dictation_ProcessorHint}" />
+
+                    <TextBlock Text="{Markup:Loc Dictation_Model}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:TextBox Grid.Column="0" Margin="0,0,8,0"
+                                    Text="{Binding Dictation.ModelPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                    PlaceholderText="{Markup:Loc Dictation_ModelPathPlaceholder}" />
+                        <ui:Button Grid.Column="1" Content="{Markup:Loc Dictation_BrowseModel}" Padding="14,4" Margin="0,0,8,0"
+                                   Command="{Binding Dictation.BrowseModelCommand}" />
+                        <ui:Button Grid.Column="2" Content="{Markup:Loc Dictation_UseDefaultModel}" Padding="14,4"
+                                   Command="{Binding Dictation.UseDefaultModelCommand}" />
+                    </Grid>
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Text="{Binding Dictation.ModelStatus}" />
+                    <ui:Button Content="{Markup:Loc Dictation_DownloadModel}" Padding="14,4"
+                               HorizontalAlignment="Left"
+                               Command="{Binding Dictation.DownloadModelCommand}" />
                 </StackPanel>
             </ScrollViewer>
 

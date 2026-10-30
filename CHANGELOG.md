@@ -3,6 +3,34 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.39] — 2026-10-30
+
+### Dictation
+- New workflow "Dictate" (#38): hold its hotkey, speak, release to type what you
+  said into the focused window. Recognition runs on this PC with a Whisper model
+  (small, about 180 MB, downloaded the first time or chosen by hand), in one
+  language at a time: English, Italian, Spanish, French or German. A small pill
+  at the bottom of the screen shows the level of the microphone and the phase.
+- Settings → Dictation: off by default. Language, microphone, how long the model
+  stays in memory after a take (0 frees it right away), graphics card (Vulkan)
+  or processor only, and the path of the model file.
+
+### Hotkeys
+- Mouse buttons as triggers: right, middle and the side buttons, and left with a
+  modifier. The capture window takes them too, and has a "Pick from list" button
+  for keys that cannot be pressed.
+- Send key: key picker with search, media and browser keys, F13 to F24 and mouse
+  buttons (#34).
+
+### Window snapping
+- A window taken out of the zones gets its original size back when it is
+  dropped, also when it was maximized before the snap.
+- Window snapping editor: icon buttons, zone numbers with swap and sort.
+
+### Wormholes
+- Wormholes snap back to their records after a display change without a preset
+  (#30), and have no taskbar button after an Explorer restart.
+
 ## [0.1.38] — 2026-10-29
 
 ### Window snapping

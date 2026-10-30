@@ -50,6 +50,7 @@ public sealed class WorkflowRunner
             return;
         }
         var ctx = new PipelineContext(_services);
+        ctx.Bag[PipelineBagKeys.WorkflowId] = workflowId;
         foreach (var (key, value) in initialBag) ctx.Bag[key] = value;
         await _executor.RunAsync(profile, ctx, cancellationToken).ConfigureAwait(false);
     }

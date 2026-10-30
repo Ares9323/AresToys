@@ -1531,4 +1531,31 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="NewPlus_Variables" xml:space="preserve"><value>Supported variables</value></data>
   <data name="NewPlus_VariablesList" xml:space="preserve"><value>$YYYY  Year, represented by a full four or five digits, depending on the calendar used.&#10;$MM  Month, as digits with leading zeros for single-digit months.&#10;$DD  Day of the month, as digits with leading zeros for single-digit days.&#10;$hh  Hours, with leading zeros for single-digit hours.&#10;$mm  Minutes, with leading zeros for single-digit minutes.&#10;$ss  Seconds, with leading zeros for single-digit seconds.&#10;$PARENT_FOLDER_NAME  Name of the folder the item is created in.&#10;%NAME%  An environment variable, such as %USERNAME%.&#10;Also $YY, $Y, $MMMM, $MMM, $M, $DDDD, $DDD, $D, $HH, $H, $TT, $tt, $h, $m, $s, $fff, $ff, $f. Write $$ in front of a variable to keep it as typed.</value></data>
   <data name="NewPlusMenu_OpenTemplates" xml:space="preserve"><value>Open templates</value></data>
+  <data name="Workflow_Dictate" xml:space="preserve"><value>Dictate</value></data>
+  <data name="Dictation_Listening" xml:space="preserve"><value>Listening…</value></data>
+  <data name="Dictation_Transcribing" xml:space="preserve"><value>Transcribing…</value></data>
+  <data name="Dictation_Downloading" xml:space="preserve"><value>Downloading speech model… {0}%</value></data>
+  <data name="Dictation_ModelReady" xml:space="preserve"><value>Speech model ready. Hold the key again to dictate.</value></data>
+  <data name="Dictation_Failed" xml:space="preserve"><value>Dictation failed: {0}</value></data>
+  <data name="Sidebar_Dictation" xml:space="preserve"><value>Dictation</value></data>
+  <data name="Dictation_Blurb" xml:space="preserve"><value>Assign a hotkey to the Dictate workflow, hold it while you speak and release it to type what you said into the focused window. Everything is recognised on this PC.</value></data>
+  <data name="Dictation_Enabled" xml:space="preserve"><value>Enable dictation (when off, nothing is recorded and the speech model is not kept in memory)</value></data>
+  <data name="Dictation_Language" xml:space="preserve"><value>Spoken language</value></data>
+  <data name="Dictation_Microphone" xml:space="preserve"><value>Microphone</value></data>
+  <data name="Dictation_DefaultMicrophone" xml:space="preserve"><value>System default</value></data>
+  <data name="Dictation_IdleUnload" xml:space="preserve"><value>Free the speech model after (minutes)</value></data>
+  <data name="Dictation_IdleUnloadHint" xml:space="preserve"><value>The model stays in memory between takes so the next one starts at once. 0 frees it right after every take.</value></data>
+  <data name="Dictation_Model" xml:space="preserve"><value>Speech model</value></data>
+  <data name="Dictation_ModelFound" xml:space="preserve"><value>Found: {0}</value></data>
+  <data name="Dictation_ModelMissing" xml:space="preserve"><value>Not downloaded yet (about 180 MB). It is fetched the first time you use dictation, or now with the button below.</value></data>
+  <data name="Dictation_Processor" xml:space="preserve"><value>Run on</value></data>
+  <data name="Dictation_ProcessorAuto" xml:space="preserve"><value>Graphics card when available, else processor</value></data>
+  <data name="Dictation_ProcessorCpu" xml:space="preserve"><value>Processor only</value></data>
+  <data name="Dictation_ProcessorHint" xml:space="preserve"><value>The graphics card (NVIDIA, AMD or Intel through Vulkan) makes long takes much faster. A change applies the next time AresToys starts.</value></data>
+  <data name="Dictation_ModelPathPlaceholder" xml:space="preserve"><value>Default place (leave empty), or the path of a ggml model file</value></data>
+  <data name="Dictation_BrowseModel" xml:space="preserve"><value>Browse…</value></data>
+  <data name="Dictation_UseDefaultModel" xml:space="preserve"><value>Default</value></data>
+  <data name="Dictation_ModelFileFilter" xml:space="preserve"><value>Whisper models (*.bin)|*.bin|All files (*.*)|*.*</value></data>
+  <data name="Dictation_ModelChosenMissing" xml:space="preserve"><value>The chosen file does not exist: {0}</value></data>
+  <data name="Dictation_DownloadModel" xml:space="preserve"><value>Download the model</value></data>
 </root>

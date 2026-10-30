@@ -657,6 +657,11 @@ public static class WorkflowActionCatalog
             "Flip incognito on/off — when on, clipboard items aren't captured into history.",
             "Actions"),
 
+        new("arestoys.dictate",
+            "Dictate",
+            "Hold the workflow's hotkey, speak, release: the words are typed into the window that has the focus. Runs offline with a local speech model, downloaded the first time. Language and microphone are in the Dictation settings.",
+            "Actions"),
+
         new("arestoys.always-on-top",
             "Always on top",
             "Pin the window in front to keep it above all others, with a colored frame around it. Run it again on the same window to release it.",

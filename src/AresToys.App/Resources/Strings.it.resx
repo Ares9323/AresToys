@@ -1463,4 +1463,31 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="NewPlus_Variables" xml:space="preserve"><value>Variabili supportate</value></data>
   <data name="NewPlus_VariablesList" xml:space="preserve"><value>$YYYY  Anno, con quattro o cinque cifre a seconda del calendario usato.&#10;$MM  Mese, in cifre con lo zero iniziale per i mesi di una cifra.&#10;$DD  Giorno del mese, in cifre con lo zero iniziale per i giorni di una cifra.&#10;$hh  Ore, con lo zero iniziale per le ore di una cifra.&#10;$mm  Minuti, con lo zero iniziale per i minuti di una cifra.&#10;$ss  Secondi, con lo zero iniziale per i secondi di una cifra.&#10;$PARENT_FOLDER_NAME  Nome della cartella in cui viene creato l'elemento.&#10;%NOME%  Una variabile d'ambiente, per esempio %USERNAME%.&#10;Anche $YY, $Y, $MMMM, $MMM, $M, $DDDD, $DDD, $D, $HH, $H, $TT, $tt, $h, $m, $s, $fff, $ff, $f. Scrivi $$ davanti a una variabile per lasciarla com'è.</value></data>
   <data name="NewPlusMenu_OpenTemplates" xml:space="preserve"><value>Apri i template</value></data>
+  <data name="Workflow_Dictate" xml:space="preserve"><value>Detta</value></data>
+  <data name="Dictation_Listening" xml:space="preserve"><value>In ascolto…</value></data>
+  <data name="Dictation_Transcribing" xml:space="preserve"><value>Trascrizione…</value></data>
+  <data name="Dictation_Downloading" xml:space="preserve"><value>Scaricamento del modello vocale… {0}%</value></data>
+  <data name="Dictation_ModelReady" xml:space="preserve"><value>Modello vocale pronto. Tieni di nuovo premuto il tasto per dettare.</value></data>
+  <data name="Dictation_Failed" xml:space="preserve"><value>Dettatura non riuscita: {0}</value></data>
+  <data name="Sidebar_Dictation" xml:space="preserve"><value>Dettatura</value></data>
+  <data name="Dictation_Blurb" xml:space="preserve"><value>Assegna una scorciatoia al workflow Dictate, tienila premuta mentre parli e rilasciala per scrivere ciò che hai detto nella finestra attiva. Il riconoscimento avviene tutto su questo PC.</value></data>
+  <data name="Dictation_Enabled" xml:space="preserve"><value>Attiva la dettatura (da spenta non registra nulla e il modello vocale non resta in memoria)</value></data>
+  <data name="Dictation_Language" xml:space="preserve"><value>Lingua parlata</value></data>
+  <data name="Dictation_Microphone" xml:space="preserve"><value>Microfono</value></data>
+  <data name="Dictation_DefaultMicrophone" xml:space="preserve"><value>Predefinito di sistema</value></data>
+  <data name="Dictation_IdleUnload" xml:space="preserve"><value>Libera il modello vocale dopo (minuti)</value></data>
+  <data name="Dictation_IdleUnloadHint" xml:space="preserve"><value>Il modello resta in memoria tra una dettatura e l'altra, così la successiva parte subito. Con 0 viene liberato dopo ogni dettatura.</value></data>
+  <data name="Dictation_Model" xml:space="preserve"><value>Modello vocale</value></data>
+  <data name="Dictation_ModelFound" xml:space="preserve"><value>Trovato: {0}</value></data>
+  <data name="Dictation_ModelMissing" xml:space="preserve"><value>Non ancora scaricato (circa 180 MB). Viene scaricato al primo uso della dettatura, oppure ora con il pulsante qui sotto.</value></data>
+  <data name="Dictation_Processor" xml:space="preserve"><value>Esegui su</value></data>
+  <data name="Dictation_ProcessorAuto" xml:space="preserve"><value>Scheda video se disponibile, altrimenti processore</value></data>
+  <data name="Dictation_ProcessorCpu" xml:space="preserve"><value>Solo processore</value></data>
+  <data name="Dictation_ProcessorHint" xml:space="preserve"><value>La scheda video (NVIDIA, AMD o Intel tramite Vulkan) rende molto più veloci le registrazioni lunghe. Una modifica vale dal prossimo avvio di AresToys.</value></data>
+  <data name="Dictation_ModelPathPlaceholder" xml:space="preserve"><value>Posizione predefinita (lascia vuoto), oppure il percorso di un file modello ggml</value></data>
+  <data name="Dictation_BrowseModel" xml:space="preserve"><value>Sfoglia…</value></data>
+  <data name="Dictation_UseDefaultModel" xml:space="preserve"><value>Predefinito</value></data>
+  <data name="Dictation_ModelFileFilter" xml:space="preserve"><value>Modelli Whisper (*.bin)|*.bin|Tutti i file (*.*)|*.*</value></data>
+  <data name="Dictation_ModelChosenMissing" xml:space="preserve"><value>Il file scelto non esiste: {0}</value></data>
+  <data name="Dictation_DownloadModel" xml:space="preserve"><value>Scarica il modello</value></data>
 </root>

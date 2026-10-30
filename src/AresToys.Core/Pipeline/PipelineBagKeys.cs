@@ -3,6 +3,10 @@ namespace AresToys.Core.Pipeline;
 /// <summary>Well-known string keys used in <see cref="PipelineContext.Bag"/> by baked tasks.</summary>
 public static class PipelineBagKeys
 {
+    /// <summary>Id of the workflow being run, put there by <c>WorkflowRunner</c> before the first step. A step that needs to know
+    /// which hotkey started it (hold to dictate) reads it. Type: <c>string</c>.</summary>
+    public const string WorkflowId = "workflow_id";
+
     /// <summary>The <c>NewItem</c> instance to insert via add-to-history. Type: <c>AresToys.Storage.Items.NewItem</c>.</summary>
     public const string NewItem = "new_item";
 
