@@ -109,7 +109,7 @@ public sealed class PinToScreenLauncher
                         initialBorderThickness: record.Border, logger: _windowLogger,
                         items: _items, listener: _listener, outputEncoder: _outputEncoder)
                     { PinId = record.Id };
-                    w.ApplyRestoredState(record.Scale, record.Opacity, record.DpiScaleX, record.DpiScaleY, record.Locked);
+                    w.ApplyRestoredState(record.Scale, record.Opacity, record.DpiScaleX, record.DpiScaleY, record.Locked, record.Blend);
                     w.ShowRestored(target.X, target.Y);
                     _persistence.TrackImage(w, alreadyPersisted: true);
                 }

@@ -32,6 +32,9 @@ public sealed class PinRecord
 
     public double Opacity { get; set; } = 1.0;
 
+    /// <summary>Image pins: how the image mixes with the desktop (0 normal, 1 multiply, 2 screen).</summary>
+    public int Blend { get; set; }
+
     /// <summary>Border thickness in DIPs.</summary>
     public int Border { get; set; }
 

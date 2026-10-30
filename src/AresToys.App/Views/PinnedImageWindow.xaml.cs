@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using AresToys.App.Resources;
 using AresToys.App.Services;
 using AresToys.App.Services.Pins;
 using AresToys.Clipboard;
@@ -37,6 +38,7 @@ public partial class PinnedImageWindow : Window, ILockablePin
     private BitmapSource _bitmap;
     private double _scale = 1.0;
     private double _opacity = 1.0;
+    private PinBlendMode _blend = PinBlendMode.Normal;
     private int _borderThickness;
     private double _dpiScaleX = 1.0;
     private double _dpiScaleY = 1.0;
@@ -96,7 +98,7 @@ public partial class PinnedImageWindow : Window, ILockablePin
         _logger = (ILogger?)logger ?? NullLogger.Instance;
         _borderThickness = Math.Clamp(initialBorderThickness, 0, MaxBorderThickness);
         _initialScreenPos = initialScreenPos;
-        PinnedImage.Source = bitmap;
+        SetBlend(PinBlendMode.Normal);
 
         if (initialScreenPos is { } pos)
         {
@@ -155,9 +157,10 @@ public partial class PinnedImageWindow : Window, ILockablePin
 
     /// <summary>Apply a persisted state before <see cref="ShowRestored"/>: zoom, opacity and the DPI
     /// the window originally sized itself with, so the restored pin has the same size.</summary>
-    public void ApplyRestoredState(double scale, double opacity, double dpiScaleX, double dpiScaleY, bool locked = false)
+    public void ApplyRestoredState(double scale, double opacity, double dpiScaleX, double dpiScaleY, bool locked = false, int blend = 0)
     {
         SetLocked(locked);
+        SetBlend(PinBlend.Clamp(blend));
         _scale = double.IsFinite(scale) ? Math.Clamp(scale, 0.1, 8.0) : 1.0;
         if (PinWindowPlacement.IsSaneDpiScale(dpiScaleX) && PinWindowPlacement.IsSaneDpiScale(dpiScaleY))
         {
@@ -198,6 +201,7 @@ public partial class PinnedImageWindow : Window, ILockablePin
             Height = bounds.Height,
             Scale = _scale,
             Opacity = _opacity,
+            Blend = (int)_blend,
             Border = _borderThickness,
             DpiScaleX = _dpiScaleX,
             DpiScaleY = _dpiScaleY,
@@ -468,7 +472,7 @@ public partial class PinnedImageWindow : Window, ILockablePin
             bmp.EndInit();
             bmp.Freeze();
             _bitmap = bmp;
-            PinnedImage.Source = bmp;
+            PinnedImage.Source = PinBlend.Apply(bmp, _blend);
             ApplyImageSize();
             BitmapReplaced?.Invoke(this, EventArgs.Empty);
             RaisePinStateChanged();
@@ -603,6 +607,25 @@ public partial class PinnedImageWindow : Window, ILockablePin
     private void OnOpacityLabelClick(object sender, MouseButtonEventArgs e)
     {
         SetPinOpacity(1.0);
+        e.Handled = true;
+    }
+
+    private void SetBlend(PinBlendMode blend)
+    {
+        _blend = blend;
+        PinnedImage.Source = PinBlend.Apply(_bitmap, blend);
+        BlendLabel.Text = "◧ " + blend switch
+        {
+            PinBlendMode.Multiply => Strings.PinnedImage_BlendMultiply,
+            PinBlendMode.Screen => Strings.PinnedImage_BlendScreen,
+            _ => Strings.PinnedImage_BlendNormal,
+        };
+    }
+
+    private void OnBlendLabelClick(object sender, MouseButtonEventArgs e)
+    {
+        SetBlend(PinBlend.Next(_blend));
+        RaisePinStateChanged();
         e.Handled = true;
     }
 

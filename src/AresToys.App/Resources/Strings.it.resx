@@ -605,6 +605,10 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copia immagine negli appunti</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Apri nell'editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reimposta zoom al 100%</value></data>
+  <data name="PinnedImage_BlendNormal" xml:space="preserve"><value>Normale</value></data>
+  <data name="PinnedImage_BlendMultiply" xml:space="preserve"><value>Moltiplica</value></data>
+  <data name="PinnedImage_BlendScreen" xml:space="preserve"><value>Scherma</value></data>
+  <data name="PinnedImage_BlendTooltip" xml:space="preserve"><value>Fusione con il desktop. Clic per cambiare: Moltiplica rende trasparente il bianco, Scherma rende trasparente il nero</value></data>
   <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacità. Scorri qui o usa Maiusc+rotellina sull'elemento per cambiarla, clic per tornare al 100%</value></data>
   <data name="PinnedImage_ZoomTooltip" xml:space="preserve"><value>Zoom. Scorri qui o usa Ctrl+rotellina sull'elemento per cambiarlo, clic per tornare al 100%</value></data>
   <data name="PinnedImage_LockTooltip" xml:space="preserve"><value>Blocca: l'elemento fissato ignora il mouse (clic e rotellina passano a ciò che sta sotto) e non si può spostare, ingrandire né chiudere. Tieni premuto Ctrl+Maiusc sopra di esso per usare i suoi controlli, Maiusc+rotellina per l'opacità</value></data>

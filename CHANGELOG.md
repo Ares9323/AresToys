@@ -3,6 +3,14 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.40] — 2026-10-30
+
+### Pin to screen
+- Blend modes for pinned images (#26): click the ◧ label in the pin's bar to
+  switch between Normal, Multiply (white becomes transparent) and Screen (black
+  becomes transparent), to overlay screenshots with a white or black background
+  as if they were transparent. The mode is saved with the pin.
+
 ## [0.1.39] — 2026-10-30
 
 ### Dictation

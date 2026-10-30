@@ -620,6 +620,10 @@
   <data name="PinnedImage_CopyTooltip" xml:space="preserve"><value>Copy image to clipboard</value></data>
   <data name="PinnedImage_OpenEditorTooltip" xml:space="preserve"><value>Open in editor</value></data>
   <data name="PinnedImage_ResetZoomTooltip" xml:space="preserve"><value>Reset zoom to 100%</value></data>
+  <data name="PinnedImage_BlendNormal" xml:space="preserve"><value>Normal</value></data>
+  <data name="PinnedImage_BlendMultiply" xml:space="preserve"><value>Multiply</value></data>
+  <data name="PinnedImage_BlendScreen" xml:space="preserve"><value>Screen</value></data>
+  <data name="PinnedImage_BlendTooltip" xml:space="preserve"><value>Blend with the desktop. Click to switch: Multiply makes white transparent, Screen makes black transparent</value></data>
   <data name="PinnedImage_OpacityTooltip" xml:space="preserve"><value>Opacity. Scroll here or Shift+wheel on the pin to change it, click to reset to 100%</value></data>
   <data name="PinnedImage_ZoomTooltip" xml:space="preserve"><value>Zoom. Scroll here or Ctrl+wheel on the pin to change it, click to reset to 100%</value></data>
   <data name="PinnedImage_LockTooltip" xml:space="preserve"><value>Lock: the pin ignores the mouse (clicks and wheel go to what is underneath) and can't be moved, zoomed or closed. Hold Ctrl+Shift over it to reach its controls, Shift+wheel for opacity</value></data>

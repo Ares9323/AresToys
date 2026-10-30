@@ -103,6 +103,18 @@
                            MouseWheel="OnOpacityLabelWheel"
                            ToolTip="{Markup:Loc PinnedImage_OpacityTooltip}"
                            MouseLeftButtonUp="OnOpacityLabelClick" />
+                <!-- Blend: click cycles Normal, Multiply (white drops out), Screen (black drops out). -->
+                <TextBlock x:Name="BlendLabel"
+                           Text="◧ Normal"
+                           Foreground="{DynamicResource AccentForegroundBrush}"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           VerticalAlignment="Center"
+                           Margin="10,0,2,0"
+                           Background="Transparent"
+                           Cursor="Hand"
+                           ToolTip="{Markup:Loc PinnedImage_BlendTooltip}"
+                           MouseLeftButtonUp="OnBlendLabelClick" />
                 <!-- Lock: no move, no resize, no accidental close until clicked again. -->
                 <Button x:Name="LockButton"
                         Content="🔓"

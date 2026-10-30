@@ -3484,6 +3484,10 @@ namespace AresToys.App.Resources {
         public static string PinnedImage_CopyTooltip => ResourceManager.GetString("PinnedImage_CopyTooltip", resourceCulture);
         public static string PinnedImage_OpenEditorTooltip => ResourceManager.GetString("PinnedImage_OpenEditorTooltip", resourceCulture);
         public static string PinnedImage_ResetZoomTooltip => ResourceManager.GetString("PinnedImage_ResetZoomTooltip", resourceCulture);
+        public static string PinnedImage_BlendNormal => ResourceManager.GetString("PinnedImage_BlendNormal", resourceCulture);
+        public static string PinnedImage_BlendMultiply => ResourceManager.GetString("PinnedImage_BlendMultiply", resourceCulture);
+        public static string PinnedImage_BlendScreen => ResourceManager.GetString("PinnedImage_BlendScreen", resourceCulture);
+        public static string PinnedImage_BlendTooltip => ResourceManager.GetString("PinnedImage_BlendTooltip", resourceCulture);
         public static string PinnedImage_OpacityTooltip => ResourceManager.GetString("PinnedImage_OpacityTooltip", resourceCulture);
         public static string PinnedImage_ZoomTooltip => ResourceManager.GetString("PinnedImage_ZoomTooltip", resourceCulture);
         public static string PinnedImage_LockTooltip => ResourceManager.GetString("PinnedImage_LockTooltip", resourceCulture);
