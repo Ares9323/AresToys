@@ -10155,6 +10155,10 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_TipDraw", resourceCulture); }
         }
 
+        public static string WindowSnapping_HintSelect {
+            get { return ResourceManager.GetString("WindowSnapping_HintSelect", resourceCulture); }
+        }
+
         public static string WindowSnapping_HintDraw {
             get { return ResourceManager.GetString("WindowSnapping_HintDraw", resourceCulture); }
         }

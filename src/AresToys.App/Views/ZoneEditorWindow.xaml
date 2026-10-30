@@ -272,18 +272,10 @@
                 </TextBlock>
 
                 <!-- Footer -->
-                <TextBlock x:Name="HintText" Grid.Row="9" Margin="0,4,0,0" FontSize="11"
-                           Foreground="{DynamicResource AccentForegroundDarkBrush}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <Trigger Property="Text" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <!-- Fixed height (two lines) so switching tool never resizes the layout. -->
+                <TextBlock x:Name="HintText" Grid.Row="9" Margin="0,4,0,0" FontSize="11" Height="30"
+                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}" />
             </Grid>
         </Grid>
     </Border>

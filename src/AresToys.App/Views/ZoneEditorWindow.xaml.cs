@@ -112,6 +112,7 @@ public sealed partial class ZoneEditorWindow : FluentWindow
         InitializeComponent();
         ApplySavedSize(savedSize, launchMonitor);
         Preview.Appearance = appearance;
+        HintText.Text = Strings.WindowSnapping_HintSelect;
         LayoutStrip.SetAppearance(appearance);
         if (launchMonitor is not null) PositionOn(launchMonitor);
 
@@ -602,7 +603,7 @@ public sealed partial class ZoneEditorWindow : FluentWindow
         {
             ZoneEditTool.Split => Strings.WindowSnapping_HintSplit,
             ZoneEditTool.Draw => Strings.WindowSnapping_HintDraw,
-            _ => string.Empty,
+            _ => Strings.WindowSnapping_HintSelect,
         };
         SetNote(null);
     }

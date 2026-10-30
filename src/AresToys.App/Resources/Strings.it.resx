@@ -1418,7 +1418,8 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Dividi</value></data>
   <data name="WindowSnapping_ToolDraw" xml:space="preserve"><value>Disegna</value></data>
   <data name="WindowSnapping_TipDraw" xml:space="preserve"><value>Trascina nell'anteprima per disegnare una zona; le zone possono sovrapporsi</value></data>
-  <data name="WindowSnapping_HintDraw" xml:space="preserve"><value>Trascina per disegnare una zona</value></data>
+  <data name="WindowSnapping_HintDraw" xml:space="preserve"><value>Disegna: trascina nell'anteprima per disegnare una zona. Le zone possono sovrapporsi.</value></data>
+  <data name="WindowSnapping_HintSelect" xml:space="preserve"><value>Seleziona: clicca le zone per selezionarle, trascina un bordo per spostarlo.</value></data>
   <data name="WindowSnapping_ConvertMessage" xml:space="preserve"><value>Disegna converte questo layout in zone libere che puoi spostare, ridimensionare e sovrapporre. La conversione non si può annullare. Convertire?</value></data>
   <data name="WindowSnapping_Merge" xml:space="preserve"><value>Unisci</value></data>
   <data name="WindowSnapping_Undo" xml:space="preserve"><value>Annulla</value></data>
@@ -1439,7 +1440,7 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="WindowSnapping_NoteInvalidNumber" xml:space="preserve"><value>Inserisci un numero intero.</value></data>
   <data name="WindowSnapping_NoteRangeFormat" xml:space="preserve"><value>Valore limitato all'intervallo da {0} a {1}.</value></data>
   <data name="WindowSnapping_NoteNoNeighbor" xml:space="preserve"><value>Questa zona non ha una zona vicina a destra o sotto con cui unirsi.</value></data>
-  <data name="WindowSnapping_HintSplit" xml:space="preserve"><value>Tieni premuto Maiusc: taglia al centro   |   Tieni premuto Alt: inverte verticale/orizzontale</value></data>
+  <data name="WindowSnapping_HintSplit" xml:space="preserve"><value>Dividi: clicca una zona per dividerla lungo la linea guida. Tieni premuto Maiusc per tagliare al centro, Alt per invertire la direzione.</value></data>
   <data name="WindowSnapping_TipSave" xml:space="preserve"><value>Salva il layout che stai modificando</value></data>
   <data name="WindowSnapping_NoteSaved" xml:space="preserve"><value>Layout salvato.</value></data>
   <data name="WindowSnapping_DiscardMessage" xml:space="preserve"><value>Ci sono modifiche non salvate. Scartarle?</value></data>
