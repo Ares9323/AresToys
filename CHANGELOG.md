@@ -3,6 +3,27 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.40] — 2026-10-31
+
+### New+
+- Ctrl+Shift+N creates a folder again when the built-in "New" context menu is
+  hidden. AresToys now handles the shortcut itself in Explorer, on the desktop
+  and in Open/Save dialogs, so it has to be running.
+- In an Open/Save dialog, a folder or file made with New+ is selected in the
+  dialog (not in an Explorer window) and goes into rename mode with the focus
+  in the name field.
+
+### Launcher
+- Paste on a cell takes a file copied in Explorer, in normal and docked mode.
+  The first file is used, like a drop; a shortcut keeps its target and arguments.
+
+### Clipboard
+- A fictitious "Trigger" chip in the filter strip shows the items that have a
+  trigger sequence, combined with the tags in AND/OR.
+
+### Zones
+- Zone editor: a fixed-height hint row describes each tool (Select, Split, Draw).
+
 ## [0.1.39] — 2026-10-30
 
 ### Dictation
