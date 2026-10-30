@@ -379,7 +379,7 @@
                       while a chip is on; clicking a tab turns the chips off). Collapsed when the
                       user has no tags yet so the window looks exactly as before. -->
                 <Grid Grid.Row="1" Margin="0,0,0,6"
-                      Visibility="{Binding HasTags, Converter={StaticResource BoolToVisibility}}">
+                      Visibility="{Binding ShowTagStrip, Converter={StaticResource BoolToVisibility}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -400,7 +400,17 @@
                                        FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
-                    <ItemsControl Grid.Column="1" ItemsSource="{Binding TagChips}" Focusable="False">
+                    <DockPanel Grid.Column="1" LastChildFill="True">
+                    <!-- Fictitious chip: selects the items that have a trigger sequence. -->
+                    <ToggleButton DockPanel.Dock="Left" Style="{StaticResource TagFilterToggle}"
+                                  IsChecked="{Binding TriggerChip.IsActive, Mode=TwoWay}"
+                                  Command="{Binding TagFilterChangedCommand}"
+                                  Visibility="{Binding ShowTriggerChip, Converter={StaticResource BoolToVisibility}}"
+                                  Focusable="False"
+                                  ToolTip="{Markup:Loc Clipboard_TagFilterTriggerTooltip}">
+                        <TextBlock Text="{Markup:Loc Clipboard_TagFilterTrigger}" FontSize="11" VerticalAlignment="Center" />
+                    </ToggleButton>
+                    <ItemsControl ItemsSource="{Binding TagChips}" Focusable="False">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel Orientation="Horizontal" />
@@ -423,6 +433,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </DockPanel>
                     <ui:Button Grid.Column="2"
                                Content="{Markup:Loc Clipboard_TagFilterClear}"
                                Padding="8,2" FontSize="11"

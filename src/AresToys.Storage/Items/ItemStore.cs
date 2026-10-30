@@ -163,14 +163,22 @@ public sealed class ItemStore : IItemStore
         if (hasCategory) sql.Append(" AND items.category = $category");
         // Tag filter. AND: the item must carry every requested tag, i.e. the number of its join
         // rows among the requested ids equals the number of requested ids. OR: one is enough.
+        // The "has a trigger sequence" pseudo-tag joins the same AND / OR logic.
+        string? tagPredicate = null;
         if (tagIds is not null)
         {
             var names = string.Join(", ", tagIds.Select((_, i) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"$tag{i}")));
-            if (query.TagMatchAny)
-                sql.Append(System.Globalization.CultureInfo.InvariantCulture, $" AND EXISTS (SELECT 1 FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id IN ({names}))");
-            else
-                sql.Append(System.Globalization.CultureInfo.InvariantCulture, $" AND (SELECT COUNT(*) FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id IN ({names})) = {tagIds.Count}");
+            tagPredicate = query.TagMatchAny
+                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"EXISTS (SELECT 1 FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id IN ({names}))")
+                : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"(SELECT COUNT(*) FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id IN ({names})) = {tagIds.Count}");
         }
+        const string triggerPredicate = "(items.trigger IS NOT NULL AND TRIM(items.trigger) != '')";
+        if (tagPredicate is not null && query.WithTrigger)
+            sql.Append(query.TagMatchAny ? " AND (" + tagPredicate + " OR " + triggerPredicate + ")" : " AND " + tagPredicate + " AND " + triggerPredicate);
+        else if (tagPredicate is not null)
+            sql.Append(" AND ").Append(tagPredicate);
+        else if (query.WithTrigger)
+            sql.Append(" AND ").Append(triggerPredicate);
         // Table-level FTS MATCH (no column prefix) searches every indexed column — currently
         // search_text + label + tag_text, so a labeled row remains findable by its content
         // snippet, a user-typed name AND its tag names. Schema v2 added the label column, v5

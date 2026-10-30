@@ -54,6 +54,14 @@ public sealed class TagBadge
     }
 }
 
+/// <summary>The fictitious "Trigger" chip of the filter strip: no tag behind it, it selects the
+/// items that have a trigger sequence and takes part in the AND / OR logic like a tag.</summary>
+public sealed partial class TriggerFilterChip : ObservableObject
+{
+    [ObservableProperty]
+    private bool _isActive;
+}
+
 /// <summary>One toggle chip in the clipboard window's tag filter strip. <see cref="IsActive"/>
 /// is bound two-way to the chip's ToggleButton; the VM reads the active set on every toggle.</summary>
 public sealed partial class TagFilterChip : ObservableObject

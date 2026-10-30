@@ -46,6 +46,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         _tags.Changed += OnTagsChanged;
         _ = ReloadCategoriesAsync();
         _ = ReloadTagsAsync();
+        _ = ReloadTriggerPresenceAsync();
     }
 
     /// <summary>Background builder of row thumbnails for Files items stored without one.</summary>
@@ -105,7 +106,32 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     /// <summary>True while at least one tag chip is on. The tag filter then spans every
     /// category (finding items across categories is the point of tags), so no category tab
     /// shows as active.</summary>
-    public bool HasActiveTagFilter => TagChips.Any(c => c.IsActive);
+    public bool HasActiveTagFilter => TriggerChip.IsActive || TagChips.Any(c => c.IsActive);
+
+    /// <summary>Fictitious filter chip for the items with a trigger sequence.</summary>
+    public TriggerFilterChip TriggerChip { get; } = new();
+
+    /// <summary>True while at least one item has a trigger sequence (the Trigger chip is worth showing).</summary>
+    [ObservableProperty] private bool _hasTriggerItems;
+
+    /// <summary>The filter strip shows when there is a tag or a trigger to filter by (or the
+    /// Trigger chip is on, so it can be turned off).</summary>
+    public bool ShowTagStrip => HasTags || ShowTriggerChip;
+
+    /// <summary>The Trigger chip shows while some item has a trigger (or while it is on).</summary>
+    public bool ShowTriggerChip => HasTriggerItems || TriggerChip.IsActive;
+
+    partial void OnHasTriggerItemsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowTriggerChip));
+        OnPropertyChanged(nameof(ShowTagStrip));
+    }
+
+    private async Task ReloadTriggerPresenceAsync()
+    {
+        var bindings = await _items.ListTriggerBindingsAsync(CancellationToken.None).ConfigureAwait(true);
+        HasTriggerItems = bindings.Count > 0;
+    }
 
     /// <summary>Multi-tag filter mode: false = AND (items carrying every active tag), true = OR
     /// (items carrying at least one). Persisted to <c>clipboard.tag_filter_any</c>.</summary>
@@ -148,6 +174,8 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     private void OnTagFilterStateChanged()
     {
         OnPropertyChanged(nameof(HasTags));
+        OnPropertyChanged(nameof(ShowTriggerChip));
+        OnPropertyChanged(nameof(ShowTagStrip));
         OnPropertyChanged(nameof(HasActiveTagFilter));
         OnPropertyChanged(nameof(AllTags));
         UpdateCategoryTabFlags();
@@ -185,6 +213,11 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
     private bool ClearTagFilterSilently()
     {
         var any = false;
+        if (TriggerChip.IsActive)
+        {
+            TriggerChip.IsActive = false;
+            any = true;
+        }
         foreach (var chip in TagChips)
         {
             if (!chip.IsActive) continue;
@@ -261,6 +294,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         {
             if (e.Kind == ItemsChangeKind.Updated && (e.ItemId == -1 || e.ItemId == _previewedItemId))
                 _previewStale = true;
+            _ = ReloadTriggerPresenceAsync();
             _ = RefreshAsync(CancellationToken.None);
         });
     }
@@ -839,9 +873,10 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
             Search: NormalizeSearch(SearchText),
             Kind: KindFilter,
             IncludePayload: false,
-            Category: activeTagIds.Count > 0 ? null : ActiveCategory,
+            Category: HasActiveTagFilter ? null : ActiveCategory,
             TagIds: activeTagIds,
-            TagMatchAny: TagFilterMatchAny);
+            TagMatchAny: TagFilterMatchAny,
+            WithTrigger: TriggerChip.IsActive);
         var previousId = SelectedRow?.Id;
         var loaded = await _items.ListAsync(query, cancellationToken).ConfigureAwait(false);
         // Apply the type-chip filter after the query. ShowImages gates Image / Files / Video

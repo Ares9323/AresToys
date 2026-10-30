@@ -20,4 +20,8 @@ public sealed record ItemQuery(
     IReadOnlyList<long>? TagIds = null,
     /// <summary>OR semantics for <see cref="TagIds"/>: an item matches when it carries any of
     /// the requested tags. Ignored when there is no tag filter.</summary>
-    bool TagMatchAny = false);
+    bool TagMatchAny = false,
+    /// <summary>Restrict results to items with a trigger sequence. Acts as one more tag of the
+    /// filter: required next to <see cref="TagIds"/> by default (AND), an alternative to them
+    /// when <see cref="TagMatchAny"/> is set (OR).</summary>
+    bool WithTrigger = false);

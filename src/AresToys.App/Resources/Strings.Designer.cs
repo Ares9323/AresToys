@@ -9187,6 +9187,18 @@ namespace AresToys.App.Resources {
             }
         }
 
+        public static string Clipboard_TagFilterTrigger {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterTrigger", resourceCulture);
+            }
+        }
+
+        public static string Clipboard_TagFilterTriggerTooltip {
+            get {
+                return ResourceManager.GetString("Clipboard_TagFilterTriggerTooltip", resourceCulture);
+            }
+        }
+
         public static string Clipboard_TagFilterTooltip {
             get {
                 return ResourceManager.GetString("Clipboard_TagFilterTooltip", resourceCulture);

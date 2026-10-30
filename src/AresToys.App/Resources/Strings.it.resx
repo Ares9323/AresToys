@@ -1286,6 +1286,8 @@ I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano 
   <data name="Clipboard_MenuTags" xml:space="preserve"><value>Tag</value></data>
   <data name="Clipboard_MenuNewTag" xml:space="preserve"><value>Nuovo tag…</value></data>
   <data name="Clipboard_MenuTagsLocked" xml:space="preserve"><value>I nuovi tag richiedono un elemento fissato o una categoria senza pulizia automatica</value></data>
+  <data name="Clipboard_TagFilterTrigger" xml:space="preserve"><value>Trigger</value></data>
+  <data name="Clipboard_TagFilterTriggerTooltip" xml:space="preserve"><value>Elementi con una trigger sequence</value></data>
   <data name="Clipboard_TagFilterTooltip" xml:space="preserve"><value>Mostra solo gli elementi con tutti i tag selezionati, in tutte le categorie</value></data>
   <data name="Clipboard_TagFilterTooltipAny" xml:space="preserve"><value>Mostra solo gli elementi con almeno uno dei tag selezionati, in tutte le categorie</value></data>
   <data name="Clipboard_TagFilterModeTooltip" xml:space="preserve"><value>Cambia come si combinano i tag selezionati: AND mostra gli elementi con tutti i tag, OR quelli con almeno uno</value></data>
