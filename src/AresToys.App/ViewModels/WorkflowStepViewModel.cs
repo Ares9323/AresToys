@@ -603,4 +603,16 @@ public sealed partial class StringParameterEntry : ObservableObject
         if (dialog.CapturedVirtualKey == 0) return;
         Value = Services.Hotkeys.HotkeyDisplay.Format(dialog.CapturedModifiers, dialog.CapturedVirtualKey);
     }
+
+    /// <summary>Pick the key and modifiers from lists instead of recording them: reaches the keys a
+    /// capture cannot (F13-F24, media and browser keys). Writes the same combo string as the capture.</summary>
+    [RelayCommand]
+    private void PickKey()
+    {
+        var dialog = new Views.KeyPickerWindow(Value);
+        if (System.Windows.Application.Current?.MainWindow is { } owner && owner.IsVisible)
+            dialog.Owner = owner;
+        if (dialog.ShowDialog() != true || dialog.VirtualKey == 0) return;
+        Value = dialog.Combo;
+    }
 }

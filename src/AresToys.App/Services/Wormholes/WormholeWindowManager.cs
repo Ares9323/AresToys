@@ -197,13 +197,15 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
                 // Same monitor setup as before (a lock/unlock, DPI tick, or duplicate event).
                 // Do NOT re-apply a preset — that would wipe un-saved live moves. Just settle.
                 _logger.LogDebug("Wormholes: display settled, setup unchanged ({Hash})", newSetupHash);
+                await SnapBackToRecordsAsync().ConfigureAwait(true);
                 return;
             }
 
             // Genuine setup change. Apply the preset mapped to the new setup, if any. Unknown
             // setup (e.g. an RDP resolution never saved) → leave the live layout untouched, so a
             // good layout is never overwritten. No clamping.
-            await ApplyLayoutForCurrentSetupAsync().ConfigureAwait(true);
+            var applied = await ApplyLayoutForCurrentSetupAsync().ConfigureAwait(true);
+            if (!applied) await SnapBackToRecordsAsync().ConfigureAwait(true);
             _lastSetupHash = newSetupHash;
         }
         catch (Exception ex)
@@ -219,20 +221,44 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
     /// <summary>Look up the preset mapped to the current monitor fingerprint and, if there is one,
     /// apply it (geometry + hidden/locked/rolled) to the store + live windows. Unknown setup →
     /// no-op. No clamping.</summary>
-    private async Task ApplyLayoutForCurrentSetupAsync()
+    private async Task<bool> ApplyLayoutForCurrentSetupAsync()
     {
         string? presetName;
         try { presetName = await _store.GetPresetNameForCurrentSetupAsync(CancellationToken.None).ConfigureAwait(true); }
-        catch (Exception ex) { _logger.LogError(ex, "Wormholes: preset lookup for current setup failed"); return; }
+        catch (Exception ex) { _logger.LogError(ex, "Wormholes: preset lookup for current setup failed"); return false; }
 
         if (string.IsNullOrEmpty(presetName))
         {
             _logger.LogDebug("Wormholes: current monitor setup has no associated preset; layout left as-is");
-            return;
+            return false;
         }
 
-        if (await ApplyPresetToLiveAsync(presetName).ConfigureAwait(true))
-            _logger.LogInformation("Wormholes: auto-applied preset '{Name}' for current setup", presetName);
+        if (!await ApplyPresetToLiveAsync(presetName).ConfigureAwait(true)) return false;
+        _logger.LogInformation("Wormholes: auto-applied preset '{Name}' for current setup", presetName);
+        return true;
+    }
+
+    /// <summary>Puts every wormhole back where its record says after a display burst. Windows moves
+    /// windows off a monitor that goes away (a display that sleeps can drop out for a moment), but the
+    /// records were frozen during the burst, so they still hold the real positions. A record whose spot
+    /// is not on the current desktop (the monitor is really gone) is skipped, so nothing is sent off screen.</summary>
+    private async Task SnapBackToRecordsAsync()
+    {
+        double left = SystemParameters.VirtualScreenLeft, top = SystemParameters.VirtualScreenTop;
+        double right = left + SystemParameters.VirtualScreenWidth, bottom = top + SystemParameters.VirtualScreenHeight;
+        var records = _records.Values
+            .Where(r => !r.IsHidden
+                && r.Geometry.X + 20 >= left && r.Geometry.X + 20 < right
+                && r.Geometry.Y + 20 >= top && r.Geometry.Y + 20 < bottom)
+            .ToList();
+        await RunOnUiAsync(async () =>
+        {
+            foreach (var rec in records)
+            {
+                try { await ReconcileAsync(rec, CancellationToken.None).ConfigureAwait(true); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Wormholes: snap back after display change failed for {Id}", rec.Id); }
+            }
+        }).ConfigureAwait(true);
     }
 
     /// <summary>Apply a preset by name to the records + live windows: push each wormhole's saved

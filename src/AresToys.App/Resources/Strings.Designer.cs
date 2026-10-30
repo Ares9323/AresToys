@@ -3492,6 +3492,58 @@ namespace AresToys.App.Resources {
             }
         }
 
+        public static string KeyPicker_Title {
+            get { return ResourceManager.GetString("KeyPicker_Title", resourceCulture); }
+        }
+
+        public static string KeyPicker_Modifiers {
+            get { return ResourceManager.GetString("KeyPicker_Modifiers", resourceCulture); }
+        }
+
+        public static string KeyPicker_Key {
+            get { return ResourceManager.GetString("KeyPicker_Key", resourceCulture); }
+        }
+
+        public static string KeyPicker_Search {
+            get { return ResourceManager.GetString("KeyPicker_Search", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupFunction {
+            get { return ResourceManager.GetString("KeyPicker_GroupFunction", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupLetters {
+            get { return ResourceManager.GetString("KeyPicker_GroupLetters", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupDigits {
+            get { return ResourceManager.GetString("KeyPicker_GroupDigits", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupNavigation {
+            get { return ResourceManager.GetString("KeyPicker_GroupNavigation", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupNumpad {
+            get { return ResourceManager.GetString("KeyPicker_GroupNumpad", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupPunctuation {
+            get { return ResourceManager.GetString("KeyPicker_GroupPunctuation", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupMedia {
+            get { return ResourceManager.GetString("KeyPicker_GroupMedia", resourceCulture); }
+        }
+
+        public static string KeyPicker_GroupMouse {
+            get { return ResourceManager.GetString("KeyPicker_GroupMouse", resourceCulture); }
+        }
+
+        public static string WorkflowEditor_PickKeyTooltip {
+            get { return ResourceManager.GetString("WorkflowEditor_PickKeyTooltip", resourceCulture); }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Run this workflow right now, without assigning it a hotkey.
         /// </summary>

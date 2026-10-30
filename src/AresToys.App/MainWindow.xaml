@@ -939,6 +939,7 @@
                                                                         <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="Auto" />
                                                                     </Grid.ColumnDefinitions>
                                                                     <TextBlock Grid.Column="0" Text="{Binding Label}"
                                                                                Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
@@ -1056,6 +1057,19 @@
                                                                                    FontFamily="{DynamicResource IconFont}"
                                                                                    FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
                                                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                    </Button>
+                                                                    <!-- Key picker: the keys and modifiers from lists, for the keys a capture
+                                                                         cannot record (F13-F24, media keys). Same box as the capture button. -->
+                                                                    <Button Grid.Column="5"
+                                                                            Width="32" Height="32" Padding="0"
+                                                                            Background="{DynamicResource Surface3Brush}"
+                                                                            BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
+                                                                            Cursor="Hand" Margin="4,0,0,0"
+                                                                            Command="{Binding PickKeyCommand}"
+                                                                            ToolTip="{Markup:Loc WorkflowEditor_PickKeyTooltip}"
+                                                                            Visibility="{Binding ShowHotkeyCaptureButton, Converter={StaticResource BoolToVisibility}}">
+                                                                        <ui:SymbolIcon Symbol="List24" FontSize="16" Foreground="{DynamicResource AccentForegroundBrush}"
+                                                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                                     </Button>
                                                                 </Grid>
                                                             </DataTemplate>

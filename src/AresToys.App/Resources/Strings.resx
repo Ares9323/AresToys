@@ -550,6 +550,19 @@
   <data name="WorkflowEditor_PickFileTooltip" xml:space="preserve"><value>Pick a file…</value></data>
   <data name="WorkflowEditor_PickFolderTooltip" xml:space="preserve"><value>Pick a folder…</value></data>
   <data name="WorkflowEditor_CaptureHotkeyTooltip" xml:space="preserve"><value>Capture a key combo…</value></data>
+  <data name="KeyPicker_Title" xml:space="preserve"><value>Pick a key</value></data>
+  <data name="KeyPicker_Modifiers" xml:space="preserve"><value>Modifiers</value></data>
+  <data name="KeyPicker_Key" xml:space="preserve"><value>Key</value></data>
+  <data name="KeyPicker_Search" xml:space="preserve"><value>Search a key (F24, volume, home…)</value></data>
+  <data name="KeyPicker_GroupFunction" xml:space="preserve"><value>Function keys</value></data>
+  <data name="KeyPicker_GroupLetters" xml:space="preserve"><value>Letters</value></data>
+  <data name="KeyPicker_GroupDigits" xml:space="preserve"><value>Digits</value></data>
+  <data name="KeyPicker_GroupNavigation" xml:space="preserve"><value>Navigation and editing</value></data>
+  <data name="KeyPicker_GroupNumpad" xml:space="preserve"><value>Numpad</value></data>
+  <data name="KeyPicker_GroupPunctuation" xml:space="preserve"><value>Punctuation</value></data>
+  <data name="KeyPicker_GroupMedia" xml:space="preserve"><value>Media, browser and launch keys</value></data>
+  <data name="KeyPicker_GroupMouse" xml:space="preserve"><value>Mouse buttons</value></data>
+  <data name="WorkflowEditor_PickKeyTooltip" xml:space="preserve"><value>Pick a key and modifiers from a list…</value></data>
   <data name="WorkflowEditor_AddStepSearchPlaceholder" xml:space="preserve"><value>Search tasks…</value></data>
   <data name="WorkflowEditor_RemoveStepTooltip" xml:space="preserve"><value>Remove this step from the workflow</value></data>
   <data name="WorkflowEditor_DuplicateStepTooltip" xml:space="preserve"><value>Duplicate this step (inserted directly below)</value></data>

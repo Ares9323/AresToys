@@ -124,8 +124,15 @@ public static class KeyComboParser
             "]" => 0xDD,
             "'" => 0xDE,
             "< / >" or "oem102" => 0xE2,
-            _ => TryParseHexVk(token),
+            _ => TryParseNamedKey(token) ?? TryParseHexVk(token),
         };
+    }
+
+    private static uint? TryParseNamedKey(string token)
+    {
+        foreach (var (vk, name) in HotkeyDisplay.MediaKeys.Concat(HotkeyDisplay.MouseButtons))
+            if (string.Equals(name, token, StringComparison.OrdinalIgnoreCase)) return vk;
+        return null;
     }
 
     /// <summary>Fallback for unknown keys: HotkeyDisplay emits <c>"VK 0xNN"</c> for codes it

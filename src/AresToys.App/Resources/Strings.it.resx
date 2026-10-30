@@ -535,6 +535,19 @@
   <data name="WorkflowEditor_PickFileTooltip" xml:space="preserve"><value>Scegli un file…</value></data>
   <data name="WorkflowEditor_PickFolderTooltip" xml:space="preserve"><value>Scegli una cartella…</value></data>
   <data name="WorkflowEditor_CaptureHotkeyTooltip" xml:space="preserve"><value>Cattura una combinazione di tasti…</value></data>
+  <data name="KeyPicker_Title" xml:space="preserve"><value>Scegli un tasto</value></data>
+  <data name="KeyPicker_Modifiers" xml:space="preserve"><value>Modificatori</value></data>
+  <data name="KeyPicker_Key" xml:space="preserve"><value>Tasto</value></data>
+  <data name="KeyPicker_Search" xml:space="preserve"><value>Cerca un tasto (F24, volume, home…)</value></data>
+  <data name="KeyPicker_GroupFunction" xml:space="preserve"><value>Tasti funzione</value></data>
+  <data name="KeyPicker_GroupLetters" xml:space="preserve"><value>Lettere</value></data>
+  <data name="KeyPicker_GroupDigits" xml:space="preserve"><value>Cifre</value></data>
+  <data name="KeyPicker_GroupNavigation" xml:space="preserve"><value>Navigazione e modifica</value></data>
+  <data name="KeyPicker_GroupNumpad" xml:space="preserve"><value>Tastierino numerico</value></data>
+  <data name="KeyPicker_GroupPunctuation" xml:space="preserve"><value>Punteggiatura</value></data>
+  <data name="KeyPicker_GroupMedia" xml:space="preserve"><value>Tasti multimediali, browser e avvio</value></data>
+  <data name="KeyPicker_GroupMouse" xml:space="preserve"><value>Pulsanti del mouse</value></data>
+  <data name="WorkflowEditor_PickKeyTooltip" xml:space="preserve"><value>Scegli tasto e modificatori da un elenco…</value></data>
   <data name="WorkflowEditor_AddStepSearchPlaceholder" xml:space="preserve"><value>Cerca task…</value></data>
   <data name="WorkflowEditor_RemoveStepTooltip" xml:space="preserve"><value>Rimuovi questo passaggio dal workflow</value></data>
   <data name="WorkflowEditor_DuplicateStepTooltip" xml:space="preserve"><value>Duplica questo passaggio (inserito subito sotto)</value></data>

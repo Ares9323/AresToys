@@ -79,7 +79,36 @@ public static class HotkeyDisplay
             // Shift-left and Z on italian, german, etc.). On italian layout it's the `<` key;
             // we label it generically since the same VK is used across many layouts.
             0xE2 => "< / >",
-            _ => $"VK 0x{vk:X2}",
+            _ => NamedKey(vk) ?? $"VK 0x{vk:X2}",
         };
+    }
+
+    /// <summary>Browser, volume, media and launch keys (VK_BROWSER_BACK..VK_LAUNCH_APP2). Keyboards
+    /// send them but most cannot be recorded in a capture dialog, so the key picker lists them by
+    /// these names and <see cref="KeyComboParser"/> reads the same names back.</summary>
+    public static readonly (uint Vk, string Name)[] MediaKeys =
+    [
+        (0xA6, "Browser Back"), (0xA7, "Browser Forward"), (0xA8, "Browser Refresh"), (0xA9, "Browser Stop"),
+        (0xAA, "Browser Search"), (0xAB, "Browser Favorites"), (0xAC, "Browser Home"),
+        (0xAD, "Volume Mute"), (0xAE, "Volume Down"), (0xAF, "Volume Up"),
+        (0xB0, "Next Track"), (0xB1, "Previous Track"), (0xB2, "Stop Media"), (0xB3, "Play/Pause"),
+        (0xB4, "Launch Mail"), (0xB5, "Select Media"), (0xB6, "Launch App 1"), (0xB7, "Launch App 2"),
+    ];
+
+    /// <summary>Mouse buttons, sent as a click at the current pointer position. They sit in the same
+    /// (modifiers, vk) slot as a key, using the Win32 VK_LBUTTON..VK_XBUTTON2 codes, so a combo such as
+    /// Ctrl + Left Click needs no second format.</summary>
+    public static readonly (uint Vk, string Name)[] MouseButtons =
+    [
+        (0x01, "Left Click"), (0x02, "Right Click"), (0x04, "Middle Click"), (0x05, "Mouse Button 4"), (0x06, "Mouse Button 5"),
+    ];
+
+    public static bool IsMouseButton(uint vk) => MouseButtons.Any(b => b.Vk == vk);
+
+    private static string? NamedKey(uint vk)
+    {
+        foreach (var (key, name) in MediaKeys) if (key == vk) return name;
+        foreach (var (key, name) in MouseButtons) if (key == vk) return name;
+        return null;
     }
 }

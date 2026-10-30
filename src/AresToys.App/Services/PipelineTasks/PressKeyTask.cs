@@ -133,8 +133,16 @@ public sealed class PressKeyTask : IPipelineTask
         if ((modifiers & HotkeyModifiers.Shift)   != 0) inputs.Add(KeyInjector.MakeKey(AppNativeMethods.VkLShift,  false));
         if ((modifiers & HotkeyModifiers.Win)     != 0) inputs.Add(KeyInjector.MakeKey(AppNativeMethods.VkLWin,    false));
 
-        inputs.Add(KeyInjector.MakeKey(vk, keyUp: false));
-        inputs.Add(KeyInjector.MakeKey(vk, keyUp: true));
+        if (HotkeyDisplay.IsMouseButton(vk))
+        {
+            inputs.Add(MakeMouse(vk, up: false));
+            inputs.Add(MakeMouse(vk, up: true));
+        }
+        else
+        {
+            inputs.Add(KeyInjector.MakeKey(vk, keyUp: false));
+            inputs.Add(KeyInjector.MakeKey(vk, keyUp: true));
+        }
 
         // Reverse order on release so the modifier chord is symmetrical.
         if ((modifiers & HotkeyModifiers.Win)     != 0) inputs.Add(KeyInjector.MakeKey(AppNativeMethods.VkLWin,    true));
@@ -144,5 +152,23 @@ public sealed class PressKeyTask : IPipelineTask
 
         var arr = inputs.ToArray();
         AppNativeMethods.SendInput((uint)arr.Length, arr, Marshal.SizeOf<AppNativeMethods.INPUT>());
+    }
+
+    /// <summary>One mouse button edge at the current pointer position (no movement).</summary>
+    private static AppNativeMethods.INPUT MakeMouse(ushort vk, bool up)
+    {
+        const uint LeftDown = 0x0002, LeftUp = 0x0004, RightDown = 0x0008, RightUp = 0x0010,
+                   MiddleDown = 0x0020, MiddleUp = 0x0040, XDown = 0x0080, XUp = 0x0100;
+        var (flags, data) = vk switch
+        {
+            0x01 => (up ? LeftUp : LeftDown, 0u),
+            0x02 => (up ? RightUp : RightDown, 0u),
+            0x04 => (up ? MiddleUp : MiddleDown, 0u),
+            0x05 => (up ? XUp : XDown, 1u),
+            _ => (up ? XUp : XDown, 2u),
+        };
+        var input = new AppNativeMethods.INPUT { type = 0 };
+        input.u.mi = new AppNativeMethods.MOUSEINPUT { dwFlags = flags, mouseData = data };
+        return input;
     }
 }
