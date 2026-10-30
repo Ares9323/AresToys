@@ -63,9 +63,16 @@ public sealed class KeyboardHook : IDisposable
     private readonly LowLevelKeyboardProc _hookProc;
     private IntPtr _hookHandle = IntPtr.Zero;
 
+    private readonly LowLevelKeyboardProc _mouseProc;
+    private IntPtr _mouseHookHandle = IntPtr.Zero;
+    /// <summary>Mouse buttons whose press was swallowed for a binding: the release is swallowed too.</summary>
+    private readonly HashSet<uint> _suppressedMouseUps = [];
+    private readonly object _suppressedMouseUpsLock = new();
+
     public KeyboardHook()
     {
         _hookProc = HookProc; // keep delegate rooted so the GC doesn't move/collect it
+        _mouseProc = MouseHookProc;
     }
 
     /// <summary>Register or replace a key combination by id. <paramref name="callback"/> runs on the
@@ -146,6 +153,8 @@ public sealed class KeyboardHook : IDisposable
         {
             throw new InvalidOperationException($"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
         }
+        // Mouse bindings are an extra: if this hook cannot be installed the keyboard ones still work.
+        _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(null!), 0);
     }
 
     public void Uninstall()
@@ -154,6 +163,92 @@ public sealed class KeyboardHook : IDisposable
         {
             _ = UnhookWindowsHookEx(_hookHandle);
             _hookHandle = IntPtr.Zero;
+        }
+        if (_mouseHookHandle != IntPtr.Zero)
+        {
+            _ = UnhookWindowsHookEx(_mouseHookHandle);
+            _mouseHookHandle = IntPtr.Zero;
+        }
+    }
+
+    /// <summary>Mouse buttons use the same binding slot as keys, with the virtual key codes Windows gives them
+    /// (0x01 left, 0x02 right, 0x04 middle, 0x05 and 0x06 the side buttons), so a mouse click can start a
+    /// workflow like any other hotkey. Only genuine clicks match, never the ones SendInput produces.
+    /// The left button needs a modifier: bound alone it would take over every click on the desktop and leave
+    /// no way to undo the binding. Right alone is allowed when the user binds it on purpose.</summary>
+    private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode < 0) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+        if ((data.flags & LLMHF_INJECTED) != 0)
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        var msg = (int)wParam.ToInt64();
+        uint vk;
+        bool isDown;
+        switch (msg)
+        {
+            case WM_LBUTTONDOWN: vk = 0x01; isDown = true; break;
+            case WM_LBUTTONUP:   vk = 0x01; isDown = false; break;
+            case WM_RBUTTONDOWN: vk = 0x02; isDown = true; break;
+            case WM_RBUTTONUP:   vk = 0x02; isDown = false; break;
+            case WM_MBUTTONDOWN: vk = 0x04; isDown = true; break;
+            case WM_MBUTTONUP:   vk = 0x04; isDown = false; break;
+            case WM_XBUTTONDOWN:
+            case WM_XBUTTONUP:
+                vk = (data.mouseData >> 16) == 2 ? 0x06u : 0x05u;
+                isDown = msg == WM_XBUTTONDOWN;
+                break;
+            default:
+                return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        if (!isDown)
+        {
+            bool wasSuppressed;
+            lock (_suppressedMouseUpsLock) wasSuppressed = _suppressedMouseUps.Remove(vk);
+            return wasSuppressed ? (IntPtr)1 : CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        var modifiers = ReadModifiers();
+        if (vk == 0x01 && modifiers == HotkeyModifiers.None)
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        HookBinding? matched = null;
+        lock (_bindingsLock)
+        {
+            foreach (var b in _bindings.Values)
+            {
+                if (b.VkCode == vk && b.Modifiers == modifiers && (b.When is null || b.When()))
+                {
+                    matched = b;
+                    break;
+                }
+            }
+        }
+        if (matched is null) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        FireCallback(matched);
+        if (!matched.Suppress) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        lock (_suppressedMouseUpsLock) _suppressedMouseUps.Add(vk);
+        if ((matched.Modifiers & HotkeyModifiers.Win) != 0) InjectDummyKey();
+        return (IntPtr)1;
+    }
+
+    /// <summary>Test-only seam: drive <see cref="MouseHookProc"/> with a synthetic mouse message.</summary>
+    internal int InvokeMouseHookForTest(int message, uint mouseData)
+    {
+        var lParam = Marshal.AllocHGlobal(Marshal.SizeOf<MSLLHOOKSTRUCT>());
+        try
+        {
+            Marshal.StructureToPtr(new MSLLHOOKSTRUCT { mouseData = mouseData }, lParam, false);
+            return MouseHookProc(0, (IntPtr)message, lParam) == (IntPtr)1 ? 1 : 0;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(lParam);
         }
     }
 
@@ -455,6 +550,28 @@ public sealed class KeyboardHook : IDisposable
     }
 
     private const int WH_KEYBOARD_LL = 13;
+    private const int WH_MOUSE_LL = 14;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_LBUTTONUP = 0x0202;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_RBUTTONUP = 0x0205;
+    private const int WM_MBUTTONDOWN = 0x0207;
+    private const int WM_MBUTTONUP = 0x0208;
+    private const int WM_XBUTTONDOWN = 0x020B;
+    private const int WM_XBUTTONUP = 0x020C;
+    private const uint LLMHF_INJECTED = 0x00000001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public int x;
+        public int y;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
     // Exposed as internal so the test seam can drive HookProc with the canonical message ids
     // (single source of truth — keeps tests honest if a refactor ever changes these).
     internal const int WM_KEYDOWN = 0x0100;

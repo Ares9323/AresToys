@@ -4,7 +4,7 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:Markup="clr-namespace:AresToys.App.Markup"
         Title=""
-        Width="460" Height="240"
+        Width="560" Height="260"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -50,12 +50,13 @@
                                    Foreground="{DynamicResource AccentForegroundBrush}"
                                    HorizontalAlignment="Center" />
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                   Margin="0,8,0,0" HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                                    Text="{Markup:Loc HotkeyCapture_Hint}" />
                     </StackPanel>
                 </Border>
                 <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -66,8 +67,10 @@
                     <ui:Button Grid.Column="0" x:Name="ResetButton" Content="{Markup:Loc HotkeyCapture_ResetToDefault}"
                                HorizontalAlignment="Left" Margin="0,0,8,0" />
                     <ui:Button Grid.Column="1" x:Name="ClearButton" Content="{Markup:Loc HotkeyCapture_ClearBinding}"
+                               HorizontalAlignment="Left" Margin="0,0,8,0" />
+                    <ui:Button Grid.Column="2" x:Name="PickButton" Content="{Markup:Loc HotkeyCapture_PickFromList}"
                                HorizontalAlignment="Left" />
-                    <ui:Button Grid.Column="3" x:Name="CancelButton" Content="{Markup:Loc Common_Cancel}" />
+                    <ui:Button Grid.Column="4" x:Name="CancelButton" Content="{Markup:Loc Common_Cancel}" />
                 </Grid>
             </Grid>
         </Grid>

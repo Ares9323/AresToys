@@ -3443,6 +3443,7 @@ namespace AresToys.App.Resources {
         public static string HotkeyCapture_BrandTitle => ResourceManager.GetString("HotkeyCapture_BrandTitle", resourceCulture);
         public static string HotkeyCapture_Heading => ResourceManager.GetString("HotkeyCapture_Heading", resourceCulture);
         public static string HotkeyCapture_Hint => ResourceManager.GetString("HotkeyCapture_Hint", resourceCulture);
+        public static string HotkeyCapture_PickFromList => ResourceManager.GetString("HotkeyCapture_PickFromList", resourceCulture);
         public static string IconPicker_Title => ResourceManager.GetString("IconPicker_Title", resourceCulture);
         public static string IconPicker_Hint => ResourceManager.GetString("IconPicker_Hint", resourceCulture);
         public static string IconPicker_ClearButton => ResourceManager.GetString("IconPicker_ClearButton", resourceCulture);

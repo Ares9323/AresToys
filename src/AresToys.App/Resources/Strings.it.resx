@@ -590,7 +590,8 @@
   <data name="Settings_BackupImportTooltip" xml:space="preserve"><value>Carica le impostazioni da un file JSON esportato in precedenza. I valori esistenti vengono sovrascritti; le impostazioni non presenti nel file restano invariate.</value></data>
   <data name="HotkeyCapture_BrandTitle" xml:space="preserve"><value>AresToys - Imposta scorciatoia</value></data>
   <data name="HotkeyCapture_Heading" xml:space="preserve"><value>Premi una combinazione di tasti</value></data>
-  <data name="HotkeyCapture_Hint" xml:space="preserve"><value>Tieni premuti i modificatori (Ctrl / Alt / Shift / Win) poi premi un tasto. Esc annulla.</value></data>
+  <data name="HotkeyCapture_Hint" xml:space="preserve"><value>Tieni premuti i modificatori (Ctrl / Alt / Shift / Win) poi premi un tasto o un pulsante del mouse (destro, centrale e laterali funzionano anche da soli, il sinistro vuole un modificatore). Esc annulla.</value></data>
+  <data name="HotkeyCapture_PickFromList" xml:space="preserve"><value>Scegli da elenco…</value></data>
   <data name="IconPicker_Title" xml:space="preserve"><value>Scegli un'icona</value></data>
   <data name="IconPicker_Hint" xml:space="preserve"><value>Digita per filtrare; passa il mouse per il nome FontAwesome; clicca per selezionare.</value></data>
   <data name="IconPicker_ClearButton" xml:space="preserve"><value>Rimuovi</value></data>

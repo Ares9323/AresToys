@@ -605,7 +605,8 @@
   <data name="Settings_BackupImportTooltip" xml:space="preserve"><value>Load settings from a previously-exported JSON file. Existing values get overwritten; settings not in the file stay untouched.</value></data>
   <data name="HotkeyCapture_BrandTitle" xml:space="preserve"><value>AresToys - Set hotkey</value></data>
   <data name="HotkeyCapture_Heading" xml:space="preserve"><value>Press a key combination</value></data>
-  <data name="HotkeyCapture_Hint" xml:space="preserve"><value>Hold modifiers (Ctrl / Alt / Shift / Win) then press a key. Esc cancels.</value></data>
+  <data name="HotkeyCapture_Hint" xml:space="preserve"><value>Hold modifiers (Ctrl / Alt / Shift / Win) then press a key or a mouse button (right, middle and side buttons work alone, left needs a modifier). Esc cancels.</value></data>
+  <data name="HotkeyCapture_PickFromList" xml:space="preserve"><value>Pick from list…</value></data>
   <data name="IconPicker_Title" xml:space="preserve"><value>Pick an icon</value></data>
   <data name="IconPicker_Hint" xml:space="preserve"><value>Type to filter; hover for the FontAwesome name; click to select.</value></data>
   <data name="IconPicker_ClearButton" xml:space="preserve"><value>Clear</value></data>

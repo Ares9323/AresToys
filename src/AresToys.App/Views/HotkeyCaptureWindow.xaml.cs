@@ -16,6 +16,9 @@ public partial class HotkeyCaptureWindow : Wpf.Ui.Controls.FluentWindow
 
     private IntPtr _hookHandle = IntPtr.Zero;
     private LowLevelKeyboardProc? _hookProc;
+    private IntPtr _mouseHookHandle = IntPtr.Zero;
+    private LowLevelKeyboardProc? _mouseProc;
+    private readonly HashSet<uint> _capturedMouseUps = [];
 
     public HotkeyCaptureWindow(bool canReset = false)
     {
@@ -31,6 +34,7 @@ public partial class HotkeyCaptureWindow : Wpf.Ui.Controls.FluentWindow
         Loaded += (_, _) => InstallHook();
         Closed += (_, _) => UninstallHook();
         CancelButton.Click += (_, _) => { DialogResult = false; Close(); };
+        PickButton.Click += (_, _) => OnPickFromList();
         ClearButton.Click += (_, _) =>
         {
             ClearRequested = true;
@@ -63,14 +67,93 @@ public partial class HotkeyCaptureWindow : Wpf.Ui.Controls.FluentWindow
     {
         _hookProc = HookProc;
         _hookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, _hookProc, GetModuleHandle(null!), 0);
+        _mouseProc = MouseHookProc;
+        _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(null!), 0);
     }
 
     private void UninstallHook()
     {
+        if (_mouseHookHandle != IntPtr.Zero)
+        {
+            _ = UnhookWindowsHookEx(_mouseHookHandle);
+            _mouseHookHandle = IntPtr.Zero;
+            _mouseProc = null;
+        }
         if (_hookHandle == IntPtr.Zero) return;
         _ = UnhookWindowsHookEx(_hookHandle);
         _hookHandle = IntPtr.Zero;
         _hookProc = null;
+    }
+
+    // Right, side and middle buttons are taken as the key. Left stays a normal click (the dialog's own buttons
+    // need it) unless a modifier is held, so Ctrl+Left Click can be recorded.
+    private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode < 0) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+        if ((data.flags & LLMHF_INJECTED) != 0)
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        var msg = (int)wParam.ToInt64();
+        uint vk;
+        bool isDown;
+        switch (msg)
+        {
+            case WM_LBUTTONDOWN: vk = 0x01; isDown = true; break;
+            case WM_LBUTTONUP:   vk = 0x01; isDown = false; break;
+            case WM_RBUTTONDOWN: vk = 0x02; isDown = true; break;
+            case WM_RBUTTONUP:   vk = 0x02; isDown = false; break;
+            case WM_MBUTTONDOWN: vk = 0x04; isDown = true; break;
+            case WM_MBUTTONUP:   vk = 0x04; isDown = false; break;
+            case WM_XBUTTONDOWN:
+            case WM_XBUTTONUP:
+                vk = (data.mouseData >> 16) == 2 ? 0x06u : 0x05u;
+                isDown = msg == WM_XBUTTONDOWN;
+                break;
+            default:
+                return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        var plain = vk == 0x01 && _liveModifiers == HotkeyModifiers.None;
+        if (plain && !_capturedMouseUps.Contains(vk))
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
+        if (!isDown)
+        {
+            // The release of a captured press is swallowed; a stray release of anything else passes.
+            return _capturedMouseUps.Remove(vk) ? (IntPtr)1 : CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        _capturedMouseUps.Add(vk);
+        var modifiers = _liveModifiers;
+        Dispatcher.BeginInvoke(() =>
+        {
+            CapturedModifiers = modifiers;
+            CapturedVirtualKey = vk;
+            DialogResult = true;
+            Close();
+        });
+        return (IntPtr)1;
+    }
+
+    // Keys a keyboard may not have (F13-F24, media) and mouse buttons come from the list. The capture hook would
+    // swallow the typing in its search box, so it is lifted while the picker is open.
+    private void OnPickFromList()
+    {
+        UninstallHook();
+        var picker = new KeyPickerWindow(null) { Owner = this };
+        if (picker.ShowDialog() == true && picker.VirtualKey != 0)
+        {
+            CapturedModifiers = picker.Modifiers;
+            CapturedVirtualKey = picker.VirtualKey;
+            DialogResult = true;
+            Close();
+            return;
+        }
+        _liveModifiers = HotkeyModifiers.None;
+        UpdatePreview();
+        InstallHook();
     }
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -148,7 +231,28 @@ public partial class HotkeyCaptureWindow : Wpf.Ui.Controls.FluentWindow
         public IntPtr dwExtraInfo;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public int x;
+        public int y;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
     private const int WH_KEYBOARD_LL = 13;
+    private const int WH_MOUSE_LL = 14;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_LBUTTONUP = 0x0202;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_RBUTTONUP = 0x0205;
+    private const int WM_MBUTTONDOWN = 0x0207;
+    private const int WM_MBUTTONUP = 0x0208;
+    private const int WM_XBUTTONDOWN = 0x020B;
+    private const int WM_XBUTTONUP = 0x020C;
+    private const uint LLMHF_INJECTED = 0x00000001;
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_KEYUP = 0x0101;
     private const int WM_SYSKEYDOWN = 0x0104;

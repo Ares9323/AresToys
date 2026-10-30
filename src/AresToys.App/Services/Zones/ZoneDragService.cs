@@ -15,6 +15,8 @@ namespace AresToys.App.Services.Zones;
 public sealed class ZoneDragService : IDisposable
 {
     private const int TickMilliseconds = 16;
+    /// <summary>Size before the first snap of the window being dragged; applied or handed to the next zone on drop.</summary>
+    private PixelRect? _pendingOriginal;
     private const long ButtonUpGraceMilliseconds = 500;
     private const int PlaceAttempts = 3;
     private const int RestoreTolerance = 8;
@@ -252,7 +254,7 @@ public sealed class ZoneDragService : IDisposable
 
         _dragWindow = hwnd;
         ResetToggleInputs();
-        RestoreOriginalSize(hwnd);
+        TakeOriginalSize(hwnd);
         _timer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(TickMilliseconds) };
         _timer.Tick += OnTick;
         _timer.Start();
@@ -324,10 +326,15 @@ public sealed class ZoneDragService : IDisposable
             if (!union.IsEmpty) target = union;
         }
 
+        var original = _pendingOriginal;
         EndDrag();
-        if (target is not { } zone) return;
+        if (target is not { } zone)
+        {
+            if (original is { } size && IsWindow(hwnd)) ApplyOriginalSize(hwnd, size);
+            return;
+        }
 
-        MoveIntoZone(hwnd, zone);
+        MoveIntoZone(hwnd, zone, original);
         if (IsWindow(hwnd) && snap.Monitor is { } monitor && ResolveLayout(_store, monitor.Id) is { } layout)
         {
             _tracker.Assign(hwnd, layout.Id, snap.Indexes, monitor.Id);
@@ -339,6 +346,7 @@ public sealed class ZoneDragService : IDisposable
         // Put the window back first: this is the one cleanup every exit path (drop, Escape, error, Stop) goes through.
         RestoreDragWindow();
         _dragWindow = 0;
+        _pendingOriginal = null;
         _lastTickHighlighted = false;
         _buttonUpSince = 0;
         _activationToggled = false;
@@ -545,17 +553,16 @@ public sealed class ZoneDragService : IDisposable
     /// <summary>When the window was snapped earlier and still has the bounds it was placed at, puts it back to
     /// the size it had before the first snap, keeping the cursor at the same horizontal proportion and the same
     /// vertical offset inside it. A window resized by hand since the snap just loses its record.</summary>
-    private void RestoreOriginalSize(nint hwnd)
+    private void TakeOriginalSize(nint hwnd)
     {
+        _pendingOriginal = null;
         if (!_snapRecords.TryGetValue(hwnd, out var record)) return;
         ReleaseSnapRecord(hwnd);
 
-        // Without a recorded size (the window was maximized when first snapped) or with the option off the
-        // record is just dropped.
+        // Without a recorded size or with the option off the record is just dropped.
         if (!_options.RestoreSizeOnUnsnap || record.OriginalBounds is not { } original) return;
 
-        if (!GetWindowRect(hwnd, out var now) || !GetCursorPos(out var cursor)) return;
-        if (IsZoomed(hwnd)) return;
+        if (!GetWindowRect(hwnd, out var now) || IsZoomed(hwnd)) return;
 
         var snapped = record.SnappedBounds;
         if (Math.Abs(now.Left - snapped.Left) > RestoreTolerance || Math.Abs(now.Top - snapped.Top) > RestoreTolerance
@@ -563,6 +570,17 @@ public sealed class ZoneDragService : IDisposable
         {
             return;
         }
+
+        // The window keeps its snapped size while it is dragged: the system's move loop puts that size back on
+        // every move if it is changed mid drag (it flickered). The size is applied when it is dropped, as PowerToys does.
+        _pendingOriginal = original;
+    }
+
+    /// <summary>The window was dropped outside any zone: gives it the size it had before the first snap.</summary>
+    private void ApplyOriginalSize(nint hwnd, PixelRect original)
+    {
+        if (!GetWindowRect(hwnd, out var now) || !GetCursorPos(out var cursor)) return;
+        if (IsZoomed(hwnd)) return;
 
         var width = original.Width;
         var height = original.Height;
@@ -652,19 +670,22 @@ public sealed class ZoneDragService : IDisposable
     /// <summary>Places the window so its visible frame fills the zone. The invisible resize border of a
     /// window is measured (extended frame bounds against the window rect) and added to the rect; the check
     /// is repeated because a window crossing to a monitor with another DPI may resize itself on arrival.</summary>
-    private void MoveIntoZone(nint hwnd, PixelRect zone)
+    private void MoveIntoZone(nint hwnd, PixelRect zone) => MoveIntoZone(hwnd, zone, null);
+
+    /// <param name="inheritedOriginal">The size the window had before its first snap, when it is moved from one zone to another.</param>
+    private void MoveIntoZone(nint hwnd, PixelRect zone, PixelRect? inheritedOriginal)
     {
         if (!IsWindow(hwnd) || IsIconic(hwnd)) return;
 
-        // The size before the first snap is kept; a maximized window is not recorded.
-        var wasZoomed = IsZoomed(hwnd);
-        PixelRect? original = null;
-        if (!wasZoomed && !_snapRecords.ContainsKey(hwnd) && GetWindowRect(hwnd, out var before))
+        // The size before the first snap is kept. A maximized window is restored first: its normal size is
+        // what it goes back to when it leaves the zone.
+        if (IsZoomed(hwnd)) ShowWindow(hwnd, SwRestore);
+        PixelRect? original = inheritedOriginal;
+        if (original is null && !_snapRecords.ContainsKey(hwnd) && GetWindowRect(hwnd, out var before))
         {
             original = new PixelRect(before.Left, before.Top, before.Right, before.Bottom);
         }
 
-        if (wasZoomed) ShowWindow(hwnd, SwRestore);
         PlaceInZone(hwnd, zone);
 
         var corners = _options.DisableRoundedCorners;
