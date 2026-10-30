@@ -678,18 +678,23 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0) return;
 
+        MapPathOntoCell(existing, paths[0]);
+        e.Handled = true;
+    }
+
+    private void MapPathOntoCell(LauncherCell existing, string dropped)
+    {
         // First item only — a multi-file drop on a single cell would be ambiguous. What lands in
         // the cell isn't always what was dropped: a .lnk is unwrapped to its target and arguments,
         // and a Start-menu packaged app arrives as a bare AppUserModelID. See LauncherDropTarget.
-        var target = LauncherDropTarget.Resolve(paths[0]);
+        var target = LauncherDropTarget.Resolve(dropped);
         var updated = new LauncherCell(
             existing.TabKey, existing.KeyChar, target.Label, target.Path, target.Arguments,
             RunAsAdmin: target.RunAsAdmin, WindowMode: target.WindowMode,
             IconPath: target.IconPath, IconIndex: target.IconIndex);
         _logger.LogInformation("Launcher: dropped {Dropped} onto {Key} → path '{Path}' args '{Args}' label '{Label}'",
-            paths[0], existing.ComposedKey, target.Path, target.Arguments, target.Label);
+            dropped, existing.ComposedKey, target.Path, target.Arguments, target.Label);
         _ = PersistCellAndReloadAsync(updated);
-        e.Handled = true;
     }
 
     /// <summary>Persist a pair of swapped cells in one go. Two sequential UpdateCellAsync
@@ -954,13 +959,39 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         var cell = CellFromMenuItem(sender);
         if (cell is null || !cell.IsConfigured) return;
         _cellClipboard = cell;
+        _cellClipboardSequence = GetClipboardSequenceNumber();
         _logger.LogDebug("Launcher: copied cell {Key} to internal clipboard", cell.ComposedKey);
+    }
+
+    /// <summary>Windows clipboard sequence number when the cell was copied: a different one at paste
+    /// time means something was copied outside the launcher since.</summary>
+    private static uint _cellClipboardSequence;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetClipboardSequenceNumber();
+
+    // Files copied in Explorer after the last cell copy win over the copied cell. First file only,
+    // like a drop. A busy clipboard counts as no files.
+    private bool TryPasteFile(LauncherCell target)
+    {
+        if (_cellClipboard is not null && GetClipboardSequenceNumber() == _cellClipboardSequence) return false;
+        try
+        {
+            if (!System.Windows.Clipboard.ContainsFileDropList()) return false;
+            var files = System.Windows.Clipboard.GetFileDropList();
+            if (files.Count == 0 || files[0] is not { Length: > 0 } first) return false;
+            MapPathOntoCell(target, first);
+            return true;
+        }
+        catch (System.Runtime.InteropServices.COMException) { return false; }
     }
 
     private void OnMenuPaste(object sender, RoutedEventArgs e)
     {
         var target = CellFromMenuItem(sender);
-        if (target is null || _cellClipboard is null) return;
+        if (target is null) return;
+        if (TryPasteFile(target)) return;
+        if (_cellClipboard is null) return;
         // Preserve the destination's TabKey + KeyChar (a paste shouldn't move the data into
         // some other slot than the one the user picked). Everything else carries over.
         var pasted = _cellClipboard with { TabKey = target.TabKey, KeyChar = target.KeyChar };

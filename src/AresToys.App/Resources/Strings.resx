@@ -1532,7 +1532,8 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="NewPlus_HideExtension" xml:space="preserve"><value>Hide the file extension in template names</value></data>
   <data name="NewPlus_HideDigits" xml:space="preserve"><value>Hide leading digits, spaces, and dots in template filenames</value></data>
   <data name="NewPlus_HideDigitsHint" xml:space="preserve"><value>Ignores digits, spaces, and dots at the start of filenames: useful for sorting templates without showing those characters.</value></data>
-  <data name="NewPlus_HideBuiltIn" xml:space="preserve"><value>Hide the built-in "New" context menu</value></data>
+  <data name="NewPlus_HideBuiltIn" xml:space="preserve"><value>Hide the built-in "New" context menu (AresToys then handles Ctrl+Shift+N, and must be running)</value></data>
+  <data name="NewPlus_DefaultFolderName" xml:space="preserve"><value>New folder</value></data>
   <data name="NewPlus_BuiltInError" xml:space="preserve"><value>Couldn't update the built-in "New" context menu setting.</value></data>
   <data name="NewPlus_Behavior" xml:space="preserve"><value>Behavior</value></data>
   <data name="NewPlus_ReplaceVariables" xml:space="preserve"><value>Replace variables in template filename</value></data>

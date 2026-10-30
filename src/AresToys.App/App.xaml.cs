@@ -202,6 +202,7 @@ public partial class App : Application
                     new NotifyingPipelineProfileStore(ActivatorUtilities.CreateInstance<SqlitePipelineProfileStore>(sp)));
                 services.AddSingleton<IPipelineProfileStore>(sp => sp.GetRequiredService<NotifyingPipelineProfileStore>());
                 services.AddSingleton<ResizerContextMenuSync>();
+                services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusFolderShortcut>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>();
                 services.AddAresToysPlugins();
                 services.AddAresToysEditor();

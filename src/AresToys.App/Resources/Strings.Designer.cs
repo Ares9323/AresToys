@@ -10331,6 +10331,10 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("NewPlus_HideBuiltIn", resourceCulture); }
         }
 
+        public static string NewPlus_DefaultFolderName {
+            get { return ResourceManager.GetString("NewPlus_DefaultFolderName", resourceCulture); }
+        }
+
         public static string NewPlus_BuiltInError {
             get { return ResourceManager.GetString("NewPlus_BuiltInError", resourceCulture); }
         }

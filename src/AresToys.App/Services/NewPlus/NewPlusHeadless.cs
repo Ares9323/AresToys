@@ -53,13 +53,15 @@ internal static class NewPlusHeadless
     internal static bool TryRun(string[] args)
     {
         if (!TryParse(args, out var request)) return false;
+        // Taken before anything slow: this is the window the menu was opened in.
+        var foreground = NewPlusExplorer.ForegroundRoot();
         try
         {
             var settings = new NewPlusSettings(true, string.Empty, false, request.HideStartingDigits, request.ReplaceVariables, false);
             var created = NewPlusService.Create(request.Template, request.Folder, settings);
             NewPlusNative.NotifyCreated(created);
             // The rename thread is a background one: the process must not exit before it ends.
-            NewPlusExplorer.BeginRename(created).Join(RenameWait);
+            NewPlusExplorer.BeginRename(created, foreground).Join(RenameWait);
         }
         catch (Exception ex)
         {
