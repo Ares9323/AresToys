@@ -7248,6 +7248,15 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WindowSnappingTab_NewWindowsLastZone", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remember the zone by window title too.
+        /// </summary>
+        public static string WindowSnappingTab_NewWindowsMatchTitle {
+            get {
+                return ResourceManager.GetString("WindowSnappingTab_NewWindowsMatchTitle", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Move newly created windows to the current active monitor (experimental).

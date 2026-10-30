@@ -27,6 +27,32 @@ public sealed class ZoneWindowTracker : IDisposable
     private const int SaveDebounceMilliseconds = 1000;
     private const int NewWindowDelayMilliseconds = 250;
     private const int MaxHistoryEntries = 256;
+
+    // A remembered window title is stored next to the app entry as "path", this separator, "title" (lower case).
+    // They are capped on their own so a title that keeps changing cannot push the app entries out.
+    private const char TitleSeparator = '\n';
+    private const int TitlePollMilliseconds = 300;
+    private const int TitleStableMilliseconds = 900;
+    private const int TitleWaitMilliseconds = 6000;
+    private const int MaxTitleEntries = 128;
+
+    /// <summary>Lower case, without the status symbols some apps put in front of a caption (a spinner or a
+    /// star before the tab name), so the same tab matches whichever symbol it shows at the moment.</summary>
+    internal static string NormalizeTitle(string title)
+    {
+        var text = title.Trim();
+        var start = 0;
+        while (start < text.Length && !char.IsLetterOrDigit(text[start])) start++;
+        return text[start..].ToLowerInvariant();
+    }
+
+    private static string TitleKey(string path, string title) => path.ToLowerInvariant() + TitleSeparator + title;
+
+    /// <summary>True when the two (lower case) titles are the same or one contains the other. An empty title
+    /// matches nothing: a window that has no caption yet is placed by its app.</summary>
+    internal static bool TitlesMatch(string remembered, string current)
+        => remembered.Length > 0 && current.Length > 0
+            && (current.Contains(remembered, StringComparison.Ordinal) || remembered.Contains(current, StringComparison.Ordinal));
     private const int HandledPruneThreshold = 256;
 
     private readonly ZoneLayoutStore _store;
@@ -190,15 +216,25 @@ public sealed class ZoneWindowTracker : IDisposable
         var path = GetProcessPath(hwnd);
         if (string.IsNullOrEmpty(path)) return;
 
+        var title = _options.MatchNewWindowsByTitle ? NormalizeTitle(GetWindowTitle(hwnd)) : string.Empty;
+
         lock (_historyLock)
         {
-            _history[path.ToLowerInvariant()] = new HistoryEntry
+            var entry = new HistoryEntry
             {
                 LayoutId = layoutId,
                 Zones = indexes,
                 MonitorId = monitorId,
                 Stamp = DateTime.UtcNow.Ticks,
             };
+            _history[path.ToLowerInvariant()] = entry;
+            if (title.Length > 0)
+            {
+                _history[TitleKey(path, title)] = entry;
+                var titled = _history.Where(e => e.Key.Contains(TitleSeparator)).OrderBy(e => e.Value.Stamp).ToList();
+                foreach (var old in titled.Take(Math.Max(0, titled.Count - MaxTitleEntries))) _history.Remove(old.Key);
+            }
+
             _historyDirty = true;
         }
 
@@ -390,8 +426,33 @@ public sealed class ZoneWindowTracker : IDisposable
             {
                 Interval = TimeSpan.FromMilliseconds(NewWindowDelayMilliseconds),
             };
+            // With the title option on, a terminal opens under a generic caption and its tab is named a moment
+            // later: the window waits until the caption has changed and stayed put, or the wait runs out.
+            var byTitle = _options.MoveNewWindowsToLastZone && _options.MatchNewWindowsByTitle;
+            var started = Environment.TickCount64;
+            var firstTitle = byTitle ? GetWindowTitle(hwnd) : string.Empty;
+            var lastTitle = firstTitle;
+            var stableSince = started;
             timer.Tick += (_, _) =>
             {
+                if (byTitle && IsWindow(hwnd))
+                {
+                    var now = Environment.TickCount64;
+                    var title = GetWindowTitle(hwnd);
+                    if (title != lastTitle)
+                    {
+                        lastTitle = title;
+                        stableSince = now;
+                    }
+
+                    var settled = title != firstTitle && now - stableSince >= TitleStableMilliseconds;
+                    if (!settled && now - started < TitleWaitMilliseconds)
+                    {
+                        timer.Interval = TimeSpan.FromMilliseconds(TitlePollMilliseconds);
+                        return;
+                    }
+                }
+
                 timer.Stop();
                 _pending.Remove(hwnd);
                 ProcessNewWindow(hwnd);
@@ -454,8 +515,24 @@ public sealed class ZoneWindowTracker : IDisposable
         var path = GetProcessPath(hwnd)?.ToLowerInvariant();
         if (string.IsNullOrEmpty(path)) return false;
 
-        HistoryEntry? entry;
-        lock (_historyLock) _history.TryGetValue(path, out entry);
+        HistoryEntry? entry = null;
+        lock (_historyLock)
+        {
+            if (_options.MatchNewWindowsByTitle)
+            {
+                var title = NormalizeTitle(GetWindowTitle(hwnd));
+                var prefix = path + TitleSeparator;
+                entry = _history
+                    .Where(e => e.Key.StartsWith(prefix, StringComparison.Ordinal)
+                        && TitlesMatch(e.Key[prefix.Length..], title))
+                    .OrderByDescending(e => e.Value.Stamp)
+                    .Select(e => e.Value)
+                    .FirstOrDefault();
+            }
+
+            entry ??= _history.GetValueOrDefault(path);
+        }
+
         if (entry?.Zones is null || entry.LayoutId is null) return false;
 
         var monitors = _monitors.All();

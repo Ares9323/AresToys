@@ -336,6 +336,7 @@
   <data name="WindowSnappingTab_KeepOnDisplayChange" xml:space="preserve"><value>Mantieni le finestre nelle loro zone quando cambia la risoluzione dello schermo o l'area di lavoro</value></data>
   <data name="WindowSnappingTab_ReapplyOnLayoutChange" xml:space="preserve"><value>Quando cambia un layout, le finestre assegnate a una zona si adattano alla nuova dimensione e posizione</value></data>
   <data name="WindowSnappingTab_NewWindowsLastZone" xml:space="preserve"><value>Sposta le finestre appena create nell'ultima zona nota</value></data>
+  <data name="WindowSnappingTab_NewWindowsMatchTitle" xml:space="preserve"><value>Ricorda la zona anche per titolo della finestra: una finestra nuova va dove è stata agganciata l'ultima finestra dello stesso programma con un titolo che contiene (o è contenuto nel) suo titolo; senza corrispondenza decide il programma</value></data>
   <data name="WindowSnappingTab_NewWindowsActiveMonitor" xml:space="preserve"><value>Sposta le finestre appena create sul monitor attivo (sperimentale)</value></data>
   <data name="WindowSnappingTab_SectionKeyboard" xml:space="preserve"><value>Tastiera</value></data>
   <data name="WindowSnappingTab_OverrideWinSnap" xml:space="preserve"><value>Sostituisci Windows Snap: Win + frecce spostano le finestre tra le zone</value></data>

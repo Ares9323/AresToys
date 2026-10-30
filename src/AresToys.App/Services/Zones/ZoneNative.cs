@@ -109,6 +109,17 @@ internal static partial class ZoneNative
     [LibraryImport("user32.dll")]
     public static partial nint GetForegroundWindow();
 
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int GetWindowTextNative(nint hwnd, [Out] char[] text, int maxCount);
+
+    /// <summary>The caption of the window, or an empty string when it has none.</summary>
+    public static string GetWindowTitle(nint hwnd)
+    {
+        var buffer = new char[512];
+        var length = GetWindowTextNative(hwnd, buffer, buffer.Length);
+        return length > 0 ? new string(buffer, 0, length) : string.Empty;
+    }
+
     public delegate void WinEventProc(nint hWinEventHook, uint eventType, nint hwnd,
         int idObject, int idChild, uint eventThread, uint eventTime);
 

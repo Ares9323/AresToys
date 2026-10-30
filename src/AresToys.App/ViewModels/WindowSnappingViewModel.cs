@@ -68,6 +68,7 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
     [ObservableProperty] private bool _reapplyOnLayoutChange;
     [ObservableProperty] private bool _moveNewWindowsToLastZone;
     [ObservableProperty] private bool _moveNewWindowsToActiveMonitor;
+    [ObservableProperty] private bool _matchNewWindowsByTitle;
 
     // Keyboard snapping (PowerToys "Override Windows Snap"); the index maps 0 RelativePosition, 1 ZoneIndex
     [ObservableProperty] private bool _overrideWindowsSnap;
@@ -117,6 +118,7 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
             ReapplyOnLayoutChange = o.ReapplyOnLayoutChange;
             MoveNewWindowsToLastZone = o.MoveNewWindowsToLastZone;
             MoveNewWindowsToActiveMonitor = o.MoveNewWindowsToActiveMonitor;
+            MatchNewWindowsByTitle = o.MatchNewWindowsByTitle;
             OverrideWindowsSnap = o.OverrideWindowsSnap;
             MoveBasedOnIndex = (int)o.MoveBasedOn;
             MoveAcrossMonitors = o.MoveAcrossMonitors;
@@ -160,6 +162,7 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
         ReapplyOnLayoutChange = o.ReapplyOnLayoutChange;
         MoveNewWindowsToLastZone = o.MoveNewWindowsToLastZone;
         MoveNewWindowsToActiveMonitor = o.MoveNewWindowsToActiveMonitor;
+        MatchNewWindowsByTitle = o.MatchNewWindowsByTitle;
         OverrideWindowsSnap = o.OverrideWindowsSnap;
         MoveBasedOnIndex = (int)o.MoveBasedOn;
         MoveAcrossMonitors = o.MoveAcrossMonitors;
@@ -196,6 +199,7 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
     partial void OnReapplyOnLayoutChangeChanged(bool value) => QueuePersist();
     partial void OnMoveNewWindowsToLastZoneChanged(bool value) => QueuePersist();
     partial void OnMoveNewWindowsToActiveMonitorChanged(bool value) => QueuePersist();
+    partial void OnMatchNewWindowsByTitleChanged(bool value) => QueuePersist();
     partial void OnOverrideWindowsSnapChanged(bool value) => QueuePersist();
     partial void OnMoveBasedOnIndexChanged(int value) => QueuePersist();
     partial void OnMoveAcrossMonitorsChanged(bool value) => QueuePersist();
@@ -240,7 +244,7 @@ public sealed partial class WindowSnappingViewModel : ObservableObject, IDisposa
                 ShowZoneNumber, RestoreSizeOnUnsnap, TransparentWhileDragging, AllowChildWindows,
                 DisableRoundedCorners, WindowSnappingSettings.ParseApps(ExcludedAppsText),
                 KeepInZonesOnDisplayChange, ReapplyOnLayoutChange, MoveNewWindowsToLastZone, MoveNewWindowsToActiveMonitor,
-                OverrideWindowsSnap, (ZoneMoveBasis)Math.Clamp(MoveBasedOnIndex, 0, 1), MoveAcrossMonitors,
+                MatchNewWindowsByTitle, OverrideWindowsSnap, (ZoneMoveBasis)Math.Clamp(MoveBasedOnIndex, 0, 1), MoveAcrossMonitors,
                 SpanZonesAcrossMonitors,
                 (ZoneEditorDisplay)Math.Clamp(LaunchEditorOnIndex, 0, 2));
             await options.SaveAsync(_store, token).ConfigureAwait(false);

@@ -2290,6 +2290,11 @@
                               IsChecked="{Binding WindowSnapping.MoveNewWindowsToLastZone, Mode=TwoWay}">
                         <TextBlock Text="{Markup:Loc WindowSnappingTab_NewWindowsLastZone}" TextWrapping="Wrap" />
                     </CheckBox>
+                    <CheckBox Margin="22,0,0,6"
+                              IsEnabled="{Binding WindowSnapping.MoveNewWindowsToLastZone}"
+                              IsChecked="{Binding WindowSnapping.MatchNewWindowsByTitle, Mode=TwoWay}">
+                        <TextBlock Text="{Markup:Loc WindowSnappingTab_NewWindowsMatchTitle}" TextWrapping="Wrap" />
+                    </CheckBox>
                     <CheckBox Margin="0,0,0,20"
                               IsChecked="{Binding WindowSnapping.MoveNewWindowsToActiveMonitor, Mode=TwoWay}">
                         <TextBlock Text="{Markup:Loc WindowSnappingTab_NewWindowsActiveMonitor}" TextWrapping="Wrap" />

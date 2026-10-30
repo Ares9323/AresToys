@@ -74,6 +74,7 @@ public sealed record WindowSnappingSettings(
     bool ReapplyOnLayoutChange,
     bool MoveNewWindowsToLastZone,
     bool MoveNewWindowsToActiveMonitor,
+    bool MatchNewWindowsByTitle,
     bool OverrideWindowsSnap,
     ZoneMoveBasis MoveBasedOn,
     bool MoveAcrossMonitors,
@@ -96,6 +97,7 @@ public sealed record WindowSnappingSettings(
     public const string KeyReapplyOnLayoutChange = "windowsnapping.reapply_on_layout_change";
     public const string KeyMoveNewWindowsToLastZone = "windowsnapping.new_windows_last_zone";
     public const string KeyMoveNewWindowsToActiveMonitor = "windowsnapping.new_windows_active_monitor";
+    public const string KeyMatchNewWindowsByTitle = "windowsnapping.new_windows_match_title";
 
     public const string KeyOverrideWindowsSnap = "windowsnapping.override_win_snap";
     public const string KeyMoveBasedOn = "windowsnapping.move_based_on";
@@ -120,6 +122,7 @@ public sealed record WindowSnappingSettings(
         ReapplyOnLayoutChange: false,
         MoveNewWindowsToLastZone: false,
         MoveNewWindowsToActiveMonitor: false,
+        MatchNewWindowsByTitle: false,
         OverrideWindowsSnap: false,
         MoveBasedOn: ZoneMoveBasis.RelativePosition,
         MoveAcrossMonitors: true,
@@ -146,6 +149,7 @@ public sealed record WindowSnappingSettings(
             ParseBool(await store.GetAsync(KeyReapplyOnLayoutChange, ct).ConfigureAwait(false), d.ReapplyOnLayoutChange),
             ParseBool(await store.GetAsync(KeyMoveNewWindowsToLastZone, ct).ConfigureAwait(false), d.MoveNewWindowsToLastZone),
             ParseBool(await store.GetAsync(KeyMoveNewWindowsToActiveMonitor, ct).ConfigureAwait(false), d.MoveNewWindowsToActiveMonitor),
+            ParseBool(await store.GetAsync(KeyMatchNewWindowsByTitle, ct).ConfigureAwait(false), d.MatchNewWindowsByTitle),
             ParseBool(await store.GetAsync(KeyOverrideWindowsSnap, ct).ConfigureAwait(false), d.OverrideWindowsSnap),
             ParseEnum(await store.GetAsync(KeyMoveBasedOn, ct).ConfigureAwait(false), d.MoveBasedOn),
             ParseBool(await store.GetAsync(KeyMoveAcrossMonitors, ct).ConfigureAwait(false), d.MoveAcrossMonitors),
@@ -173,6 +177,7 @@ public sealed record WindowSnappingSettings(
         await store.SetAsync(KeyReapplyOnLayoutChange, ToValue(ReapplyOnLayoutChange), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyMoveNewWindowsToLastZone, ToValue(MoveNewWindowsToLastZone), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyMoveNewWindowsToActiveMonitor, ToValue(MoveNewWindowsToActiveMonitor), false, ct).ConfigureAwait(false);
+        await store.SetAsync(KeyMatchNewWindowsByTitle, ToValue(MatchNewWindowsByTitle), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyOverrideWindowsSnap, ToValue(OverrideWindowsSnap), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyMoveBasedOn, MoveBasedOn.ToString(), false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyMoveAcrossMonitors, ToValue(MoveAcrossMonitors), false, ct).ConfigureAwait(false);

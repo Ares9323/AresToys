@@ -3,6 +3,17 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.41] — 2026-10-30
+
+### Window snapping
+- New option under "Move newly created windows to their last known zone":
+  remember the zone by window title too. A new window goes where a window of the
+  same program with a title that contains (or is contained in) its title was
+  last snapped, so terminals with different tab names reopen each in its own
+  zone. The window waits up to a few seconds for its title to settle (symbols
+  such as a spinner before the name are ignored); without a match the program
+  decides, as before. Off by default.
+
 ## [0.1.40] — 2026-10-30
 
 ### Pin to screen
