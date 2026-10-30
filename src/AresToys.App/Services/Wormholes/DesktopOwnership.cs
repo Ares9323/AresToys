@@ -29,6 +29,8 @@ internal static class DesktopOwnership
     /// <summary>Index for <c>SetWindowLongPtr</c> that reads/writes a top-level window's OWNER.
     /// The name is a historical Win32 wart: for a non-child window this slot is the owner.</summary>
     private const int GWLP_HWNDPARENT = -8;
+    private const int GWL_EXSTYLE = -20;
+    private const long WS_EX_TOOLWINDOW = 0x00000080;
 
     /// <summary>Handle of the desktop window to own wormholes from, or <see cref="IntPtr.Zero"/>
     /// when the shell isn't in a state we recognise (Explorer restarting, a replacement shell).
@@ -49,6 +51,12 @@ internal static class DesktopOwnership
         if (hwnd == IntPtr.Zero) return false;
         var desktop = FindDesktopWindow();
         if (desktop == IntPtr.Zero) return false;
+        // Tool-window style keeps the shell from ever giving a wormhole a taskbar button. Without
+        // it, the button depends on the owner being valid: when Explorer restarts the old Progman
+        // dies and every wormhole shows up as an open window on the taskbar.
+        var ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        if (((long)ex & WS_EX_TOOLWINDOW) == 0)
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr((long)ex | WS_EX_TOOLWINDOW));
         var current = GetWindowLongPtr(hwnd, GWLP_HWNDPARENT);
         if (current == desktop) return true; // already owned
         // A wormhole has ShowInTaskbar=False, which WPF implements with a hidden owner window.

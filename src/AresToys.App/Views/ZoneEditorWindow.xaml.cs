@@ -343,9 +343,12 @@ public sealed partial class ZoneEditorWindow : FluentWindow
             RedoButton.IsEnabled = _history.CanRedo;
         }
 
-        // Free-form layouts have no spacing and cannot be split or merged.
-        SpacingBox.IsEnabled = !IsCanvas;
-        SplitToolButton.IsEnabled = !IsCanvas;
+        // Free-form layouts have no spacing and cannot be split or merged: those controls are hidden, not greyed out.
+        var gridOnly = IsCanvas ? Visibility.Collapsed : Visibility.Visible;
+        PaddingPanel.Visibility = gridOnly;
+        PaddingSeparator.Visibility = gridOnly;
+        SplitToolButton.Visibility = gridOnly;
+        MergeButton.Visibility = gridOnly;
 
         // The card of the layout being edited follows the edits (a no-op until the strip holds that layout).
         if (_id.Length > 0) LayoutStrip.UpdateLayout(CurrentLayout(_id, CardName));
@@ -805,6 +808,8 @@ public sealed partial class ZoneEditorWindow : FluentWindow
                 SetField(TopBox, 1, top, IsCanvas || b.Top > 0);
                 SetField(WidthBox, 2, right - left, IsCanvas || b.Left > 0 || b.Right < GridLayout.PercentTotal);
                 SetField(HeightBox, 3, bottom - top, IsCanvas || b.Top > 0 || b.Bottom < GridLayout.PercentTotal);
+                ShowText(ZoneNumberBox, (zone + 1).ToString(CultureInfo.CurrentCulture));
+                ZoneNumberBox.IsEnabled = true;
             }
             else
             {
@@ -813,6 +818,9 @@ public sealed partial class ZoneEditorWindow : FluentWindow
                     ShowText(box, string.Empty);
                     box.IsEnabled = false;
                 }
+
+                ShowText(ZoneNumberBox, string.Empty);
+                ZoneNumberBox.IsEnabled = false;
             }
         }
         finally
@@ -930,6 +938,84 @@ public sealed partial class ZoneEditorWindow : FluentWindow
         StopLiveApply();
         ApplySettings();
         ApplyZoneFields();
+        ApplyZoneNumber();
+    }
+
+    /// <summary>Gives the selected zone the number typed in the Zone number box. A number another zone already has
+    /// swaps the two; the zone stays selected under its new number.</summary>
+    private void ApplyZoneNumber()
+    {
+        if (_applying || Preview.Selection.Count != 1 || !ZoneNumberBox.IsEnabled) return;
+        int zone = Preview.Selection.First();
+        var text = ZoneNumberBox.Text.Trim();
+        if (text == (zone + 1).ToString(CultureInfo.CurrentCulture)) return;
+
+        int count = _canvasHistory is { } c ? c.Current.ZoneCount : _history.Current.ZoneCount;
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out int typed) || typed < 1 || typed > count)
+        {
+            SetNote(Strings.WindowSnapping_NoteInvalidNumber);
+            RefreshSelectionPanel();
+            return;
+        }
+
+        int target = typed - 1;
+        if (_canvasHistory is { } canvasHistory)
+        {
+            var result = ZoneCanvasEditor.SwapZones(canvasHistory.Current, zone, target);
+            if (result.Changed) canvasHistory.Push(result.Layout);
+        }
+        else
+        {
+            var result = ZoneGridEditor.SwapZones(_history.Current, zone, target);
+            if (result.Changed) _history.Push(result.Layout);
+        }
+
+        Preview.SetSelection([target]);
+        RefreshSelectionPanel();
+    }
+
+    /// <summary>Focus by keyboard selects the whole value, so a number can be typed over it.</summary>
+    private void OnSelectAllOnFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is TextBox box) box.SelectAll();
+    }
+
+    /// <summary>A click into an unfocused box would drop the caret and undo the selection: focus it first and swallow the click.</summary>
+    private void OnSelectAllOnMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox { IsKeyboardFocusWithin: false } box) return;
+        box.Focus();
+        e.Handled = true;
+    }
+
+    /// <summary>Renumbers all zones left to right, top to bottom. The selected zone keeps its place on screen.</summary>
+    private void OnSortZonesClicked(object sender, RoutedEventArgs e)
+    {
+        CommitPendingEdits();
+        IReadOnlyCollection<int> selection = Preview.Selection;
+        if (_canvasHistory is { } canvasHistory)
+        {
+            var before = canvasHistory.Current;
+            var result = ZoneCanvasEditor.SortZones(before);
+            if (!result.Changed) return;
+            canvasHistory.Push(result.Layout);
+            Preview.SetSelection(selection.Select(i => result.Layout.Zones.ToList().IndexOf(before.Zones[i])).Where(i => i >= 0).ToArray());
+        }
+        else
+        {
+            var before = _history.Current;
+            var result = ZoneGridEditor.SortZones(before);
+            if (!result.Changed) return;
+            _history.Push(result.Layout);
+            // Cells keep their place, so find the new number through any cell the old zone covered.
+            var map = new Dictionary<int, int>();
+            for (int r = 0; r < before.CellMap.Count; r++)
+                for (int c = 0; c < before.CellMap[r].Count; c++)
+                    map.TryAdd(before.CellMap[r][c], result.Layout.CellMap[r][c]);
+            Preview.SetSelection(selection.Where(map.ContainsKey).Select(i => map[i]).ToArray());
+        }
+
+        RefreshSelectionPanel();
     }
 
     // ---- live preview while typing ----

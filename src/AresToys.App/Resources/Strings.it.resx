@@ -1392,7 +1392,9 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="WindowSnapping_ZonePosition" xml:space="preserve"><value>Posizione zona (px)</value></data>
   <data name="WindowSnapping_ZoneSize" xml:space="preserve"><value>Misura zona (px)</value></data>
   <data name="WindowSnapping_UseOn" xml:space="preserve"><value>I tuoi monitor</value></data>
-  <data name="WindowSnapping_LayoutLabel" xml:space="preserve"><value>Layout</value></data>
+  <data name="WindowSnapping_LayoutLabel" xml:space="preserve"><value>I tuoi layout</value></data>
+  <data name="WindowSnapping_ActiveLayout" xml:space="preserve"><value>Layout attivo</value></data>
+  <data name="WindowSnapping_EditTools" xml:space="preserve"><value>Strumenti di modifica layout</value></data>
   <data name="WindowSnapping_ToolSelect" xml:space="preserve"><value>Seleziona</value></data>
   <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Dividi</value></data>
   <data name="WindowSnapping_ToolDraw" xml:space="preserve"><value>Disegna</value></data>
@@ -1410,6 +1412,9 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="WindowSnapping_Left" xml:space="preserve"><value>Sinistra (px)</value></data>
   <data name="WindowSnapping_Top" xml:space="preserve"><value>Alto (px)</value></data>
   <data name="WindowSnapping_Width" xml:space="preserve"><value>Larghezza (px)</value></data>
+  <data name="WindowSnapping_ZoneNumber" xml:space="preserve"><value>Numero zona</value></data>
+  <data name="WindowSnapping_TipZoneNumber" xml:space="preserve"><value>Scrivi il numero di un'altra zona per scambiarle</value></data>
+  <data name="WindowSnapping_TipSortZones" xml:space="preserve"><value>Numera le zone da sinistra a destra e dall'alto in basso</value></data>
   <data name="WindowSnapping_Height" xml:space="preserve"><value>Altezza (px)</value></data>
   <data name="WindowSnapping_NoteClamped" xml:space="preserve"><value>Valore adattato al più vicino consentito: una zona non può essere più piccola del 3% dello schermo.</value></data>
   <data name="WindowSnapping_NoteInvalidNumber" xml:space="preserve"><value>Inserisci un numero intero.</value></data>

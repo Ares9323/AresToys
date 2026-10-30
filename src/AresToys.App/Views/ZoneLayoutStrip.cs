@@ -127,7 +127,7 @@ internal sealed class ZoneLayoutStrip : ListBox
                TargetType="ListBoxItem">
             <Setter Property="Width" Value="176" />
             <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="Padding" Value="6" />
+            <Setter Property="Padding" Value="6,6,6,3" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
@@ -154,6 +154,19 @@ internal sealed class ZoneLayoutStrip : ListBox
         </Style>
         """;
 
+    // The scrollbar of a horizontal strip sits in the space reserved below the cards, never over them.
+    private const string ListTemplateXaml = """
+        <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                         TargetType="ListBox">
+            <ScrollViewer Focusable="False" Padding="0"
+                          HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                          VerticalScrollBarVisibility="Disabled">
+                <ItemsPresenter Margin="0,0,0,12" />
+            </ScrollViewer>
+        </ControlTemplate>
+        """;
+
     private bool _silent;
     private ScrollViewer? _scroller;
 
@@ -172,6 +185,7 @@ internal sealed class ZoneLayoutStrip : ListBox
         panel.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
         ItemsPanel = new ItemsPanelTemplate(panel);
         ItemContainerStyle = (Style)XamlReader.Parse(ItemStyleXaml);
+        Template = (ControlTemplate)XamlReader.Parse(ListTemplateXaml);
         ItemTemplate = BuildCardTemplate();
     }
 

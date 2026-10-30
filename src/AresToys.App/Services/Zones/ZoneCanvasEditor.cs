@@ -55,6 +55,27 @@ public static class ZoneCanvasEditor
         return new CanvasEditResult(new CanvasLayout(zones, layout.SensitivityRadius), true, null);
     }
 
+    /// <summary>Moves a zone to position <paramref name="newIndex"/> by swapping it with the zone that is there.</summary>
+    public static CanvasEditResult SwapZones(CanvasLayout layout, int zone, int newIndex)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        if (!IsIndex(layout, zone) || !IsIndex(layout, newIndex)) return Refuse(layout, NoSuchZone);
+        if (zone == newIndex) return Unchanged(layout);
+
+        var zones = layout.Zones.ToArray();
+        (zones[zone], zones[newIndex]) = (zones[newIndex], zones[zone]);
+        return new CanvasEditResult(layout with { Zones = zones }, true, null);
+    }
+
+    /// <summary>Orders the zones top to bottom, and left to right among zones that start at the same height.</summary>
+    public static CanvasEditResult SortZones(CanvasLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        var zones = layout.Zones.OrderBy(z => z.Top).ThenBy(z => z.Left).ToArray();
+        if (zones.SequenceEqual(layout.Zones)) return Unchanged(layout);
+        return new CanvasEditResult(layout with { Zones = zones }, true, null);
+    }
+
     /// <summary>Replaces only the given edges of a zone. Edges are clamped to the work area; the zone keeps its
     /// index.</summary>
     public static CanvasEditResult SetZoneEdges(CanvasLayout layout, int zone, int? left, int? top, int? right, int? bottom)

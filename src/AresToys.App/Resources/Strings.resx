@@ -1460,7 +1460,9 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="WindowSnapping_ZonePosition" xml:space="preserve"><value>Zone position (px)</value></data>
   <data name="WindowSnapping_ZoneSize" xml:space="preserve"><value>Zone size (px)</value></data>
   <data name="WindowSnapping_UseOn" xml:space="preserve"><value>Your monitors</value></data>
-  <data name="WindowSnapping_LayoutLabel" xml:space="preserve"><value>Layout</value></data>
+  <data name="WindowSnapping_LayoutLabel" xml:space="preserve"><value>Your Layouts</value></data>
+  <data name="WindowSnapping_ActiveLayout" xml:space="preserve"><value>Active Layout</value></data>
+  <data name="WindowSnapping_EditTools" xml:space="preserve"><value>Layout Edit Tools</value></data>
   <data name="WindowSnapping_ToolSelect" xml:space="preserve"><value>Select</value></data>
   <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Split</value></data>
   <data name="WindowSnapping_ToolDraw" xml:space="preserve"><value>Draw</value></data>
@@ -1478,6 +1480,9 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="WindowSnapping_Left" xml:space="preserve"><value>Left (px)</value></data>
   <data name="WindowSnapping_Top" xml:space="preserve"><value>Top (px)</value></data>
   <data name="WindowSnapping_Width" xml:space="preserve"><value>Width (px)</value></data>
+  <data name="WindowSnapping_ZoneNumber" xml:space="preserve"><value>Zone number</value></data>
+  <data name="WindowSnapping_TipZoneNumber" xml:space="preserve"><value>Type the number of another zone to swap the two</value></data>
+  <data name="WindowSnapping_TipSortZones" xml:space="preserve"><value>Number the zones left to right, top to bottom</value></data>
   <data name="WindowSnapping_Height" xml:space="preserve"><value>Height (px)</value></data>
   <data name="WindowSnapping_NoteClamped" xml:space="preserve"><value>Adjusted to the nearest allowed value: a zone cannot be smaller than 3% of the screen.</value></data>
   <data name="WindowSnapping_NoteInvalidNumber" xml:space="preserve"><value>Enter a whole number.</value></data>

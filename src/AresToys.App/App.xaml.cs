@@ -73,6 +73,14 @@ public partial class App : Application
         // behaviour without touching individual XAML or stylesheets.
         AresToys.App.Behaviors.NumericInput.RegisterClassHandlers();
 
+        // A window with no Icon gets a taskbar button with the wrong icon (the Explorer Tools one on
+        // this machine). Give every window the AresToys icon unless its XAML already chose one.
+        var appIcon = System.Windows.Media.Imaging.BitmapFrame.Create(
+            new Uri("pack://application:,,,/Assets/icon.ico", UriKind.Absolute));
+        appIcon.Freeze();
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((s, _) => { if (s is Window { Icon: null } w) w.Icon = appIcon; }));
+
         // Pull the .sxcu / .sxie file path out of argv if present (Explorer file association
         // invokes us with the path as argv[0] / argv[1] depending on how shell picked it). We
         // only act on this once we know we're the primary; secondary instances forward it

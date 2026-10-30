@@ -10022,8 +10022,28 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("WindowSnapping_UseOn", resourceCulture); }
         }
 
+        public static string WindowSnapping_ZoneNumber {
+            get { return ResourceManager.GetString("WindowSnapping_ZoneNumber", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipZoneNumber {
+            get { return ResourceManager.GetString("WindowSnapping_TipZoneNumber", resourceCulture); }
+        }
+
+        public static string WindowSnapping_TipSortZones {
+            get { return ResourceManager.GetString("WindowSnapping_TipSortZones", resourceCulture); }
+        }
+
         public static string WindowSnapping_LayoutLabel {
             get { return ResourceManager.GetString("WindowSnapping_LayoutLabel", resourceCulture); }
+        }
+
+        public static string WindowSnapping_ActiveLayout {
+            get { return ResourceManager.GetString("WindowSnapping_ActiveLayout", resourceCulture); }
+        }
+
+        public static string WindowSnapping_EditTools {
+            get { return ResourceManager.GetString("WindowSnapping_EditTools", resourceCulture); }
         }
 
         public static string WindowSnapping_ToolSelect {

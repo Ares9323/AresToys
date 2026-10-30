@@ -35,7 +35,9 @@ public static class ZoneGridEditor
 
     /// <summary>Splits a zone in two at <paramref name="position"/> (absolute, along the axis, 0..10000). On
     /// a vertical split the right part is new, on a horizontal one the bottom part. The new part takes the
-    /// next free zone index, so indexes stay contiguous and the other zones keep theirs. A position on a line
+    /// next free zone index, so indexes stay contiguous and the other zones keep theirs, unless the zones were
+    /// numbered in reading order (left to right, top to bottom) before the split: then they are renumbered in
+    /// reading order again, so a layout built by splitting stays tidy. A position on a line
     /// that already crosses the zone splits along it; otherwise a line is added at that position (the grid
     /// column or row holding it is cut in two, and the other zones keep their rectangles). Refused when
     /// either side would be smaller than <paramref name="minZonePercent"/>.</summary>
@@ -45,7 +47,55 @@ public static class ZoneGridEditor
         if (CheckInput(layout) is { } error) return Unchanged(layout, error);
         if (zoneIndex < 0 || zoneIndex >= layout.ZoneCount) return Unchanged(layout, "That zone does not exist.");
         int min = Math.Max(1, minZonePercent);
-        return OnAxis(layout, axis, work => SplitVertical(work, zoneIndex, position, min));
+        var result = OnAxis(layout, axis, work => SplitVertical(work, zoneIndex, position, min));
+        if (result.Changed && InReadingOrder(layout)) result = result with { Layout = InReadingOrderCopy(result.Layout) };
+        return result;
+    }
+
+    /// <summary>True when the zone indexes already follow reading order, the order <see cref="Merge"/> produces.</summary>
+    private static bool InReadingOrder(GridLayout layout)
+    {
+        var map = CopyMap(layout.CellMap);
+        Renumber(map);
+        return !map.Where((row, r) => !row.SequenceEqual(layout.CellMap[r])).Any();
+    }
+
+    private static GridLayout InReadingOrderCopy(GridLayout layout)
+    {
+        var map = CopyMap(layout.CellMap);
+        Renumber(map);
+        return layout with { CellMap = map };
+    }
+
+    /// <summary>Gives zone <paramref name="zone"/> the number <paramref name="newIndex"/>; the zone that had that
+    /// number takes the old one of <paramref name="zone"/>, so the two swap and nothing else moves.</summary>
+    public static EditResult SwapZones(GridLayout layout, int zone, int newIndex)
+    {
+        if (CheckInput(layout) is { } error) return Unchanged(layout, error);
+        int count = layout.ZoneCount;
+        if (zone < 0 || zone >= count || newIndex < 0 || newIndex >= count) return Unchanged(layout, "That zone does not exist.");
+        if (zone == newIndex) return new EditResult(layout, false, null);
+
+        var map = CopyMap(layout.CellMap);
+        foreach (var row in map)
+        {
+            for (int c = 0; c < row.Length; c++)
+            {
+                if (row[c] == zone) row[c] = newIndex;
+                else if (row[c] == newIndex) row[c] = zone;
+            }
+        }
+
+        return new EditResult(layout with { CellMap = map }, true, null);
+    }
+
+    /// <summary>Renumbers every zone in reading order: left to right, then top to bottom.</summary>
+    public static EditResult SortZones(GridLayout layout)
+    {
+        if (CheckInput(layout) is { } error) return Unchanged(layout, error);
+        var sorted = InReadingOrderCopy(layout);
+        bool changed = sorted.CellMap.Where((row, r) => !row.SequenceEqual(layout.CellMap[r])).Any();
+        return new EditResult(changed ? sorted : layout, changed, null);
     }
 
     /// <summary>Merges zones. The selection grows until no zone is cut by its bounding box (the PowerToys
