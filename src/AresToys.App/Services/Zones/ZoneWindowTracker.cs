@@ -36,6 +36,18 @@ public sealed class ZoneWindowTracker : IDisposable
     private const int TitleWaitMilliseconds = 6000;
     private const int MaxTitleEntries = 128;
 
+    private static readonly HashSet<string> TerminalExes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "windowsterminal.exe", "wt.exe", "openconsole.exe", "conhost.exe", "cmd.exe", "powershell.exe",
+        "pwsh.exe", "wezterm-gui.exe", "alacritty.exe", "mintty.exe", "kitty.exe",
+    };
+
+    /// <summary>True for a terminal emulator or console host, the only apps whose caption is set after the
+    /// window opens (the tab is named later), so only they are waited for. Other apps, Explorer for one, open
+    /// with their final caption.</summary>
+    internal static bool IsTerminal(string? exePath)
+        => !string.IsNullOrEmpty(exePath) && TerminalExes.Contains(System.IO.Path.GetFileName(exePath));
+
     /// <summary>Lower case, without the status symbols some apps put in front of a caption (a spinner or a
     /// star before the tab name), so the same tab matches whichever symbol it shows at the moment.</summary>
     internal static string NormalizeTitle(string title)
@@ -428,7 +440,7 @@ public sealed class ZoneWindowTracker : IDisposable
             };
             // With the title option on, a terminal opens under a generic caption and its tab is named a moment
             // later: the window waits until the caption has changed and stayed put, or the wait runs out.
-            var byTitle = _options.MoveNewWindowsToLastZone && _options.MatchNewWindowsByTitle;
+            var byTitle = _options.MoveNewWindowsToLastZone && _options.MatchNewWindowsByTitle && IsTerminal(GetProcessPath(hwnd));
             var started = Environment.TickCount64;
             var firstTitle = byTitle ? GetWindowTitle(hwnd) : string.Empty;
             var lastTitle = firstTitle;

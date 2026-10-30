@@ -3,25 +3,6 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [0.1.41] — 2026-10-30
-
-### Window snapping
-- New option under "Move newly created windows to their last known zone":
-  remember the zone by window title too. A new window goes where a window of the
-  same program with a title that contains (or is contained in) its title was
-  last snapped, so terminals with different tab names reopen each in its own
-  zone. The window waits up to a few seconds for its title to settle (symbols
-  such as a spinner before the name are ignored); without a match the program
-  decides, as before. Off by default.
-
-## [0.1.40] — 2026-10-30
-
-### Pin to screen
-- Blend modes for pinned images (#26): click the ◧ label in the pin's bar to
-  switch between Normal, Multiply (white becomes transparent) and Screen (black
-  becomes transparent), to overlay screenshots with a white or black background
-  as if they were transparent. The mode is saved with the pin.
-
 ## [0.1.39] — 2026-10-30
 
 ### Dictation
@@ -41,10 +22,23 @@ versions follow [SemVer](https://semver.org/).
 - Send key: key picker with search, media and browser keys, F13 to F24 and mouse
   buttons (#34).
 
+### Pin to screen
+- Blend modes for pinned images (#26): click the ◧ label in the pin's bar to
+  switch between Normal, Multiply (white becomes transparent) and Screen (black
+  becomes transparent), to overlay screenshots with a white or black background
+  as if they were transparent. The mode is saved with the pin.
+
 ### Window snapping
 - A window taken out of the zones gets its original size back when it is
   dropped, also when it was maximized before the snap.
 - Window snapping editor: icon buttons, zone numbers with swap and sort.
+- New option under "Move newly created windows to their last known zone":
+  remember the zone by window title too (a folder in Explorer, a tab name in a
+  terminal). A new window goes where a window of the same program with a title
+  that contains (or is contained in) its title was last snapped. Terminals wait
+  up to a few seconds for the tab name to settle (symbols such as a spinner
+  before the name are ignored); without a match the program decides, as before.
+  Off by default.
 
 ### Wormholes
 - Wormholes snap back to their records after a display change without a preset
