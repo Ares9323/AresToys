@@ -64,7 +64,7 @@ public sealed class LaunchAppTask : IPipelineTask
         var psi = BuildStartInfo(path, args, workingDir, windowMode, runAsAdmin);
         try
         {
-            var started = Process.Start(psi);
+            var started = AresToys.App.Services.UnelevatedLauncher.Start(psi);
             _logger.LogInformation("LaunchAppTask: launched {Path} {Args} (admin={Admin}, mode={Mode})",
                 psi.FileName, args, runAsAdmin, windowMode ?? nameof(LauncherWindowMode.Normal));
             if (IsMinimizeAfterStartup(windowMode))

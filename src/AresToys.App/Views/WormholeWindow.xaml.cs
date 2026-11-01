@@ -1945,7 +1945,7 @@ public partial class WormholeWindow : Window
                     UseShellExecute = true,
                     WorkingDirectory = Path.GetDirectoryName(resolved) ?? string.Empty,
                 };
-                System.Diagnostics.Process.Start(psi);
+                AresToys.App.Services.UnelevatedLauncher.Start(psi);
                 MaybeAutoDisableTopmost();
             }
             catch (Exception ex)
@@ -3061,7 +3061,7 @@ public partial class WormholeWindow : Window
     {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = vm.AbsolutePath, UseShellExecute = true });
+            AresToys.App.Services.UnelevatedLauncher.Start(new ProcessStartInfo { FileName = vm.AbsolutePath, UseShellExecute = true });
             MaybeAutoDisableTopmost();
         }
         catch (Exception ex)

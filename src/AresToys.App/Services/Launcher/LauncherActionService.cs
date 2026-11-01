@@ -105,7 +105,7 @@ public sealed class LauncherActionService
             };
             if (cell.RunAsAdmin) psi.Verb = "runas";
 
-            var started = Process.Start(psi);
+            var started = AresToys.App.Services.UnelevatedLauncher.Start(psi);
             _logger.LogInformation("LauncherActionService: fired {Key} → {Path} {Args} (admin={Admin}, mode={Mode})",
                 cell.ComposedKey, path, args, cell.RunAsAdmin, cell.WindowMode);
             // Minimise-after-startup is applied here rather than through the window style: see

@@ -1132,7 +1132,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
             // process's integrity level, which is what unprivileged apps want.
             if (cell.RunAsAdmin) psi.Verb = "runas";
 
-            var started = Process.Start(psi);
+            var started = AresToys.App.Services.UnelevatedLauncher.Start(psi);
             _logger.LogInformation("LauncherWindow: fired {Key} → {Path} {Args} (admin={Admin}, mode={Mode})",
                 cell.ComposedKey, path, args, cell.RunAsAdmin, cell.WindowMode);
             // Minimise-after-startup can't be expressed as a window style: it waits for the app's

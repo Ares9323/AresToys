@@ -158,9 +158,33 @@ public sealed class ElevationService
         var exePath = Process.GetCurrentProcess().MainModule?.FileName;
         if (string.IsNullOrEmpty(exePath)) return false;
 
-        // Pick any explorer.exe in this session — typically there's exactly one (the shell), so
-        // FirstOrDefault is fine. We don't filter on SessionId because TS sessions get their own
-        // shell process and we're inheriting the user's interactive token either way.
+        var workingDir = System.IO.Path.GetDirectoryName(exePath) ?? string.Empty;
+        try
+        {
+            return TryStartWithShellToken(null, $"\"{exePath}\" {RestartedUnelevatedArg}", workingDir, -1, out _);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static readonly Lazy<bool> CurrentProcessElevated = new(DetectProcessElevation);
+
+    /// <summary>True when this process is elevated. Static twin of <see cref="IsProcessElevated"/> for code
+    /// that has no <see cref="ElevationService"/> instance (the launch helpers).</summary>
+    public static bool IsCurrentProcessElevated => CurrentProcessElevated.Value;
+
+    /// <summary>Starts a process with the token of the shell (explorer.exe), which is never elevated, so the child
+    /// gets the normal user token even when this process is elevated. Returns false when no shell token could be
+    /// had (no explorer.exe, token calls failed); throws <see cref="System.ComponentModel.Win32Exception"/> when the
+    /// token was had but the process could not be created (file not found, ERROR_ELEVATION_REQUIRED = 740, ...).
+    /// <paramref name="showWindow"/> is an SW_ value, or -1 to leave it to the app.</summary>
+    internal static bool TryStartWithShellToken(string? applicationName, string commandLine, string? workingDirectory, int showWindow, out int processId)
+    {
+        processId = 0;
+
+        // Pick any explorer.exe in this session; typically there is exactly one (the shell).
         var explorer = Process.GetProcessesByName("explorer").FirstOrDefault();
         if (explorer is null) return false;
 
@@ -173,8 +197,7 @@ public sealed class ElevationService
                     out explorerProcessToken))
                 return false;
 
-            // DuplicateTokenEx → primary token usable as the child's process token. Impersonation
-            // level can stay at SecurityImpersonation; only the token type matters for spawning.
+            // DuplicateTokenEx gives a primary token usable as the child's process token.
             if (!DuplicateTokenEx(explorerProcessToken,
                     TOKEN_ALL_ACCESS,
                     IntPtr.Zero,
@@ -183,31 +206,32 @@ public sealed class ElevationService
                     out primaryToken))
                 return false;
 
-            var workingDir = System.IO.Path.GetDirectoryName(exePath) ?? string.Empty;
-            // CreateProcessWithTokenW takes a mutable command line buffer (the API may modify it
-            // in-place to NUL-separate argv[0] from the rest). We pass it as a writable string.
-            var cmdLine = $"\"{exePath}\" {RestartedUnelevatedArg}";
             var si = new STARTUPINFO { cb = (uint)Marshal.SizeOf<STARTUPINFO>() };
+            if (showWindow >= 0)
+            {
+                si.dwFlags = StartfUseShowWindow;
+                si.wShowWindow = (ushort)showWindow;
+            }
+
+            // CreateProcessWithTokenW wants a writable command line buffer, and a null environment builds
+            // the one of the token's user.
             if (!CreateProcessWithTokenW(
                     primaryToken,
                     0,
-                    null,
-                    cmdLine,
+                    applicationName,
+                    commandLine,
                     0,
                     IntPtr.Zero,
-                    workingDir,
+                    string.IsNullOrEmpty(workingDirectory) ? null : workingDirectory,
                     ref si,
                     out var pi))
-                return false;
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
 
-            // We don't wait on / interact with the child — release the handles immediately.
+            processId = (int)pi.dwProcessId;
+            // We don't wait on / interact with the child: release the handles immediately.
             if (pi.hProcess != IntPtr.Zero) CloseHandle(pi.hProcess);
             if (pi.hThread != IntPtr.Zero) CloseHandle(pi.hThread);
             return true;
-        }
-        catch
-        {
-            return false;
         }
         finally
         {
@@ -215,6 +239,8 @@ public sealed class ElevationService
             if (explorerProcessToken != IntPtr.Zero) CloseHandle(explorerProcessToken);
         }
     }
+
+    private const uint StartfUseShowWindow = 0x00000001;
 
     // ── TokenElevation P/Invoke ───────────────────────────────────────────────────────────────
 
