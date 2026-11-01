@@ -279,8 +279,8 @@ public sealed partial class ZoneEditorWindow : FluentWindow
         AttachHistories(_loadedGrid, layout.Canvas);
         Preview.SetSelection([]);
 
-        // Split needs a grid and Draw needs free-form zones: a tool the loaded kind cannot use falls back to Select.
-        if (Preview.Tool == (IsCanvas ? ZoneEditTool.Split : ZoneEditTool.Draw)) SetTool(ZoneEditTool.Select);
+        // Draw needs free-form zones: a grid layout loaded while it is the tool falls back to Select.
+        if (!IsCanvas && Preview.Tool == ZoneEditTool.Draw) SetTool(ZoneEditTool.Select);
         SetNote(null);
         RefreshAll();
     }
@@ -344,12 +344,10 @@ public sealed partial class ZoneEditorWindow : FluentWindow
             RedoButton.IsEnabled = _history.CanRedo;
         }
 
-        // Free-form layouts have no spacing and cannot be split or merged: those controls are hidden, not greyed out.
+        // Free-form layouts have no spacing: that control is hidden, not greyed out.
         var gridOnly = IsCanvas ? Visibility.Collapsed : Visibility.Visible;
         PaddingPanel.Visibility = gridOnly;
         PaddingSeparator.Visibility = gridOnly;
-        SplitToolButton.Visibility = gridOnly;
-        MergeButton.Visibility = gridOnly;
 
         // The card of the layout being edited follows the edits (a no-op until the strip holds that layout).
         if (_id.Length > 0) LayoutStrip.UpdateLayout(CurrentLayout(_id, CardName));
@@ -698,7 +696,12 @@ public sealed partial class ZoneEditorWindow : FluentWindow
 
     private void MergeZones(IReadOnlyCollection<int> zones)
     {
-        if (IsCanvas) return;
+        if (IsCanvas)
+        {
+            MergeCanvasZones(zones);
+            return;
+        }
+
         CommitPendingEdits();
         if (zones.Count < 2) return;
         var g = _history.Current;
@@ -714,6 +717,24 @@ public sealed partial class ZoneEditorWindow : FluentWindow
         SetNote(null);
         int merged = ZonePreviewCanvas.ZoneAt(result.Layout, (first.Left + first.Right) / 2.0, (first.Top + first.Bottom) / 2.0);
         Preview.SetSelection(merged >= 0 ? [merged] : []);
+        RefreshSelectionPanel();
+    }
+
+    /// <summary>Joins free-form zones into one the size of their bounding box; it keeps the lowest number and ends up selected.</summary>
+    private void MergeCanvasZones(IReadOnlyCollection<int> zones)
+    {
+        if (_canvasHistory is not { } history || zones.Count < 2) return;
+        var result = ZoneCanvasEditor.MergeZones(history.Current, zones);
+        if (!result.Changed)
+        {
+            SetNote(result.Reason);
+            return;
+        }
+
+        int merged = zones.Min();
+        history.Push(result.Layout);
+        SetNote(null);
+        Preview.SetSelection([merged]);
         RefreshSelectionPanel();
     }
 
@@ -791,7 +812,7 @@ public sealed partial class ZoneEditorWindow : FluentWindow
     private void RefreshSelectionPanel()
     {
         var selection = Preview.Selection;
-        MergeButton.IsEnabled = !IsCanvas && selection.Count >= 2;
+        MergeButton.IsEnabled = selection.Count >= 2;
         _applying = true;
         try
         {
@@ -1186,6 +1207,10 @@ public sealed partial class ZoneEditorWindow : FluentWindow
         if (ctrl && key == Key.Z && !shift) Undo();
         else if (ctrl && (key == Key.Y || (key == Key.Z && shift))) Redo();
         else if (ctrl && key == Key.M) MergeZones(Preview.Selection.ToList());
+        else if (modifiers == ModifierKeys.None && key == Key.V) SetTool(ZoneEditTool.Select);
+        else if (modifiers == ModifierKeys.None && key == Key.S) SetTool(ZoneEditTool.Split);
+        else if (modifiers == ModifierKeys.None && key == Key.M) MergeZones(Preview.Selection.ToList());
+        else if (modifiers == ModifierKeys.None && key == Key.D) SetTool(ZoneEditTool.Draw);
         else if (!ctrl && key == Key.Delete)
         {
             if (_canvasHistory is { } canvas) RemoveSelectedCanvasZone(canvas);

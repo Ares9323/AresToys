@@ -83,4 +83,53 @@ public class ZoneCanvasEditorTests
         Assert.Same(added, history.Redo());
         Assert.False(history.CanRedo);
     }
+
+    [Fact]
+    public void SplitZone_Vertical_KeepsIndexForLeftPartAndAppendsRight()
+    {
+        var layout = new CanvasLayout([new CanvasZone(1000, 2000, 9000, 8000), new CanvasZone(0, 0, 3000, 3000)]);
+
+        var result = ZoneCanvasEditor.SplitZone(layout, 0, ZoneAxis.Vertical, 4000);
+
+        Assert.True(result.Changed);
+        Assert.Equal(3, result.Layout.ZoneCount);
+        Assert.Equal(new CanvasZone(1000, 2000, 4000, 8000), result.Layout.Zones[0]);
+        Assert.Equal(new CanvasZone(0, 0, 3000, 3000), result.Layout.Zones[1]);
+        Assert.Equal(new CanvasZone(4000, 2000, 9000, 8000), result.Layout.Zones[2]);
+    }
+
+    [Fact]
+    public void SplitZone_Horizontal_AndRefusesCutsOutsideOrTooSmall()
+    {
+        var layout = new CanvasLayout([new CanvasZone(0, 0, 5000, 5000)]);
+
+        var ok = ZoneCanvasEditor.SplitZone(layout, 0, ZoneAxis.Horizontal, 2500);
+        Assert.Equal(new CanvasZone(0, 0, 5000, 2500), ok.Layout.Zones[0]);
+        Assert.Equal(new CanvasZone(0, 2500, 5000, 5000), ok.Layout.Zones[1]);
+
+        Assert.False(ZoneCanvasEditor.SplitZone(layout, 0, ZoneAxis.Vertical, 5000).Changed);
+        Assert.False(ZoneCanvasEditor.SplitZone(layout, 0, ZoneAxis.Vertical, 50).Changed);
+        Assert.False(ZoneCanvasEditor.SplitZone(layout, 3, ZoneAxis.Vertical, 2000).Changed);
+    }
+
+    [Fact]
+    public void MergeZones_GivesTheBoundingBoxAtTheLowestIndexAndDropsTheOthers()
+    {
+        var layout = new CanvasLayout([
+            new CanvasZone(0, 0, 2000, 2000),
+            new CanvasZone(8000, 8000, 9000, 9000),
+            new CanvasZone(1000, 3000, 4000, 6000),
+            new CanvasZone(5000, 0, 6000, 1000)]);
+
+        var result = ZoneCanvasEditor.MergeZones(layout, [2, 0]);
+
+        Assert.True(result.Changed);
+        Assert.Equal(3, result.Layout.ZoneCount);
+        Assert.Equal(new CanvasZone(0, 0, 4000, 6000), result.Layout.Zones[0]);
+        Assert.Equal(new CanvasZone(8000, 8000, 9000, 9000), result.Layout.Zones[1]);
+        Assert.Equal(new CanvasZone(5000, 0, 6000, 1000), result.Layout.Zones[2]);
+
+        Assert.False(ZoneCanvasEditor.MergeZones(layout, [1]).Changed);
+        Assert.False(ZoneCanvasEditor.MergeZones(layout, [0, 9]).Changed);
+    }
 }

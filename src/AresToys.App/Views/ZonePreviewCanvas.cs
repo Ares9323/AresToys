@@ -72,6 +72,9 @@ public sealed class ZonePreviewCanvas : FrameworkElement
     // The rubber band of a draw or resize drag, and the editor's verdict on it.
     private CanvasZone? _canvasBand;
     private CanvasEditResult? _canvasResult;
+    // Split tool in canvas mode: the zone under the pointer and what cutting it at the guide would give.
+    private int _canvasSplitZone = -1;
+    private CanvasEditResult? _canvasSplitPreview;
 
     private Brush _areaBrush = Brushes.Black;
     private Brush _fillBrush = Brushes.Transparent;
@@ -506,6 +509,8 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         _mouse = e.GetPosition(this);
         _mouseInside = true;
         var area = AreaRect();
+        // A number box that kept the focus would swallow Ctrl+Z and the tool letters, so the preview takes it like in canvas mode.
+        Focus();
 
         if (_tool == ZoneEditTool.Split)
         {
@@ -675,6 +680,8 @@ public sealed class ZonePreviewCanvas : FrameworkElement
 
     private void UpdateCanvasHover()
     {
+        _canvasSplitZone = -1;
+        _canvasSplitPreview = null;
         // During a drag the cursor chosen at its start stays.
         if (_canvasDrag != CanvasDragKind.None) return;
         if (_canvas is null || !_mouseInside || ActualWidth < 40)
@@ -688,6 +695,9 @@ public sealed class ZonePreviewCanvas : FrameworkElement
             case ZoneEditTool.Draw:
                 Cursor = Cursors.Cross;
                 break;
+            case ZoneEditTool.Split:
+                UpdateCanvasSplitPreview();
+                break;
             case ZoneEditTool.Select:
                 var area = AreaRect();
                 var handle = SelectedHandleAt(area, _mouse);
@@ -699,6 +709,39 @@ public sealed class ZonePreviewCanvas : FrameworkElement
                 Cursor = Cursors.Arrow;
                 break;
         }
+    }
+
+    /// <summary>Split tool on free-form zones: the cut goes through the top-most zone under the pointer. Alt flips the
+    /// direction and Shift cuts at the centre of the zone, as for a grid.</summary>
+    private void UpdateCanvasSplitPreview()
+    {
+        var canvas = _canvas;
+        if (canvas is null) return;
+        var area = AreaRect();
+        double x = PercentX(area, _mouse);
+        double y = PercentY(area, _mouse);
+        int zone = CanvasZoneAt(canvas, x, y);
+        if (zone < 0)
+        {
+            Cursor = Cursors.Arrow;
+            return;
+        }
+
+        Cursor = Cursors.Cross;
+        var axis = Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)
+            ? (_splitAxis == ZoneAxis.Vertical ? ZoneAxis.Horizontal : ZoneAxis.Vertical)
+            : _splitAxis;
+        var z = canvas.Zones[zone];
+        int position;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            position = axis == ZoneAxis.Vertical ? (z.Left + z.Right) / 2 : (z.Top + z.Bottom) / 2;
+        else
+            position = RoundPercent(axis == ZoneAxis.Vertical ? x : y);
+
+        _canvasSplitZone = zone;
+        _splitPosition = position;
+        _splitPreviewAxis = axis;
+        _canvasSplitPreview = ZoneCanvasEditor.SplitZone(canvas, zone, axis, position);
     }
 
     /// <summary>A raw position in percent units, rounded and kept inside the work area.</summary>
@@ -721,6 +764,25 @@ public sealed class ZonePreviewCanvas : FrameworkElement
             return;
         }
 
+        if (_tool == ZoneEditTool.Split)
+        {
+            UpdateCanvasHover();
+            if (_canvasSplitPreview is { } split)
+            {
+                if (split.Changed)
+                {
+                    Notice?.Invoke(this, null);
+                    CanvasEditCommitted?.Invoke(this, split.Layout);
+                }
+                else
+                {
+                    Notice?.Invoke(this, split.Reason);
+                }
+            }
+
+            return;
+        }
+
         if (_tool != ZoneEditTool.Select) return;
 
         int selected = SelectedCanvasZone();
@@ -732,6 +794,15 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         }
 
         int zone = CanvasZoneAt(_canvas, PercentX(area, _mouse), PercentY(area, _mouse));
+        if (zone >= 0 && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            // Ctrl+click adds a zone to the selection or takes it out (the zones to merge); no move starts.
+            if (!_selection.Remove(zone)) _selection.Add(zone);
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            InvalidateVisual();
+            return;
+        }
+
         if (zone != selected)
         {
             _selection.Clear();
@@ -1010,13 +1081,16 @@ public sealed class ZonePreviewCanvas : FrameworkElement
         dc.DrawRoundedRectangle(_areaBrush, null, area, 4, 4);
 
         // Index order, so later zones paint over earlier ones; the selected zone goes last, over its neighbours.
-        int selected = SelectedCanvasZone();
         for (int zone = 0; zone < canvas.ZoneCount; zone++)
         {
-            if (zone != selected) DrawCanvasZone(dc, area, canvas, zone, selected: false);
+            if (!_selection.Contains(zone)) DrawCanvasZone(dc, area, canvas, zone, selected: false);
         }
 
-        if (selected >= 0 && selected < canvas.ZoneCount) DrawCanvasZone(dc, area, canvas, selected, selected: true);
+        foreach (int zone in _selection.Where(i => i >= 0 && i < canvas.ZoneCount).OrderBy(i => i))
+            DrawCanvasZone(dc, area, canvas, zone, selected: true);
+
+        if (_tool == ZoneEditTool.Split && _canvasSplitZone >= 0 && _canvasSplitPreview is { } splitPreview)
+            DrawCanvasSplitGuide(dc, area, canvas, splitPreview);
 
         if (_canvasBand is { } band)
         {
@@ -1025,6 +1099,27 @@ public sealed class ZonePreviewCanvas : FrameworkElement
             dc.DrawRectangle(null, refused ? _refusedGuidePen : _guidePen, rect);
             DrawLabel(dc, $"{PixelsX(band.Right - band.Left)} x {PixelsY(band.Bottom - band.Top)}", _mouse);
         }
+    }
+
+    private void DrawCanvasSplitGuide(DrawingContext dc, Rect area, CanvasLayout canvas, CanvasEditResult preview)
+    {
+        var z = canvas.Zones[_canvasSplitZone];
+        var pen = preview.Changed ? _guidePen : _refusedGuidePen;
+        string text;
+        if (_splitPreviewAxis == ZoneAxis.Vertical)
+        {
+            double x = area.X + area.Width * _splitPosition / 10000.0;
+            dc.DrawLine(pen, new Point(x, area.Y + area.Height * z.Top / 10000.0), new Point(x, area.Y + area.Height * z.Bottom / 10000.0));
+            text = preview.Changed ? $"{PixelsX(_splitPosition - z.Left)} px | {PixelsX(z.Right - _splitPosition)} px" : preview.Reason ?? string.Empty;
+        }
+        else
+        {
+            double y = area.Y + area.Height * _splitPosition / 10000.0;
+            dc.DrawLine(pen, new Point(area.X + area.Width * z.Left / 10000.0, y), new Point(area.X + area.Width * z.Right / 10000.0, y));
+            text = preview.Changed ? $"{PixelsY(_splitPosition - z.Top)} px | {PixelsY(z.Bottom - _splitPosition)} px" : preview.Reason ?? string.Empty;
+        }
+
+        if (text.Length > 0) DrawLabel(dc, text, _mouse);
     }
 
     private void DrawCanvasZone(DrawingContext dc, Rect area, CanvasLayout canvas, int zone, bool selected)

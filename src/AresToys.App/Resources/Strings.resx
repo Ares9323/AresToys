@@ -1487,16 +1487,16 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="WindowSnapping_ToolSelect" xml:space="preserve"><value>Select</value></data>
   <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Split</value></data>
   <data name="WindowSnapping_ToolDraw" xml:space="preserve"><value>Draw</value></data>
-  <data name="WindowSnapping_TipDraw" xml:space="preserve"><value>Drag in the preview to draw a zone; zones can overlap</value></data>
+  <data name="WindowSnapping_TipDraw" xml:space="preserve"><value>Draw (D): drag in the preview to draw a zone; zones can overlap</value></data>
   <data name="WindowSnapping_HintDraw" xml:space="preserve"><value>Draw: drag in the preview to draw a zone. Zones can overlap.</value></data>
   <data name="WindowSnapping_HintSelect" xml:space="preserve"><value>Select: click zones to select them, drag a boundary to move it.</value></data>
   <data name="WindowSnapping_ConvertMessage" xml:space="preserve"><value>Draw converts this layout to free-form zones that you can move, resize and overlap. The conversion cannot be undone. Convert?</value></data>
   <data name="WindowSnapping_Merge" xml:space="preserve"><value>Merge</value></data>
   <data name="WindowSnapping_Undo" xml:space="preserve"><value>Undo</value></data>
   <data name="WindowSnapping_Redo" xml:space="preserve"><value>Redo</value></data>
-  <data name="WindowSnapping_TipSelect" xml:space="preserve"><value>Click zones to select them, drag a boundary to move it</value></data>
-  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Click a zone to split it at the guide line. Shift cuts at the centre of the zone, Alt flips the direction.</value></data>
-  <data name="WindowSnapping_TipMerge" xml:space="preserve"><value>Merge the selected zones (Ctrl+M)</value></data>
+  <data name="WindowSnapping_TipSelect" xml:space="preserve"><value>Select (V): click zones to select them, drag a boundary to move it</value></data>
+  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Split (S): click a zone to split it at the guide line. Shift cuts at the centre of the zone, Alt flips the direction.</value></data>
+  <data name="WindowSnapping_TipMerge" xml:space="preserve"><value>Merge the selected zones (M or Ctrl+M)</value></data>
   <data name="WindowSnapping_TipUndo" xml:space="preserve"><value>Undo (Ctrl+Z)</value></data>
   <data name="WindowSnapping_TipRedo" xml:space="preserve"><value>Redo (Ctrl+Y)</value></data>
   <data name="WindowSnapping_Left" xml:space="preserve"><value>Left (px)</value></data>

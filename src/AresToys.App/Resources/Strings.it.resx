@@ -1419,16 +1419,16 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="WindowSnapping_ToolSelect" xml:space="preserve"><value>Seleziona</value></data>
   <data name="WindowSnapping_ToolSplit" xml:space="preserve"><value>Dividi</value></data>
   <data name="WindowSnapping_ToolDraw" xml:space="preserve"><value>Disegna</value></data>
-  <data name="WindowSnapping_TipDraw" xml:space="preserve"><value>Trascina nell'anteprima per disegnare una zona; le zone possono sovrapporsi</value></data>
+  <data name="WindowSnapping_TipDraw" xml:space="preserve"><value>Disegna (D): trascina nell'anteprima per disegnare una zona; le zone possono sovrapporsi</value></data>
   <data name="WindowSnapping_HintDraw" xml:space="preserve"><value>Disegna: trascina nell'anteprima per disegnare una zona. Le zone possono sovrapporsi.</value></data>
   <data name="WindowSnapping_HintSelect" xml:space="preserve"><value>Seleziona: clicca le zone per selezionarle, trascina un bordo per spostarlo.</value></data>
   <data name="WindowSnapping_ConvertMessage" xml:space="preserve"><value>Disegna converte questo layout in zone libere che puoi spostare, ridimensionare e sovrapporre. La conversione non si può annullare. Convertire?</value></data>
   <data name="WindowSnapping_Merge" xml:space="preserve"><value>Unisci</value></data>
   <data name="WindowSnapping_Undo" xml:space="preserve"><value>Annulla</value></data>
   <data name="WindowSnapping_Redo" xml:space="preserve"><value>Ripeti</value></data>
-  <data name="WindowSnapping_TipSelect" xml:space="preserve"><value>Clicca le zone per selezionarle, trascina un bordo per spostarlo</value></data>
-  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Clicca una zona per dividerla sulla linea guida. Maiusc taglia al centro della zona, Alt inverte la direzione.</value></data>
-  <data name="WindowSnapping_TipMerge" xml:space="preserve"><value>Unisci le zone selezionate (Ctrl+M)</value></data>
+  <data name="WindowSnapping_TipSelect" xml:space="preserve"><value>Seleziona (V): clicca le zone per selezionarle, trascina un bordo per spostarlo</value></data>
+  <data name="WindowSnapping_TipSplit" xml:space="preserve"><value>Dividi (S): clicca una zona per dividerla sulla linea guida. Maiusc taglia al centro della zona, Alt inverte la direzione.</value></data>
+  <data name="WindowSnapping_TipMerge" xml:space="preserve"><value>Unisci le zone selezionate (M o Ctrl+M)</value></data>
   <data name="WindowSnapping_TipUndo" xml:space="preserve"><value>Annulla (Ctrl+Z)</value></data>
   <data name="WindowSnapping_TipRedo" xml:space="preserve"><value>Ripeti (Ctrl+Y)</value></data>
   <data name="WindowSnapping_Left" xml:space="preserve"><value>Sinistra (px)</value></data>

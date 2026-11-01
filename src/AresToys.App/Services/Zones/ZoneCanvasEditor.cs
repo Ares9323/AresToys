@@ -126,6 +126,61 @@ public static class ZoneCanvasEditor
         return new CanvasEditResult(new CanvasLayout(zones, layout.SensitivityRadius), true, null);
     }
 
+    /// <summary>Cuts a zone in two. A Vertical cut is a vertical line at x = <paramref name="position"/> (the left part
+    /// keeps the zone's index and the right part is added at the end, like a grid split); a Horizontal cut is a
+    /// horizontal line at y = <paramref name="position"/> (top part keeps the index). The line must leave both parts
+    /// at least the minimum size.</summary>
+    public static CanvasEditResult SplitZone(CanvasLayout layout, int zone, ZoneAxis axis, int position)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        if (!IsIndex(layout, zone)) return Refuse(layout, NoSuchZone);
+        if (layout.ZoneCount >= CanvasLayout.MaxZones)
+            return Refuse(layout, $"A layout can have at most {CanvasLayout.MaxZones} zones.");
+
+        var old = layout.Zones[zone];
+        CanvasZone first, second;
+        if (axis == ZoneAxis.Vertical)
+        {
+            first = new CanvasZone(old.Left, old.Top, position, old.Bottom);
+            second = new CanvasZone(position, old.Top, old.Right, old.Bottom);
+        }
+        else
+        {
+            first = new CanvasZone(old.Left, old.Top, old.Right, position);
+            second = new CanvasZone(old.Left, position, old.Right, old.Bottom);
+        }
+
+        if (position <= (axis == ZoneAxis.Vertical ? old.Left : old.Top)
+            || position >= (axis == ZoneAxis.Vertical ? old.Right : old.Bottom)
+            || IsTooSmall(first) || IsTooSmall(second))
+            return Refuse(layout, "The cut leaves a part that is too small.");
+
+        var zones = new List<CanvasZone>(layout.Zones) { [zone] = first };
+        zones.Add(second);
+        return new CanvasEditResult(new CanvasLayout(zones, layout.SensitivityRadius), true, null);
+    }
+
+    /// <summary>Joins zones into one as big as the bounding box of all of them. The merged zone takes the lowest index
+    /// of the group and the other members are removed, so the zones after them shift down.</summary>
+    public static CanvasEditResult MergeZones(CanvasLayout layout, IReadOnlyCollection<int> zones)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(zones);
+        var members = zones.Distinct().OrderBy(i => i).ToArray();
+        if (members.Length < 2) return Unchanged(layout);
+        if (members.Any(i => !IsIndex(layout, i))) return Refuse(layout, NoSuchZone);
+
+        var box = new CanvasZone(
+            members.Min(i => layout.Zones[i].Left),
+            members.Min(i => layout.Zones[i].Top),
+            members.Max(i => layout.Zones[i].Right),
+            members.Max(i => layout.Zones[i].Bottom));
+        var result = new List<CanvasZone>(layout.Zones);
+        result[members[0]] = box;
+        for (int i = members.Length - 1; i >= 1; i--) result.RemoveAt(members[i]);
+        return new CanvasEditResult(new CanvasLayout(result, layout.SensitivityRadius), true, null);
+    }
+
     private static bool IsIndex(CanvasLayout layout, int zone) => zone >= 0 && zone < layout.ZoneCount;
 
     private static int Clamp(int value) => Math.Clamp(value, 0, Full);
