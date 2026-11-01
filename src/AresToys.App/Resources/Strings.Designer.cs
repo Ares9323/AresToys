@@ -3445,6 +3445,7 @@ namespace AresToys.App.Resources {
         public static string HotkeyCapture_Hint => ResourceManager.GetString("HotkeyCapture_Hint", resourceCulture);
         public static string Workflow_Dictate => ResourceManager.GetString("Workflow_Dictate", resourceCulture);
         public static string Dictation_Listening => ResourceManager.GetString("Dictation_Listening", resourceCulture);
+        public static string Dictation_Loading => ResourceManager.GetString("Dictation_Loading", resourceCulture);
         public static string Dictation_Transcribing => ResourceManager.GetString("Dictation_Transcribing", resourceCulture);
         public static string Dictation_Downloading => ResourceManager.GetString("Dictation_Downloading", resourceCulture);
         public static string Dictation_ModelReady => ResourceManager.GetString("Dictation_ModelReady", resourceCulture);

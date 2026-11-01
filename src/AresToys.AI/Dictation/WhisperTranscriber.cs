@@ -58,6 +58,22 @@ public sealed class WhisperTranscriber : IDisposable
         }
     }
 
+    /// <summary>Reads the model now, so a take can start recording only once transcription is ready. Does nothing when it is already loaded.</summary>
+    public async Task PreloadAsync(string modelPath, CancellationToken ct)
+    {
+        await _busy.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _idleTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            await Task.Run(() => Load(modelPath), ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (IdleUnload > TimeSpan.Zero) _idleTimer.Change(IdleUnload, Timeout.InfiniteTimeSpan);
+            _busy.Release();
+        }
+    }
+
     /// <summary>Whisper marks silence and noise with tags such as [BLANK_AUDIO] or a lone (music); those are not words.</summary>
     public static string Clean(string raw)
     {

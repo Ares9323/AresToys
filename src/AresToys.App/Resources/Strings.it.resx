@@ -1474,6 +1474,7 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="NewPlusMenu_OpenTemplates" xml:space="preserve"><value>Apri i template</value></data>
   <data name="Workflow_Dictate" xml:space="preserve"><value>Detta</value></data>
   <data name="Dictation_Listening" xml:space="preserve"><value>In ascolto…</value></data>
+  <data name="Dictation_Loading" xml:space="preserve"><value>Caricamento del modello vocale…</value></data>
   <data name="Dictation_Transcribing" xml:space="preserve"><value>Trascrizione…</value></data>
   <data name="Dictation_Downloading" xml:space="preserve"><value>Scaricamento del modello vocale… {0}%</value></data>
   <data name="Dictation_ModelReady" xml:space="preserve"><value>Modello vocale pronto. Tieni di nuovo premuto il tasto per dettare.</value></data>

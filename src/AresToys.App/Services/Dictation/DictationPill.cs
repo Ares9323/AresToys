@@ -122,13 +122,25 @@ internal sealed class DictationPill : Window
         var monitor = MonitorFromPoint(cursor, 2);
         var info = new MonitorInfo { cbSize = Marshal.SizeOf<MonitorInfo>() };
         var work = GetMonitorInfo(monitor, ref info) ? info.rcWork : new NativeRect { Left = 0, Top = 0, Right = 1920, Bottom = 1040 };
-        var source = PresentationSource.FromVisual(Application.Current.MainWindow ?? this);
-        var scale = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+        // The scale comes from the monitor under the pointer, not from a window: the main window is often hidden
+        // (a tray app) and has no presentation source then, which left the pill at pixel coordinates read as DIPs, off screen.
+        var scale = GetDpiForMonitor(monitor, 0, out var dpiX, out _) == 0 && dpiX > 0 ? dpiX / 96.0 : 1.0;
         Show();
         UpdateLayout();
-        Left = (work.Left + (work.Right - work.Left) / 2.0) * scale - ActualWidth / 2;
-        Top = (work.Bottom - 40) * scale - ActualHeight;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var x = (int)Math.Round(work.Left + (work.Right - work.Left) / 2.0 - ActualWidth * scale / 2);
+        var y = (int)Math.Round(work.Bottom - 40 * scale - ActualHeight * scale);
+        _ = SetWindowPos(hwnd, new nint(-1), x, y, 0, 0, SwpNoSize | SwpNoActivate);
     }
+
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoActivate = 0x0010;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(nint monitor, int dpiType, out uint dpiX, out uint dpiY);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point { public int X; public int Y; }

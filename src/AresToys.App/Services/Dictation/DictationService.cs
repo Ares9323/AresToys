@@ -63,6 +63,18 @@ public sealed class DictationService : IDisposable
                 return;
             }
 
+            // The microphone opens only once the model is ready: the first load can take a while, and whatever is
+            // said meanwhile would otherwise be typed when it finishes.
+            await OnUi(() => pill.ShowPhase(Strings.Dictation_Loading)).ConfigureAwait(false);
+            await _transcriber.PreloadAsync(modelPath, ct).ConfigureAwait(false);
+            if (!isHeld() || ct.IsCancellationRequested)
+            {
+                // The key was let go while loading: there is nothing to record.
+                await OnUi(pill.Dismiss).ConfigureAwait(false);
+                pill = null;
+                return;
+            }
+
             _recorder.Start(settings.Device);
             await OnUi(() => pill.ShowListening(Strings.Dictation_Listening)).ConfigureAwait(false);
 

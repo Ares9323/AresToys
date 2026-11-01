@@ -1542,6 +1542,7 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="NewPlusMenu_OpenTemplates" xml:space="preserve"><value>Open templates</value></data>
   <data name="Workflow_Dictate" xml:space="preserve"><value>Dictate</value></data>
   <data name="Dictation_Listening" xml:space="preserve"><value>Listening…</value></data>
+  <data name="Dictation_Loading" xml:space="preserve"><value>Loading speech model…</value></data>
   <data name="Dictation_Transcribing" xml:space="preserve"><value>Transcribing…</value></data>
   <data name="Dictation_Downloading" xml:space="preserve"><value>Downloading speech model… {0}%</value></data>
   <data name="Dictation_ModelReady" xml:space="preserve"><value>Speech model ready. Hold the key again to dictate.</value></data>
