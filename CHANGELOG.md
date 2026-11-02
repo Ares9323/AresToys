@@ -3,6 +3,32 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.1.41] — 2026-11-02
+
+### Running as administrator
+- Wormholes and the Launcher run in a separate, non elevated AresToys process
+  started by the main app when either module is on. Dragging files from
+  Explorer onto a Wormhole or the Launcher works even when AresToys runs as
+  administrator, while hotkeys, Win+V and Dictate keep working over elevated
+  windows. The second process follows theme, language and module toggles,
+  restarts by itself after a crash and closes with AresToys.
+- Programs started from the Launcher, Wormholes and workflows run with normal
+  rights when AresToys is elevated; "Run as administrator" stays an explicit
+  per entry choice.
+- Settings: "Restart as non elevated" when AresToys is already elevated, and
+  "Restart as administrator" works again.
+- The elevated helper is gone: the separate process replaces it.
+
+### Zones
+- Zone editor: Split and Merge work on free form zones, Ctrl+click selects
+  several zones, tools have the letters V S M D and the tooltips show the
+  shortcuts.
+
+### Dictation
+- The microphone opens only once the speech model is loaded.
+- The pill is placed with the monitor DPI, so it shows when the main window is
+  hidden.
+
 ## [0.1.40] — 2026-10-31
 
 ### New+
