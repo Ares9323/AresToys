@@ -14,8 +14,10 @@ internal sealed record NewPlusSettings(
     bool HideFileExtension,
     bool HideStartingDigits,
     bool ReplaceVariables,
-    bool HideBuiltInNew)
+    bool HideBuiltInNew,
+    bool DuplicateWithCtrlD = false)
 {
+    public const string KeyDuplicateWithCtrlD = "newplus.duplicate_ctrl_d";
     public const string KeyEnabled = "newplus.enabled";
     public const string KeyTemplateFolder = "newplus.templates.folder";
     public const string KeyHideFileExtension = "newplus.hide_extension";
@@ -36,6 +38,7 @@ internal sealed record NewPlusSettings(
         var hideDigits = await store.GetAsync(KeyHideStartingDigits, ct).ConfigureAwait(false);
         var replace = await store.GetAsync(KeyReplaceVariables, ct).ConfigureAwait(false);
         var hideNew = await store.GetAsync(KeyHideBuiltInNew, ct).ConfigureAwait(false);
+        var duplicate = await store.GetAsync(KeyDuplicateWithCtrlD, ct).ConfigureAwait(false);
 
         return new NewPlusSettings(
             Enabled: enabled == "true",
@@ -43,7 +46,8 @@ internal sealed record NewPlusSettings(
             HideFileExtension: hideExt != "false",
             HideStartingDigits: hideDigits != "false",
             ReplaceVariables: replace == "true",
-            HideBuiltInNew: hideNew == "true");
+            HideBuiltInNew: hideNew == "true",
+            DuplicateWithCtrlD: duplicate == "true");
     }
 
     public async Task SaveAsync(ISettingsStore store, CancellationToken ct)
@@ -54,5 +58,6 @@ internal sealed record NewPlusSettings(
         await store.SetAsync(KeyHideStartingDigits, HideStartingDigits ? "true" : "false", sensitive: false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyReplaceVariables, ReplaceVariables ? "true" : "false", sensitive: false, ct).ConfigureAwait(false);
         await store.SetAsync(KeyHideBuiltInNew, HideBuiltInNew ? "true" : "false", sensitive: false, ct).ConfigureAwait(false);
+        await store.SetAsync(KeyDuplicateWithCtrlD, DuplicateWithCtrlD ? "true" : "false", sensitive: false, ct).ConfigureAwait(false);
     }
 }

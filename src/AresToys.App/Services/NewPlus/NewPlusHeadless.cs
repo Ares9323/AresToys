@@ -21,6 +21,40 @@ internal static class NewPlusHeadless
 
     private static readonly TimeSpan RenameWait = TimeSpan.FromSeconds(8);
 
+    /// <summary><c>--newplus-folder &lt;hwnd&gt; &lt;culture&gt;</c>: the Ctrl+Shift+N job for an Explorer window, started by an
+    /// elevated AresToys with the shell's token so the shell automation object can reach that window.</summary>
+    internal const string NewFolderSwitch = "--newplus-folder";
+
+    /// <summary><c>--explorer-duplicate &lt;hwnd&gt; &lt;culture&gt;</c>: the Ctrl+D job, started the same way.</summary>
+    internal const string DuplicateSwitch = "--explorer-duplicate";
+
+    private static bool TryRunNewFolder(string[] args)
+    {
+        var duplicate = false;
+        var i = Array.FindIndex(args, a => string.Equals(a, NewFolderSwitch, StringComparison.OrdinalIgnoreCase));
+        if (i < 0)
+        {
+            i = Array.FindIndex(args, a => string.Equals(a, DuplicateSwitch, StringComparison.OrdinalIgnoreCase));
+            duplicate = true;
+        }
+        if (i < 0 || i + 1 >= args.Length || !long.TryParse(args[i + 1], out var handle)) return false;
+        var culture = CultureInfo.CurrentUICulture;
+        if (i + 2 < args.Length)
+        {
+            try { culture = CultureInfo.GetCultureInfo(args[i + 2]); } catch (CultureNotFoundException) { }
+        }
+        // The shell automation object wants an STA thread; the rename thread it returns is joined here.
+        Thread? rename = null;
+        var worker = new Thread(() => rename = duplicate
+            ? ExplorerDuplicateShortcut.Duplicate(new IntPtr(handle), culture)
+            : NewPlusFolderShortcut.CreateFolder(new IntPtr(handle), culture));
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.Start();
+        worker.Join(RenameWait);
+        rename?.Join(RenameWait);
+        return true;
+    }
+
     internal sealed record NewPlusRequest(string Template, string Folder, bool HideStartingDigits, bool ReplaceVariables);
 
     /// <summary>Finds <c>--newplus</c> followed by a template and a folder. False when the switch is
@@ -52,6 +86,7 @@ internal static class NewPlusHeadless
     /// when there is no (valid) <c>--newplus</c> request, so the caller starts the app.</summary>
     internal static bool TryRun(string[] args)
     {
+        if (TryRunNewFolder(args)) return true;
         if (!TryParse(args, out var request)) return false;
         // Taken before anything slow: this is the window the menu was opened in.
         var foreground = NewPlusExplorer.ForegroundRoot();

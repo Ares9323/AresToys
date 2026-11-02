@@ -2092,6 +2092,8 @@
                                    Text="{Markup:Loc NewPlus_HideDigitsHint}" />
                         <CheckBox Content="{Markup:Loc NewPlus_HideBuiltIn}" Margin="0,0,0,4"
                                   IsChecked="{Binding NewPlus.HideBuiltInNew, Mode=TwoWay}" />
+                        <CheckBox Content="{Markup:Loc NewPlus_DuplicateCtrlD}" Margin="0,0,0,4"
+                                  IsChecked="{Binding NewPlus.DuplicateWithCtrlD, Mode=TwoWay}" />
                         <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="22,0,0,8"
                                    Text="{Binding NewPlus.ErrorText}" />
 

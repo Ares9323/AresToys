@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:cv="clr-namespace:AresToys.App.Converters"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <ResourceDictionary>
@@ -88,6 +89,16 @@
                  without touching them one by one. Local Foreground setters still win. -->
             <Style TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            </Style>
+
+            <!-- A CheckBox with a plain text label wraps it onto more lines when the row is too narrow,
+                 instead of cutting it off at the edge (the New+ "Hide the built-in New menu" option was clipped). -->
+            <Style TargetType="CheckBox" BasedOn="{StaticResource DefaultCheckBoxStyle}">
+                <Style.Resources>
+                    <DataTemplate DataType="{x:Type sys:String}">
+                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </Style.Resources>
             </Style>
 
 

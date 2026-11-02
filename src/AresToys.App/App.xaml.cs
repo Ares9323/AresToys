@@ -212,6 +212,7 @@ public partial class App : Application
                 services.AddSingleton<IPipelineProfileStore>(sp => sp.GetRequiredService<NotifyingPipelineProfileStore>());
                 services.AddSingleton<ResizerContextMenuSync>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusFolderShortcut>();
+                services.AddSingleton<AresToys.App.Services.NewPlus.ExplorerDuplicateShortcut>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>();
                 services.AddAresToysPlugins();
                 services.AddAresToysEditor();

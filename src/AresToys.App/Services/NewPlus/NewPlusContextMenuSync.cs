@@ -20,6 +20,7 @@ public sealed class NewPlusContextMenuSync : IDisposable
     private readonly IStoragePathResolver _paths;
     private readonly LocalizationService _localization;
     private readonly NewPlusFolderShortcut _folderShortcut;
+    private readonly ExplorerDuplicateShortcut _duplicateShortcut;
     private readonly ILogger<NewPlusContextMenuSync> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _timerLock = new();
@@ -35,12 +36,14 @@ public sealed class NewPlusContextMenuSync : IDisposable
         IStoragePathResolver paths,
         LocalizationService localization,
         NewPlusFolderShortcut folderShortcut,
+        ExplorerDuplicateShortcut duplicateShortcut,
         ILogger<NewPlusContextMenuSync> logger)
     {
         _store = store;
         _paths = paths;
         _localization = localization;
         _folderShortcut = folderShortcut;
+        _duplicateShortcut = duplicateShortcut;
         _logger = logger;
         localization.CultureChanged += OnChanged;
     }
@@ -88,6 +91,7 @@ public sealed class NewPlusContextMenuSync : IDisposable
         var settings = await NewPlusSettings.LoadAsync(_store, _paths, CancellationToken.None).ConfigureAwait(false);
         // The built-in New handler also serves Ctrl+Shift+N: with it hidden, the app takes the key over.
         _folderShortcut.SetActive(settings.Enabled && settings.HideBuiltInNew);
+        _duplicateShortcut.SetActive(settings.Enabled && settings.DuplicateWithCtrlD);
 
         if (!settings.Enabled)
         {

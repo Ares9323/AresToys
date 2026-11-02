@@ -10401,6 +10401,14 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("NewPlus_DefaultFolderName", resourceCulture); }
         }
 
+        public static string NewPlus_DuplicateCtrlD {
+            get { return ResourceManager.GetString("NewPlus_DuplicateCtrlD", resourceCulture); }
+        }
+
+        public static string NewPlus_CopySuffix {
+            get { return ResourceManager.GetString("NewPlus_CopySuffix", resourceCulture); }
+        }
+
         public static string NewPlus_BuiltInError {
             get { return ResourceManager.GetString("NewPlus_BuiltInError", resourceCulture); }
         }

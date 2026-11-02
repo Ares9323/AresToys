@@ -33,6 +33,7 @@ public sealed partial class NewPlusViewModel : ObservableObject
     [ObservableProperty] private bool _hideStartingDigits = true;
     [ObservableProperty] private bool _replaceVariables;
     [ObservableProperty] private bool _hideBuiltInNew;
+    [ObservableProperty] private bool _duplicateWithCtrlD;
     [ObservableProperty] private string _errorText = string.Empty;
 
     public async Task LoadAsync()
@@ -47,6 +48,7 @@ public sealed partial class NewPlusViewModel : ObservableObject
             HideStartingDigits = s.HideStartingDigits;
             ReplaceVariables = s.ReplaceVariables;
             HideBuiltInNew = s.HideBuiltInNew;
+            DuplicateWithCtrlD = s.DuplicateWithCtrlD;
         }
         finally { _loading = false; }
     }
@@ -56,6 +58,7 @@ public sealed partial class NewPlusViewModel : ObservableObject
     partial void OnHideFileExtensionChanged(bool value) => _ = PersistAsync();
     partial void OnHideStartingDigitsChanged(bool value) => _ = PersistAsync();
     partial void OnReplaceVariablesChanged(bool value) => _ = PersistAsync();
+    partial void OnDuplicateWithCtrlDChanged(bool value) => _ = PersistAsync();
 
     partial void OnHideBuiltInNewChanged(bool value)
     {
@@ -78,7 +81,7 @@ public sealed partial class NewPlusViewModel : ObservableObject
             var folder = string.IsNullOrWhiteSpace(TemplateFolder)
                 ? NewPlusSettings.DefaultTemplateFolder(_paths)
                 : TemplateFolder.Trim();
-            await new NewPlusSettings(Enabled, folder, HideFileExtension, HideStartingDigits, ReplaceVariables, HideBuiltInNew)
+            await new NewPlusSettings(Enabled, folder, HideFileExtension, HideStartingDigits, ReplaceVariables, HideBuiltInNew, DuplicateWithCtrlD)
                 .SaveAsync(_store, CancellationToken.None).ConfigureAwait(true);
             await _sync.ApplyAsync().ConfigureAwait(true);
         }

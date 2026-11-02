@@ -62,26 +62,45 @@ public sealed class NewPlusFolderShortcut
     private void OnPressed()
     {
         var root = NewPlusExplorer.ForegroundRoot();
+        var culture = Markup.LocalizedStrings.Instance.Culture ?? CultureInfo.CurrentUICulture;
+        // An elevated process cannot drive a normal Explorer through the shell automation object, so the
+        // job goes to a copy of this exe running with the shell's token (as the New+ menu verb does).
+        if (TryRunUnelevated(NewPlusHeadless.NewFolderSwitch, root, culture)) return;
         // A thread of its own (STA): UI Automation and the shell automation object block for a while.
-        var thread = new Thread(() => CreateFolder(root)) { IsBackground = true, Name = "NewPlus-NewFolder" };
+        var thread = new Thread(() => CreateFolder(root, culture)) { IsBackground = true, Name = "NewPlus-NewFolder" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
     }
 
-    private static void CreateFolder(IntPtr root)
+    internal static bool TryRunUnelevated(string headlessSwitch, IntPtr root, CultureInfo culture)
+    {
+        // Only for Explorer: dialogs go through UI Automation, which an unelevated copy could not use on an elevated app's dialog.
+        if (!ElevationService.IsCurrentProcessElevated || NewPlusExplorer.ClassOf(root) != "CabinetWClass") return false;
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exe)) return false;
+            var command = $"\"{exe}\" {headlessSwitch} {root.ToInt64()} {culture.Name}";
+            return ElevationService.TryStartWithShellToken(null, command, Path.GetDirectoryName(exe), -1, out _);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Makes the folder in the window <paramref name="root"/> shows and starts its rename. Returns the
+    /// rename thread (null when there was nothing to do) so a headless caller can wait for it.</summary>
+    internal static Thread? CreateFolder(IntPtr root, CultureInfo culture)
     {
         try
         {
             var parent = CurrentFolder(root);
-            if (parent is null || !Directory.Exists(parent)) return;
-            var culture = Markup.LocalizedStrings.Instance.Culture ?? CultureInfo.CurrentUICulture;
+            if (parent is null || !Directory.Exists(parent)) return null;
             var name = Strings.ResourceManager.GetString(nameof(Strings.NewPlus_DefaultFolderName), culture) ?? "New folder";
             var created = NewPlusTemplates.MakeUniquePath(Path.Combine(parent, name));
             Directory.CreateDirectory(created);
             NewPlusNative.NotifyCreated(created);
-            NewPlusExplorer.BeginRename(created);
+            return NewPlusExplorer.BeginRename(created, root);
         }
-        catch { /* folder not writable or window gone: nothing to put in rename mode */ }
+        catch { return null; /* folder not writable or window gone: nothing to put in rename mode */ }
     }
 
     private static string? CurrentFolder(IntPtr root)
@@ -93,7 +112,11 @@ public sealed class NewPlusFolderShortcut
     }
 
     // The window's tabs all report its handle: with several, the one whose browser window is visible is the open tab.
-    private static string? ExplorerFolder(IntPtr root)
+    private static string? ExplorerFolder(IntPtr root) => FindExplorerWindow(root)?.Path;
+
+    /// <summary>The shell window object (a folder view) of the open tab of the Explorer window <paramref name="root"/>,
+    /// with the folder it shows. Null when it shows no file system folder or cannot be told apart.</summary>
+    internal static (object Window, string Path)? FindExplorerWindow(IntPtr root)
     {
         var shellType = Type.GetTypeFromProgID("Shell.Application");
         if (shellType is null) return null;
@@ -111,9 +134,9 @@ public sealed class NewPlusFolderShortcut
             }
             catch { /* not a folder view */ }
         }
-        if (candidates.Count == 1) return candidates[0].Path;
-        foreach (var (window, path) in candidates)
-            if (IsOpenTab(window)) return path;
+        if (candidates.Count == 1) return candidates[0];
+        foreach (var candidate in candidates)
+            if (IsOpenTab(candidate.Window)) return candidate;
         return null;
     }
 

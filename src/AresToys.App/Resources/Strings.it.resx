@@ -1475,6 +1475,8 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="NewPlus_HideDigitsHint" xml:space="preserve"><value>Ignora cifre, spazi e punti all'inizio dei nomi: utile per ordinare i template senza mostrare quei caratteri.</value></data>
   <data name="NewPlus_HideBuiltIn" xml:space="preserve"><value>Nascondi il menu contestuale "Nuovo" integrato (Ctrl+Maiusc+N lo gestisce AresToys, che deve essere in esecuzione)</value></data>
   <data name="NewPlus_DefaultFolderName" xml:space="preserve"><value>Nuova cartella</value></data>
+  <data name="NewPlus_DuplicateCtrlD" xml:space="preserve"><value>Ctrl+D duplica gli elementi selezionati in Explorer invece di eliminarli (sperimentale, AresToys deve essere in esecuzione)</value></data>
+  <data name="NewPlus_CopySuffix" xml:space="preserve"><value>Copia</value></data>
   <data name="NewPlus_BuiltInError" xml:space="preserve"><value>Impossibile aggiornare l'impostazione del menu contestuale "Nuovo" integrato.</value></data>
   <data name="NewPlus_Behavior" xml:space="preserve"><value>Comportamento</value></data>
   <data name="NewPlus_ReplaceVariables" xml:space="preserve"><value>Sostituisci le variabili nel nome del template</value></data>
