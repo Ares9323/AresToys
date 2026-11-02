@@ -36,8 +36,9 @@
     <None Include="$(VectorCraftFfiDll)" Link="vectorcraft_ffi.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
     <VectorCraftFfiSource Include="$(VectorCraftFfiDir)src\**\*.rs;$(VectorCraftFfiDir)Cargo.toml;$(VectorCraftFfiDir)Cargo.lock" />
   </ItemGroup>
-  <!-- Builds the native tracer only when its sources changed; a second build with no Rust change skips cargo. -->
-  <Target Name="BuildVectorCraftFfi" BeforeTargets="Build" Inputs="@(VectorCraftFfiSource)" Outputs="$(VectorCraftFfiDll)">
+  <!-- Builds the native tracer only when its sources changed; a second build with no Rust change skips cargo.
+       BeforeBuild, not Build: the copy of the DLL to the output folder runs inside CoreBuild, before Build itself. -->
+  <Target Name="BuildVectorCraftFfi" BeforeTargets="BeforeBuild" Inputs="@(VectorCraftFfiSource)" Outputs="$(VectorCraftFfiDll)">
     <Exec Command="cargo build --release --locked --manifest-path &quot;$(VectorCraftFfiDir)Cargo.toml&quot;" />
   </Target>
 </Project>

@@ -29,6 +29,23 @@ versions follow [SemVer](https://semver.org/).
 - The pill is placed with the monitor DPI, so it shows when the main window is
   hidden.
 
+### Color picker
+- Other apps can call the AresToys picker: `AresToys.exe --pick-color
+  [--initial RRGGBB] [--owner HWND] [--format hex|rgb|hsl]` opens it in the
+  running instance and prints the chosen colour.
+
+### Trace
+- The tracing engine is now VectorCraft (a native library built with the app)
+  in place of Potrace: colours and fine details are kept, with no halos.
+- New controls: colour detail, shapes, gradients, fills, strokes and stroke
+  width. Smoothing, Overlap and Transparency are gone.
+- New mode Flat Logo for logos and icons: colours are found automatically or
+  picked by hand (up to 10, white is skipped). While the picked colours do not
+  cover the logo the live preview asks to select all colors.
+- New presets: Auto Color, 1 to 6 Colors and their transparent versions,
+  Outline and Flat Logo.
+- Building from source needs the Rust toolchain on PATH.
+
 ## [0.1.40] — 2026-10-31
 
 ### New+
