@@ -109,16 +109,4 @@
     <ProjectReference Include="..\AresToys.Uploaders\AresToys.Uploaders.csproj" />
     <ProjectReference Include="..\AresToys.Updater\AresToys.Updater.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <!-- potrace.exe (BSD, https://potrace.sourceforge.net/) shipped alongside the app for the
-         raster->SVG trace feature. Same convention as FFmpeg / yt-dlp: a small native binary
-         in Tools/, located at runtime via PotraceLocator. PreserveNewest so debug builds don't
-         keep recopying it. COPYING is the upstream license; mandatory for redistribution. -->
-    <Content Include="Tools\potrace.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Tools\COPYING">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
 </Project>

@@ -152,7 +152,7 @@ Tracked but not on a release timeline — small / niche / scoped-out polish that
 - [Microsoft.Toolkit.Uwp.Notifications](https://learn.microsoft.com/windows/apps/design/shell/tiles-and-notifications/send-local-toast?tabs=desktop) for Windows toast notifications (Action Center persistence + inline images)
 - [Velopack](https://github.com/velopack/velopack) for installer / portable packaging and auto-update via GitHub Releases
 - [ONNX Runtime](https://onnxruntime.ai/) with the DirectML execution provider — runs the embedded U2NetP saliency model behind the Magic eraser locally on any DX12 GPU (CPU fallback otherwise)
-- Bundled [potrace](http://potrace.sourceforge.net/) 1.16 (BSD) under `Tools/` drives the raster → SVG tracer
+- [vectorcraft-trace](https://crates.io/crates/vectorcraft-trace) (MIT OR Apache-2.0), bundled as `vectorcraft_ffi.dll`, drives the raster → SVG tracer
 
 ## Roadmap
 

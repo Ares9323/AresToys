@@ -5961,7 +5961,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Tracing failed — potrace.exe may be missing from the install. Check the log..
+        ///   Looks up a localized string similar to Tracing failed. The vector engine could not process this image; check the log.
         /// </summary>
         public static string Trace_FailMessage {
             get {
@@ -5986,7 +5986,25 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Trace_InfoLabel", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Flat Logo needs flat colour artwork such as a logo or an icon; this image is not flat..
+        /// </summary>
+        public static string Trace_LogoNotFlat {
+            get {
+                return ResourceManager.GetString("Trace_LogoNotFlat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select all colors of the logo to enable live view.
+        /// </summary>
+        public static string Trace_LogoSelectAllColors {
+            get {
+                return ResourceManager.GetString("Trace_LogoSelectAllColors", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Abutting.
         /// </summary>
@@ -6040,6 +6058,24 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Trace_ModeLabel", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Flat Logo.
+        /// </summary>
+        public static string Trace_ModeLogo {
+            get {
+                return ResourceManager.GetString("Trace_ModeLogo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to For flat colour artwork such as logos and icons..
+        /// </summary>
+        public static string Trace_ModeLogoTip {
+            get {
+                return ResourceManager.GetString("Trace_ModeLogoTip", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Palette:.
@@ -6060,6 +6096,15 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Color detail.
+        /// </summary>
+        public static string Trace_ParamColorDetail {
+            get {
+                return ResourceManager.GetString("Trace_ParamColorDetail", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Colors.
         /// </summary>
         public static string Trace_ParamColors {
@@ -6074,6 +6119,24 @@ namespace AresToys.App.Resources {
         public static string Trace_ParamCorners {
             get {
                 return ResourceManager.GetString("Trace_ParamCorners", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Fills.
+        /// </summary>
+        public static string Trace_ParamFills {
+            get {
+                return ResourceManager.GetString("Trace_ParamFills", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Gradients.
+        /// </summary>
+        public static string Trace_ParamGradients {
+            get {
+                return ResourceManager.GetString("Trace_ParamGradients", resourceCulture);
             }
         }
         
@@ -6101,15 +6164,6 @@ namespace AresToys.App.Resources {
         public static string Trace_ParamNoise {
             get {
                 return ResourceManager.GetString("Trace_ParamNoise", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Overlap.
-        /// </summary>
-        public static string Trace_ParamOverlap {
-            get {
-                return ResourceManager.GetString("Trace_ParamOverlap", resourceCulture);
             }
         }
         
@@ -6150,11 +6204,11 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Smoothing.
+        ///   Looks up a localized string similar to Shapes.
         /// </summary>
-        public static string Trace_ParamSmoothing {
+        public static string Trace_ParamShapes {
             get {
-                return ResourceManager.GetString("Trace_ParamSmoothing", resourceCulture);
+                return ResourceManager.GetString("Trace_ParamShapes", resourceCulture);
             }
         }
         
@@ -6164,6 +6218,24 @@ namespace AresToys.App.Resources {
         public static string Trace_ParamSnapCurves {
             get {
                 return ResourceManager.GetString("Trace_ParamSnapCurves", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Stroke width.
+        /// </summary>
+        public static string Trace_ParamStrokeWidth {
+            get {
+                return ResourceManager.GetString("Trace_ParamStrokeWidth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Strokes.
+        /// </summary>
+        public static string Trace_ParamStrokes {
+            get {
+                return ResourceManager.GetString("Trace_ParamStrokes", resourceCulture);
             }
         }
         
@@ -6182,15 +6254,6 @@ namespace AresToys.App.Resources {
         public static string Trace_ParamTolerance {
             get {
                 return ResourceManager.GetString("Trace_ParamTolerance", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Transparency.
-        /// </summary>
-        public static string Trace_ParamTransparency {
-            get {
-                return ResourceManager.GetString("Trace_ParamTransparency", resourceCulture);
             }
         }
         

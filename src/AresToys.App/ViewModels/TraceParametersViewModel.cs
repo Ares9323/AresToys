@@ -55,6 +55,7 @@ public sealed partial class TraceParametersViewModel : ObservableObject
             OnPropertyChanged(nameof(IsCustomPalette));
             OnPropertyChanged(nameof(CanAddSwatch));
             OnPropertyChanged(nameof(HasEnoughSwatches));
+            OnPropertyChanged(nameof(ShowSwatchMinimumHint));
         };
         Presets = new ObservableCollection<TracePreset>(TracePresets.Stock);
         SelectedPreset = Presets[0];
@@ -94,7 +95,7 @@ public sealed partial class TraceParametersViewModel : ObservableObject
     /// trace window via the swatch row (click → opens screen colour picker → fills slot).
     /// Each entry maps to a layer in the trace; pixels collapse to their nearest pick by
     /// Euclidean RGB so e.g. "white + light grey" become "white" if only white was picked.
-    /// Capped at <see cref="MaxCustomSwatches"/> — potrace handles many layers but UX
+    /// Capped at <see cref="MaxCustomSwatches"/> — the tracer handles many layers but UX
     /// breaks down past ~16 colour chips in a row.</summary>
     public ObservableCollection<System.Windows.Media.Color> CustomPalette { get; }
     public const int MaxCustomSwatches = 16;
@@ -110,23 +111,41 @@ public sealed partial class TraceParametersViewModel : ObservableObject
     partial void OnSelectedPaletteChanged(TracePaletteItem value)
     {
         OnPropertyChanged(nameof(IsCustomPalette));
+        OnPropertyChanged(nameof(IsColorDetailVisible));
+        OnPropertyChanged(nameof(ShowSwatchRow));
     }
+
+    /// <summary>The swatch row shows for the Custom palette of Color/Grayscale and always in
+    /// Flat Logo mode, where the swatches are the logo colours.</summary>
+    public bool ShowSwatchRow => Mode == TraceMode.Logo || (PaletteEnabled && IsCustomPalette);
+    /// <summary>The "pick at least 2" hint never shows in Flat Logo (empty = automatic colours).</summary>
+    public bool ShowSwatchMinimumHint => Mode != TraceMode.Logo && !HasEnoughSwatches;
+
+    /// <summary>Color detail only applies to the Automatic and Full Tone palettes of Color or
+    /// Grayscale mode.</summary>
+    public bool IsColorDetailVisible => PaletteEnabled
+        && SelectedPalette?.Value is TracePalette.Automatic or TracePalette.FullTone;
 
     // Mode toggle group — three RadioButton bindings funnel into one TraceMode field.
     [ObservableProperty] private TraceMode _mode = TraceMode.BlackAndWhite;
     public bool ModeColor { get => Mode == TraceMode.Color; set { if (value) Mode = TraceMode.Color; OnPropertyChanged(); } }
     public bool ModeGrayscale { get => Mode == TraceMode.Grayscale; set { if (value) Mode = TraceMode.Grayscale; OnPropertyChanged(); } }
+    public bool ModeLogo { get => Mode == TraceMode.Logo; set { if (value) Mode = TraceMode.Logo; OnPropertyChanged(); } }
     public bool ModeBlackAndWhite { get => Mode == TraceMode.BlackAndWhite; set { if (value) Mode = TraceMode.BlackAndWhite; OnPropertyChanged(); } }
     partial void OnModeChanged(TraceMode value)
     {
         OnPropertyChanged(nameof(ModeColor));
         OnPropertyChanged(nameof(ModeGrayscale));
         OnPropertyChanged(nameof(ModeBlackAndWhite));
+        OnPropertyChanged(nameof(ModeLogo));
+        OnPropertyChanged(nameof(ShowSwatchRow));
+        OnPropertyChanged(nameof(ShowSwatchMinimumHint));
         OnPropertyChanged(nameof(PaletteEnabled));
         OnPropertyChanged(nameof(IsBlackAndWhite));
         OnPropertyChanged(nameof(IsColorOrGrayscale));
+        OnPropertyChanged(nameof(IsColorDetailVisible));
     }
-    public bool PaletteEnabled => Mode != TraceMode.BlackAndWhite;
+    public bool PaletteEnabled => Mode is TraceMode.Color or TraceMode.Grayscale;
     public bool IsBlackAndWhite => Mode == TraceMode.BlackAndWhite;
     public bool IsColorOrGrayscale => !IsBlackAndWhite;
 
@@ -138,7 +157,6 @@ public sealed partial class TraceParametersViewModel : ObservableObject
     [ObservableProperty] private int _noisePx = 25;
     [ObservableProperty] private TraceMethod _method = TraceMethod.Overlapping;
     [ObservableProperty] private bool _snapCurvesToLines = true;
-    [ObservableProperty] private bool _transparency;
     [ObservableProperty] private System.Windows.Media.Color? _ignoreColor;
     [ObservableProperty] private int _ignoreTolerance = 32;
     [ObservableProperty] private bool _autoGrouping = true;
@@ -154,9 +172,13 @@ public sealed partial class TraceParametersViewModel : ObservableObject
     // weak (1-pass smoothing left visible saw-tooth on heavy AA sources) or too strong
     // (always-on box blur softened sharp logos that didn't need it). Defaults match the
     // previous hardcoded behaviour so existing presets render identically.
-    [ObservableProperty] private int _smoothingIterations = 2;
     [ObservableProperty] private int _preBlurStrength = 1;
-    [ObservableProperty] private int _overlapRadius = 1;
+    [ObservableProperty] private int _colorDetail = 50;
+    [ObservableProperty] private bool _shapes;
+    [ObservableProperty] private bool _gradients;
+    [ObservableProperty] private bool _fills = true;
+    [ObservableProperty] private bool _strokes;
+    [ObservableProperty] private double _strokeWidth = 10;
 
     // Method radio bridges (Task 5 Step 2) — two RadioButtons funnel into the single
     // TraceMethod enum value, mirroring the Mode bridge pattern above.
@@ -169,9 +191,8 @@ public sealed partial class TraceParametersViewModel : ObservableObject
     }
 
     // Ignore-color enable toggle. When unchecked, also clears the picked colour so the next
-    // ToOptions() call won't re-apply a stale ignore. The Transparency flag is independent
-    // (Illustrator semantics): IgnoreColor always makes the matched pixels transparent in
-    // the output regardless of Transparency, which controls source-alpha preservation.
+    // ToOptions() call won't re-apply a stale ignore. IgnoreColor makes the matched pixels
+    // transparent in the output.
     [ObservableProperty] private bool _ignoreColorEnabled;
     partial void OnIgnoreColorEnabledChanged(bool value)
     {
@@ -193,16 +214,19 @@ public sealed partial class TraceParametersViewModel : ObservableObject
         NoisePx: NoisePx,
         Method: Method,
         SnapCurvesToLines: SnapCurvesToLines,
-        Transparency: Transparency,
         IgnoreColor: IgnoreColor is { } c ? System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B) : null,
         IgnoreTolerance: IgnoreTolerance,
         AutoGrouping: AutoGrouping,
-        SmoothingIterations: SmoothingIterations,
         PreBlurStrength: PreBlurStrength,
-        OverlapRadius: OverlapRadius,
         CustomPalette: CustomPalette.Count > 0
             ? CustomPalette.Select(m => System.Drawing.Color.FromArgb(m.A, m.R, m.G, m.B)).ToList()
-            : null);
+            : null,
+        ColorDetail: ColorDetail,
+        Shapes: Shapes,
+        Gradients: Gradients,
+        Fills: Fills,
+        Strokes: Strokes,
+        StrokeWidth: StrokeWidth);
 
     /// <summary>Apply every field from <paramref name="o"/> in sequence. Each setter fires
     /// its own PropertyChanged → the window's <c>OnParamsChanged</c> queues N debounced
@@ -219,7 +243,6 @@ public sealed partial class TraceParametersViewModel : ObservableObject
         NoisePx = o.NoisePx;
         Method = o.Method;
         SnapCurvesToLines = o.SnapCurvesToLines;
-        Transparency = o.Transparency;
         IgnoreColor = o.IgnoreColor is { } c ? System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B) : null;
         // Sync the Ignore Color checkbox with the preset's IgnoreColor presence so the UI
         // state never drifts from the actual setting. Without this, switching between a
@@ -229,9 +252,13 @@ public sealed partial class TraceParametersViewModel : ObservableObject
         IgnoreColorEnabled = o.IgnoreColor is not null;
         IgnoreTolerance = o.IgnoreTolerance;
         AutoGrouping = o.AutoGrouping;
-        SmoothingIterations = o.SmoothingIterations;
         PreBlurStrength = o.PreBlurStrength;
-        OverlapRadius = o.OverlapRadius;
+        ColorDetail = o.ColorDetail;
+        Shapes = o.Shapes;
+        Gradients = o.Gradients;
+        Fills = o.Fills;
+        Strokes = o.Strokes;
+        StrokeWidth = o.StrokeWidth;
         // Custom palette is only restored if the preset actually carries one. Stock presets
         // ship with null here, so loading one doesn't wipe the user's currently-picked
         // swatches (they'd be annoyed if switching to "High Fidelity Photo" cleared their
@@ -246,7 +273,7 @@ public sealed partial class TraceParametersViewModel : ObservableObject
 
     /// <summary>Parse the rendered SVG to fill the Info readout. Cheap regex over the
     /// path / fill attributes; not a real XML parse because the SVG is stable enough
-    /// (we built it ourselves in the multi-color path; potrace's mono path is also
+    /// (we built it ourselves in the multi-color path; the black and white path is also
     /// well-formed). Numbers are approximate — anchor count is the sum of "M"+"C"+"L"
     /// commands per path which over-counts curves slightly; matches what Illustrator
     /// shows close enough for a status readout.</summary>

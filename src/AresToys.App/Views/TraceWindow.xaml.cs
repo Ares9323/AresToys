@@ -12,7 +12,7 @@ namespace AresToys.App.Views;
 /// <see cref="ResultSvg"/> on save. Modeless — host opens via <c>Show()</c> and awaits
 /// <see cref="System.Windows.Window.Closed"/> through a <c>TaskCompletionSource</c>
 /// (mirrors <c>ImageEffectsWindow</c>'s editor-mode plumbing). The preview pipeline
-/// re-runs potrace on every parameter change with a 150ms debounce — turning the Preview
+/// re-runs the tracer on every parameter change with a 150ms debounce — turning the Preview
 /// checkbox off pauses the auto-rerun and the user can drive it manually via the
 /// <c>Trace</c> button (matches Illustrator's <c>Preview</c>/<c>Trace</c> pair).</summary>
 public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
@@ -23,6 +23,7 @@ public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
     private readonly TraceParametersViewModel _params;
     private CancellationTokenSource? _previewCts;
     private string? _lastSvg;
+    private string? _previewMessage;
     // True once the WebView2 has finished its initial NavigationCompleted — from that point
     // on we swap content via ExecuteScriptAsync instead of NavigateToString. The point is to
     // keep the document alive across re-traces so zoom/pan state survives parameter tweaks
@@ -113,8 +114,16 @@ public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
         try
         {
             await Task.Delay(150, ct).ConfigureAwait(true);
-            var svg = await _tracer.TraceAsync(_sourcePng, opts, ct).ConfigureAwait(true);
+            var outcome = await _tracer.TraceDetailedAsync(_sourcePng, opts, ct).ConfigureAwait(true);
             if (ct.IsCancellationRequested) return;
+            var svg = outcome.Svg;
+            _previewMessage = outcome.Failure switch
+            {
+                TraceFailure.NotFlat when opts.Mode == TraceMode.Logo && opts.CustomPalette is { Count: > 0 }
+                    => AresToys.App.Resources.Strings.Trace_LogoSelectAllColors,
+                TraceFailure.NotFlat => AresToys.App.Resources.Strings.Trace_LogoNotFlat,
+                _ => null,
+            };
             _lastSvg = svg;
             _params.UpdateInfoFromSvg(svg);
             RefreshPreview();
@@ -136,14 +145,14 @@ public sealed partial class TraceWindow : Wpf.Ui.Controls.FluentWindow
         var mode = _params.SelectedViewMode?.Mode ?? TraceViewMode.TracingResult;
         if (_previewDocumentReady && SvgPreviewWeb.CoreWebView2 is { } cw)
         {
-            var body = TraceViewModeRenderer.RenderBody(_lastSvg, _sourcePng, mode);
+            var body = TraceViewModeRenderer.RenderBody(_lastSvg, _sourcePng, mode, _previewMessage);
             // JsonSerializer.Serialize handles all the JS-string escaping (quotes, backslashes,
             // unicode) we'd otherwise have to roll by hand for an inline script literal.
             var bodyJs = System.Text.Json.JsonSerializer.Serialize(body);
             _ = cw.ExecuteScriptAsync($"window.arestoysSetContent({bodyJs})");
             return;
         }
-        var html = TraceViewModeRenderer.Render(_lastSvg, _sourcePng, mode);
+        var html = TraceViewModeRenderer.Render(_lastSvg, _sourcePng, mode, _previewMessage);
         _previewDocumentReady = false;
         SvgPreviewWeb.NavigateToString(html);
     }

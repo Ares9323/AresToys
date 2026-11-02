@@ -416,7 +416,7 @@ public static class WorkflowActionCatalog
 
         new("arestoys.trace-to-svg",
             "Trace to SVG",
-            "Convert the captured raster to an SVG vector via potrace. Result lands in the pipeline bag under 'svg_output' for downstream Save-SVG / Copy-SVG steps. The 'Preset' dropdown lists the same stock presets as the standalone trace window ([Default], High Fidelity Photo, 3 Colors, Black and White Logo, Sketched Art, Silhouettes, Line Art, Technical Drawing, …) plus any custom presets you've saved there.",
+            "Convert the captured raster to an SVG vector with the built in vector engine. Result lands in the pipeline bag under 'svg_output' for downstream Save-SVG / Copy-SVG steps. The 'Preset' dropdown lists the same stock presets as the standalone trace window ([Default], High Fidelity Photo, 3 Colors, Black and White Logo, Sketched Art, Silhouettes, Line Art, Technical Drawing, …) plus any custom presets you've saved there.",
             "Editor",
             DefaultConfigJson: "{\"preset\":\"[Default]\"}",
             StringParameters: [new StringParameter("preset", "Preset", "[Default]",

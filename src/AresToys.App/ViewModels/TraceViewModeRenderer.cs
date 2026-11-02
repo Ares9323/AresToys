@@ -90,14 +90,14 @@ public static class TraceViewModeRenderer
     /// <summary>Build the full HTML document — used for the FIRST navigation only. Subsequent
     /// re-traces use <see cref="RenderBody"/> + the JS swap path so the document (and the
     /// user's zoom / pan state inside it) survives the update.</summary>
-    public static string Render(string? svg, byte[]? sourcePng, TraceViewMode mode)
-        => Wrap(RenderBody(svg, sourcePng, mode));
+    public static string Render(string? svg, byte[]? sourcePng, TraceViewMode mode, string? message = null)
+        => Wrap(RenderBody(svg, sourcePng, mode, message));
 
     /// <summary>Build only the inner HTML that goes inside <c>#zoomwrap</c>. The host calls
     /// <c>window.arestoysSetContent(this)</c> via ExecuteScriptAsync to swap in the new render
     /// without touching the document — preserves z/tx/ty across parameter tweaks so the
     /// user can stay zoomed into a problem area while iterating on settings.</summary>
-    public static string RenderBody(string? svg, byte[]? sourcePng, TraceViewMode mode)
+    public static string RenderBody(string? svg, byte[]? sourcePng, TraceViewMode mode, string? message = null)
     {
         if (mode == TraceViewMode.SourceImage)
         {
@@ -105,7 +105,8 @@ public static class TraceViewModeRenderer
         }
         if (string.IsNullOrEmpty(svg))
         {
-            return "<div style='color:#aaa;font-family:sans-serif'>(no output)</div>";
+            var text = string.IsNullOrEmpty(message) ? "(no output)" : System.Net.WebUtility.HtmlEncode(message);
+            return $"<div style='color:#aaa;font-family:sans-serif'>{text}</div>";
         }
         return mode switch
         {
@@ -137,7 +138,7 @@ public static class TraceViewModeRenderer
     /// <c>fill="none" stroke="#000" stroke-width="1"</c>. Strokes only show on path
     /// boundaries — exactly what Illustrator's Outlines view does. Not perfect (won't
     /// touch <c>style="fill:…"</c> if some upstream tool produces that variant) but
-    /// our potrace output uses the attribute form so it's reliable in practice.</summary>
+    /// our tracer output uses the attribute form so it's reliable in practice.</summary>
     private static string MakeOutlines(string svg) =>
         System.Text.RegularExpressions.Regex.Replace(
             svg,

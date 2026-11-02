@@ -1286,7 +1286,7 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="BgRemover_StatusDecodeFailed" xml:space="preserve"><value>Source image could not be decoded.</value></data>
   <data name="Trace_SaveDialogTitle" xml:space="preserve"><value>Save traced SVG</value></data>
   <data name="Trace_FilterSvg" xml:space="preserve"><value>SVG image|*.svg|All files|*.*</value></data>
-  <data name="Trace_FailMessage" xml:space="preserve"><value>Tracing failed — potrace.exe may be missing from the install. Check the log.</value></data>
+  <data name="Trace_FailMessage" xml:space="preserve"><value>Tracing failed. The vector engine could not process this image; check the log.</value></data>
   <data name="Trace_WindowTitle" xml:space="preserve"><value>Trace to SVG</value></data>
   <data name="Trace_SaveButton" xml:space="preserve"><value>Save as…</value></data>
   <data name="Trace_PresetLabel" xml:space="preserve"><value>Preset:</value></data>
@@ -1297,25 +1297,32 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Trace_ModeColor" xml:space="preserve"><value>Color</value></data>
   <data name="Trace_ModeGrayscale" xml:space="preserve"><value>Grayscale</value></data>
   <data name="Trace_ModeBlackAndWhite" xml:space="preserve"><value>Black and White</value></data>
+  <data name="Trace_LogoSelectAllColors" xml:space="preserve"><value>Select all colors of the logo to enable live view</value></data>
+  <data name="Trace_LogoNotFlat" xml:space="preserve"><value>Flat Logo needs flat colour artwork such as a logo or an icon; this image is not flat.</value></data>
+  <data name="Trace_ModeLogo" xml:space="preserve"><value>Flat Logo</value></data>
+  <data name="Trace_ModeLogoTip" xml:space="preserve"><value>For flat colour artwork such as logos and icons. Colours are found automatically, or pick every colour of the logo below (up to 10, white is always skipped). Photos are not supported.</value></data>
   <data name="Trace_PaletteLabel" xml:space="preserve"><value>Palette:</value></data>
   <data name="Trace_ParamColors" xml:space="preserve"><value>Colors</value></data>
   <data name="Trace_ParamThreshold" xml:space="preserve"><value>Threshold</value></data>
   <data name="Trace_ParamPaths" xml:space="preserve"><value>Paths</value></data>
   <data name="Trace_ParamCorners" xml:space="preserve"><value>Corners</value></data>
   <data name="Trace_ParamNoise" xml:space="preserve"><value>Noise</value></data>
-  <data name="Trace_ParamSmoothing" xml:space="preserve"><value>Smoothing</value></data>
   <data name="Trace_ParamPreBlur" xml:space="preserve"><value>Pre-blur</value></data>
-  <data name="Trace_ParamOverlap" xml:space="preserve"><value>Overlap</value></data>
   <data name="Trace_ParamMethod" xml:space="preserve"><value>Method</value></data>
   <data name="Trace_MethodOverlapping" xml:space="preserve"><value>Overlapping</value></data>
   <data name="Trace_MethodAbutting" xml:space="preserve"><value>Abutting</value></data>
   <data name="Trace_ParamSnapCurves" xml:space="preserve"><value>Snap Curves To Lines</value></data>
-  <data name="Trace_ParamTransparency" xml:space="preserve"><value>Transparency</value></data>
   <data name="Trace_ParamAutoGrouping" xml:space="preserve"><value>Auto Grouping</value></data>
   <data name="Trace_ParamIgnoreColor" xml:space="preserve"><value>Ignore Color</value></data>
   <data name="Trace_ParamPickIgnore" xml:space="preserve"><value>Pick a colour…</value></data>
   <data name="Trace_ParamPickFromScreen" xml:space="preserve"><value>Sample colour from screen</value></data>
   <data name="Trace_ParamTolerance" xml:space="preserve"><value>Tolerance</value></data>
+  <data name="Trace_ParamShapes" xml:space="preserve"><value>Shapes</value></data>
+  <data name="Trace_ParamGradients" xml:space="preserve"><value>Gradients</value></data>
+  <data name="Trace_ParamFills" xml:space="preserve"><value>Fills</value></data>
+  <data name="Trace_ParamStrokes" xml:space="preserve"><value>Strokes</value></data>
+  <data name="Trace_ParamStrokeWidth" xml:space="preserve"><value>Stroke width</value></data>
+  <data name="Trace_ParamColorDetail" xml:space="preserve"><value>Color detail</value></data>
   <data name="Trace_PreviewToggle" xml:space="preserve"><value>Realtime preview</value></data>
   <data name="Trace_TraceNow" xml:space="preserve"><value>Manual trace</value></data>
   <data name="Trace_InfoLabel" xml:space="preserve"><value>Info</value></data>

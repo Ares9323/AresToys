@@ -3,6 +3,10 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>AresToys.AI</RootNamespace>
     <AssemblyName>AresToys.AI</AssemblyName>
+    <!-- The VectorCraft tracer calls the native DLL through function pointers (progress callback). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <VectorCraftFfiDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'native', 'vectorcraft-ffi'))</VectorCraftFfiDir>
+    <VectorCraftFfiDll>$(VectorCraftFfiDir)target\release\vectorcraft_ffi.dll</VectorCraftFfiDll>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="SkiaSharp" />
@@ -26,4 +30,14 @@
          bytes back unchanged). -->
     <EmbeddedResource Include="Models\u2netp.onnx" Condition="Exists('Models\u2netp.onnx')" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- VectorCraft tracing engine (Rust cdylib, native/vectorcraft-ffi). Copied next to AresToys.AI.dll,
+         so it flows into AresToys.App and the publish folder. The file only exists once the target below has run. -->
+    <None Include="$(VectorCraftFfiDll)" Link="vectorcraft_ffi.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <VectorCraftFfiSource Include="$(VectorCraftFfiDir)src\**\*.rs;$(VectorCraftFfiDir)Cargo.toml;$(VectorCraftFfiDir)Cargo.lock" />
+  </ItemGroup>
+  <!-- Builds the native tracer only when its sources changed; a second build with no Rust change skips cargo. -->
+  <Target Name="BuildVectorCraftFfi" BeforeTargets="Build" Inputs="@(VectorCraftFfiSource)" Outputs="$(VectorCraftFfiDll)">
+    <Exec Command="cargo build --release --locked --manifest-path &quot;$(VectorCraftFfiDir)Cargo.toml&quot;" />
+  </Target>
 </Project>

@@ -105,7 +105,10 @@
                         <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeGrayscale}"
                                      IsChecked="{Binding ModeGrayscale, Mode=TwoWay}" Margin="0,0,12,0" />
                         <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeBlackAndWhite}"
-                                     IsChecked="{Binding ModeBlackAndWhite, Mode=TwoWay}" Margin="0,0,24,0" />
+                                     IsChecked="{Binding ModeBlackAndWhite, Mode=TwoWay}" Margin="0,0,12,0" />
+                        <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeLogo}"
+                                     ToolTip="{markup:Loc Trace_ModeLogoTip}"
+                                     IsChecked="{Binding ModeLogo, Mode=TwoWay}" Margin="0,0,24,0" />
 
                         <TextBlock Text="{markup:Loc Trace_PaletteLabel}" VerticalAlignment="Center" Margin="0,0,8,0"
                                    IsEnabled="{Binding PaletteEnabled}" />
@@ -113,6 +116,12 @@
                                   ItemsSource="{Binding Palettes}" DisplayMemberPath="Label"
                                   SelectedItem="{Binding SelectedPalette, Mode=TwoWay}"
                                   IsEnabled="{Binding PaletteEnabled}" />
+                        <DockPanel Width="260" LastChildFill="True" Margin="16,0,0,0" VerticalAlignment="Center"
+                                   Visibility="{Binding IsColorDetailVisible, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{markup:Loc Trace_ParamColorDetail}" Width="100" VerticalAlignment="Center" />
+                            <TextBox Text="{Binding ColorDetail}" Width="48" DockPanel.Dock="Right" />
+                            <Slider Value="{Binding ColorDetail}" Minimum="0" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                        </DockPanel>
                     </StackPanel>
 
                     <!-- Custom palette swatch row. Visible only in Custom mode. Each swatch
@@ -122,7 +131,7 @@
                          to pick at least 2 before tracing — below that the trace would map
                          every pixel to a single colour and produce a flat silhouette. -->
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
-                                Visibility="{Binding IsCustomPalette, Converter={StaticResource BoolToVisibility}}">
+                                Visibility="{Binding ShowSwatchRow, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{markup:Loc Trace_PickedColours}" VerticalAlignment="Center" Margin="0,0,8,0"
                                    Foreground="{DynamicResource AccentForegroundDarkBrush}" />
                         <ItemsControl ItemsSource="{Binding CustomPalette}">
@@ -155,7 +164,7 @@
                         <TextBlock Text="(pick at least 2)" Margin="12,0,0,0"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource AccentForegroundDarkBrush}" FontStyle="Italic"
-                                   Visibility="{Binding HasEnoughSwatches, Converter={StaticResource InverseBoolToVisibility}}" />
+                                   Visibility="{Binding ShowSwatchMinimumHint, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -190,20 +199,11 @@
                         <Slider Value="{Binding Threshold}" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" />
                     </DockPanel>
 
-                    <!-- Paths slider removed — its underlying potrace -O parameter is bounded
-                         by alphamax (Corners) AND has imperceptible visual effect on the
-                         simple binary masks our multi-colour pipeline feeds it. Three
-                         attempts to make it visibly responsive (range expansion, alphamax-
-                         scaled mapping, etc.) all left users with a "slider does nothing"
-                         experience. The PathsPercent field stays in TraceOptions / VM for
-                         preset round-trip but no longer surfaces in UI; potrace gets its
-                         built-in default (0.2). Re-add a meaningful knob later if a real
-                         Douglas-Peucker post-process lands.
-                         Corners + Noise stay at their original row indices (2 and 3) so
-                         column 1 (SnapCurves at row 1, Transparency at row 2, AutoGrouping
-                         at row 3) still aligns horizontally with column 0 — the now-empty
-                         row 1 in column 0 is fine since SnapCurves there reads as a
-                         standalone toggle next to "no slider above". -->
+                    <DockPanel Grid.Column="0" Grid.Row="1" LastChildFill="True" Margin="0,0,12,8">
+                        <TextBlock Text="{markup:Loc Trace_ParamPaths}" Width="120" />
+                        <TextBox Text="{Binding PathsPercent}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding PathsPercent}" Minimum="0" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
 
                     <DockPanel Grid.Column="0" Grid.Row="2" LastChildFill="True" Margin="0,0,12,8">
                         <TextBlock Text="{markup:Loc Trace_ParamCorners}" Width="120" />
@@ -217,7 +217,7 @@
                         <Slider Value="{Binding NoisePx}" Minimum="1" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
                     </DockPanel>
 
-                    <!-- Column 2 — Method + Snap + Transparency + Auto-Grouping -->
+                    <!-- Column 2 — Method + Snap + Shapes + Gradients + Auto-Grouping -->
                     <StackPanel Grid.Column="1" Grid.Row="0" Orientation="Horizontal" Margin="12,0,12,8">
                         <TextBlock Text="{markup:Loc Trace_ParamMethod}" Width="120" VerticalAlignment="Center" />
                         <RadioButton GroupName="Method" Content="{markup:Loc Trace_MethodOverlapping}"
@@ -229,9 +229,12 @@
                               Content="{markup:Loc Trace_ParamSnapCurves}"
                               IsChecked="{Binding SnapCurvesToLines}" Margin="12,0,12,8" />
                     <CheckBox Grid.Column="1" Grid.Row="2"
-                              Content="{markup:Loc Trace_ParamTransparency}"
-                              IsChecked="{Binding Transparency}" Margin="12,0,12,8" />
+                              Content="{markup:Loc Trace_ParamShapes}"
+                              IsChecked="{Binding Shapes}" Margin="12,0,12,8" />
                     <CheckBox Grid.Column="1" Grid.Row="3"
+                              Content="{markup:Loc Trace_ParamGradients}"
+                              IsChecked="{Binding Gradients}" Margin="12,0,12,8" />
+                    <CheckBox Grid.Column="1" Grid.Row="4"
                               Content="{markup:Loc Trace_ParamAutoGrouping}"
                               IsChecked="{Binding AutoGrouping}" Margin="12,0,12,0" />
 
@@ -272,28 +275,21 @@
                         <Slider Value="{Binding IgnoreTolerance}" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" />
                     </DockPanel>
 
-                    <!-- Row 4 — Quality knobs (smoothing / blur / overlap). Each is a 0-3
-                         tick slider because the underlying operations are integer iteration
-                         counts (majority-filter passes, box-blur passes, dilation pixels);
-                         a continuous slider would round to the same values and feel laggy. -->
                     <DockPanel Grid.Column="0" Grid.Row="4" LastChildFill="True" Margin="0,0,12,0">
-                        <TextBlock Text="{markup:Loc Trace_ParamSmoothing}" Width="120" />
-                        <TextBox Text="{Binding SmoothingIterations}" Width="48" DockPanel.Dock="Right" />
-                        <Slider Value="{Binding SmoothingIterations}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
-                    </DockPanel>
-                    <DockPanel Grid.Column="1" Grid.Row="4" LastChildFill="True" Margin="12,0,12,0">
                         <TextBlock Text="{markup:Loc Trace_ParamPreBlur}" Width="120" />
                         <TextBox Text="{Binding PreBlurStrength}" Width="48" DockPanel.Dock="Right" />
                         <Slider Value="{Binding PreBlurStrength}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
                     </DockPanel>
-                    <!-- Overlap radius is greyed out in Abutting mode (the dilation only
-                         applies to Overlapping); using MethodIsOverlapping as the IsEnabled
-                         binding keeps the visual cue obvious without hiding the knob. -->
-                    <DockPanel Grid.Column="2" Grid.Row="4" LastChildFill="True" Margin="12,0,0,0"
-                               IsEnabled="{Binding MethodIsOverlapping}">
-                        <TextBlock Text="{markup:Loc Trace_ParamOverlap}" Width="120" />
-                        <TextBox Text="{Binding OverlapRadius}" Width="48" DockPanel.Dock="Right" />
-                        <Slider Value="{Binding OverlapRadius}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
+                    <CheckBox Grid.Column="2" Grid.Row="2"
+                              Content="{markup:Loc Trace_ParamFills}"
+                              IsChecked="{Binding Fills}" Margin="12,0,0,8" />
+                    <CheckBox Grid.Column="2" Grid.Row="3"
+                              Content="{markup:Loc Trace_ParamStrokes}"
+                              IsChecked="{Binding Strokes}" Margin="12,0,0,8" />
+                    <DockPanel Grid.Column="2" Grid.Row="4" LastChildFill="True" Margin="12,0,0,0" IsEnabled="{Binding Strokes}">
+                        <TextBlock Text="{markup:Loc Trace_ParamStrokeWidth}" Width="120" />
+                        <TextBox Text="{Binding StrokeWidth}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding StrokeWidth}" Minimum="1" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
                     </DockPanel>
                 </Grid>
             </Border>

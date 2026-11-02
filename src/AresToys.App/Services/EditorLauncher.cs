@@ -190,7 +190,7 @@ public sealed class EditorLauncher
     /// SaveFileDialog parented to the editor to write the user-confirmed SVG to disk. Mirrors
     /// the modeless Show + TaskCompletionSource-on-Closed pattern from
     /// <see cref="OpenEffectsAsync"/> — keeps the rest of the app interactive while the user
-    /// dials in trace parameters. Failure modes (potrace missing, tracer crash) surface inline
+    /// dials in trace parameters. Failure modes (engine library missing, tracer crash) surface inline
     /// in the preview window's "(no output)" placeholder, so the legacy MessageBox is gone.</summary>
     /// <summary>Open the TraceWindow and await its closure. The window handles its own
     /// "Save as…" file dialog inline (no launcher coordination needed), which lets the
