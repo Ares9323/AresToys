@@ -9,14 +9,13 @@ namespace AresToys.App.ViewModels;
 
 /// <summary>Backs the Settings → Wormholes tab. Owns the list of <see cref="WormholeRowViewModel"/>
 /// rendered as a grid, plus the "New wormhole" command that pops the same dialog the tray entry
-/// uses. <see cref="ReloadAsync"/> rehydrates from <see cref="IWormholeStore"/> — called on tab
+/// uses. <see cref="ReloadAsync"/> rehydrates from <see cref="IWormholeRowSource"/> — called on tab
 /// activation (mirrors <c>UploadersViewModel.ReloadAsync</c> / <c>HotkeysViewModel.ReloadAsync</c>
 /// pattern) so the grid doesn't pay any I/O cost until the user actually navigates there.</summary>
 public sealed partial class WormholesViewModel : ObservableObject
 {
-    private readonly IWormholeStore _store;
+    private readonly IWormholeRowSource _rows;
     private readonly IWormholeWindowManager _manager;
-    private readonly WormholeDefaultsService _defaults;
     private bool _suppressDefaultsPersist;
 
     public ObservableCollection<WormholeRowViewModel> Rows { get; } = new();
@@ -118,36 +117,14 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// the screen edge). 0 = flush.</summary>
     [ObservableProperty] private int _snapGapPx;
 
-    public WormholesViewModel(IWormholeStore store, IWormholeWindowManager manager, WormholeDefaultsService defaults)
+    public WormholesViewModel(IWormholeRowSource rows, IWormholeWindowManager manager)
     {
-        _store = store;
+        _rows = rows;
         _manager = manager;
-        _defaults = defaults;
         Presets = new WormholePresetsViewModel(manager);
-        // Hydrate the VM properties from the already-loaded service (App.xaml.cs LoadAsync at
-        // startup). Subsequent slider drags flow OUT through the partial-method setters below.
-        _suppressDefaultsPersist = true;
-        DefaultIconSizePx = _defaults.DefaultIconSizePx;
-        DefaultOpacityPercent = (int)Math.Round(_defaults.DefaultOpacity * 100);
-        DefaultBorderOpacityPercent = (int)Math.Round(_defaults.DefaultBorderOpacity * 100);
-        DefaultTilePaddingPx = _defaults.DefaultTilePaddingPx;
-        DefaultLineSpacingPx = _defaults.DefaultLineSpacingPx;
-        DefaultLabelFontSizePx = _defaults.DefaultLabelFontSizePx;
-        DefaultLabelMaxLines = _defaults.DefaultLabelMaxLines;
-        AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
-        WebLinkFaviconsEnabled = _defaults.WebLinkFaviconsEnabled;
-        KeepVisibleOnShowDesktop = _defaults.KeepVisibleOnShowDesktop;
-        ExpandCollapsedOnHover = _defaults.ExpandCollapsedOnHover;
-        OpenWithOneClick = _defaults.OpenWithOneClick;
-        HideServiceFiles = _defaults.HideServiceFiles;
-        ShortcutArrowOverlay = _defaults.ShortcutArrowOverlay;
-        HideFileExtensions = _defaults.HideFileExtensions;
-        SnapToGrid = _defaults.SnapToGrid;
-        SnapGridSizePx = _defaults.SnapGridSizePx;
-        SnapToWormholes = _defaults.SnapToWormholes;
-        SnapToScreenEdges = _defaults.SnapToScreenEdges;
-        SnapGapPx = _defaults.SnapGapPx;
-        _suppressDefaultsPersist = false;
+        // Hydrate the VM properties from the proxy's cached defaults (the satellite owns the real values).
+        // Subsequent slider drags flow OUT through the partial-method setters below.
+        ApplyDefaults(_rows.Defaults);
         // Live grid refresh: when the manager persists a record (user drag/resize on the live
         // chrome, lock toggle from chrome, hamburger rename, etc.), the matching row updates
         // its displayed fields in place. The event fires on the UI dispatcher already.
@@ -166,124 +143,146 @@ public sealed partial class WormholesViewModel : ObservableObject
         foreach (var row in Rows) row.RefreshIsSelected();
     }
 
+    /// <summary>Copies the cached defaults into the observable properties without echoing them back to the satellite.</summary>
+    private void ApplyDefaults(WormholeWire.DefaultsDto d)
+    {
+        _suppressDefaultsPersist = true;
+        try
+        {
+            DefaultIconSizePx = d.IconSizePx;
+            DefaultOpacityPercent = (int)Math.Round(d.Opacity * 100);
+            DefaultBorderOpacityPercent = (int)Math.Round(d.BorderOpacity * 100);
+            DefaultTilePaddingPx = d.TilePaddingPx;
+            DefaultLineSpacingPx = d.LineSpacingPx;
+            DefaultLabelFontSizePx = d.LabelFontSizePx;
+            DefaultLabelMaxLines = d.LabelMaxLines;
+            AutoDisableTopmostOnLaunch = d.AutoDisableTopmostOnLaunch;
+            WebLinkFaviconsEnabled = d.WebLinkFavicons;
+            KeepVisibleOnShowDesktop = d.KeepVisibleOnShowDesktop;
+            ExpandCollapsedOnHover = d.ExpandCollapsedOnHover;
+            OpenWithOneClick = d.OpenWithOneClick;
+            HideServiceFiles = d.HideServiceFiles;
+            ShortcutArrowOverlay = d.ShortcutArrowOverlay;
+            HideFileExtensions = d.HideFileExtensions;
+            SnapToGrid = d.SnapToGrid;
+            SnapGridSizePx = d.SnapGridSizePx;
+            SnapToWormholes = d.SnapToWormholes;
+            SnapToScreenEdges = d.SnapToScreenEdges;
+            SnapGapPx = d.SnapGapPx;
+        }
+        finally { _suppressDefaultsPersist = false; }
+    }
+
+    /// <summary>Sends one default to the satellite (the only writer), which clamps and saves it.</summary>
+    private void PushDefault(string key, string value)
+        => _ = _rows.SetDefaultAsync(key, value, CancellationToken.None);
+
+    private void PushDefault(string key, int value)
+        => PushDefault(key, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    private void PushDefault(string key, double value)
+        => PushDefault(key, value.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+
+    private void PushDefault(string key, bool value) => PushDefault(key, value ? "true" : "false");
+
     partial void OnDefaultIconSizePxChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultIconSizeAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.IconSizeKey, value);
     }
 
     partial void OnDefaultOpacityPercentChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultOpacityAsync(value / 100.0, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.OpacityKey, value / 100.0);
     }
 
     partial void OnDefaultBorderOpacityPercentChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultBorderOpacityAsync(value / 100.0, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.BorderOpacityKey, value / 100.0);
     }
 
     partial void OnDefaultTilePaddingPxChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultTilePaddingAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.TilePaddingKey, value);
     }
 
     partial void OnDefaultLineSpacingPxChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultLineSpacingAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.LineSpacingKey, value);
     }
 
     partial void OnDefaultLabelFontSizePxChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultLabelFontSizeAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.LabelFontSizeKey, value);
     }
 
     partial void OnDefaultLabelMaxLinesChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetDefaultLabelMaxLinesAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.LabelMaxLinesKey, value);
     }
 
     partial void OnWebLinkFaviconsEnabledChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetWebLinkFaviconsEnabledAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.WebLinkFaviconsKey, value);
     }
 
     partial void OnAutoDisableTopmostOnLaunchChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetAutoDisableTopmostOnLaunchAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.AutoDisableTopmostOnLaunchKey, value);
     }
 
     partial void OnKeepVisibleOnShowDesktopChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetKeepVisibleOnShowDesktopAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.KeepVisibleOnShowDesktopKey, value);
     }
 
     partial void OnExpandCollapsedOnHoverChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetExpandCollapsedOnHoverAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.ExpandCollapsedOnHoverKey, value);
     }
 
     partial void OnOpenWithOneClickChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetOpenWithOneClickAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.OpenWithOneClickKey, value);
     }
 
     partial void OnShortcutArrowOverlayChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetShortcutArrowOverlayAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.ShortcutArrowOverlayKey, value);
     }
 
     partial void OnHideFileExtensionsChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetHideFileExtensionsAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.HideFileExtensionsKey, value);
     }
 
     partial void OnHideServiceFilesChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetHideServiceFilesAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.HideServiceFilesKey, value);
     }
 
     partial void OnSnapToGridChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetSnapToGridAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.SnapToGridKey, value);
     }
 
     partial void OnSnapGridSizePxChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetSnapGridSizeAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.SnapGridSizeKey, value);
     }
 
     partial void OnSnapToWormholesChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetSnapToWormholesAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.SnapToWormholesKey, value);
     }
 
     partial void OnSnapToScreenEdgesChanged(bool value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetSnapToScreenEdgesAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.SnapToScreenEdgesKey, value);
     }
 
     partial void OnSnapGapPxChanged(int value)
     {
-        if (_suppressDefaultsPersist) return;
-        _ = _defaults.SetSnapGapAsync(value, CancellationToken.None);
+        if (!_suppressDefaultsPersist) PushDefault(WormholeDefaultsService.SnapGapKey, value);
     }
 
     private void OnManagerRecordChanged(object? sender, Guid id)
@@ -308,43 +307,19 @@ public sealed partial class WormholesViewModel : ObservableObject
     /// (drag-induced LocationChanged would otherwise spam the grid with rebuilds); the user
     /// can re-click the sidebar entry to refresh after manipulating wormholes from chrome.
     ///
-    /// Re-hydrates the default observables from <see cref="WormholeDefaultsService"/> too: this
+    /// Re-hydrates the default observables from the satellite's defaults too: this
     /// VM is built eagerly during DI (because <see cref="SettingsViewModel"/> takes it as a ctor
     /// dependency) BEFORE the async <c>LoadAsync</c> reads the persisted defaults from disk.
     /// The ctor's hydration therefore captures fallback values (95 % opacity etc.); re-hydrating
     /// here on every tab activation makes the panel always reflect what's actually on disk.</summary>
     public async Task ReloadAsync()
     {
-        _suppressDefaultsPersist = true;
-        try
-        {
-            DefaultIconSizePx       = _defaults.DefaultIconSizePx;
-            DefaultOpacityPercent       = (int)Math.Round(_defaults.DefaultOpacity * 100);
-            DefaultBorderOpacityPercent = (int)Math.Round(_defaults.DefaultBorderOpacity * 100);
-            DefaultTilePaddingPx        = _defaults.DefaultTilePaddingPx;
-            DefaultLineSpacingPx    = _defaults.DefaultLineSpacingPx;
-            DefaultLabelFontSizePx  = _defaults.DefaultLabelFontSizePx;
-            DefaultLabelMaxLines    = _defaults.DefaultLabelMaxLines;
-            AutoDisableTopmostOnLaunch = _defaults.AutoDisableTopmostOnLaunch;
-            WebLinkFaviconsEnabled  = _defaults.WebLinkFaviconsEnabled;
-            KeepVisibleOnShowDesktop = _defaults.KeepVisibleOnShowDesktop;
-            ExpandCollapsedOnHover  = _defaults.ExpandCollapsedOnHover;
-            OpenWithOneClick        = _defaults.OpenWithOneClick;
-            HideServiceFiles        = _defaults.HideServiceFiles;
-            ShortcutArrowOverlay    = _defaults.ShortcutArrowOverlay;
-            HideFileExtensions      = _defaults.HideFileExtensions;
-            SnapToGrid              = _defaults.SnapToGrid;
-            SnapGridSizePx          = _defaults.SnapGridSizePx;
-            SnapToWormholes         = _defaults.SnapToWormholes;
-            SnapToScreenEdges       = _defaults.SnapToScreenEdges;
-            SnapGapPx               = _defaults.SnapGapPx;
-        }
-        finally { _suppressDefaultsPersist = false; }
+        ApplyDefaults(await _rows.LoadDefaultsAsync(CancellationToken.None).ConfigureAwait(true));
 
-        var records = await _store.LoadAllAsync(CancellationToken.None).ConfigureAwait(true);
+        var records = await _rows.ListAsync(CancellationToken.None).ConfigureAwait(true);
         Rows.Clear();
         foreach (var r in records)
-            Rows.Add(new WormholeRowViewModel(r, _store, _manager, this));
+            Rows.Add(new WormholeRowViewModel(r, _rows, _manager, this));
         IsEmpty = Rows.Count == 0;
 
         await Presets.RefreshAsync().ConfigureAwait(true);
@@ -360,7 +335,7 @@ public sealed partial class WormholesViewModel : ObservableObject
         IsEmpty = Rows.Count == 0;
     }
 
-    /// <summary>Mirror a successful <see cref="IWormholeStore.MoveAsync"/> result on the visible
+    /// <summary>Mirror a successful <see cref="IWormholeRowSource.MoveAsync"/> result on the visible
     /// <see cref="Rows"/> collection: yank the row and re-insert at <paramref name="newIndex"/>.
     /// Called by <see cref="WormholeRowViewModel"/>'s MoveUp/MoveDown commands after the store
     /// has already persisted the new order — keeps the grid responsive without a full Reload.</summary>

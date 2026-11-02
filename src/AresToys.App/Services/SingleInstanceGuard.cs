@@ -56,8 +56,9 @@ public sealed class SingleInstanceGuard : IDisposable
     /// No payload; the dialog handles folder selection itself.</summary>
     public const string NewWormholeDialogMessage = "new-wormhole-dialog";
 
-    private readonly Mutex _mutex;
+    private readonly Mutex? _mutex;
     private readonly bool _isPrimary;
+    private readonly bool _isSatellite;
     private CancellationTokenSource? _serverCts;
 
     public bool IsPrimary => _isPrimary;
@@ -68,10 +69,35 @@ public sealed class SingleInstanceGuard : IDisposable
     /// to the UI dispatcher before touching WPF state.</summary>
     public event EventHandler<string>? AnotherInstanceStarted;
 
-    public SingleInstanceGuard()
+    /// <summary>A <c>--satellite</c> launch (the non elevated companion process the main app starts) is not an
+    /// instance of its own: it takes neither the mutex nor the pipe, reports itself primary so startup goes on, and
+    /// is never forwarded to the real primary.</summary>
+    public SingleInstanceGuard(string[] args)
     {
+        if (Satellite.SatelliteArgs.TryParse(args, out _))
+        {
+            _isSatellite = true;
+            _isPrimary = true;
+            return;
+        }
+
         _mutex = new Mutex(initiallyOwned: true, MutexName, out _isPrimary);
+
+        // A restart (Restart as administrator, Restart normally) starts the new process while the old one is
+        // still shutting down: it stops the satellite before it releases the mutex. The new process waits for
+        // the handover instead of forwarding "show" to an instance that is about to exit.
+        if (!_isPrimary && args.Any(IsRestartArg))
+        {
+            try { _isPrimary = _mutex.WaitOne(RestartHandoverMs); }
+            catch (AbandonedMutexException) { _isPrimary = true; }
+        }
     }
+
+    private const int RestartHandoverMs = 15_000;
+
+    private static bool IsRestartArg(string arg) =>
+        string.Equals(arg, ElevationService.RestartedElevatedArg, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(arg, ElevationService.RestartedUnelevatedArg, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Send a payload to the primary instance. Convenience overload sends
     /// <see cref="ShowMessage"/> for the "just bring window to front" case.</summary>
@@ -102,7 +128,7 @@ public sealed class SingleInstanceGuard : IDisposable
 
     public void StartListening()
     {
-        if (!_isPrimary) return;
+        if (!_isPrimary || _isSatellite) return;
         _serverCts = new CancellationTokenSource();
         _ = Task.Run(() => RunServerAsync(_serverCts.Token));
     }
@@ -139,6 +165,7 @@ public sealed class SingleInstanceGuard : IDisposable
     {
         _serverCts?.Cancel();
         _serverCts?.Dispose();
+        if (_mutex is null) return;
         if (_isPrimary) _mutex.ReleaseMutex();
         _mutex.Dispose();
     }

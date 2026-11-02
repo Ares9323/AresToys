@@ -46,6 +46,7 @@ public sealed class SettingsBackupService
     private readonly ITagStore _tags;
     private readonly LauncherStore _launcher;
     private readonly ILogger<SettingsBackupService> _logger;
+    private readonly LauncherHostBridge? _launcherBridge;
 
     public SettingsBackupService(
         ISettingsStore settings,
@@ -53,7 +54,8 @@ public sealed class SettingsBackupService
         IItemStore items,
         ITagStore tags,
         LauncherStore launcher,
-        ILogger<SettingsBackupService> logger)
+        ILogger<SettingsBackupService> logger,
+        LauncherHostBridge? launcherBridge = null)
     {
         _settings = settings;
         _categories = categories;
@@ -61,6 +63,7 @@ public sealed class SettingsBackupService
         _tags = tags;
         _launcher = launcher;
         _logger = logger;
+        _launcherBridge = launcherBridge;
     }
 
     public async Task ExportAsync(string filePath, CancellationToken cancellationToken = default)
@@ -154,12 +157,17 @@ public sealed class SettingsBackupService
                 if (key is "launcher.state" or "launcher.cells") launcherStateTouched = true;
             }
         }
-        // The launcher pre-warms its in-memory view at app startup and uses a monotonic version
-        // counter on LauncherStore to decide whether to reload on the next PrepareAsync. Direct
+        // The launcher window lives in the satellite process, pre-warmed, and uses a monotonic version
+        // counter on its LauncherStore to decide whether to reload on the next PrepareAsync. Direct
         // ISettingsStore writes above bypass LauncherStore.SaveAsync, so the counter stays put
         // and the pre-warmed window keeps showing the old (often empty) grid until the user
-        // mutates a cell. Bump it explicitly here so the next open sees fresh data.
-        if (launcherStateTouched) _launcher.BumpStateVersion();
+        // mutates a cell. Tell the satellite explicitly so the next open (or the open window) sees
+        // fresh data. The main process's own store is bumped too.
+        if (launcherStateTouched)
+        {
+            _launcher.BumpStateVersion();
+            _launcherBridge?.NotifyStateChanged();
+        }
 
         var categoriesImported = 0;
         if (doc.Categories is not null)

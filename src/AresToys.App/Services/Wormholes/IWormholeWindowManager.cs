@@ -53,10 +53,8 @@ public interface IWormholeWindowManager
     /// expand-on-hover on). Shown at once, remembered after a short debounce.</summary>
     void ShowTabOnHover(Guid wormholeId);
 
-    /// <summary>Which wormhole's header is under a screen point (physical pixels), ignoring the
-    /// window being dragged. Used at the end of a drag to decide whether the user dropped one
-    /// wormhole onto another's header, which is the gesture that merges them.</summary>
-    Guid? FindHeaderTargetAt(int screenX, int screenY, Views.WormholeWindow exclude);
+    // FindHeaderTargetAt(screenX, screenY, WormholeWindow) takes a WPF type, so it lives on the satellite-only
+    // IWormholeWindowHost together with NotifyItemSelectionTaken and NotifyWormholeFocused.
 
     /// <summary>Light up a wormhole's header as the target a dragged wormhole would merge into.
     /// Null clears it. Called continuously during a drag, so it no-ops when the target hasn't
@@ -168,23 +166,16 @@ public interface IWormholeWindowManager
     /// the current layout, and bind the current monitor setup to it. No-op if it doesn't exist.</summary>
     Task RestorePresetAsync(string name, CancellationToken cancellationToken);
 
-    /// <summary>Called by a wormhole window when the user clicks/selects an item inside it
-    /// (without Ctrl/Shift) — clears the item selection on every OTHER live wormhole, so the
-    /// "selected" highlight is always single-wormhole. Mirrors Explorer's per-folder selection
-    /// model rather than the default WPF per-ListBox behaviour (which leaves stale selections
-    /// in sibling wormholes). Pass the calling window so we don't recursively clear it.</summary>
-    void NotifyItemSelectionTaken(System.Windows.Window source);
+    // NotifyItemSelectionTaken(Window) is a window callback and lives on IWormholeWindowHost.
 
-    /// <summary>Called by a wormhole window when ANY mouse-down on its chrome (or item area)
-    /// happens — used to drive the "focused wormhole" highlight in the Settings panel. The
+    /// <summary>Raised when a wormhole window sees ANY mouse-down on its chrome (or item area)
+    /// — used to drive the "focused wormhole" highlight in the Settings panel. The
     /// argument is the underlying record id; subscribers can ignore the value if they only
     /// care about the fact a focus event fired. Fires on the UI dispatcher thread.</summary>
     event EventHandler<Guid>? WormholeFocused;
 
-    /// <summary>Notify the manager that the user just interacted with this wormhole — fires
-    /// <see cref="WormholeFocused"/> with the matching record id so the Settings panel can
-    /// highlight the corresponding row. Idempotent: refiring with the same source is cheap.</summary>
-    void NotifyWormholeFocused(System.Windows.Window source);
+    // NotifyWormholeFocused(Window), which raises WormholeFocused, is a window callback and lives on
+    // IWormholeWindowHost.
 
     // ------------------------------------------------------------------------------------------
     // Source folder recovery. A wormhole mirrors a folder by path, so renaming or moving that

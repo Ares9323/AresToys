@@ -9,16 +9,18 @@ namespace AresToys.App.ViewModels;
 
 /// <summary>One row in the Settings → Wormholes list. Wraps a <see cref="WormholeRecord"/>
 /// with INPC properties so two-way bindings on Lock / Hidden CheckBoxes round-trip through the
-/// store and the live <c>WormholeWindow</c> (via <see cref="IWormholeWindowManager.ReconcileAsync"/>).
+/// satellite (via <see cref="IWormholeWindowManager.ReconcileAsync"/>).
 /// Display-only geometry / kind / folder strings derive from the wrapped record.</summary>
 public sealed partial class WormholeRowViewModel : ObservableObject
 {
-    private readonly IWormholeStore _store;
+    private readonly IWormholeRowSource _rows;
     private readonly IWormholeWindowManager _manager;
     private readonly WormholesViewModel _owner;
     private bool _suppressPersist;
 
-    public WormholeRecord Record { get; }
+    /// <summary>A copy of the wormhole as the proxy last cached it; replaced by a fresher copy in
+    /// <see cref="RefreshDisplay"/>.</summary>
+    public WormholeRecord Record { get; private set; }
 
     [ObservableProperty] private string _title = string.Empty;
     [ObservableProperty] private bool _isLocked;
@@ -49,12 +51,12 @@ public sealed partial class WormholeRowViewModel : ObservableObject
 
     public WormholeRowViewModel(
         WormholeRecord record,
-        IWormholeStore store,
+        IWormholeRowSource rows,
         IWormholeWindowManager manager,
         WormholesViewModel owner)
     {
         Record = record;
-        _store = store;
+        _rows = rows;
         _manager = manager;
         _owner = owner;
         // Initial property assignments must not echo back to the store — guard with a flag the
@@ -83,6 +85,8 @@ public sealed partial class WormholeRowViewModel : ObservableObject
     /// so the property setters don't re-persist the values we just read.</summary>
     public void RefreshDisplay()
     {
+        // The wrapped record is a copy, so take the proxy's latest one before reading it.
+        if (_rows.Snapshot(Record.Id) is { } fresh) Record = fresh;
         _suppressPersist = true;
         try
         {
@@ -185,7 +189,7 @@ public sealed partial class WormholeRowViewModel : ObservableObject
     /// affects display order — the live windows on the desktop don't move.</summary>
     private async Task MoveAsync(int delta)
     {
-        var newIdx = await _store.MoveAsync(Record.Id, delta, CancellationToken.None).ConfigureAwait(true);
+        var newIdx = await _rows.MoveAsync(Record.Id, delta, CancellationToken.None).ConfigureAwait(true);
         if (newIdx < 0) return;
         _owner.MoveRow(this, newIdx);
     }
@@ -210,7 +214,6 @@ public sealed partial class WormholeRowViewModel : ObservableObject
         {
             try
             {
-                await _store.SaveAsync(Record, CancellationToken.None).ConfigureAwait(true);
                 await _manager.ReconcileAsync(Record, CancellationToken.None).ConfigureAwait(true);
             }
             catch (Exception ex)

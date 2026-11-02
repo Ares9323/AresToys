@@ -18,9 +18,7 @@ public sealed class WormholesViewModelDeleteTests
         var store = new FakeWormholeStore();
         foreach (var t in titles) store.Records.Add(new WormholeRecord { Title = t });
         var manager = new FakeWormholeWindowManager();
-        var defaults = new WormholeDefaultsService(new FakeSettingsStore(),
-            NullLogger<WormholeDefaultsService>.Instance);
-        return (new WormholesViewModel(store, manager, defaults), store, manager);
+        return (new WormholesViewModel(new FakeWormholeRowSource(store), manager), store, manager);
     }
 
     [Fact]

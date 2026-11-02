@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
-using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using AresToys.App.Views;
+using AresToys.App.Services.Launcher;
 using AresToys.Core.Pipeline;
 
 namespace AresToys.App.Services.PipelineTasks;
@@ -23,20 +22,10 @@ public sealed class OpenLauncherMenuTask : IPipelineTask
 
     public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
     {
-        // Window construction touches WPF state, has to land on the UI thread. We resolve the
-        // window from the container (singleton) so DI wires its constructor dependencies and
-        // subsequent opens reuse the same instance. PrepareAsync runs BEFORE Show so the
-        // cell grid paints already populated — eliminates the old "grey flash" on open.
-        // Toggle behaviour: if the launcher is already up, close it instead of stacking a new
-        // instance — the same shortcut becomes "open" on first press, "close" on the second.
-        Application.Current.Dispatcher.InvokeAsync(async () =>
-        {
-            if (LauncherWindow.IsOpen) { LauncherWindow.RequestClose(); return; }
-            var window = _services.GetRequiredService<LauncherWindow>();
-            await window.PrepareAsync();
-            window.Show();
-            window.Activate();
-        });
+        // The window lives in the non elevated satellite process, which decides between open and close:
+        // the same shortcut becomes "open" on first press, "close" on the second. Fire and forget, the
+        // bridge logs a failure and never blocks the caller.
+        _ = _services.GetRequiredService<LauncherHostBridge>().ToggleAsync(dragMode: false);
         return Task.CompletedTask;
     }
 }

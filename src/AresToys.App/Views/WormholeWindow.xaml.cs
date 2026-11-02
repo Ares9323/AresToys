@@ -59,7 +59,7 @@ public partial class WormholeWindow : Window
     /// <summary>Manager used to fan-out "I just got a selection — clear yours" events to sibling
     /// wormholes. Null only on direct test construction; in normal app flow this is wired by
     /// <see cref="Services.Wormholes.WormholeWindowManager"/> at spawn time.</summary>
-    private readonly Services.Wormholes.IWormholeWindowManager? _manager;
+    private readonly Services.Wormholes.IWormholeWindowHost? _manager;
     /// <summary>Resolves real site favicons for <c>.url</c> web-link tiles. Null on direct test
     /// construction or when the Wormholes module wires the window without it; in normal app flow
     /// it's injected by <see cref="Services.Wormholes.WormholeWindowManager"/>.</summary>
@@ -131,7 +131,7 @@ public partial class WormholeWindow : Window
         IconService icons,
         string wormholesRoot,
         Services.Wormholes.WormholeDefaultsService? defaults = null,
-        Services.Wormholes.IWormholeWindowManager? manager = null,
+        Services.Wormholes.IWormholeWindowHost? manager = null,
         Services.Wormholes.Favicons.FaviconService? favicons = null,
         Services.ColorWheelLauncher? colors = null)
     {

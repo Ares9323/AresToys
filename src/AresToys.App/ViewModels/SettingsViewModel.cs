@@ -29,6 +29,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly PopupWindowViewModel _clipboardVm;
     private readonly AresToys.App.Services.KeySequences.KeySequenceModuleSettings _keySequencesSettings;
     private readonly AresToys.App.Services.Pins.PinPersistenceService _pins;
+    private readonly AresToys.App.Services.Satellite.SatelliteService _satellite;
 
     public SettingsViewModel(
         PluginRegistry registry,
@@ -50,7 +51,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         PopupWindowViewModel clipboardVm,
         AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings,
         AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime,
-        AresToys.App.Services.Pins.PinPersistenceService pins)
+        AresToys.App.Services.Pins.PinPersistenceService pins,
+        AresToys.App.Services.Satellite.SatelliteService satellite)
     {
         _autostart = autostart;
         _elevation = elevation;
@@ -59,6 +61,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _keySequencesSettings = keySequencesSettings;
         _toastLifetime = toastLifetime;
         _pins = pins;
+        _satellite = satellite;
         Theme = theme;
         Categories = categories;
         Debug = debug;
@@ -181,6 +184,18 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (StartWithWindows)
         {
             _autostart.SetEnabled(true, value);
+        }
+    }
+
+    /// <summary>One time restart without elevation, for when AresToys runs as administrator. Same path as the
+    /// tray's "Restart normally": the child is started with the shell token and skips the "Always run as
+    /// administrator" gate for that session only.</summary>
+    [RelayCommand]
+    private void RestartUnelevated()
+    {
+        if (ElevationService.RestartUnelevated())
+        {
+            System.Windows.Application.Current.Shutdown();
         }
     }
 
@@ -529,24 +544,36 @@ public sealed partial class SettingsViewModel : ObservableObject
         ModulesRestartRequired = true;
     }
 
+    // The Launcher and Wormholes live in the non elevated satellite: once the switch is saved, the satellite is
+    // started, stopped or restarted for the new module set. The restart hint stays because the main app still
+    // reads these switches at start-up for the Launcher hotkey and tray entry and for the Wormholes startup work.
     partial void OnLauncherModuleEnabledChanged(bool value)
     {
         if (_suppressLauncherModulePersist) return;
-        _ = _settingsStore.SetAsync(LauncherModuleKey,
-            value ? "true" : "false",
-            sensitive: false,
-            CancellationToken.None);
+        _ = PersistModuleAndApplySatelliteAsync(LauncherModuleKey, value);
         ModulesRestartRequired = true;
     }
 
     partial void OnWormholesModuleEnabledChanged(bool value)
     {
         if (_suppressWormholesModulePersist) return;
-        _ = _settingsStore.SetAsync(WormholesModuleKey,
-            value ? "true" : "false",
-            sensitive: false,
-            CancellationToken.None);
+        _ = PersistModuleAndApplySatelliteAsync(WormholesModuleKey, value);
         ModulesRestartRequired = true;
+    }
+
+    /// <summary>Saves a module switch, then lets the satellite follow it. The save is awaited first because
+    /// <see cref="AresToys.App.Services.Satellite.SatelliteService.Apply"/> reads the switches from the store.</summary>
+    private async Task PersistModuleAndApplySatelliteAsync(string key, bool value)
+    {
+        try
+        {
+            await _settingsStore.SetAsync(key, value ? "true" : "false", sensitive: false, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _satellite.Apply();
+        }
     }
 
     partial void OnKeySequencesModuleEnabledChanged(bool value)

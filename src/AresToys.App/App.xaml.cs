@@ -9,6 +9,7 @@ using AresToys.App.Native;
 using AresToys.App.Services;
 using AresToys.App.Services.Launcher;
 using AresToys.App.Services.PipelineTasks;
+using AresToys.App.Services.Satellite;
 using AresToys.App.ViewModels;
 using AresToys.App.Views;
 using AresToys.Capture.DependencyInjection;
@@ -42,6 +43,11 @@ public partial class App : Application
 
         // First thing after base startup, so even bootstrap failures leave a crash log.
         AresToys.App.Services.Logging.CrashReporter.Install(this);
+        // The satellite (--satellite) is the non elevated companion process the main app starts. It must not
+        // truncate the main app's startup trace (Begin overwrites the file), so it only appends marks.
+        var isSatellite = SatelliteArgs.TryParse(e.Args, out var satelliteArgs);
+        if (!isSatellite) AresToys.App.Services.Logging.StartupTrace.Begin(Dispatcher);
+        AresToys.App.Services.Logging.StartupTrace.Mark(isSatellite ? "satellite: OnStartup begins" : "OnStartup begins");
 
         // "Always run as administrator" self-relaunch check. Must come before SingleInstanceGuard
         // and any heavy bootstrap: if the user opted into elevated autostart and the OS gave us a
@@ -53,7 +59,9 @@ public partial class App : Application
         // when the user explicitly asked for an unelevated session we honour that for this run
         // even if RunElevated is still ON in the registry. They didn't toggle the preference, so
         // a subsequent normal launch (Start menu, autostart task) will re-elevate as expected.
-        if (!e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedElevatedArg, StringComparison.OrdinalIgnoreCase))
+        // The satellite is non elevated on purpose, so it never takes part in this bounce.
+        if (!isSatellite
+            && !e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedElevatedArg, StringComparison.OrdinalIgnoreCase))
             && !e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedUnelevatedArg, StringComparison.OrdinalIgnoreCase))
             && AresToys.App.Services.ElevationService.ReadRunElevatedFromRegistry()
             && !new AresToys.App.Services.ElevationService().IsProcessElevated)
@@ -139,7 +147,7 @@ public partial class App : Application
         }
         var resizeRequested = !string.IsNullOrWhiteSpace(resizeWorkflowId) && !string.IsNullOrWhiteSpace(resizePath);
 
-        var guard = new SingleInstanceGuard();
+        var guard = new SingleInstanceGuard(e.Args);
         if (!guard.IsPrimary)
         {
             // Priority: upload (most specific) → sxcu → sxie → bare relaunch. Each prefix routes
@@ -171,28 +179,29 @@ public partial class App : Application
             return;
         }
 
+        if (isSatellite)
+        {
+            // The satellite guard owns no mutex and no pipe. From here on the reduced path runs and the main path
+            // below (full container, update check, tray, main window, workflows, hooks) is never reached.
+            guard.Dispose();
+            await RunSatelliteAsync(satelliteArgs!);
+            return;
+        }
+
         // Single shared sink — both the InMemoryLoggerProvider (registered with the host's
         // logging builder below) and the DebugViewModel (registered in DI) refer to the same
         // instance, so log entries flow ILogger → DebugLogService.Entries → Debug tab UI.
         var debugLog = new AresToys.App.Services.Logging.DebugLogService();
 
         _host = Host.CreateDefaultBuilder()
-            .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                // Minimum Debug across the board so the in-app Debug tab is actually useful —
-                // by default Host.CreateDefaultBuilder filters at Information for app categories
-                // and Warning for Microsoft.* / System.*, which would hide most LogDebug calls.
-                logging.SetMinimumLevel(LogLevel.Debug);
-                logging.AddConsole();
-                logging.AddProvider(new AresToys.App.Services.Logging.InMemoryLoggerProvider(debugLog));
-            })
+            .ConfigureLogging(logging => ConfigureAppLogging(logging, debugLog))
             .ConfigureServices(services =>
             {
                 services.AddSingleton(debugLog);
                 services.AddSingleton(guard);
 
                 services.AddAresToysStorage();
+                AddSharedUiServices(services);
                 services.AddAresToysClipboard();
                 services.AddAresToysCapture();
                 services.AddAresToysPipeline();
@@ -414,12 +423,10 @@ public partial class App : Application
                 // same lifetime pattern the launcher uses.
                 services.AddSingleton<AresToys.App.Views.ClipboardWindow>();
                 services.AddSingleton<LauncherStore>();
-                services.AddSingleton<IconService>();
-                // Singleton + Hide() instead of Close() so the user gets an instant re-show
-                // on the global shortcut (no visual-tree rebuild). State that needs to be
-                // refreshed each time (cells, drag-mode flag, search) is reset in
-                // IsVisibleChanged inside the window itself.
-                services.AddSingleton<LauncherWindow>();
+                // The Launcher window lives in the non elevated satellite; the main app only keeps this
+                // bridge to it, plus the broadcaster that tells the satellite about theme and language changes.
+                services.AddSingleton<AresToys.App.Services.Launcher.LauncherHostBridge>();
+                services.AddSingleton<AresToys.App.Services.Launcher.AppStateBroadcaster>();
 
                 services.AddSingleton<IncognitoModeService>();
                 services.AddSingleton<ClipboardIngestionService>();
@@ -498,8 +505,6 @@ public partial class App : Application
                 services.AddSingleton<WorkflowEditorViewModel>();
                 services.AddSingleton<WorkflowsViewModel>();
                 services.AddSingleton<CaptureDefaultsViewModel>();
-                services.AddSingleton<ThemeService>();
-                services.AddSingleton<LocalizationService>();
                 services.AddSingleton<SettingsBackupService>();
                 services.AddSingleton<ThemeViewModel>();
                 services.AddSingleton<CategoriesViewModel>();
@@ -517,27 +522,27 @@ public partial class App : Application
                 // keys *after* the host is built, before any eager init runs.
                 services.AddSingleton<ModuleSettings>();
 
-                // Wormholes (M-Wormholes-A skeleton — see docs/WormholesSpec.md). Registered
-                // unconditionally so the services resolve from anywhere; the eager init path
-                // below gates the actual window spawning on modules.WormholesEnabled.
-                services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeStore,
-                                      AresToys.App.Services.Wormholes.WormholeStoreJson>();
-                services.AddSingleton<AresToys.App.Services.Wormholes.DesktopLayerHost>();
-                services.AddSingleton<AresToys.App.Services.Wormholes.WormholeDefaultsService>();
-                // Favicon pipeline for wormhole web links (.url): cache → downloader → service.
-                services.AddSingleton<AresToys.App.Services.Wormholes.Favicons.FaviconCache>();
-                services.AddSingleton<AresToys.App.Services.Wormholes.Favicons.IFaviconDownloader,
-                                      AresToys.App.Services.Wormholes.Favicons.FaviconDownloader>();
-                services.AddSingleton<AresToys.App.Services.Wormholes.Favicons.FaviconService>();
-                services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeWindowManager,
-                                      AresToys.App.Services.Wormholes.WormholeWindowManager>();
+                // Owns the pipe server and the non elevated satellite process (Wormholes and Launcher
+                // will live there). Apply() at the end of OnStartup starts it for the enabled modules.
+                services.AddSingleton<SatelliteService>();
+
+                // Wormholes live in the non elevated satellite (store, windows, defaults, favicons). The main
+                // app only holds this proxy, which talks to them over the satellite channel.
+                services.AddSingleton<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>();
+                services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeWindowManager>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>());
+                services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeRowSource>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>());
             })
             .Build();
 
+        AresToys.App.Services.Logging.StartupTrace.Mark("services configured");
         await _host.StartAsync();
+        AresToys.App.Services.Logging.StartupTrace.Mark("host started");
 
         var db = _host.Services.GetRequiredService<IAresToysDatabase>();
         await db.InitializeAsync(CancellationToken.None);
+        AresToys.App.Services.Logging.StartupTrace.Mark("database ready");
 
         // Hydrate module-enabled flags from the settings store. Done once here so every gate
         // point downstream (eager pre-warm, ClipboardIngestionService start, hotkey loop, tray
@@ -558,31 +563,22 @@ public partial class App : Application
         modules.WormholesEnabled =  string.Equals(wormholesModuleRaw, "true",  StringComparison.OrdinalIgnoreCase);
         modules.KeySequencesEnabled = string.Equals(keySequencesModuleRaw, "true", StringComparison.OrdinalIgnoreCase);
 
-        // Wormholes manager init: hydrates records from wormholes.json and spawns a window per
-        // non-hidden record. Skipped entirely when the module is off — the JSON file is never
-        // even touched so the disk + memory footprint of disabled wormholes is zero. Run on a
-        // Loaded-priority dispatcher continuation so the main window is up first; the wormhole
-        // windows can take their time hydrating in the background.
+        // Wormholes run in the satellite, which SatelliteService.Apply() starts at the end of startup. The proxy is
+        // created here so it is subscribed before the satellite connects; it fills its caches when the satellite
+        // sends wormholes.ready. Register the Explorer right-click "Create Wormhole" verb (idempotent, HKCU, no
+        // admin) once the satellite reports the wormholes are working.
+        var wormholeProxy = _host.Services.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>();
         if (modules.WormholesEnabled)
         {
             _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, async () =>
             {
                 try
                 {
-                    // Hydrate the global wormhole defaults BEFORE the manager spawns windows —
-                    // otherwise the first frame of every wormhole renders at the built-in
-                    // fallback (95% opacity) and snaps to the persisted value a tick later.
-                    var defaults = _host!.Services.GetRequiredService<AresToys.App.Services.Wormholes.WormholeDefaultsService>();
-                    await defaults.LoadAsync(CancellationToken.None).ConfigureAwait(true);
-
-                    var manager = _host!.Services.GetRequiredService<AresToys.App.Services.Wormholes.IWormholeWindowManager>();
-                    await manager.InitializeAsync(CancellationToken.None);
-
-                    // Register the Explorer right-click "Create Wormhole" verb (idempotent, HKCU
-                    // — no admin). Done after the manager init so the verb only appears when
-                    // wormholes are actually working. The toggle-off side lives in the Modules
-                    // tab; when the user disables wormholes there we should unregister too —
-                    // wired through Settings UI separately.
+                    if (!await wormholeProxy.WaitReadyAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(true))
+                    {
+                        _host!.Services.GetService<ILogger<App>>()?.LogWarning("Wormholes: the satellite was not ready in time, shell verb not registered this run");
+                        return;
+                    }
                     try { AresToys.App.Services.Wormholes.WormholeShellRegistration.Register(); }
                     catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"WormholeShellRegistration.Register failed: {ex}"); }
                 }
@@ -615,23 +611,13 @@ public partial class App : Application
         // Apply the user's theme BEFORE any window resolves: ThemeService writes to App.Resources
         // and to WPF-UI's accent manager, both of which are read at control-template instantiation
         // time. Loading after MainWindow would cause a one-frame flash of the default blue accent.
-        var theme = _host.Services.GetRequiredService<ThemeService>();
-        await theme.LoadAsync(CancellationToken.None);
-
-        // Pull the persisted UI language and apply it to the current thread + app default before
-        // any window resolves — Strings.ResourceManager reads CurrentUICulture, so loading after
-        // MainWindow would render the first frame in English even if the user picked Italian.
-        // Attach FIRST: LocalizedStrings.Attach wires the singleton that every {Markup:Loc Key=…}
-        // binding shares; LoadAsync below now raises CultureChanged on initial load too, so any
-        // surface that happens to materialise its bindings between InitializeComponent and the
-        // dispatched ApplyToThread call gets a free refresh once the persisted culture is live.
-        var localization = _host.Services.GetRequiredService<LocalizationService>();
-        AresToys.App.Markup.LocalizedStrings.Instance.Attach(localization);
-        await localization.LoadAsync(CancellationToken.None);
+        // Then the persisted UI language (same helper, same order, shared with the satellite path).
+        await ApplyThemeAndLocalizationAsync(_host.Services, tracePrefix: "");
 
         // Seed default pipeline profiles (idempotent — leaves user customizations).
         var seeder = _host.Services.GetRequiredService<PipelineProfileSeeder>();
         await seeder.SeedAsync(CancellationToken.None);
+        AresToys.App.Services.Logging.StartupTrace.Mark("defaults seeded");
 
         // Bring the Explorer "Image Resizer" submenu in line with the seeded and user workflows.
         // Fire and forget: SyncAsync logs its own failures and never throws, startup never waits.
@@ -668,18 +654,8 @@ public partial class App : Application
         // layout preset names; the field stays editable so a name can be typed even if the
         // preset doesn't exist yet (the task no-ops until it does). Sync lookup is safe — the
         // JSON store's ListPresetNamesAsync runs off the file system with no SyncContext capture.
-        var wormholeManager = _host.Services.GetRequiredService<AresToys.App.Services.Wormholes.IWormholeWindowManager>();
-        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["wormhole_presets"] = () =>
-        {
-            try
-            {
-                return wormholeManager.ListPresetsAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult().ToList();
-            }
-            catch
-            {
-                return Array.Empty<string>();
-            }
-        };
+        // The names come from the proxy cache (no request to the satellite on the UI thread).
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["wormhole_presets"] = () => wormholeProxy.CachedPresetNames.ToList();
 
         // Set snapping layout: layout names (built-in first, then user) and the monitor choices. Provider
         // values are what the step stores, so the layout list holds names and the monitors hold "cursor",
@@ -1042,6 +1018,7 @@ public partial class App : Application
         // Settings VM is materialised.
         if (!startSilent && sxcuPath is null && sxiePath is null)
         {
+            AresToys.App.Services.Logging.StartupTrace.Mark("before main window decision");
             var settingsStoreEarly = _host.Services.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
             var startMinRaw = await settingsStoreEarly.GetAsync("app.start_minimized", CancellationToken.None).ConfigureAwait(true);
             if (string.Equals(startMinRaw, "true", StringComparison.OrdinalIgnoreCase)) startSilent = true;
@@ -1053,32 +1030,21 @@ public partial class App : Application
             ((Window)sender!).Hide();
         };
 
-        // Pre-warm the launcher + clipboard singletons so the first hotkey press doesn't pay the
+        // Pre-warm the clipboard singleton so the first hotkey press doesn't pay the
         // construction cost (XAML parse + InitializeComponent + first SQLite read) on the user's
         // critical path. Resolving the service triggers the ctor; PrepareAsync runs in the
-        // background to populate the cell grid / row list. By the time the user hits Win+Z or
-        // Win+V, Show() paints with content already there — no grey flash.
+        // background to populate the row list. By the time the user hits Win+V, Show() paints
+        // with content already there — no grey flash. The Launcher pre-warms itself inside the
+        // satellite process.
         //
-        // Gated by the per-module flags: if the user has disabled Clipboard or Launcher in
-        // Settings → Modules, the pre-warm (and its associated SQLite reads + icon cache spin-up
-        // via SHGetFileInfo) is skipped entirely. The DI registration stays in place so any
-        // direct .GetRequiredService<…>() call still resolves a window — graceful degradation
+        // Gated by the per-module flag: if the user has disabled Clipboard in Settings → Modules,
+        // the pre-warm (and its associated SQLite reads + icon cache spin-up via SHGetFileInfo)
+        // is skipped entirely. The DI registration stays in place so any direct
+        // .GetRequiredService<…>() call still resolves a window — graceful degradation
         // for opening the disabled module through an unexpected code path.
         _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, async () =>
         {
             var services = _host!.Services;
-            if (modules.LauncherEnabled)
-            {
-                try
-                {
-                    var launcher = services.GetRequiredService<AresToys.App.Views.LauncherWindow>();
-                    await launcher.PrepareAsync();
-                }
-                catch (Exception ex)
-                {
-                    services.GetService<ILogger<App>>()?.LogDebug(ex, "Launcher pre-warm failed; first open will load lazily");
-                }
-            }
             if (modules.ClipboardEnabled)
             {
                 try
@@ -1226,6 +1192,102 @@ public partial class App : Application
             var ingestion = _host.Services.GetRequiredService<ClipboardIngestionService>();
             ingestion.Start(helper.Handle);
         }
+
+        // Last step of the main path: start the non elevated satellite for the enabled modules. The bridge and the
+        // broadcaster are created first: the bridge registers its request handlers when the satellite connects and
+        // the broadcaster forwards theme and language changes. Apply() reads the settings and launches the process
+        // on the thread pool, so the UI thread is never held up.
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Launcher.LauncherHostBridge>();
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Launcher.AppStateBroadcaster>();
+        _host.Services.GetRequiredService<SatelliteService>().Apply();
+        AresToys.App.Services.Logging.StartupTrace.Mark("satellite service applied");
+    }
+
+    private SatelliteHost? _satellite;
+
+    /// <summary>Logging shared by the main and the satellite container. The in-app Debug tab only exists in the
+    /// main app, so the satellite passes no <paramref name="debugLog"/>.</summary>
+    private static void ConfigureAppLogging(ILoggingBuilder logging, AresToys.App.Services.Logging.DebugLogService? debugLog)
+    {
+        logging.ClearProviders();
+        // Minimum Debug across the board so the in-app Debug tab is actually useful —
+        // by default Host.CreateDefaultBuilder filters at Information for app categories
+        // and Warning for Microsoft.* / System.*, which would hide most LogDebug calls.
+        logging.SetMinimumLevel(LogLevel.Debug);
+        logging.AddConsole();
+        if (debugLog is not null)
+            logging.AddProvider(new AresToys.App.Services.Logging.InMemoryLoggerProvider(debugLog));
+    }
+
+    /// <summary>The services both containers need before any window exists: the icon cache, the theme and the
+    /// UI language. The settings store comes from <c>AddAresToysStorage</c>, which both containers call.</summary>
+    private static void AddSharedUiServices(IServiceCollection services)
+    {
+        services.AddSingleton<IconService>();
+        services.AddSingleton<ThemeService>();
+        services.AddSingleton<LocalizationService>();
+    }
+
+    /// <summary>Applies the user's theme BEFORE any window resolves: ThemeService writes to App.Resources
+    /// and to WPF-UI's accent manager, both of which are read at control-template instantiation
+    /// time. Loading after MainWindow would cause a one-frame flash of the default blue accent.
+    /// Then pulls the persisted UI language and applies it to the current thread + app default before
+    /// any window resolves — Strings.ResourceManager reads CurrentUICulture, so loading after
+    /// MainWindow would render the first frame in English even if the user picked Italian.
+    /// Attach FIRST: LocalizedStrings.Attach wires the singleton that every {Markup:Loc Key=…}
+    /// binding shares; LoadAsync below now raises CultureChanged on initial load too, so any
+    /// surface that happens to materialise its bindings between InitializeComponent and the
+    /// dispatched ApplyToThread call gets a free refresh once the persisted culture is live.</summary>
+    private static async Task ApplyThemeAndLocalizationAsync(IServiceProvider services, string tracePrefix)
+    {
+        var theme = services.GetRequiredService<ThemeService>();
+        await theme.LoadAsync(CancellationToken.None);
+        AresToys.App.Services.Logging.StartupTrace.Mark(tracePrefix + "theme loaded");
+
+        var localization = services.GetRequiredService<LocalizationService>();
+        AresToys.App.Markup.LocalizedStrings.Instance.Attach(localization);
+        await localization.LoadAsync(CancellationToken.None);
+    }
+
+    /// <summary>The reduced start of <c>--satellite</c>: a small container (settings store, theme, localization, icon
+    /// cache and the satellite modules), no main window, tray, hotkeys, update check or clipboard. The process
+    /// follows the main app: if it cannot connect to it, it exits at once.</summary>
+    private async Task RunSatelliteAsync(SatelliteArgs args)
+    {
+        try
+        {
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureLogging(logging => ConfigureAppLogging(logging, debugLog: null))
+                .ConfigureServices(services =>
+                {
+                    services.AddAresToysStorage();
+                    AddSharedUiServices(services);
+                    SatelliteHost.AddModules(services);
+                })
+                .Build();
+            AresToys.App.Services.Logging.StartupTrace.Mark("satellite: services configured");
+            await _host.StartAsync();
+
+            // Same database file as the main app (the main already ran the migrations).
+            await _host.Services.GetRequiredService<IAresToysDatabase>().InitializeAsync(CancellationToken.None);
+            AresToys.App.Services.Logging.StartupTrace.Mark("satellite: database ready");
+
+            await ApplyThemeAndLocalizationAsync(_host.Services, tracePrefix: "satellite: ");
+
+            _satellite = new SatelliteHost(args, _host.Services, this);
+            if (!await _satellite.RunAsync())
+            {
+                Shutdown();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            // No window to show it in: the crash log folder and the trace are the only places.
+            AresToys.App.Services.Logging.StartupTrace.Mark("satellite: start failed " + ex.GetType().Name + ": " + ex.Message);
+            _host?.Services.GetService<ILogger<App>>()?.LogError(ex, "Satellite start failed");
+            Shutdown();
+        }
     }
 
 
@@ -1372,32 +1434,18 @@ public partial class App : Application
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            var manager = _host?.Services.GetService(typeof(AresToys.App.Services.Wormholes.IWormholeWindowManager))
-                as AresToys.App.Services.Wormholes.IWormholeWindowManager;
-            if (manager is null)
+            var proxy = _host?.Services.GetService(typeof(AresToys.App.Services.Wormholes.WormholeWindowManagerProxy))
+                as AresToys.App.Services.Wormholes.WormholeWindowManagerProxy;
+            if (proxy is null)
             {
                 MessageBox.Show("AresToys isn't fully initialised yet — try again in a moment.",
                     "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            // If the module is currently off, flip it on for this process so the manager will
-            // actually spawn a window. Persisting the flag here means a future cold start picks
-            // it up automatically — the user clicked "Create Wormhole" so they want it enabled.
-            var modules = _host?.Services.GetService(typeof(ModuleSettings)) as ModuleSettings;
-            if (modules is not null && !modules.WormholesEnabled)
-            {
-                modules.WormholesEnabled = true;
-                var settingsStore = _host?.Services.GetService(typeof(AresToys.Storage.Settings.ISettingsStore))
-                    as AresToys.Storage.Settings.ISettingsStore;
-                _ = settingsStore?.SetAsync(ModuleSettings.WormholesKey, "true", sensitive: false, CancellationToken.None);
-                // The manager's InitializeAsync only runs once at startup; if Wormholes was off
-                // at boot we never spawned its DI graph. Trigger init now so the new wormhole
-                // joins a live manager.
-                _ = manager.InitializeAsync(CancellationToken.None);
-            }
             var title = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             if (string.IsNullOrWhiteSpace(title)) title = "Wormhole";
-            _ = manager.CreateAsync(title, folderPath, CancellationToken.None);
+            // The satellite may be just starting (or the module off): enable it, wait for it, then create.
+            _ = CreateAfterAsync(EnsureWormholesRunningAsync(proxy), proxy, title, folderPath);
         }
         catch (Exception ex)
         {
@@ -1515,6 +1563,45 @@ public partial class App : Application
         });
     }
 
+    /// <summary>Turns the Wormholes module on when it is off (persisted, so the next cold start keeps it), makes sure
+    /// the satellite runs for the enabled modules and waits until it reports the wormholes ready. Starts at once and
+    /// never throws: the task result is false when the satellite was not ready in time.</summary>
+    private async Task<bool> EnsureWormholesRunningAsync(AresToys.App.Services.Wormholes.WormholeWindowManagerProxy proxy)
+    {
+        try
+        {
+            var modules = _host?.Services.GetService(typeof(ModuleSettings)) as ModuleSettings;
+            if (modules is not null && !modules.WormholesEnabled)
+            {
+                modules.WormholesEnabled = true;
+                if (_host?.Services.GetService(typeof(AresToys.Storage.Settings.ISettingsStore)) is AresToys.Storage.Settings.ISettingsStore settingsStore)
+                    await settingsStore.SetAsync(ModuleSettings.WormholesKey, "true", sensitive: false, CancellationToken.None).ConfigureAwait(false);
+            }
+            // Apply reads the settings written above; it restarts the satellite when the module set changed and
+            // does nothing when it already runs for the right set.
+            _host?.Services.GetService<SatelliteService>()?.Apply();
+            return await proxy.WaitReadyAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Wormholes: starting the satellite failed");
+            return false;
+        }
+    }
+
+    private async Task CreateAfterAsync(Task<bool> ensure, AresToys.App.Services.Wormholes.WormholeWindowManagerProxy proxy, string title, string folder)
+    {
+        try
+        {
+            await ensure.ConfigureAwait(false);
+            await proxy.CreateAsync(title, folder, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Couldn't create the wormhole for {Folder}", folder);
+        }
+    }
+
     /// <summary>Open <see cref="AresToys.App.Views.NewWormholeDialog"/> so the user picks a
     /// source folder, then spawn the wormhole. Triggered by the Background variant of the
     /// shell verb — right-click on empty area, where the current folder is rarely what the
@@ -1524,29 +1611,22 @@ public partial class App : Application
     {
         try
         {
-            var manager = _host?.Services.GetService(typeof(AresToys.App.Services.Wormholes.IWormholeWindowManager))
-                as AresToys.App.Services.Wormholes.IWormholeWindowManager;
-            if (manager is null)
+            var proxy = _host?.Services.GetService(typeof(AresToys.App.Services.Wormholes.WormholeWindowManagerProxy))
+                as AresToys.App.Services.Wormholes.WormholeWindowManagerProxy;
+            if (proxy is null)
             {
                 MessageBox.Show("AresToys isn't fully initialised yet — try again in a moment.",
                     "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            // Auto-enable Wormholes module if off — the user clicked the menu so they want it on.
-            var modules = _host?.Services.GetService(typeof(ModuleSettings)) as ModuleSettings;
-            if (modules is not null && !modules.WormholesEnabled)
-            {
-                modules.WormholesEnabled = true;
-                var settingsStore = _host?.Services.GetService(typeof(AresToys.Storage.Settings.ISettingsStore))
-                    as AresToys.Storage.Settings.ISettingsStore;
-                _ = settingsStore?.SetAsync(ModuleSettings.WormholesKey, "true", sensitive: false, CancellationToken.None);
-                _ = manager.InitializeAsync(CancellationToken.None);
-            }
+            // Auto-enable Wormholes module if off — the user clicked the menu so they want it on. The satellite
+            // starts while the dialog is open; the wait for it happens after the choice.
+            var ensure = EnsureWormholesRunningAsync(proxy);
 
             var dlg = new AresToys.App.Views.NewWormholeDialog();
             if (dlg.ShowDialog() != true || dlg.Result is null) return;
             var choice = dlg.Result;
-            _ = manager.CreateAsync(choice.Title, choice.SourceFolder, CancellationToken.None);
+            _ = CreateAfterAsync(ensure, proxy, choice.Title, choice.SourceFolder);
         }
         catch (Exception ex)
         {
@@ -1646,15 +1726,19 @@ public partial class App : Application
     {
         IsShuttingDown = true;
         _keyboardHook?.Dispose();
+        // Satellite process: stops its modules and closes the channel. Main process: stops the satellite.
+        _satellite?.Dispose();
+        _host?.Services.GetService<AresToys.App.Services.Launcher.AppStateBroadcaster>()?.Dispose();
+        _host?.Services.GetService<AresToys.App.Services.Launcher.LauncherHostBridge>()?.Dispose();
+        _host?.Services.GetService<SatelliteService>()?.Dispose();
         if (_host is not null)
         {
             _host.Services.GetService<ClipboardIngestionService>()?.Dispose();
             _host.Services.GetService<IClipboardListener>()?.Dispose();
             _host.Services.GetService<TrayIconService>()?.Dispose();
-            // Close any live wormhole windows so their Closing handler doesn't try to persist
-            // mid-shutdown. The records are already in sync (every geometry change flushes); a
-            // no-op CloseAll on a module that was never initialised is intentional.
-            _host.Services.GetService<AresToys.App.Services.Wormholes.IWormholeWindowManager>()?.CloseAll();
+            // Main process: the proxy only unsubscribes; the satellite closes its wormhole windows itself when the
+            // channel ends. (Absent from the satellite container, where its host stops the module.)
+            _host.Services.GetService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>()?.Dispose();
             _host.Services.GetService<SingleInstanceGuard>()?.Dispose();
             _host.Services.GetService<ExternalTextEditorService>()?.Dispose();
             await _host.StopAsync(TimeSpan.FromSeconds(2));

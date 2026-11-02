@@ -5510,6 +5510,8 @@ namespace AresToys.App.Resources {
         public static string Settings_RunningAsAdminHint => ResourceManager.GetString("Settings_RunningAsAdminHint", resourceCulture);
         public static string Settings_RestartAsAdminButton => ResourceManager.GetString("Settings_RestartAsAdminButton", resourceCulture);
         public static string Settings_RestartAsAdminTooltip => ResourceManager.GetString("Settings_RestartAsAdminTooltip", resourceCulture);
+        public static string Settings_RestartUnelevatedButton => ResourceManager.GetString("Settings_RestartUnelevatedButton", resourceCulture);
+        public static string Settings_RestartUnelevatedTooltip => ResourceManager.GetString("Settings_RestartUnelevatedTooltip", resourceCulture);
         public static string Settings_RestartAsAdminAlreadyElevated => ResourceManager.GetString("Settings_RestartAsAdminAlreadyElevated", resourceCulture);
         public static string Settings_AlwaysRunAsAdmin => ResourceManager.GetString("Settings_AlwaysRunAsAdmin", resourceCulture);
         public static string Settings_AlwaysRunAsAdminTooltip => ResourceManager.GetString("Settings_AlwaysRunAsAdminTooltip", resourceCulture);

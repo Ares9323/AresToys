@@ -160,3 +160,21 @@ internal sealed class FakeWormholeWindowManager : IWormholeWindowManager
     public void ResumeWatchers() => throw new NotSupportedException();
     public IReadOnlyList<IntPtr> LiveWindowHandles() => throw new NotSupportedException();
 }
+
+/// <summary>Row source over a <see cref="FakeWormholeStore"/>: what the proxy gives the Settings view model in the app.</summary>
+internal sealed class FakeWormholeRowSource(FakeWormholeStore store) : IWormholeRowSource
+{
+    public Task<IReadOnlyList<WormholeRecord>> ListAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<WormholeRecord>>(store.Records.ToList());
+
+    public WormholeRecord? Snapshot(Guid wormholeId) => store.Records.FirstOrDefault(r => r.Id == wormholeId);
+
+    public Task<int> MoveAsync(Guid wormholeId, int delta, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public WormholeWire.DefaultsDto Defaults => WormholeWindowManagerProxy.BuiltInDefaults;
+
+    public Task<WormholeWire.DefaultsDto> LoadDefaultsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(WormholeWindowManagerProxy.BuiltInDefaults);
+
+    public Task SetDefaultAsync(string key, string value, CancellationToken cancellationToken) => Task.CompletedTask;
+}

@@ -3011,8 +3011,13 @@
                                 <ui:Button Content="{Markup:Loc Settings_RestartAsAdminButton}"
                                            Padding="14,4"
                                            Command="{Binding RestartAsAdminCommand}"
-                                           IsEnabled="{Binding CanRestartAsAdmin}"
+                                           Visibility="{Binding CanRestartAsAdmin, Converter={StaticResource BoolToVisibility}}"
                                            ToolTip="{Markup:Loc Settings_RestartAsAdminTooltip}" />
+                                <ui:Button Content="{Markup:Loc Settings_RestartUnelevatedButton}"
+                                           Padding="14,4"
+                                           Command="{Binding RestartUnelevatedCommand}"
+                                           Visibility="{Binding IsRunningAsAdmin, Converter={StaticResource BoolToVisibility}}"
+                                           ToolTip="{Markup:Loc Settings_RestartUnelevatedTooltip}" />
                                 <TextBlock VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11"
                                            Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                            Text="{Markup:Loc Settings_RestartAsAdminAlreadyElevated}"

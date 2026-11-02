@@ -63,20 +63,23 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
 
     private readonly LauncherStore _store;
     private readonly IconService _icons;
-    /// <summary>Resolves <see cref="AresToys.App.Services.WorkflowRunner"/> when a workflow cell is
-    /// fired, instead of taking it as a constructor dependency: the launcher is reachable from the
-    /// pipeline task graph, and WorkflowRunner needs the PipelineExecutor that graph builds, so
-    /// asking for it up front is a container-refusing dependency cycle.</summary>
-    private readonly IServiceProvider _services;
+    /// <summary>What the launcher needs from the process that owns workflows and elevated windows:
+    /// running a workflow cell, activating an elevated window, minimising an elevated launch. The
+    /// window never knows which process it lives in; it always goes through this.</summary>
+    private readonly ILauncherHost _host;
     private readonly AresToys.Pipeline.Profiles.IPipelineProfileStore _profiles;
     private readonly ILogger<LauncherWindow> _logger;
 
-    /// <summary>Cached singleton instance. The launcher is registered AddSingleton so the open
-    /// task can resolve it once and keep showing/hiding the same window — no visual-tree
-    /// rebuild on every shortcut press. Set in the ctor, never cleared (singleton lifetime).</summary>
-    private static LauncherWindow? _current;
-    public static bool IsOpen => _current is { IsLoaded: true, IsVisible: true };
-    public static void RequestClose() => _current?.BeginHide();
+    /// <summary>True while this window is on screen (loaded and visible). Used by the satellite
+    /// module that owns the window.</summary>
+    public bool IsShown => IsLoaded && IsVisible;
+
+    /// <summary>Hides the window on the next dispatcher cycle (same path as Esc and focus loss).</summary>
+    public void RequestHide() => BeginHide();
+
+    /// <summary>Reloads the cells from the store while the window is on screen. The store's version
+    /// must have been bumped first, otherwise nothing changed.</summary>
+    public Task ReloadStateAsync() => ReloadAsync();
 
     private LauncherState _state = new(new Dictionary<string, LauncherCell>(),
                                         new Dictionary<string, string>());
@@ -129,7 +132,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
     private readonly ObservableCollection<CellViewModel> _row2 = [];
     private readonly ObservableCollection<CellViewModel> _row3 = [];
 
-    public LauncherWindow(LauncherStore store, IconService icons, IServiceProvider services,
+    public LauncherWindow(LauncherStore store, IconService icons, ILauncherHost host,
         AresToys.Pipeline.Profiles.IPipelineProfileStore profiles, ILogger<LauncherWindow> logger)
     {
         InitializeComponent();
@@ -137,7 +140,7 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         AresToys.App.Services.DarkTitleBar.EnlargeResizeHitZones(this);
         _store = store;
         _icons = icons;
-        _services = services;
+        _host = host;
         _profiles = profiles;
         _logger = logger;
         _dragToggleAppearance = DragToggle.Appearance;
@@ -146,9 +149,6 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         Row1Host.ItemsSource    = _row1;
         Row2Host.ItemsSource    = _row2;
         Row3Host.ItemsSource    = _row3;
-
-        // Cache the singleton instance for the toggle-close path.
-        _current = this;
 
         // Restore the saved geometry synchronously in the ctor so the first paint already
         // lands at the right size/position — async-loading after Loaded would briefly flash
@@ -1086,12 +1086,13 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
         {
             _logger.LogInformation("LauncherWindow: firing workflow {Workflow} for {Key}",
                 cell.WorkflowId, cell.ComposedKey);
-            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
-                .GetRequiredService<AresToys.App.Services.WorkflowRunner>(_services)
-                .RunDetached(cell.WorkflowId);
+            _host.RunWorkflow(cell.WorkflowId);
             HideAfterFire();
             return;
         }
+
+        // A second key while the owner of the elevated windows is still being asked would launch twice.
+        if (_activationPending) return;
 
         try
         {
@@ -1106,6 +1107,57 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
                 return;
             }
 
+            // The local activator cannot touch an elevated window. When the cell names a window or a
+            // process, the process that owns the elevated windows gets one try before we launch.
+            if (!string.IsNullOrWhiteSpace(cell.WindowTitle) || !string.IsNullOrWhiteSpace(cell.ProcessName))
+            {
+                _ = ActivateElsewhereOrLaunchAsync(cell);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LauncherWindow: failed to launch cell {Key} → {Path}",
+                cell.ComposedKey, cell.Path);
+            HideAfterFire();
+            return;
+        }
+
+        LaunchCell(cell);
+    }
+
+    /// <summary>True while a <see cref="ILauncherHost.ActivateAsync"/> request is out.</summary>
+    private bool _activationPending;
+
+    /// <summary>Asks the host to activate the cell's window, and launches the cell when it could not.
+    /// Never throws; runs on the UI thread (the await resumes on the dispatcher).</summary>
+    private async Task ActivateElsewhereOrLaunchAsync(LauncherCell cell)
+    {
+        var activated = false;
+        _activationPending = true;
+        try { activated = await _host.ActivateAsync(cell.WindowTitle, cell.ProcessName); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LauncherWindow: asking the host to activate {Key} failed", cell.ComposedKey);
+        }
+        finally { _activationPending = false; }
+
+        if (activated)
+        {
+            _logger.LogInformation("LauncherWindow: the host activated the window for {Key} (title='{Title}' proc='{Proc}')",
+                cell.ComposedKey, cell.WindowTitle, cell.ProcessName);
+            HideAfterFire();
+            return;
+        }
+
+        LaunchCell(cell);
+    }
+
+    /// <summary>Starts the cell's program and dismisses the launcher (unless docked). Never throws.</summary>
+    private void LaunchCell(LauncherCell cell)
+    {
+        try
+        {
             // Normalise packaged-app targets here as well as at drop time: cells persisted by an
             // earlier build hold the raw AppUserModelID, which ShellExecute rejects outright
             // (ERROR_FILE_NOT_FOUND). Rewriting at launch makes them work without a re-drop.
@@ -1137,8 +1189,12 @@ public partial class LauncherWindow : Wpf.Ui.Controls.FluentWindow
                 cell.ComposedKey, path, args, cell.RunAsAdmin, cell.WindowMode);
             // Minimise-after-startup can't be expressed as a window style: it waits for the app's
             // window and puts it down afterwards. See WindowMinimizer.
+            // An elevated child (runas) is out of reach of a non elevated launcher: the host minimises it.
             if (cell.WindowMode == LauncherWindowMode.MinimizeAfterStartup)
-                WindowMinimizer.MinimizeWhenReady(started, path, _logger);
+            {
+                if (cell.RunAsAdmin) _host.MinimizeElevated(path);
+                else WindowMinimizer.MinimizeWhenReady(started, path, _logger);
+            }
         }
         catch (Exception ex)
         {

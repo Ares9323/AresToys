@@ -338,37 +338,9 @@ public sealed class TrayIconService : IDisposable
         if (_modules.LauncherEnabled)
         {
             menu.Items.Add(BuildShortcutMenuItem(Strings.Tray_OpenLauncher, DefaultPipelineProfiles.OpenLauncherId,
-            () =>
-            {
-                // Same toggle pattern as OpenLauncherMenuTask: closed → open + activate; open
-                // → close. Inline because the tray menu doesn't carry a PipelineContext.
-                if (AresToys.App.Views.LauncherWindow.IsOpen)
-                {
-                    AresToys.App.Views.LauncherWindow.RequestClose();
-                    return;
-                }
-                // PrepareAsync must complete before Show so the cell grid is populated when
-                // the window paints — fire-and-forget continuation chain on the UI dispatcher
-                // (already on it; tray menu click runs on the message pump). Errors in
-                // PrepareAsync surface via the dispatcher's unhandled-exception path; we
-                // don't crash the menu over a bad SQLite read.
-                _ = ShowLauncherAsync();
-                async Task ShowLauncherAsync()
-                {
-                    try
-                    {
-                        var w = (AresToys.App.Views.LauncherWindow)_services.GetService(typeof(AresToys.App.Views.LauncherWindow))!;
-                        try { await w.PrepareAsync(); }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Launcher PrepareAsync failed; showing anyway"); }
-                        w.Show();
-                        w.Activate();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Launcher show failed");
-                    }
-                }
-            }));
+            // The Launcher lives in the non elevated satellite, which decides between open and close. Same
+            // toggle as OpenLauncherMenuTask; the bridge logs a failure and never blocks the menu.
+            () => Run<AresToys.App.Services.Launcher.LauncherHostBridge>(b => _ = b.ToggleAsync(dragMode: false))));
         }
         // Incognito is a clipboard-capture suppression toggle — meaningless when the clipboard
         // module is off (no ingestion to suppress). Gate on the same flag.
@@ -569,10 +541,13 @@ public sealed class TrayIconService : IDisposable
         item.SubmenuOpened += (_, _) =>
         {
             item.Items.Clear();
-            Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m =>
+            // Names come from the proxy cache (kept current by the satellite's events); no request on the UI
+            // thread. The refresh asked here only matters for the next opening.
+            Run<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>(m =>
             {
-                var presets = m.ListPresetsAsync(CancellationToken.None).GetAwaiter().GetResult();
-                var current = m.CurrentSetupPresetAsync(CancellationToken.None).GetAwaiter().GetResult();
+                var presets = m.CachedPresetNames;
+                var current = m.CachedCurrentSetupPreset;
+                m.RequestPresetsRefresh();
 
                 if (presets.Count == 0)
                 {
@@ -619,9 +594,9 @@ public sealed class TrayIconService : IDisposable
         var dlg = new AresToys.App.Views.TextPromptDialog(Strings.WormholePresets_SaveTitle, Strings.WormholePresets_NameLabel);
         if (dlg.ShowDialog() != true || string.IsNullOrEmpty(dlg.Result)) return;
         var name = dlg.Result.Trim();
-        Run<AresToys.App.Services.Wormholes.IWormholeWindowManager>(m =>
+        Run<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>(m =>
         {
-            var existing = m.ListPresetsAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var existing = m.CachedPresetNames;
             if (existing.Any(p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase)))
             {
                 var confirm = MessageBox.Show(

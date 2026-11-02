@@ -8,7 +8,10 @@ using AresToys.App.Views;
 
 namespace AresToys.App.Services.Wormholes;
 
-public sealed class WormholeWindowManager : IWormholeWindowManager
+/// <summary>The real manager. Lives in the non elevated satellite (see <c>WormholesSatelliteModule</c>); the main app
+/// reaches it through <see cref="IWormholeWindowManager"/> only, while its windows call back through
+/// <see cref="IWormholeWindowHost"/>.</summary>
+public sealed class WormholeWindowManager : IWormholeWindowManager, IWormholeWindowHost
 {
     private readonly IWormholeStore _store;
     private readonly IconService _icons;
@@ -365,7 +368,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         }).ConfigureAwait(true);
     }
 
-    /// <summary>See <see cref="IWormholeWindowManager.NotifyItemSelectionTaken"/>. Iterates the
+    /// <summary>See <see cref="IWormholeWindowHost.NotifyItemSelectionTaken"/>. Iterates the
     /// live windows and asks every one EXCEPT the source to clear its ListBox selection. Cheap
     /// (UnselectAll is O(N) over visible items) and short-circuits on the common case of "only
     /// one wormhole open" (no other windows to touch). Also fires <see cref="WormholeFocused"/>
@@ -383,7 +386,7 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
 
     public event EventHandler<Guid>? WormholeFocused;
 
-    /// <summary>See <see cref="IWormholeWindowManager.NotifyWormholeFocused"/>. Looks up the
+    /// <summary>See <see cref="IWormholeWindowHost.NotifyWormholeFocused"/>. Looks up the
     /// record id for the calling window and fires <see cref="WormholeFocused"/>; subscribers
     /// (Settings panel) use the id to highlight the matching row.</summary>
     public void NotifyWormholeFocused(System.Windows.Window source)
@@ -780,7 +783,14 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
         // onto records created before the feature existed, which is what makes a FUTURE rename
         // recoverable at all. One flush at the end rather than one save per record.
         var sourcesChanged = false;
-        foreach (var record in records) sourcesChanged |= RecoverOrCaptureSourceAtStartup(record);
+        foreach (var record in records)
+        {
+            var recoverClock = System.Diagnostics.Stopwatch.StartNew();
+            sourcesChanged |= RecoverOrCaptureSourceAtStartup(record);
+            if (recoverClock.ElapsedMilliseconds > 20)
+                AresToys.App.Services.Logging.StartupTrace.Mark($"wormhole {record.Id} '{record.Title}' source check took {recoverClock.ElapsedMilliseconds} ms ({record.Portal?.SourcePath})");
+        }
+        AresToys.App.Services.Logging.StartupTrace.Mark($"wormhole source checks done ({records.Count} records)");
         if (sourcesChanged)
         {
             try { await _store.FlushAsync(cancellationToken).ConfigureAwait(true); }
@@ -796,7 +806,9 @@ public sealed class WormholeWindowManager : IWormholeWindowManager
             }
             try
             {
+                var spawnClock = System.Diagnostics.Stopwatch.StartNew();
                 SpawnWindow(record);
+                AresToys.App.Services.Logging.StartupTrace.Mark($"wormhole {record.Id} '{record.Title}' spawned in {spawnClock.ElapsedMilliseconds} ms");
                 _logger.LogInformation("Spawned wormhole {Id} title={Title} source={Source}",
                     record.Id, record.Title, record.Portal.SourcePath);
             }
