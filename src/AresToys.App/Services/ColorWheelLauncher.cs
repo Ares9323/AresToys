@@ -37,15 +37,76 @@ public sealed class ColorWheelLauncher
     /// caller is responsible for undoing the preview if the dialog comes back null (cancelled).</param>
     /// <param name="initialColour">Seeds the dialog. Null starts from the most recent colour, which
     /// is right for a fresh pick but wrong when editing something that already has a colour.</param>
-    public async Task<ShapeColor?> PickAsync(Action<ShapeColor>? onPreview = null, ShapeColor? initialColour = null)
+    /// <param name="ownerHwnd">A window of ANOTHER process to centre on and own the dialog (the
+    /// <c>AresToys.exe --pick-color --owner</c> case). Zero keeps the usual behaviour. If the owner cannot be
+    /// used (it is gone, or a higher integrity level refuses an owned window), the dialog opens without it.</param>
+    /// <param name="externalCaller">The request comes from another app: without an owner the dialog is centred
+    /// on the monitor under the cursor, and it is forced to the foreground since the main window is not shown.</param>
+    public async Task<ShapeColor?> PickAsync(Action<ShapeColor>? onPreview = null, ShapeColor? initialColour = null,
+        IntPtr ownerHwnd = default, bool externalCaller = false)
     {
         var recents = await _recents.LoadAsync(CancellationToken.None).ConfigureAwait(true);
         ColorSwatchButton.CurrentRecents = recents;
         var initial = initialColour ?? (recents.Count > 0 ? recents[0] : ShapeColor.Black);
 
+        if (ownerHwnd != IntPtr.Zero && !IsWindow(ownerHwnd)) ownerHwnd = IntPtr.Zero;
+
+        var dlg = BuildDialog(initial, onPreview, ownerHwnd, externalCaller);
+
+        // Use ShowOwnerScopedDialog so any open editor / other independent dialog stays
+        // interactive while the user is in the color picker, only the wheel's owner gets
+        // disabled. Same pattern fixes the icon picker to editor freeze.
+        bool? result;
+        try
+        {
+            result = dlg.ShowOwnerScopedDialog();
+        }
+        catch (Exception ex) when (ownerHwnd != IntPtr.Zero)
+        {
+            // A foreign owner can be refused (UIPI between an elevated and a normal process): show it unowned.
+            _logger.LogWarning(ex, "Color wheel: owner window {Owner} refused, opening without it", ownerHwnd);
+            dlg = BuildDialog(initial, onPreview, IntPtr.Zero, externalCaller);
+            result = dlg.ShowOwnerScopedDialog();
+        }
+        if (result != true) return null;
+        // Push here, not only in ShowAsync: PickAsync is also the pipeline entry point, and a
+        // colour the user confirmed with OK belongs in the recents ring no matter which surface
+        // asked for it.
+        await _recents.PushAsync(dlg.PickedColor, CancellationToken.None).ConfigureAwait(true);
+        return dlg.PickedColor;
+    }
+
+    private ColorPickerWindow BuildDialog(ShapeColor initial, Action<ShapeColor>? onPreview, IntPtr ownerHwnd, bool externalCaller)
+    {
         var dlg = new ColorPickerWindow(initial);
         if (onPreview is not null) dlg.ColorChanged += (_, c) => onPreview(c);
-        dlg.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
+        if (ownerHwnd != IntPtr.Zero)
+        {
+            new System.Windows.Interop.WindowInteropHelper(dlg).Owner = ownerHwnd;
+            dlg.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner;
+        }
+        else if (externalCaller)
+        {
+            // Placed by hand on the monitor under the cursor, in pixels, so the monitor's own scale is respected.
+            dlg.WindowStartupLocation = System.Windows.WindowStartupLocation.Manual;
+            dlg.SourceInitialized += (_, _) => CenterOnCursorMonitor(dlg);
+            dlg.ContentRendered += (_, _) => CenterOnCursorMonitor(dlg);
+        }
+        else
+        {
+            dlg.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
+        }
+        if (externalCaller)
+        {
+            // The main window stays hidden for an external request, so nothing else gives the dialog the foreground.
+            dlg.ContentRendered += (_, _) =>
+            {
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(dlg).Handle;
+                if (hwnd == IntPtr.Zero) return;
+                dlg.Activate();
+                if (!dlg.IsActive) TargetWindowTracker.ForceForeground(hwnd);
+            };
+        }
         // Cross-assembly localisation handoff: AresToys.Editor can't reach our resx, so we
         // resolve every translatable label here and push the dictionary into the dialog.
         // Technical channels (R/G/B/H/S/Hex/Dec/sRGB) stay literal and aren't included.
@@ -105,16 +166,56 @@ public sealed class ColorWheelLauncher
             }
         };
 
-        // Use ShowOwnerScopedDialog so any open editor / other independent dialog stays
-        // interactive while the user is in the color picker — only the wheel's owner gets
-        // disabled. Same pattern fixes the icon picker → editor freeze.
-        if (dlg.ShowOwnerScopedDialog() != true) return null;
-        // Push here, not only in ShowAsync: PickAsync is also the pipeline entry point, and a
-        // colour the user confirmed with OK belongs in the recents ring no matter which surface
-        // asked for it.
-        await _recents.PushAsync(dlg.PickedColor, CancellationToken.None).ConfigureAwait(true);
-        return dlg.PickedColor;
+        return dlg;
     }
+
+    /// <summary>Centres <paramref name="dlg"/> in the work area of the monitor under the cursor. Works in pixels on
+    /// the window handle; run once before the window shows and once after layout, since moving to a monitor with
+    /// another scale can resize it.</summary>
+    private static void CenterOnCursorMonitor(System.Windows.Window dlg)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(dlg).Handle;
+        if (hwnd == IntPtr.Zero || !GetCursorPos(out var cursor) || !GetWindowRect(hwnd, out var rect)) return;
+        var monitor = MonitorFromPoint(cursor, MonitorDefaultToNearest);
+        var info = new MonitorInfo { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(monitor, ref info)) return;
+        var work = info.rcWork;
+        var x = work.Left + ((work.Right - work.Left) - (rect.Right - rect.Left)) / 2;
+        var y = work.Top + ((work.Bottom - work.Top) - (rect.Bottom - rect.Top)) / 2;
+        _ = SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
+    }
+
+    private const uint MonitorDefaultToNearest = 2;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativePoint { public int X; public int Y; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativeRect { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MonitorInfo { public int cbSize; public NativeRect rcMonitor; public NativeRect rcWork; public uint dwFlags; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out NativePoint point);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect rect);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(NativePoint point, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
 
     /// <summary>Tray flow: opens the picker and copies the hex to the clipboard. The recents push
     /// already happened inside <see cref="PickAsync"/>.</summary>
@@ -128,7 +229,7 @@ public sealed class ColorWheelLauncher
         _logger.LogInformation("Color wheel: picked {Hex}, copied to clipboard", hex);
     }
 
-    private static bool TryParseHex(string hex, out ShapeColor color)
+    internal static bool TryParseHex(string hex, out ShapeColor color)
     {
         color = ShapeColor.Black;
         var s = hex.Trim().TrimStart('#');

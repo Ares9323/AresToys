@@ -17,8 +17,10 @@ namespace AresToys.App.Services;
 /// the prefix <c>"sxcu:"</c> followed by an absolute file path for .sxcu imports).</summary>
 public sealed class SingleInstanceGuard : IDisposable
 {
-    private const string MutexName = "Global\\AresToys.SingleInstance";
-    private const string PipeName = "AresToys.SingleInstance.Pipe";
+    // Internal so the headless pick-color client can probe the mutex and reach the pipe without building a guard
+    // (building one would take the mutex when no primary exists).
+    internal const string MutexName = "Global\\AresToys.SingleInstance";
+    internal const string PipeName = "AresToys.SingleInstance.Pipe";
     private const int DefaultConnectTimeoutMs = 1000;
 
     /// <summary>Conventional payload used by a re-launch with no args — primary brings UI front.</summary>
@@ -48,6 +50,12 @@ public sealed class SingleInstanceGuard : IDisposable
     /// messages that arrive close together into one workflow run and does NOT bring its main
     /// window forward for them.</summary>
     public const string ResizePrefix = "resize:";
+
+    /// <summary>Prefix for "show the colour picker for another app" from <c>AresToys.exe --pick-color</c>. The
+    /// payload is the reply pipe name, a TAB, the initial colour (RRGGBB or empty), a TAB, and the owner window
+    /// handle in decimal (0 for none). The primary answers on the reply pipe and does NOT bring its main window
+    /// forward.</summary>
+    public const string PickColorPrefix = "pick-color:";
 
     /// <summary>"Show the NewWormholeDialog so the user can pick a source folder." Used by the
     /// Background variant of the shell verb (right-click on empty desktop / folder area) — there

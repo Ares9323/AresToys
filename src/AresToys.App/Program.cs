@@ -17,7 +17,7 @@ namespace AresToys.App;
 public static class Program
 {
     [STAThread]
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
         // Velopack docs: call Build().Run() as the very first line. When invoked with one of the
         // hook arguments (--veloapp-install, --veloapp-uninstall, --veloapp-firstrun, …) it
@@ -27,10 +27,17 @@ public static class Program
 
         // Explorer New+ verbs: the exe does the whole job here and exits, with no WPF app, host,
         // database or running instance needed.
-        if (AresToys.App.Services.NewPlus.NewPlusHeadless.TryRun(args)) return;
+        if (AresToys.App.Services.NewPlus.NewPlusHeadless.TryRun(args)) return 0;
+
+        // Other apps asking for AresToys's colour picker: the client asks the running instance over its pipe and
+        // prints the answer, so this process never boots WPF. The exit code is the contract (0 picked, 1 cancelled,
+        // 2 no running AresToys, 3 bad arguments).
+        if (AresToys.App.Services.PickColorClient.IsPickColorRequest(args))
+            return AresToys.App.Services.PickColorClient.Run(args);
 
         var app = new App();
         app.InitializeComponent();
         app.Run();
+        return 0;
     }
 }

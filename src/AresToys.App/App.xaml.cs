@@ -453,6 +453,7 @@ public partial class App : Application
                 services.AddSingleton<EditorLauncher>();
                 services.AddSingleton<ScreenColorPickerService>();
                 services.AddSingleton<ColorWheelLauncher>();
+                services.AddSingleton<PickColorServer>();
                 services.AddSingleton<Services.Recording.FfmpegLocator>();
                 services.AddSingleton<Services.Recording.FfmpegDownloader>();
                 services.AddSingleton<Services.Recording.ScreenRecordingService>();
@@ -461,7 +462,7 @@ public partial class App : Application
                 services.AddSingleton<Services.Recording.VideoTrimService>();
                 services.AddSingleton<AresToys.Editor.Persistence.ColorRecentsStore>();
                 services.AddSingleton<AresToys.Editor.Persistence.EditorDefaultsStore>();
-                services.AddSingleton<AresToys.AI.IImageTracer, AresToys.AI.PotraceImageTracer>();
+                services.AddSingleton<AresToys.AI.IImageTracer, AresToys.AI.VectorCraftImageTracer>();
                 services.AddSingleton<TracePresetStore>();
                 // Background removal: U2NetP ONNX model. Singleton because the ONNX session
                 // costs ~150 ms to spin up + holds ~5 MB of model data + DirectML resources;
@@ -919,6 +920,13 @@ public partial class App : Application
             if (message.StartsWith(SingleInstanceGuard.ResizePrefix, StringComparison.Ordinal))
             {
                 QueueResizeRequest(message[SingleInstanceGuard.ResizePrefix.Length..]);
+                return;
+            }
+            // AresToys.exe --pick-color from another app: only the picker shows, never the main window.
+            if (message.StartsWith(SingleInstanceGuard.PickColorPrefix, StringComparison.Ordinal))
+            {
+                var payload = message[SingleInstanceGuard.PickColorPrefix.Length..];
+                _ = _host!.Services.GetRequiredService<PickColorServer>().HandleAsync(payload);
                 return;
             }
             Dispatcher.Invoke(() =>
