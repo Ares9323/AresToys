@@ -22,7 +22,11 @@ public sealed class NewPlusFolderShortcut
     private const uint VkN = 0x4E;
     private static readonly Regex PathInName = new(@"([A-Za-z]:\\.*|\\\\.+)$", RegexOptions.Compiled);
 
+    private const uint GW_HWNDNEXT = 2;
+    private const uint GW_CHILD = 5;
+
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
 
     [ComImport, Guid("6d5140c1-7436-11ce-8034-00aa006009fa"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IServiceProvider
@@ -136,11 +140,13 @@ public sealed class NewPlusFolderShortcut
         }
         if (candidates.Count == 1) return candidates[0];
         foreach (var candidate in candidates)
-            if (IsOpenTab(candidate.Window)) return candidate;
+            if (IsOpenTab(candidate.Window, root)) return candidate;
         return null;
     }
 
-    private static bool IsOpenTab(object window)
+    // Every tab's window stays visible, so visibility cannot tell them apart: the open tab is the topmost
+    // ShellTabWindowClass child of the Explorer window (Explorer raises a tab when it is activated).
+    private static bool IsOpenTab(object window, IntPtr root)
     {
         try
         {
@@ -151,11 +157,18 @@ public sealed class NewPlusFolderShortcut
             try
             {
                 var tab = (IOleWindow)Marshal.GetObjectForIUnknown(ptr);
-                return tab.GetWindow(out var hwnd) == 0 && IsWindowVisible(hwnd);
+                return tab.GetWindow(out var hwnd) == 0 && hwnd != IntPtr.Zero && hwnd == TopmostTab(root);
             }
             finally { Marshal.Release(ptr); }
         }
         catch { return false; }
+    }
+
+    private static IntPtr TopmostTab(IntPtr root)
+    {
+        for (var child = GetWindow(root, GW_CHILD); child != IntPtr.Zero; child = GetWindow(child, GW_HWNDNEXT))
+            if (NewPlusExplorer.ClassOf(child) == "ShellTabWindowClass" && IsWindowVisible(child)) return child;
+        return IntPtr.Zero;
     }
 
     // A file dialog has no automation object; its address bar carries the path in its name.
