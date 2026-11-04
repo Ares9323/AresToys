@@ -34,6 +34,9 @@ public sealed record EditorDefaults(
     double SpotlightDim = 0.5,
     double SpotlightBlur = 0);
 
+/// <summary>The old single set of editor defaults (key <c>editor.defaults</c>). The editor no
+/// longer writes it: <see cref="ToolStyleStore"/> reads it once, through <see cref="LoadAsync"/>,
+/// to seed the per-tool styles of a user who has no <c>editor.styles</c> yet.</summary>
 public sealed class EditorDefaultsStore
 {
     private const string SettingsKey = "editor.defaults";

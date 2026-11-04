@@ -467,7 +467,7 @@ public partial class App : Application
                 services.AddSingleton<Services.Recording.VideoThumbnailService>();
                 services.AddSingleton<Services.Recording.VideoTrimService>();
                 services.AddSingleton<AresToys.Editor.Persistence.ColorRecentsStore>();
-                services.AddSingleton<AresToys.Editor.Persistence.EditorDefaultsStore>();
+                services.AddSingleton<AresToys.Editor.Persistence.ToolStyleStore>();
                 services.AddSingleton<AresToys.AI.IImageTracer, AresToys.AI.VectorCraftImageTracer>();
                 services.AddSingleton<TracePresetStore>();
                 // Background removal: U2NetP ONNX model. Singleton because the ONNX session

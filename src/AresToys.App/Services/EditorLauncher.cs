@@ -20,7 +20,7 @@ public sealed class EditorLauncher
     private readonly IServiceProvider _services;
     private readonly IItemStore _items;
     private readonly ColorRecentsStore _recentsStore;
-    private readonly EditorDefaultsStore _defaultsStore;
+    private readonly ToolStyleStore _styleStore;
     private readonly ISettingsStore _settings;
     private readonly IImageEncoder _encoder;
     private readonly ScreenColorPickerService _screenSampler;
@@ -30,7 +30,7 @@ public sealed class EditorLauncher
         IServiceProvider services,
         IItemStore items,
         ColorRecentsStore recentsStore,
-        EditorDefaultsStore defaultsStore,
+        ToolStyleStore styleStore,
         ISettingsStore settings,
         IImageEncoder encoder,
         ScreenColorPickerService screenSampler,
@@ -39,7 +39,7 @@ public sealed class EditorLauncher
         _services = services;
         _items = items;
         _recentsStore = recentsStore;
-        _defaultsStore = defaultsStore;
+        _styleStore = styleStore;
         _settings = settings;
         _encoder = encoder;
         _screenSampler = screenSampler;
@@ -224,6 +224,18 @@ public sealed class EditorLauncher
         await tcs.Task.ConfigureAwait(false);
     }
 
+    /// <summary>Hand the loaded style book to a freshly created editor and select the tool it
+    /// opens on. Every tool's current style and Recent list come from the book.</summary>
+    private static void ApplyStyles(EditorViewModel vm, ToolStyleBook book, AresToys.Editor.Tools.EditorTool tool)
+    {
+        vm.LoadStyles(book);
+        vm.CurrentTool = tool;
+    }
+
+    /// <summary>Write the editor's style book and the tool it was left on, once, at window close.</summary>
+    private Task SaveStylesAsync(ToolStyleBook book, AresToys.Editor.Tools.EditorTool tool)
+        => _styleStore.SaveAsync(book, tool, CancellationToken.None);
+
     public async Task OpenAsync(long itemId, CancellationToken cancellationToken)
     {
         var record = await _items.GetByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
@@ -254,7 +266,7 @@ public sealed class EditorLauncher
         };
         InstallScreenSamplerHandler();
 
-        var defaults = await _defaultsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var (styleBook, lastTool) = await _styleStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
         // Global "Start editor maximized" preference (Settings → Settings tab). Applies only
         // to non-pipeline opens (this method = toast / history); pipeline tasks pass their own
@@ -263,6 +275,7 @@ public sealed class EditorLauncher
         // window — easier than a second Dispatcher.InvokeAsync just to query an int setting.
         var rawStartMax = await _settings.GetAsync("app.editor_start_maximized", cancellationToken).ConfigureAwait(false);
         var startMaximized = string.Equals(rawStartMax, "true", StringComparison.OrdinalIgnoreCase);
+        var savedSize = await LoadWindowSizeAsync(cancellationToken).ConfigureAwait(false);
 
         // Alt+click no-match fallback: "select_any" → editor's AltClickFallback = SelectAny;
         // anything else (incl. unset / "place") → Place. Same per-open read pattern as the
@@ -279,7 +292,7 @@ public sealed class EditorLauncher
         // TaskCompletionSource on Closed restores the "OpenAsync returns when the editor is
         // dismissed" semantics so callers see no behavioural change.
         var dispatcher = System.Windows.Application.Current.Dispatcher;
-        var doneTcs = new TaskCompletionSource<(EditorDefaults Snapshot, bool Saved, byte[]? Png)>(
+        var doneTcs = new TaskCompletionSource<(AresToys.Editor.Tools.EditorTool Tool, bool Saved, byte[]? Png)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         await dispatcher.InvokeAsync(() =>
@@ -288,25 +301,7 @@ public sealed class EditorLauncher
             var vm = (EditorViewModel)window.DataContext;
             vm.SourcePngBytes = record.Payload.ToArray();
             vm.EditingItemId = itemId;
-            vm.OutlineColor = defaults.Outline;
-            vm.FillColor = defaults.Fill;
-            vm.StrokeWidth = defaults.StrokeWidth;
-            vm.CurrentTool = defaults.Tool;
-            vm.CurrentTextStyle = defaults.TextStyle;
-            vm.FreehandSmoothDefault = defaults.FreehandSmooth;
-            vm.FreehandStartCapDefault = defaults.FreehandStartCap;
-            vm.FreehandEndCapDefault = defaults.FreehandEndCap;
-            vm.LineStartCapDefault = defaults.LineStartCap;
-            vm.LineEndCapDefault = defaults.LineEndCap;
-            vm.ArrowStartCapDefault = defaults.ArrowStartCap;
-            vm.ArrowEndCapDefault = defaults.ArrowEndCap;
-            vm.LineTipStyleDefault = defaults.LineTipStyle;
-            vm.TextOutlineColor = defaults.TextOutlineColor ?? AresToys.Editor.Model.ShapeColor.Black;
-            vm.TextOutlineWidth = defaults.TextOutlineWidth;
-            vm.BlurRadiusDefault = defaults.BlurRadius;
-            vm.PixelateBlockSizeDefault = defaults.PixelateBlockSize;
-            vm.SpotlightDimDefault = defaults.SpotlightDim;
-            vm.SpotlightBlurDefault = defaults.SpotlightBlur;
+            ApplyStyles(vm, styleBook, lastTool);
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -320,21 +315,17 @@ public sealed class EditorLauncher
                 if (monitor is not null)
                     window.EnableFullscreen(monitor.X, monitor.Y, monitor.Width, monitor.Height);
             }
+            else
+            {
+                ApplyWindowSize(window, savedSize);
+            }
+            TrackWindowSize(window, openedFullscreen: startMaximized);
             window.Closed += (_, _) =>
             {
-                // Snapshot ON the UI thread before the window unloads — reading VM state from
+                // Read the tool ON the UI thread before the window unloads: reading VM state from
                 // a pool thread later would race the WPF binding system. Same precaution as
-                // EditAsync.
-                var snap = new EditorDefaults(vm.OutlineColor, vm.FillColor, vm.StrokeWidth,
-                    vm.CurrentTool, vm.CurrentTextStyle,
-                    vm.FreehandSmoothDefault,
-                    vm.FreehandStartCapDefault, vm.FreehandEndCapDefault,
-                    vm.LineStartCapDefault, vm.LineEndCapDefault,
-                    vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
-                    vm.LineTipStyleDefault,
-                    vm.TextOutlineColor, vm.TextOutlineWidth,
-                    vm.BlurRadiusDefault, vm.PixelateBlockSizeDefault,
-                    vm.SpotlightDimDefault, vm.SpotlightBlurDefault);
+                // EditAsync. The style book is not touched again once the window is closed.
+                var closingTool = vm.CurrentTool;
                 byte[]? png = null;
                 if (window.Saved)
                 {
@@ -343,14 +334,14 @@ public sealed class EditorLauncher
                     // Adorners are already hidden for the capture (ExportCanvasPng path).
                     png = window.SavedPng;
                 }
-                doneTcs.TrySetResult((snap, window.Saved, png));
+                doneTcs.TrySetResult((closingTool, window.Saved, png));
             };
             window.Show();
         });
 
-        var (snapshot, saved, pngBytes) = await doneTcs.Task.ConfigureAwait(false);
+        var (closedTool, saved, pngBytes) = await doneTcs.Task.ConfigureAwait(false);
 
-        await _defaultsStore.SaveAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+        await SaveStylesAsync(styleBook, closedTool).ConfigureAwait(false);
 
         if (!saved || pngBytes is null) return;
 
@@ -382,6 +373,56 @@ public sealed class EditorLauncher
         });
     }
 
+    private const string WindowSizeKey = "editor.window_size";
+
+    private sealed record SavedWindowSize(double Width, double Height, bool Maximized);
+
+    /// <summary>The editor size the user last closed at ("W,H,max" in DIPs), or null before the
+    /// first close or on a malformed value.</summary>
+    private async Task<SavedWindowSize?> LoadWindowSizeAsync(CancellationToken ct)
+    {
+        var raw = await _settings.GetAsync(WindowSizeKey, ct).ConfigureAwait(false);
+        var parts = raw?.Split(',');
+        if (parts is not { Length: 3 }
+            || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var w)
+            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var h)
+            || w <= 0 || h <= 0)
+            return null;
+        return new SavedWindowSize(w, h, parts[2] == "1");
+    }
+
+    /// <summary>Reopen at the remembered size; closed maximised means maximised again, on the
+    /// monitor under the cursor like the fullscreen open.</summary>
+    private static void ApplyWindowSize(EditorWindow window, SavedWindowSize? size)
+    {
+        if (size is null) return;
+        window.ApplySavedSize(size.Width, size.Height);
+        if (!size.Maximized) return;
+        var monitor = AresToys.Capture.MonitorEnumeration.GetMonitorUnderCursor();
+        if (monitor is null) return;
+        window.EnableFullscreen(monitor.X, monitor.Y, monitor.Width, monitor.Height);
+        // EnableFullscreen parks the window on the monitor with a half-monitor restore size; keep
+        // the position it chose and give back the remembered restore size.
+        window.Width = size.Width;
+        window.Height = size.Height;
+    }
+
+    /// <summary>Save the editor size at close. A window opened fullscreen (setting or workflow) and
+    /// still maximised at close says nothing about the size the user wants, so it is not saved.</summary>
+    private void TrackWindowSize(EditorWindow window, bool openedFullscreen)
+    {
+        window.Closing += (_, _) =>
+        {
+            var maximized = window.WindowState == System.Windows.WindowState.Maximized;
+            if (openedFullscreen && maximized) return;
+            var size = window.SizeToRemember;
+            if (size.Width <= 0 || size.Height <= 0) return;
+            var value = string.Create(CultureInfo.InvariantCulture,
+                $"{size.Width:F0},{size.Height:F0},{(maximized ? "1" : "0")}");
+            _ = _settings.SetAsync(WindowSizeKey, value, false, CancellationToken.None);
+        };
+    }
+
     /// <summary>
     /// Open the editor on raw PNG bytes (no <c>ItemStore</c> round-trip). Used by the pipeline's
     /// "Open editor before upload" step so the user can annotate the capture before subsequent
@@ -396,7 +437,7 @@ public sealed class EditorLauncher
     /// active monitor and forces fit-to-viewport, and <paramref name="defaultTool"/> preselects
     /// a specific drawing tool ("Crop", "Rectangle", …) on open — winning over whatever the
     /// user last left selected. <paramref name="defaultTool"/> = null / empty falls back to
-    /// the persisted <see cref="EditorDefaults"/> ("last used" semantics).</summary>
+    /// the tool the editor was last left on ("last used" semantics).</summary>
     public async Task<byte[]?> EditAsync(byte[] sourcePngBytes, bool fullscreen, string? defaultTool, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sourcePngBytes);
@@ -407,18 +448,18 @@ public sealed class EditorLauncher
         ColorSwatchButton.OnColorPicked = c => _ = _recentsStore.PushAsync(c, CancellationToken.None);
         InstallScreenSamplerHandler();
 
-        var defaults = await _defaultsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var (styleBook, lastTool) = await _styleStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         // Workflow override wins over the last-used persisted default. Bad / unknown enum
         // values fall through silently — the editor keeps the persisted last-used so a stale
         // workflow config doesn't lock the user out of a usable tool.
-        var resolvedTool = defaults.Tool;
+        var resolvedTool = lastTool;
         if (!string.IsNullOrWhiteSpace(defaultTool)
             && Enum.TryParse<AresToys.Editor.Tools.EditorTool>(defaultTool, ignoreCase: true, out var parsedTool))
         {
             resolvedTool = parsedTool;
         }
         _logger.LogInformation("EditorLauncher.EditAsync: opening with tool={Tool} (lastUsed={LastUsed}, override='{Override}')",
-            resolvedTool, defaults.Tool, defaultTool ?? "(none)");
+            resolvedTool, lastTool, defaultTool ?? "(none)");
 
         // Same alt+click fallback hydration as OpenAsync — read once per editor open so a
         // Settings toggle takes effect on the next launch without restart.
@@ -426,6 +467,7 @@ public sealed class EditorLauncher
         var altFallback = string.Equals(rawAltFallback, "select_any", StringComparison.OrdinalIgnoreCase)
             ? AresToys.Editor.ViewModels.AltClickFallback.SelectAny
             : AresToys.Editor.ViewModels.AltClickFallback.Place;
+        var savedSize = fullscreen ? null : await LoadWindowSizeAsync(cancellationToken).ConfigureAwait(false);
 
         // Editor is WPF — must be created on the UI thread. We use Show() (modeless) instead
         // of ShowDialog() so the user can keep multiple editors open in parallel: rapid-fire
@@ -437,7 +479,7 @@ public sealed class EditorLauncher
         // saves or cancels" semantics: hooked off the Closed event, completed with the
         // editor's snapshot at that point.
         var dispatcher = System.Windows.Application.Current.Dispatcher;
-        var snapshotTcs = new TaskCompletionSource<(EditorDefaults Snapshot, bool Saved, byte[]? Png, int W, int H)>(
+        var snapshotTcs = new TaskCompletionSource<(AresToys.Editor.Tools.EditorTool Tool, bool Saved, byte[]? Png, int W, int H)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         await dispatcher.InvokeAsync(() =>
@@ -446,25 +488,7 @@ public sealed class EditorLauncher
             var vm = (EditorViewModel)window.DataContext;
             vm.SourcePngBytes = sourcePngBytes;
             vm.EditingItemId = 0; // synthetic — there's no DB item to write back to
-            vm.OutlineColor = defaults.Outline;
-            vm.FillColor = defaults.Fill;
-            vm.StrokeWidth = defaults.StrokeWidth;
-            vm.CurrentTool = resolvedTool;
-            vm.CurrentTextStyle = defaults.TextStyle;
-            vm.FreehandSmoothDefault = defaults.FreehandSmooth;
-            vm.FreehandStartCapDefault = defaults.FreehandStartCap;
-            vm.FreehandEndCapDefault = defaults.FreehandEndCap;
-            vm.LineStartCapDefault = defaults.LineStartCap;
-            vm.LineEndCapDefault = defaults.LineEndCap;
-            vm.ArrowStartCapDefault = defaults.ArrowStartCap;
-            vm.ArrowEndCapDefault = defaults.ArrowEndCap;
-            vm.LineTipStyleDefault = defaults.LineTipStyle;
-            vm.TextOutlineColor = defaults.TextOutlineColor ?? AresToys.Editor.Model.ShapeColor.Black;
-            vm.TextOutlineWidth = defaults.TextOutlineWidth;
-            vm.BlurRadiusDefault = defaults.BlurRadius;
-            vm.PixelateBlockSizeDefault = defaults.PixelateBlockSize;
-            vm.SpotlightDimDefault = defaults.SpotlightDim;
-            vm.SpotlightBlurDefault = defaults.SpotlightBlur;
+            ApplyStyles(vm, styleBook, resolvedTool);
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
@@ -479,29 +503,27 @@ public sealed class EditorLauncher
                 if (monitor is not null)
                     window.EnableFullscreen(monitor.X, monitor.Y, monitor.Width, monitor.Height);
             }
+            else if (savedSize is not null)
+            {
+                // The size the user last closed the editor at wins (owner ruling 1495).
+                ApplyWindowSize(window, savedSize);
+            }
             else
             {
-                // Non-fullscreen pipeline open: pre-size the window so the canvas hosts the image
-                // at 1:1 without scrolling when it fits in the work area. Read width/height from
-                // the PNG header without realising the full bitmap (BitmapDecoder lazily decodes
-                // metadata only when frames aren't accessed). Tiny corruption guard around it —
-                // a malformed PNG just falls back to the XAML defaults (1200×820).
+                // First open, nothing remembered yet: pre-size the window so the canvas hosts the
+                // image at 1:1 without scrolling when it fits in the work area. Read width/height
+                // from the PNG header without realising the full bitmap (BitmapDecoder lazily
+                // decodes metadata only when frames aren't accessed). Tiny corruption guard around
+                // it: a malformed PNG just falls back to the XAML defaults (1200×820).
                 if (TryReadImagePixelSize(sourcePngBytes, out var imgW, out var imgH))
                     window.SizeToImage(imgW, imgH);
             }
+            TrackWindowSize(window, openedFullscreen: fullscreen);
             window.Closed += (_, _) =>
             {
-                // Snapshot whatever the user left selected, BEFORE the window unloads — reading
-                // CurrentTool / *Color from a pool thread later would race the WPF binding system.
-                var snap = new EditorDefaults(vm.OutlineColor, vm.FillColor, vm.StrokeWidth, vm.CurrentTool, vm.CurrentTextStyle,
-                    vm.FreehandSmoothDefault,
-                    vm.FreehandStartCapDefault, vm.FreehandEndCapDefault,
-                    vm.LineStartCapDefault, vm.LineEndCapDefault,
-                    vm.ArrowStartCapDefault, vm.ArrowEndCapDefault,
-                    vm.LineTipStyleDefault,
-                    vm.TextOutlineColor, vm.TextOutlineWidth,
-                    vm.BlurRadiusDefault, vm.PixelateBlockSizeDefault,
-                    vm.SpotlightDimDefault, vm.SpotlightBlurDefault);
+                // Read whatever tool the user left selected, BEFORE the window unloads: reading
+                // CurrentTool from a pool thread later would race the WPF binding system.
+                var closingTool = vm.CurrentTool;
                 byte[]? png = null;
                 int w = 0, h = 0;
                 if (window.Saved)
@@ -514,17 +536,17 @@ public sealed class EditorLauncher
                     (w, h) = ResolveExportPixels(canvasHost);
                     png = window.SavedPng;
                 }
-                snapshotTcs.TrySetResult((snap, window.Saved, png, w, h));
+                snapshotTcs.TrySetResult((closingTool, window.Saved, png, w, h));
             };
             window.Show();
         }).Task.ConfigureAwait(false);
 
-        var (snapshot, wasSaved, exportedPng, exportW, exportH) = await snapshotTcs.Task.ConfigureAwait(false);
+        var (closedTool, wasSaved, exportedPng, exportW, exportH) = await snapshotTcs.Task.ConfigureAwait(false);
 
-        // Persist the editor defaults BEFORE returning so a subsequent EditAsync call (or any
+        // Persist the tool styles BEFORE returning so a subsequent EditAsync call (or any
         // other surface that reads via LoadAsync) sees the new value.
-        await _defaultsStore.SaveAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
-        _logger.LogInformation("EditorLauncher.EditAsync: persisted tool={Tool} on close", snapshot.Tool);
+        await SaveStylesAsync(styleBook, closedTool).ConfigureAwait(false);
+        _logger.LogInformation("EditorLauncher.EditAsync: persisted tool={Tool} on close", closedTool);
 
         if (!wasSaved || exportedPng is null) return null;
         // EditAsync feeds the pipeline (upload / save-to-file / etc.), so the bytes need to
@@ -643,8 +665,15 @@ public sealed class EditorLauncher
             ["PropertiesTitleFormat"]   = Loc("Editor_PropertiesTitleFormat"),
             ["SharedProperties"]        = Loc("Editor_SharedProperties"),
             ["Properties"]              = Loc("Editor_Properties"),
+            ["Recent"]                  = Loc("Editor_Recent"),
+            ["RecentEmpty"]             = Loc("Editor_RecentEmpty"),
+            ["RecentUse"]               = Loc("Editor_RecentUse"),
+            ["RecentRemove"]            = Loc("Editor_RecentRemove"),
+            ["RecentTipsBoth"]          = Loc("Editor_RecentTipsBoth"),
+            ["RecentTipStart"]          = Loc("Editor_RecentTipStart"),
+            ["RecentTipEnd"]            = Loc("Editor_RecentTipEnd"),
+            ["RecentTextFormat"]        = Loc("Editor_RecentTextFormat"),
             ["NoSelection"]             = Loc("Editor_NoSelection"),
-            ["DefaultProperties"]       = Loc("Editor_DefaultProperties"),
             ["TooltipSave"]             = Loc("Editor_TooltipSave"),
             ["TooltipSaveAs"]           = Loc("Editor_TooltipSaveAs"),
             ["TooltipCancel"]           = Loc("Editor_TooltipCancel"),
@@ -666,8 +695,6 @@ public sealed class EditorLauncher
             ["PixelBlockSize"]          = Loc("Editor_PixelBlockSize"),
             ["SpotlightDim"]            = Loc("Editor_SpotlightDim"),
             ["SpotlightBlur"]           = Loc("Editor_SpotlightBlur"),
-            ["EffectWheelHint"]         = Loc("Editor_EffectWheelHint"),
-            ["EdgeBlur"]                = Loc("Editor_EdgeBlur"),
             ["SmoothStroke"]            = Loc("Editor_SmoothStroke"),
             ["StartCap"]                = Loc("Editor_StartCap"),
             ["EndCap"]                  = Loc("Editor_EndCap"),
@@ -678,10 +705,6 @@ public sealed class EditorLauncher
             ["TooltipStartCap"]         = Loc("Editor_TooltipStartCap"),
             ["TooltipEndCap"]           = Loc("Editor_TooltipEndCap"),
             ["TooltipTipStyle"]         = Loc("Editor_TooltipTipStyle"),
-            ["ApplyToSelected"]         = Loc("Editor_ApplyToSelected"),
-            ["TooltipApplyToSelected"]  = Loc("Editor_TooltipApplyToSelected"),
-            ["SetAsDefault"]            = Loc("Editor_SetAsDefault"),
-            ["TooltipSetAsDefault"]     = Loc("Editor_TooltipSetAsDefault"),
             ["Undo"]                    = Loc("Editor_Undo"),
             ["Redo"]                    = Loc("Editor_Redo"),
             ["Tool_Select"]             = Loc("Editor_Tool_Select"),

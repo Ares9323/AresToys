@@ -37,6 +37,7 @@ public sealed partial class EditorViewModel : ObservableObject
             [EditorTool.SmartEraser] = new SmartEraserTool()
         };
         _activeTool = _tools[EditorTool.Rectangle];
+        _styles.Changed += OnStyleBookChanged;
         Shapes = [];
         PendingCrops.CollectionChanged += OnPendingCropsCollectionChanged;
     }
@@ -68,150 +69,246 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty]
     private EditorTool _currentTool = EditorTool.Rectangle;
 
-    [ObservableProperty]
-    private ShapeColor _outlineColor = ShapeColor.Red;
+    // ---- Per-tool styles ---------------------------------------------------------------------
+    // Every style value lives in the ToolStyleBook (the current style of each placement tool plus
+    // its Recent list). The properties below keep their old names and types so the window and its
+    // bindings do not change, but each one is now a view onto the book: the shape look
+    // (OutlineColor, FillColor, StrokeWidth, LineTipStyleDefault) belongs to StyleTool, the others
+    // to the tool that owns them. A red Arrow and a blue Rectangle therefore coexist.
 
-    [ObservableProperty]
-    private ShapeColor _fillColor = ShapeColor.Transparent;
+    private ToolStyleBook _styles = new();
+    private TextStyle _textToolStyle = TextStyle.Default;
 
-    [ObservableProperty]
-    private double _strokeWidth = 2;
+    /// <summary>Every styled tool's current style and Recent list. Replaced as a whole by
+    /// <see cref="LoadStyles"/> when the editor opens.</summary>
+    public ToolStyleBook Styles => _styles;
 
-    [ObservableProperty]
-    private TextStyle _currentTextStyle = TextStyle.Default;
+    /// <summary>The tool whose style the shape-look properties (<see cref="OutlineColor"/>,
+    /// <see cref="FillColor"/>, <see cref="StrokeWidth"/>, <see cref="LineTipStyleDefault"/>) show:
+    /// <see cref="CurrentTool"/> when it carries a style, otherwise the last styled tool used
+    /// (Rectangle at first).</summary>
+    public EditorTool StyleTool { get; private set; } = EditorTool.Rectangle;
 
-    /// <summary>Sticky text-outline defaults, kept SEPARATE from the global Outline/Stroke so the
-    /// user can run e.g. "red arrows" (global outline) and "white text with a thick black outline"
-    /// (text default) at the same time. New texts inherit these; the per-text outline controls and
-    /// "Set as default" write back here. The outline is "off" purely via width 0; the colour
-    /// defaults to opaque black (NOT transparent) so that raising the width from the swatch's
-    /// starting value produces a visible contour instead of a fully-transparent one — picking a hue
-    /// from a transparent swatch used to leave alpha at 0 and the outline invisible.
-    /// Persisted across sessions via EditorDefaults.</summary>
-    [ObservableProperty]
-    private ShapeColor _textOutlineColor = ShapeColor.Black;
+    /// <summary>Raised with the tool whose current style or Recent list changed.</summary>
+    public event Action<EditorTool>? StylesChanged;
 
-    [ObservableProperty]
-    private double _textOutlineWidth;
-
-    /// <summary>Sticky default for the freehand tool's Smooth flag. New strokes inherit this;
-    /// the per-shape Smooth toggle in the properties panel also writes back here so the next
-    /// stroke gets whatever the user just chose. Persisted across sessions via EditorDefaults.</summary>
-    [ObservableProperty]
-    private bool _freehandSmoothDefault = true;
-
-    partial void OnFreehandSmoothDefaultChanged(bool value)
+    /// <summary>Swap in the book loaded from disk and push every tool's style into its tool instance.</summary>
+    public void LoadStyles(ToolStyleBook book)
     {
-        if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.SmoothStrokes = value;
+        ArgumentNullException.ThrowIfNull(book);
+        _styles.Changed -= OnStyleBookChanged;
+        _styles = book;
+        _styles.Changed += OnStyleBookChanged;
+        foreach (var tool in ToolStyleBook.Tools) PushStyle(tool);
+        OnPropertyChanged(nameof(Styles));
+        RaiseStyleProperties();
+        foreach (var tool in ToolStyleBook.Tools) StylesChanged?.Invoke(tool);
     }
 
-    /// <summary>Sticky blur radius for new blur regions, in pixels. Same propagation rules as
-    /// <see cref="FreehandSmoothDefault"/>: the tool reads it when a region is drawn, the mouse
-    /// wheel over a selected blur and "Set as default" write back here, and it persists across
-    /// sessions via EditorDefaults.</summary>
-    [ObservableProperty]
-    private double _blurRadiusDefault = 12;
+    private static readonly string[] StyleProperties =
+    [
+        nameof(OutlineColor), nameof(FillColor), nameof(StrokeWidth), nameof(LineTipStyleDefault),
+        nameof(CurrentTextStyle), nameof(TextOutlineColor), nameof(TextOutlineWidth),
+        nameof(FreehandSmoothDefault), nameof(FreehandStartCapDefault), nameof(FreehandEndCapDefault),
+        nameof(LineStartCapDefault), nameof(LineEndCapDefault),
+        nameof(ArrowStartCapDefault), nameof(ArrowEndCapDefault),
+        nameof(BlurRadiusDefault), nameof(PixelateBlockSizeDefault),
+        nameof(SpotlightDimDefault), nameof(SpotlightBlurDefault),
+        nameof(StepFontFamily), nameof(StepBold), nameof(StepItalic)
+    ];
 
-    partial void OnBlurRadiusDefaultChanged(double value)
+    private void RaiseStyleProperties()
     {
-        if (_tools.TryGetValue(EditorTool.Blur, out var t) && t is BlurTool b) b.Radius = value;
+        foreach (var name in StyleProperties) OnPropertyChanged(name);
     }
 
-    /// <summary>Sticky mosaic cell size for new pixelate regions, in pixels.</summary>
-    [ObservableProperty]
-    private int _pixelateBlockSizeDefault = 8;
-
-    partial void OnPixelateBlockSizeDefaultChanged(int value)
+    private void OnStyleBookChanged(EditorTool tool)
     {
-        if (_tools.TryGetValue(EditorTool.Pixelate, out var t) && t is PixelateTool p) p.BlockSize = value;
+        PushStyle(tool);
+        RaiseStyleProperties();
+        StylesChanged?.Invoke(tool);
     }
 
-    /// <summary>Sticky dim amount (0..1) applied outside new spotlights.</summary>
-    [ObservableProperty]
-    private double _spotlightDimDefault = 0.5;
+    /// <summary>Change one tool's current style. The book raises StylesChanged and pushes the style into the tool.</summary>
+    public void EditStyle(EditorTool tool, Func<ToolStyle, ToolStyle> change) =>
+        _styles.SetCurrent(tool, change(_styles.Current(tool)));
 
-    partial void OnSpotlightDimDefaultChanged(double value)
+    /// <summary>Copy a tool's style into the tool instance that reads it when a shape is drawn.
+    /// Rectangle and Ellipse read nothing from here: their look is passed to Begin.</summary>
+    private void PushStyle(EditorTool tool)
     {
-        if (_tools.TryGetValue(EditorTool.Spotlight, out var t) && t is SpotlightTool s) s.Dim = value;
+        var style = _styles.Current(tool);
+        switch (tool)
+        {
+            case EditorTool.Arrow:
+            case EditorTool.Line:
+                if (_tools[tool] is LineTool lt)
+                {
+                    lt.StartCap = style.StartCap;
+                    lt.EndCap = style.EndCap;
+                    lt.TipStyle = style.TipStyle;
+                }
+                break;
+            case EditorTool.Freehand:
+                if (_tools[tool] is FreehandTool fh)
+                {
+                    fh.SmoothStrokes = style.Smooth;
+                    fh.StartCap = style.StartCap;
+                    fh.EndCap = style.EndCap;
+                    fh.TipStyle = style.TipStyle;
+                }
+                break;
+            case EditorTool.Text:
+                // TextTool takes its style in the constructor, so a new style means a new tool.
+                if (!_textToolStyle.Equals(style.Text))
+                {
+                    _textToolStyle = style.Text;
+                    _tools[EditorTool.Text] = new TextTool(style.Text);
+                    if (CurrentTool == EditorTool.Text) _activeTool = _tools[EditorTool.Text];
+                }
+                break;
+            case EditorTool.StepCounter:
+                if (_tools[tool] is StepCounterTool sc)
+                {
+                    sc.FontFamily = style.StepFontFamily;
+                    sc.Bold = style.StepBold;
+                    sc.Italic = style.StepItalic;
+                }
+                break;
+            case EditorTool.Blur:
+                if (_tools[tool] is BlurTool b) b.Radius = style.EffectAmount;
+                break;
+            case EditorTool.Pixelate:
+                if (_tools[tool] is PixelateTool p) p.BlockSize = (int)Math.Round(style.EffectAmount);
+                break;
+            case EditorTool.Spotlight:
+                if (_tools[tool] is SpotlightTool s)
+                {
+                    s.Dim = style.EffectAmount;
+                    s.BlurRadius = style.EffectAmount2;
+                }
+                break;
+        }
     }
 
-    /// <summary>Sticky blur radius applied to a new spotlight's surroundings, in pixels.
-    /// 0 keeps the historical dim-only look.</summary>
-    [ObservableProperty]
-    private double _spotlightBlurDefault;
-
-    partial void OnSpotlightBlurDefaultChanged(double value)
+    public ShapeColor OutlineColor
     {
-        if (_tools.TryGetValue(EditorTool.Spotlight, out var t) && t is SpotlightTool s) s.BlurRadius = value;
+        get => _styles.Current(StyleTool).Outline;
+        set => EditStyle(StyleTool, s => s with { Outline = value });
     }
 
-    /// <summary>Sticky cap defaults for the freehand "ShareX-style arrow" feature. Same
-    /// propagation rules as <see cref="FreehandSmoothDefault"/>: tool reads on stroke start,
-    /// per-shape toggle writes back, persisted across sessions via EditorDefaults.</summary>
-    [ObservableProperty]
-    private bool _freehandStartCapDefault;
-
-    partial void OnFreehandStartCapDefaultChanged(bool value)
+    public ShapeColor FillColor
     {
-        if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.StartCap = value;
+        get => _styles.Current(StyleTool).Fill;
+        set => EditStyle(StyleTool, s => s with { Fill = value });
     }
 
-    [ObservableProperty]
-    private bool _freehandEndCapDefault;
-
-    partial void OnFreehandEndCapDefaultChanged(bool value)
+    public double StrokeWidth
     {
-        if (_tools.TryGetValue(EditorTool.Freehand, out var t) && t is FreehandTool fh) fh.EndCap = value;
+        get => _styles.Current(StyleTool).StrokeWidth;
+        set => EditStyle(StyleTool, s => s with { StrokeWidth = value });
     }
 
-    /// <summary>Sticky cap defaults for the unified Line/Arrow tool. The two toolbar buttons
-    /// (<see cref="EditorTool.Line"/> / <see cref="EditorTool.Arrow"/>) are intent aliases for
-    /// the same internal LineTool — they keep distinct default sets here so clicking "Arrow"
-    /// always reseeds an arrow-style cap regardless of what the user was just doing in Line mode,
-    /// matching the muscle memory of the original two-tool layout.</summary>
-    [ObservableProperty]
-    private bool _lineStartCapDefault;
-
-    partial void OnLineStartCapDefaultChanged(bool value)
+    /// <summary>Tip style of the arrow, line and freehand caps. Each of those tools keeps its own,
+    /// so this reads and writes the style of <see cref="StyleTool"/>.</summary>
+    public LineTipStyle LineTipStyleDefault
     {
-        if (_tools.TryGetValue(EditorTool.Line, out var t) && t is LineTool lt) lt.StartCap = value;
+        get => _styles.Current(StyleTool).TipStyle;
+        set => EditStyle(StyleTool, s => s with { TipStyle = value });
     }
 
-    [ObservableProperty]
-    private bool _lineEndCapDefault;
-
-    partial void OnLineEndCapDefaultChanged(bool value)
+    public TextStyle CurrentTextStyle
     {
-        if (_tools.TryGetValue(EditorTool.Line, out var t) && t is LineTool lt) lt.EndCap = value;
+        get => _styles.Current(EditorTool.Text).Text;
+        set => EditStyle(EditorTool.Text, s => s with { Text = value });
     }
 
-    [ObservableProperty]
-    private bool _arrowStartCapDefault;
-
-    partial void OnArrowStartCapDefaultChanged(bool value)
+    /// <summary>Text-outline colour and width of the Text tool. The outline is "off" purely via
+    /// width 0; the colour defaults to opaque black (NOT transparent) so raising the width from
+    /// zero produces a visible contour instead of a fully transparent one.</summary>
+    public ShapeColor TextOutlineColor
     {
-        if (_tools.TryGetValue(EditorTool.Arrow, out var t) && t is LineTool lt) lt.StartCap = value;
+        get => _styles.Current(EditorTool.Text).TextOutlineColor;
+        set => EditStyle(EditorTool.Text, s => s with { TextOutlineColor = value });
     }
 
-    [ObservableProperty]
-    private bool _arrowEndCapDefault = true;
-
-    partial void OnArrowEndCapDefaultChanged(bool value)
+    public double TextOutlineWidth
     {
-        if (_tools.TryGetValue(EditorTool.Arrow, out var t) && t is LineTool lt) lt.EndCap = value;
+        get => _styles.Current(EditorTool.Text).TextOutlineWidth;
+        set => EditStyle(EditorTool.Text, s => s with { TextOutlineWidth = value });
     }
 
-    /// <summary>Tip-style default shared across Line, Arrow and Freehand. Picking a tip style
-    /// is a global aesthetic choice — there's no muscle-memory case for "different look per
-    /// tool" — so we keep one slot and broadcast it to all three tools.</summary>
-    [ObservableProperty]
-    private LineTipStyle _lineTipStyleDefault = LineTipStyle.ShareXCurve;
-
-    partial void OnLineTipStyleDefaultChanged(LineTipStyle value)
+    public bool FreehandSmoothDefault
     {
-        if (_tools.TryGetValue(EditorTool.Line, out var lt) && lt is LineTool l1) l1.TipStyle = value;
-        if (_tools.TryGetValue(EditorTool.Arrow, out var at) && at is LineTool l2) l2.TipStyle = value;
-        if (_tools.TryGetValue(EditorTool.Freehand, out var ft) && ft is FreehandTool f) f.TipStyle = value;
+        get => _styles.Current(EditorTool.Freehand).Smooth;
+        set => EditStyle(EditorTool.Freehand, s => s with { Smooth = value });
+    }
+
+    /// <summary>Blur radius for new blur regions, in pixels.</summary>
+    public double BlurRadiusDefault
+    {
+        get => _styles.Current(EditorTool.Blur).EffectAmount;
+        set => EditStyle(EditorTool.Blur, s => s with { EffectAmount = value });
+    }
+
+    /// <summary>Mosaic cell size for new pixelate regions, in pixels.</summary>
+    public int PixelateBlockSizeDefault
+    {
+        get => (int)Math.Round(_styles.Current(EditorTool.Pixelate).EffectAmount);
+        set => EditStyle(EditorTool.Pixelate, s => s with { EffectAmount = value });
+    }
+
+    /// <summary>Dim amount (0..1) applied outside new spotlights.</summary>
+    public double SpotlightDimDefault
+    {
+        get => _styles.Current(EditorTool.Spotlight).EffectAmount;
+        set => EditStyle(EditorTool.Spotlight, s => s with { EffectAmount = value });
+    }
+
+    /// <summary>Blur radius applied to a new spotlight's surroundings, in pixels. 0 keeps the
+    /// dim-only look.</summary>
+    public double SpotlightBlurDefault
+    {
+        get => _styles.Current(EditorTool.Spotlight).EffectAmount2;
+        set => EditStyle(EditorTool.Spotlight, s => s with { EffectAmount2 = value });
+    }
+
+    public bool FreehandStartCapDefault
+    {
+        get => _styles.Current(EditorTool.Freehand).StartCap;
+        set => EditStyle(EditorTool.Freehand, s => s with { StartCap = value });
+    }
+
+    public bool FreehandEndCapDefault
+    {
+        get => _styles.Current(EditorTool.Freehand).EndCap;
+        set => EditStyle(EditorTool.Freehand, s => s with { EndCap = value });
+    }
+
+    /// <summary>Cap sets of the two toolbar aliases for the same internal LineTool. Line and Arrow
+    /// keep separate styles so clicking "Arrow" always brings back an arrow-style cap.</summary>
+    public bool LineStartCapDefault
+    {
+        get => _styles.Current(EditorTool.Line).StartCap;
+        set => EditStyle(EditorTool.Line, s => s with { StartCap = value });
+    }
+
+    public bool LineEndCapDefault
+    {
+        get => _styles.Current(EditorTool.Line).EndCap;
+        set => EditStyle(EditorTool.Line, s => s with { EndCap = value });
+    }
+
+    public bool ArrowStartCapDefault
+    {
+        get => _styles.Current(EditorTool.Arrow).StartCap;
+        set => EditStyle(EditorTool.Arrow, s => s with { StartCap = value });
+    }
+
+    public bool ArrowEndCapDefault
+    {
+        get => _styles.Current(EditorTool.Arrow).EndCap;
+        set => EditStyle(EditorTool.Arrow, s => s with { EndCap = value });
     }
 
     /// <summary>What alt+click does on a placement tool (Rectangle, Ellipse, Arrow, Line,
@@ -232,32 +329,24 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty]
     private AltClickFallback _altClickFallback = AltClickFallback.Place;
 
-    /// <summary>Sticky font defaults for the step counter tool. Decoupled from
-    /// <see cref="CurrentTextStyle"/> so the user can pick a different register for digits
-    /// inside the disc without affecting their text-shape font choice. Same propagation
-    /// pattern as the freehand flags: tool reads on next stroke, per-shape edit writes back.</summary>
-    [ObservableProperty]
-    private string _stepFontFamily = "Segoe UI";
-
-    partial void OnStepFontFamilyChanged(string value)
+    /// <summary>Font of the step counter's digits. Separate from <see cref="CurrentTextStyle"/> so
+    /// digits can use a different register without affecting the text tool.</summary>
+    public string StepFontFamily
     {
-        if (_tools.TryGetValue(EditorTool.StepCounter, out var t) && t is StepCounterTool sc) sc.FontFamily = value;
+        get => _styles.Current(EditorTool.StepCounter).StepFontFamily;
+        set => EditStyle(EditorTool.StepCounter, s => s with { StepFontFamily = value });
     }
 
-    [ObservableProperty]
-    private bool _stepBold = true;
-
-    partial void OnStepBoldChanged(bool value)
+    public bool StepBold
     {
-        if (_tools.TryGetValue(EditorTool.StepCounter, out var t) && t is StepCounterTool sc) sc.Bold = value;
+        get => _styles.Current(EditorTool.StepCounter).StepBold;
+        set => EditStyle(EditorTool.StepCounter, s => s with { StepBold = value });
     }
 
-    [ObservableProperty]
-    private bool _stepItalic;
-
-    partial void OnStepItalicChanged(bool value)
+    public bool StepItalic
     {
-        if (_tools.TryGetValue(EditorTool.StepCounter, out var t) && t is StepCounterTool sc) sc.Italic = value;
+        get => _styles.Current(EditorTool.StepCounter).StepItalic;
+        set => EditStyle(EditorTool.StepCounter, s => s with { StepItalic = value });
     }
 
     [ObservableProperty]
@@ -288,21 +377,19 @@ public sealed partial class EditorViewModel : ObservableObject
 
     partial void OnCurrentToolChanged(EditorTool value)
     {
+        // Switch the style the panel-bound properties show before anything reads them.
+        var styleToolChanged = ToolStyleBook.IsStyled(value) && value != StyleTool;
+        if (styleToolChanged) StyleTool = value;
         _activeTool = _tools[value];
         if (value != EditorTool.Select) SetSelection([]);
-    }
-
-    partial void OnCurrentTextStyleChanged(TextStyle value)
-    {
-        // Refresh the TextTool so the next click uses the new style.
-        _tools[EditorTool.Text] = new TextTool(value);
-        if (CurrentTool == EditorTool.Text) _activeTool = _tools[EditorTool.Text];
+        if (styleToolChanged) RaiseStyleProperties();
     }
 
     public void AddTextShape(TextShape shape)
     {
         if (shape.IsEmpty) return;
         _commands.Execute(new AddShapeCommand(shape), Shapes);
+        if (CurrentTool == EditorTool.Text) _styles.Remember(EditorTool.Text, _styles.Current(EditorTool.Text));
     }
 
     public void AddImageShape(ImageShape shape)
@@ -383,7 +470,8 @@ public sealed partial class EditorViewModel : ObservableObject
         // PendingCrops list (no clear). The window dispatcher only routes to BeginGesture
         // when the click lands outside every existing rect / grip, so we don't accidentally
         // start a new rect when the user meant to drag an existing one.
-        _activeTool.Begin(x, y, OutlineColor, FillColor, StrokeWidth);
+        var style = _styles.Current(StyleTool);
+        _activeTool.Begin(x, y, style.Outline, style.Fill, style.StrokeWidth);
         OnPropertyChanged(nameof(PreviewShape));
     }
 
@@ -411,6 +499,8 @@ public sealed partial class EditorViewModel : ObservableObject
         else if (committed is not null)
         {
             _commands.Execute(new AddShapeCommand(committed), Shapes);
+            // A shape was really placed: only now does its style enter the tool's Recent list.
+            if (ToolStyleBook.IsStyled(CurrentTool)) _styles.Remember(CurrentTool, _styles.Current(CurrentTool));
             // Auto-select the just-drawn shape so the property panel shows its attributes.
             // The active tool stays as-is — the user can keep drawing more shapes; the next
             // BeginGesture will not clear the selection (only a tool switch does).

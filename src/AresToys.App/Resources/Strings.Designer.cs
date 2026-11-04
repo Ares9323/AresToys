@@ -1574,14 +1574,6 @@ namespace AresToys.App.Resources {
             }
         }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Apply to selected.
-        /// </summary>
-        public static string Editor_ApplyToSelected {
-            get {
-                return ResourceManager.GetString("Editor_ApplyToSelected", resourceCulture);
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized string similar to Blur radius (px).
@@ -1601,23 +1593,7 @@ namespace AresToys.App.Resources {
             }
         }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Default properties.
-        /// </summary>
-        public static string Editor_DefaultProperties {
-            get {
-                return ResourceManager.GetString("Editor_DefaultProperties", resourceCulture);
-            }
-        }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Edge blur (px).
-        /// </summary>
-        public static string Editor_EdgeBlur {
-            get {
-                return ResourceManager.GetString("Editor_EdgeBlur", resourceCulture);
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized string similar to Effect.
@@ -1701,6 +1677,78 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Recent.
+        /// </summary>
+        public static string Editor_Recent {
+            get {
+                return ResourceManager.GetString("Editor_Recent", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Styles you draw with land here (up to 10)..
+        /// </summary>
+        public static string Editor_RecentEmpty {
+            get {
+                return ResourceManager.GetString("Editor_RecentEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use this style.
+        /// </summary>
+        public static string Editor_RecentUse {
+            get {
+                return ResourceManager.GetString("Editor_RecentUse", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove from Recent.
+        /// </summary>
+        public static string Editor_RecentRemove {
+            get {
+                return ResourceManager.GetString("Editor_RecentRemove", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to two tips.
+        /// </summary>
+        public static string Editor_RecentTipsBoth {
+            get {
+                return ResourceManager.GetString("Editor_RecentTipsBoth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to start tip.
+        /// </summary>
+        public static string Editor_RecentTipStart {
+            get {
+                return ResourceManager.GetString("Editor_RecentTipStart", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to end tip.
+        /// </summary>
+        public static string Editor_RecentTipEnd {
+            get {
+                return ResourceManager.GetString("Editor_RecentTipEnd", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} px, outline {1}.
+        /// </summary>
+        public static string Editor_RecentTextFormat {
+            get {
+                return ResourceManager.GetString("Editor_RecentTextFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to {0} Properties.
         /// </summary>
         public static string Editor_PropertiesTitleFormat {
@@ -1745,14 +1793,6 @@ namespace AresToys.App.Resources {
             }
         }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Set as default.
-        /// </summary>
-        public static string Editor_SetAsDefault {
-            get {
-                return ResourceManager.GetString("Editor_SetAsDefault", resourceCulture);
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized string similar to Arrow.
@@ -1898,14 +1938,6 @@ namespace AresToys.App.Resources {
             }
         }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Mouse wheel over a selected region adjusts it....
-        /// </summary>
-        public static string Editor_EffectWheelHint {
-            get {
-                return ResourceManager.GetString("Editor_EffectWheelHint", resourceCulture);
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized string similar to Spotlight dim (%).
@@ -2159,14 +2191,6 @@ namespace AresToys.App.Resources {
             }
         }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Apply the default outline / fill / stroke above to the selected shape(s).
-        /// </summary>
-        public static string Editor_TooltipApplyToSelected {
-            get {
-                return ResourceManager.GetString("Editor_TooltipApplyToSelected", resourceCulture);
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized string similar to Discard edits and close. The original stays in history; the Windows clipboard is not changed..
@@ -2204,14 +2228,6 @@ namespace AresToys.App.Resources {
             }
         }
         
-        /// <summary>
-        ///   Looks up a localized string similar to Use the selected shape&apos;s outline/fill/stroke as the toolbar&apos;s current values.
-        /// </summary>
-        public static string Editor_TooltipSetAsDefault {
-            get {
-                return ResourceManager.GetString("Editor_TooltipSetAsDefault", resourceCulture);
-            }
-        }
         
         /// <summary>
         ///   Looks up a localized string similar to Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke..

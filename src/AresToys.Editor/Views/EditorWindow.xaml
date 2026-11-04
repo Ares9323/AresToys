@@ -48,19 +48,19 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />  <!-- vertical tool strip -->
+            <ColumnDefinition Width="*" />     <!-- canvas -->
+            <ColumnDefinition Width="Auto" />  <!-- property panel -->
         </Grid.ColumnDefinitions>
 
         <Grid.Resources>
-            <!-- Horizontal tool button: tighter than the old vertical version since we have to
-                 fit ~14 entries on one row. BasedOn the implicit Fluent button style so we keep
-                 the rounded bg / hover. -->
+            <!-- Tool button of the vertical strip on the left. BasedOn the implicit Fluent button
+                 style so we keep the rounded bg / hover. -->
             <Style x:Key="ToolBtn" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                <Setter Property="Height" Value="30" />
-                <Setter Property="MinWidth" Value="34" />
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Width" Value="38" />
                 <Setter Property="Padding" Value="4,2" />
-                <Setter Property="Margin" Value="2,0" />
+                <Setter Property="Margin" Value="0,2" />
                 <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
             </Style>
@@ -71,44 +71,74 @@
                 <Setter Property="Height" Value="18" />
                 <Setter Property="Stretch" Value="Uniform" />
             </Style>
-            <!-- Vertical 1-px line between tool groups (replaces the old SHAPES / OBJECTS /
-                 EFFECTS / CANVAS section headers from the sidebar layout). -->
+            <!-- Horizontal 1-px line between tool groups of the vertical strip. -->
             <Style x:Key="ToolGroupDivider" TargetType="Border">
-                <Setter Property="Width" Value="1" />
+                <Setter Property="Height" Value="1" />
                 <Setter Property="Background" Value="{DynamicResource AccentForegroundDarkBrush}" />
-                <Setter Property="Margin" Value="6,4" />
-                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="Margin" Value="4,6" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
                 <Setter Property="Opacity" Value="0.5" />
             </Style>
         </Grid.Resources>
 
-        <!-- TitleBar with the title text + tool palette inline in the header. The ScrollViewer
-             gets its MaxWidth from OnTitleBarSizeChanged in code-behind (computed = window
-             ActualWidth - icon - title - caption buttons slot), so the toolbar can never push
-             under Min/Max/Close at any window size. When the natural button strip exceeds that
-             width, the wheel handler converts vertical wheel ticks into horizontal scroll
-             (~48 px per tick = one tool button); the OS scroll bar is hidden inside the title
-             chrome but the wheel still works. -->
-        <ui:TitleBar Grid.Row="0" Grid.ColumnSpan="2" Title="" SizeChanged="OnTitleBarSizeChanged">
+        <!-- Only the title and the caption buttons live here now (tools moved to the left strip),
+             so the bar is as short as the caption buttons allow. -->
+        <ui:TitleBar Grid.Row="0" Grid.ColumnSpan="3" Title="" Height="32" Padding="8,0,0,0">
             <ui:TitleBar.Icon>
                 <ui:ImageIcon Source="{StaticResource LocalAresToysLogo}" Margin="0,0,-12,0" />
             </ui:TitleBar.Icon>
             <ui:TitleBar.Header>
-                <Grid VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />  <!-- title text -->
-                        <ColumnDefinition Width="Auto" />  <!-- tools (clipped by MaxWidth on the ScrollViewer) -->
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="TitleBarText" Grid.Column="0" Text="AresToys - Editor"
-                               Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="13"
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleBarText" Text="AresToys - Editor"
+                               Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="12"
                                VerticalAlignment="Center" Margin="0,0,16,0" />
-                    <ScrollViewer Grid.Column="1"
-                                  x:Name="ToolbarScroll"
-                                  HorizontalScrollBarVisibility="Hidden"
-                                  VerticalScrollBarVisibility="Disabled"
-                                  PreviewMouseWheel="OnToolbarMouseWheel"
+                    <!-- Confirm / Save as / Discard, right of the title (owner ruling 1512). Icon-only,
+                         with horizontal padding so they are not tiny in the short bar. Glyphs:
+                         FontAwesome 7 Free Solid (IconFont lives in the host assembly, hence
+                         DynamicResource). f0c5 = copy, f0c7 = floppy-disk, f00d = xmark. -->
+                    <ui:Button x:Name="SaveButton" Appearance="Primary"
+                               Height="26" Padding="18,0" Margin="0,0,4,0"
+                               Click="OnSaveClicked"
+                               ToolTip="Confirm / copy to clipboard (also adds to history; original kept for safety)">
+                        <TextBlock Text="&#xf0c5;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="SaveAsButton"
+                               Height="26" Padding="18,0" Margin="0,0,4,0"
+                               Click="OnSaveAsClicked"
+                               ToolTip="Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.">
+                        <TextBlock Text="&#xf0c7;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="CancelButton" Appearance="Danger"
+                               Height="26" Padding="18,0"
+                               Click="OnCancelClicked"
+                               ToolTip="Discard edits and close (original stays in history)">
+                        <TextBlock Text="&#xf00d;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                </StackPanel>
+            </ui:TitleBar.Header>
+        </ui:TitleBar>
+
+        <!-- Row 1 placeholder (zero height). -->
+        <Border Grid.Row="1" Grid.ColumnSpan="3" Height="0" />
+
+        <!-- Tool strip, vertical, left of the canvas. It scrolls (hidden bar, wheel works) when the
+             window is too short for every tool. -->
+        <Border Grid.Row="2" Grid.Column="0"
+                Padding="6,8"
+                Background="{DynamicResource Surface1Brush}"
+                BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="0,0,1,0"
+                CornerRadius="0,0,0,6">
+                    <ScrollViewer x:Name="ToolbarScroll"
+                                  VerticalScrollBarVisibility="Hidden"
+                                  HorizontalScrollBarVisibility="Disabled"
                                   Background="Transparent">
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Vertical">
                 <ui:Button x:Name="SelectToolBtn" Style="{StaticResource ToolBtn}" Click="OnSelectToolClicked" ToolTip="V Select">
                     <Image Source="{StaticResource ToolIconSelect}" Style="{StaticResource ToolIcon}" />
                 </ui:Button>
@@ -173,15 +203,10 @@
                 </ui:Button>
                         </StackPanel>
                     </ScrollViewer>
-                </Grid>
-            </ui:TitleBar.Header>
-        </ui:TitleBar>
-
-        <!-- Row 1 placeholder (zero height): the tool palette lives inside the TitleBar above. -->
-        <Border Grid.Row="1" Grid.ColumnSpan="2" Height="0" />
+        </Border>
 
         <!-- Canvas -->
-        <ScrollViewer Grid.Row="2" Grid.Column="0"
+        <ScrollViewer Grid.Row="2" Grid.Column="1"
                       x:Name="CanvasScrollViewer"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
@@ -208,7 +233,7 @@
              and the left edge is straight where the sidebar meets the canvas column. Without
              this the Surface1 fill paints over the rounded outer corner and the bottom-right
              of the window looks square. -->
-        <Border Grid.Row="2" Grid.Column="1"
+        <Border Grid.Row="2" Grid.Column="2"
                 Width="240" Padding="12"
                 Background="{DynamicResource Surface1Brush}"
                 BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1,0,0,0"
@@ -244,47 +269,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- Action triplet pinned at the top of the property column via DockPanel.Dock=Top
-                 so Confirm / Save as / Discard stay visible regardless of how much the property
-                 surface below scrolls. Previously these lived inside the ScrollViewer and a tall
-                 properties section would push them off-screen — surprising for the user since
-                 these are the primary commit/cancel commands of the whole editor session.
-                 Icon-only since the new "Save" semantics is "copy to clipboard" rather than
-                 "save to disk" — the icons make the distinction clear at a glance, tooltips
-                 explain the action. Cancel uses Danger appearance so the destructive choice
-                 is visually distinct from the two confirms. -->
-            <UniformGrid DockPanel.Dock="Top" Columns="3" Rows="1" Margin="0,0,0,8" Height="36">
-                <!-- Glyphs: FontAwesome 7 Free Solid (already embedded as IconFont in App.xaml).
-                     DynamicResource because the resource lives in the host assembly, not
-                     AresToys.Editor. f0c5 = copy, f0c7 = floppy-disk, f00d = xmark — codepoints
-                     stable across FA versions. -->
-                <ui:Button x:Name="SaveButton" Appearance="Primary"
-                           Margin="0,0,2,0" HorizontalAlignment="Stretch"
-                           Click="OnSaveClicked"
-                           ToolTip="Confirm / copy to clipboard (also adds to history; original kept for safety)">
-                    <TextBlock Text="&#xf0c5;" FontFamily="{DynamicResource IconFont}"
-                               FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </ui:Button>
-                <ui:Button x:Name="SaveAsButton"
-                           Margin="2,0,2,0" HorizontalAlignment="Stretch"
-                           Click="OnSaveAsClicked"
-                           ToolTip="Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.">
-                    <TextBlock Text="&#xf0c7;" FontFamily="{DynamicResource IconFont}"
-                               FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </ui:Button>
-                <ui:Button x:Name="CancelButton" Appearance="Danger"
-                           Margin="2,0,0,0" HorizontalAlignment="Stretch"
-                           Click="OnCancelClicked"
-                           ToolTip="Discard edits and close (original stays in history)">
-                    <TextBlock Text="&#xf00d;" FontFamily="{DynamicResource IconFont}"
-                               FontSize="14" Foreground="{DynamicResource AccentForegroundBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </ui:Button>
-            </UniformGrid>
-            <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
-
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,0">
             <StackPanel x:Name="PropertyPanel">
                 <!-- Crop properties — visible only when the Crop tool is active and there are
@@ -310,157 +294,6 @@
                     <Border Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,12,0,0" />
                 </StackPanel>
 
-                <!-- Default properties: Outline / Fill / Stroke for the NEXT shape to draw.
-                     Used to live on the top toolbar; moved here so all "what affects my next
-                     stroke" controls are in one column with the live Properties below.
-                     Outline + Fill render side-by-side as a 2-col grid; Stroke + value live
-                     stacked underneath because the slider needs the full width. -->
-                <TextBlock x:Name="DefaultPropertiesTitle" Text="Default properties" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
-                           Margin="0,0,0,8" />
-
-                <!-- Shape defaults (Outline / Fill / Stroke) for the next drawn figure. Hidden when
-                     the Text tool is active — text has its own default group below so the panel only
-                     shows the knobs that actually affect what you're about to draw. -->
-                <StackPanel x:Name="DefaultShapeSection">
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                            <TextBlock x:Name="OutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                       HorizontalAlignment="Center" />
-                            <views:ColorSwatchButton x:Name="OutlineSwatch" HorizontalAlignment="Center" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                            <TextBlock x:Name="FillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                       HorizontalAlignment="Center" />
-                            <views:ColorSwatchButton x:Name="FillSwatch" HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Grid>
-                    <StackPanel Margin="0,0,0,8">
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="StrokeLabel" Grid.Column="0" Text="Stroke" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                       Text="{Binding ElementName=StrokeSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
-                        </Grid>
-                        <Slider x:Name="StrokeSlider" Minimum="1" Maximum="20" Value="2"
-                                VerticalAlignment="Center" />
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Text defaults (colour + outline colour + outline width) for the next text.
-                     Kept separate from the global Outline/Fill/Stroke so "red arrows + white text
-                     with a thick black outline" coexist. Visible only for the Text tool / a text
-                     selection. -->
-                <StackPanel x:Name="DefaultTextSection" Visibility="Collapsed">
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                            <TextBlock x:Name="TextLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                       HorizontalAlignment="Center" />
-                            <views:ColorSwatchButton x:Name="TextSwatch" HorizontalAlignment="Center" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                            <TextBlock x:Name="DefaultTextOutlineLabel" Text="Outline color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4"
-                                       HorizontalAlignment="Center" />
-                            <views:ColorSwatchButton x:Name="DefaultTextOutlineSwatch" HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Grid>
-                    <StackPanel Margin="0,0,0,8">
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="DefaultTextOutlineWidthLabel" Grid.Column="0" Text="Outline width" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                       Text="{Binding ElementName=DefaultTextOutlineSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
-                        </Grid>
-                        <Slider x:Name="DefaultTextOutlineSlider" Minimum="0" Maximum="20"
-                                VerticalAlignment="Center" />
-                    </StackPanel>
-                </StackPanel>
-                <!-- Effect defaults (blur radius / pixel size / spotlight dim + blur) for the next
-                     region drawn with Blur, Pixelate or Spotlight. Those tools produce shapes with
-                     no outline, fill or stroke, so the shape group above says nothing about them;
-                     this group replaces it while one of the three is in play. Each row is also
-                     what the mouse wheel drives on a selected region. -->
-                <StackPanel x:Name="DefaultEffectSection" Visibility="Collapsed">
-                    <StackPanel x:Name="DefaultBlurRow" Margin="0,0,0,8">
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="DefaultBlurLabel" Grid.Column="0" Text="Blur radius" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                       Text="{Binding ElementName=DefaultBlurSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
-                        </Grid>
-                        <Slider x:Name="DefaultBlurSlider" Minimum="1" Maximum="60" Value="12" VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="DefaultPixelateRow" Margin="0,0,0,8">
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="DefaultPixelateLabel" Grid.Column="0" Text="Pixel size" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                       Text="{Binding ElementName=DefaultPixelateSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
-                        </Grid>
-                        <Slider x:Name="DefaultPixelateSlider" Minimum="2" Maximum="60" Value="8" VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="DefaultSpotlightRow" Margin="0,0,0,8">
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="DefaultSpotlightDimLabel" Grid.Column="0" Text="Dim outside" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                       Text="{Binding ElementName=DefaultSpotlightDimSlider, Path=Value, StringFormat='{}{0:F0}%'}" />
-                        </Grid>
-                        <Slider x:Name="DefaultSpotlightDimSlider" Minimum="0" Maximum="100" Value="50" VerticalAlignment="Center" Margin="0,0,0,8" />
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="DefaultSpotlightBlurLabel" Grid.Column="0" Text="Blur outside" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
-                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
-                                       Text="{Binding ElementName=DefaultSpotlightBlurSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
-                        </Grid>
-                        <Slider x:Name="DefaultSpotlightBlurSlider" Minimum="0" Maximum="60" Value="0" VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <TextBlock x:Name="DefaultEffectHint"
-                               Text="Wheel over a selected region adjusts it; Shift+wheel sets a spotlight's dim."
-                               Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="10"
-                               TextWrapping="Wrap" Margin="0,0,0,4" />
-                </StackPanel>
-
-                <!-- Apply the default outline/fill/stroke above to the currently selected
-                     shape(s). Lives here in Default properties because it's the operation that
-                     bridges defaults → selection. Disabled when nothing is selected; renamed
-                     from the old "Apply current" since "to selected" reads more directly. -->
-                <ui:Button x:Name="ApplyToSelectedBtn" Content="Apply to selected"
-                           HorizontalAlignment="Stretch"
-                           Margin="0,0,0,12"
-                           IsEnabled="False"
-                           ToolTip="Apply the default outline / fill / stroke above to the selected shape(s)"
-                           Click="OnApplyCurrentClicked" />
-                <Border Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
-
                 <!-- Dynamic title — set from RefreshPropertyPanel based on selection or active tool. -->
                 <TextBlock x:Name="PanelTitleText" Text="Properties"
                            Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
@@ -476,17 +309,17 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" x:Name="SelOutlineSection">
-                            <TextBlock x:Name="SelOutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
-                            <views:ColorSwatchButton x:Name="SelOutlineSwatch" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="SelOutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="SelOutlineSwatch" HorizontalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" x:Name="SelFillSection">
-                            <TextBlock x:Name="SelFillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
-                            <views:ColorSwatchButton x:Name="SelFillSwatch" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="SelFillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="SelFillSwatch" HorizontalAlignment="Center" />
                         </StackPanel>
                     </Grid>
 
                     <StackPanel x:Name="SelStrokeSection" Margin="0,0,0,12">
-                        <!-- Header row mirrors Default properties: label on the left, live px
+                        <!-- Header row: label on the left, live px
                              readout on the right bound to the slider's Value. -->
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
@@ -617,12 +450,12 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
-                                <views:ColorSwatchButton x:Name="SelTextColorSwatch" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                                <views:ColorSwatchButton x:Name="SelTextColorSwatch" HorizontalAlignment="Center" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
-                                <TextBlock x:Name="SelTextOutlineColorLabel" Text="Outline color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
-                                <views:ColorSwatchButton x:Name="SelTextOutlineSwatch" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="SelTextOutlineColorLabel" Text="Outline color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                                <views:ColorSwatchButton x:Name="SelTextOutlineSwatch" HorizontalAlignment="Center" />
                             </StackPanel>
                         </Grid>
 
@@ -681,14 +514,18 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- "Apply to selected" lives in Default properties above. Set as current
-                         remains here because it's the inverse operation — read FROM selection
-                         INTO the defaults, so it makes sense paired with the selection-only
-                         section. -->
-                    <ui:Button x:Name="SetAsDefaultBtn" Content="Set as default"
-                               HorizontalAlignment="Stretch"
-                               ToolTip="Use the selected shape's outline/fill/stroke as the toolbar's current values"
-                               Click="OnSetAsDefaultClicked" />
+                    <!-- Recent: styles placed with the tool in view. Rows are built in code
+                         (RefreshRecentList); the section hides itself when no tool is in view. -->
+                    <StackPanel x:Name="RecentSection" Margin="0,12,0,0" Visibility="Collapsed">
+                        <Border Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
+                        <TextBlock x:Name="RecentTitleText" Text="Recent"
+                                   Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,0,0,8" />
+                        <StackPanel x:Name="RecentList" />
+                        <TextBlock x:Name="RecentEmptyText" Text="Styles you draw with land here (up to 10)."
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
             </ScrollViewer>

@@ -125,26 +125,7 @@ public partial class EditorWindow : FluentWindow
         DataContext = _vm;
         _encoder = encoder;
 
-        OutlineSwatch.SelectedColor = _vm.OutlineColor;
-        FillSwatch.SelectedColor = _vm.FillColor;
-        TextSwatch.SelectedColor = _vm.CurrentTextStyle.Color;
-        OutlineSwatch.SetBinding(ColorSwatchButton.SelectedColorProperty,
-            new System.Windows.Data.Binding(nameof(EditorViewModel.OutlineColor)) { Mode = System.Windows.Data.BindingMode.TwoWay });
-        FillSwatch.SetBinding(ColorSwatchButton.SelectedColorProperty,
-            new System.Windows.Data.Binding(nameof(EditorViewModel.FillColor)) { Mode = System.Windows.Data.BindingMode.TwoWay });
-        StrokeSlider.SetBinding(Slider.ValueProperty,
-            new System.Windows.Data.Binding(nameof(EditorViewModel.StrokeWidth)) { Mode = System.Windows.Data.BindingMode.TwoWay });
-        // TextSwatch can't bind directly because TextStyle is an immutable record — instead we
-        // hook the swatch's SelectedColor change and project it back into a fresh CurrentTextStyle.
-        // Reverse direction (style change → swatch refresh) is handled in the PropertyChanged
-        // handler below to keep the two views in sync after Set-as-current / external mutations.
-        HookSwatchColor(TextSwatch, (_, _) =>
-        {
-            var current = _vm.CurrentTextStyle;
-            if (TextSwatch.SelectedColor.Equals(current.Color)) return;
-            _vm.CurrentTextStyle = current with { Color = TextSwatch.SelectedColor };
-        });
-
+        _vm.StylesChanged += OnStylesChanged;
         _vm.Shapes.CollectionChanged += OnShapesChanged;
         _vm.PropertyChanged += (_, e) =>
         {
@@ -182,15 +163,6 @@ public partial class EditorWindow : FluentWindow
                 // for Delete; with another drawing tool, the user can keep annotating with
                 // the dim overlay still visible. Apply / Cancel / Esc / Enter all still
                 // work, plus the canvas Apply All button stays clickable across tools.
-            }
-            if (e.PropertyName == nameof(EditorViewModel.CurrentTextStyle))
-            {
-                // Reverse-sync: when the VM's text style changes (e.g. Set-as-current adopts
-                // the selected TextShape's colour), pull the new colour into the swatch so
-                // both views stay aligned. The forward direction (swatch click → vm) is
-                // wired via the DependencyPropertyDescriptor above.
-                if (!TextSwatch.SelectedColor.Equals(_vm.CurrentTextStyle.Color))
-                    TextSwatch.SelectedColor = _vm.CurrentTextStyle.Color;
             }
         };
         _vm.SelectedShapes.CollectionChanged += (_, e) =>
@@ -249,9 +221,6 @@ public partial class EditorWindow : FluentWindow
         HookSwatchColor(SelTextColorSwatch, (_, _) => OnSelTextStyleChanged());
         HookSwatchColor(SelTextOutlineSwatch, (_, _) => OnSelTextOutlineChanged());
         SelTextOutlineSlider.ValueChanged += (_, _) => OnSelTextOutlineChanged();
-        HookSwatchColor(DefaultTextOutlineSwatch, (_, _) => OnDefaultTextOutlineChanged());
-        DefaultTextOutlineSlider.ValueChanged += (_, _) => OnDefaultTextOutlineChanged();
-        WireEffectDefaultSliders();
 
         Loaded += (_, _) =>
         {
@@ -463,26 +432,6 @@ public partial class EditorWindow : FluentWindow
         if (_labels.TryGetValue("TooltipSaveAs", out var tSaveAs)) SaveAsButton.ToolTip = tSaveAs;
         if (_labels.TryGetValue("TooltipCancel", out var tCancel)) CancelButton.ToolTip = tCancel;
 
-        // Default properties block.
-        if (_labels.TryGetValue("DefaultProperties", out var dp)) DefaultPropertiesTitle.Text = dp;
-        // Effect default rows reuse the very same label keys as the per-selection effect
-        // controls — same knob, same name, so the panel doesn't invent a second vocabulary.
-        if (_labels.TryGetValue("BlurRadius", out var dbr)) DefaultBlurLabel.Text = dbr;
-        if (_labels.TryGetValue("PixelBlockSize", out var dpb)) DefaultPixelateLabel.Text = dpb;
-        if (_labels.TryGetValue("SpotlightDim", out var dsd)) DefaultSpotlightDimLabel.Text = dsd;
-        if (_labels.TryGetValue("SpotlightBlur", out var dsb)) DefaultSpotlightBlurLabel.Text = dsb;
-        if (_labels.TryGetValue("EffectWheelHint", out var ewh)) DefaultEffectHint.Text = ewh;
-        if (_labels.TryGetValue("Outline", out var outl)) OutlineLabel.Text = outl;
-        if (_labels.TryGetValue("Fill", out var fl)) FillLabel.Text = fl;
-        // TextLabel is now the "Text color" default swatch header (moved into the contextual text
-        // default group), so it uses the TextColor string rather than the bare "Text" noun.
-        if (_labels.TryGetValue("TextColor", out var txtLbl)) TextLabel.Text = txtLbl;
-        if (_labels.TryGetValue("TextOutlineColor", out var dtoc)) DefaultTextOutlineLabel.Text = dtoc;
-        if (_labels.TryGetValue("TextOutlineWidth", out var dtow)) DefaultTextOutlineWidthLabel.Text = dtow;
-        if (_labels.TryGetValue("Stroke", out var strk)) StrokeLabel.Text = strk;
-        if (_labels.TryGetValue("ApplyToSelected", out var aps)) ApplyToSelectedBtn.Content = aps;
-        if (_labels.TryGetValue("TooltipApplyToSelected", out var tAps)) ApplyToSelectedBtn.ToolTip = tAps;
-
         // No-selection placeholder + dynamic title (live default, refreshed in RefreshPropertyPanel).
         if (_labels.TryGetValue("NoSelection", out var ns)) NoSelectionText.Text = ns;
         if (_labels.TryGetValue("Properties", out var props)) PanelTitleText.Text = props;
@@ -547,10 +496,6 @@ public partial class EditorWindow : FluentWindow
         // Refresh combo item labels after the localization dictionary is populated.
         PopulateTipStyleCombo(SelFreehandTipStyleCombo);
         PopulateTipStyleCombo(SelLineTipStyleCombo);
-
-        // "Set as default" button + tooltip.
-        if (_labels.TryGetValue("SetAsDefault", out var sad)) SetAsDefaultBtn.Content = sad;
-        if (_labels.TryGetValue("TooltipSetAsDefault", out var tSad)) SetAsDefaultBtn.ToolTip = tSad;
 
         // Footer.
         if (_labels.TryGetValue("Undo", out var undo)) UndoButton.Content = undo;
@@ -1052,35 +997,6 @@ public partial class EditorWindow : FluentWindow
     private void OnZoomOutClicked(object sender, RoutedEventArgs e) => SetZoom(_zoom / 1.25);
     private void OnZoomResetClicked(object sender, RoutedEventArgs e) => SetZoom(1.0);
 
-    /// <summary>Map vertical wheel ticks on the titlebar tool palette to horizontal scroll so
-    /// a narrow editor window stays usable: the user can wheel-scroll through every tool
-    /// without crowding into the caption buttons. Without this, the wheel did nothing inside
-    /// the ScrollViewer because there was no vertical content to scroll.</summary>
-    private void OnToolbarMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.ScrollViewer sv) return;
-        // Negative delta = scroll towards larger offsets (wheel down → scroll right). 48 px
-        // per tick is roughly one tool button + its margin, so each click of the wheel moves
-        // exactly one tool into view.
-        sv.ScrollToHorizontalOffset(sv.HorizontalOffset - (e.Delta / 120.0 * 48.0));
-        e.Handled = true;
-    }
-
-    /// <summary>Constrain the toolbar ScrollViewer's MaxWidth so it never grows past the
-    /// titlebar real estate left after the icon + title text + caption buttons (Min/Max/Close)
-    /// have taken their fixed slots. Without this the ScrollViewer's natural width is its
-    /// content width and a long tool palette pushes the caption buttons off-screen on a narrow
-    /// window. Numbers are wpf-ui v4 defaults: ~32 px icon, ~120 px title, ~138 px caption strip
-    /// (46 × 3), plus a 24 px safety margin = 314 px reserved. Anything narrower than that and
-    /// the toolbar collapses to its MinWidth (single button) instead of overflowing.</summary>
-    private void OnTitleBarSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        const double reservedChrome = 314;
-        if (ToolbarScroll is null) return;
-        var available = e.NewSize.Width - reservedChrome;
-        ToolbarScroll.MaxWidth = available > 0 ? available : 0;
-    }
-
     /// <summary>Bring the just-selected tool into view inside the toolbar ScrollViewer. Called
     /// after every tool switch (mouse click OR keyboard shortcut like R / A / T / …) so the
     /// active tool can never sit behind the scrollbar when the toolbar is overflowing. Uses
@@ -1198,9 +1114,8 @@ public partial class EditorWindow : FluentWindow
             if (s is not AresToys.Editor.Model.SpotlightShape sp) continue;
             var next = Math.Clamp(sp.DimAmount + delta, 0.0, 1.0);
             if (Math.Abs(next - sp.DimAmount) < 0.001) continue;
-            // Shape only: the wheel never rewrites the sticky default, exactly like the stroke
-            // and rotation gestures. "Set as default" is the explicit way to promote a value.
             _vm.LiveReplaceShape(s, sp with { DimAmount = next });
+            WriteStyle([EditorTool.Spotlight], style => style with { EffectAmount = next });
         }
         RefreshPropertyPanel();
     }
@@ -1218,19 +1133,31 @@ public partial class EditorWindow : FluentWindow
                 case AresToys.Editor.Model.BlurShape blur:
                 {
                     var next = Math.Clamp(blur.Radius + delta, 0.0, 60.0);
-                    if (Math.Abs(next - blur.Radius) > 0.001) _vm.LiveReplaceShape(s, blur with { Radius = next });
+                    if (Math.Abs(next - blur.Radius) > 0.001)
+                    {
+                        _vm.LiveReplaceShape(s, blur with { Radius = next });
+                        WriteStyle([EditorTool.Blur], style => style with { EffectAmount = next });
+                    }
                     continue;
                 }
                 case AresToys.Editor.Model.PixelateShape pix:
                 {
                     var next = Math.Clamp(pix.BlockSize + delta, 2, 60);
-                    if (next != pix.BlockSize) _vm.LiveReplaceShape(s, pix with { BlockSize = next });
+                    if (next != pix.BlockSize)
+                    {
+                        _vm.LiveReplaceShape(s, pix with { BlockSize = next });
+                        WriteStyle([EditorTool.Pixelate], style => style with { EffectAmount = next });
+                    }
                     continue;
                 }
                 case AresToys.Editor.Model.SpotlightShape spot:
                 {
                     var next = Math.Clamp(spot.BlurRadius + delta, 0.0, 60.0);
-                    if (Math.Abs(next - spot.BlurRadius) > 0.001) _vm.LiveReplaceShape(s, spot with { BlurRadius = next });
+                    if (Math.Abs(next - spot.BlurRadius) > 0.001)
+                    {
+                        _vm.LiveReplaceShape(s, spot with { BlurRadius = next });
+                        WriteStyle([EditorTool.Spotlight], style => style with { EffectAmount2 = next });
+                    }
                     continue;
                 }
             }
@@ -1243,13 +1170,17 @@ public partial class EditorWindow : FluentWindow
                 if (Math.Abs(nextSize - t.Style.FontSize) < 0.001) continue;
                 var replacedText = t with { Style = t.Style with { FontSize = nextSize } };
                 _vm.LiveReplaceShape(s, replacedText);
+                WriteStyle([EditorTool.Text], style => style with { Text = style.Text with { FontSize = nextSize } });
                 continue;
             }
             var newStroke = Math.Clamp(s.StrokeWidth + delta, 1.0, 32.0);
             if (Math.Abs(newStroke - s.StrokeWidth) < 0.001) continue;
             var replaced = WithStrokeWidth(s, newStroke);
             if (replaced is null) continue;
+            // Resolved from the shape as it was: a line's tool follows its caps, not its width.
+            var strokeTool = ToolFor(s);
             _vm.LiveReplaceShape(s, replaced);
+            if (strokeTool is { } tool) WriteStyle([tool], style => style with { StrokeWidth = newStroke });
         }
         RefreshPropertyPanel();
     }
@@ -1412,8 +1343,8 @@ public partial class EditorWindow : FluentWindow
     {
         if (imageWidth <= 0 || imageHeight <= 0) return;
 
-        const double sideChromeBudget = 300;
-        const double topChromeBudget = 120;
+        const double sideChromeBudget = 360; // property panel + vertical tool strip
+        const double topChromeBudget = 60;   // 32 px title bar only, the tools moved to the left strip
         // Conservative floor: 800x600 keeps the editor usable on the smallest sensible laptop
         // resolutions (HD = 1366x768 still has room around a 1280x768 window). The toolbar
         // scrolls horizontally with the wheel when narrow, so we don't need to enforce a
@@ -1430,9 +1361,28 @@ public partial class EditorWindow : FluentWindow
         var imgWidthDips = imageWidth / dpiScale;
         var imgHeightDips = imageHeight / dpiScale;
 
+        SetCenteredSize(Math.Max(imgWidthDips + sideChromeBudget, minWindowWidth),
+                        Math.Max(imgHeightDips + topChromeBudget, minWindowHeight));
+    }
+
+    /// <summary>Open at the size (DIPs) the user last closed the editor at. The launcher reads it
+    /// from settings; it wins over <see cref="SizeToImage"/>, which is only the first-run fallback.</summary>
+    public void ApplySavedSize(double width, double height)
+    {
+        if (width <= 0 || height <= 0) return;
+        SetCenteredSize(width, height);
+    }
+
+    /// <summary>The size to remember at close, in DIPs: the restore size when maximised.</summary>
+    public Size SizeToRemember => WindowState == WindowState.Normal
+        ? new Size(ActualWidth, ActualHeight)
+        : RestoreBounds.Size;
+
+    private void SetCenteredSize(double width, double height)
+    {
         var work = System.Windows.SystemParameters.WorkArea;
-        var targetW = Math.Clamp(imgWidthDips + sideChromeBudget, minWindowWidth, work.Width);
-        var targetH = Math.Clamp(imgHeightDips + topChromeBudget, minWindowHeight, work.Height);
+        var targetW = Math.Min(width, work.Width);
+        var targetH = Math.Min(height, work.Height);
 
         Width = targetW;
         Height = targetH;
@@ -2355,52 +2305,484 @@ public partial class EditorWindow : FluentWindow
         _liveEditOriginals = [];
     }
 
+    /// <summary>The placement tool whose current style a shape follows, or null for a shape no
+    /// tool styles (images, smart eraser). A line with a cap on either end follows the Arrow
+    /// style, a bare one the Line style, which is also how <see cref="ShapeKindName"/> names it.</summary>
+    private static EditorTool? ToolFor(Shape s) => s switch
+    {
+        RectangleShape => EditorTool.Rectangle,
+        EllipseShape => EditorTool.Ellipse,
+        LineShape l => l.StartCap || l.EndCap ? EditorTool.Arrow : EditorTool.Line,
+        FreehandShape => EditorTool.Freehand,
+        TextShape => EditorTool.Text,
+        StepCounterShape => EditorTool.StepCounter,
+        BlurShape => EditorTool.Blur,
+        PixelateShape => EditorTool.Pixelate,
+        SpotlightShape => EditorTool.Spotlight,
+        _ => null
+    };
+
+    /// <summary>True while a panel edit is writing the tool style, so the style-changed echo does
+    /// not rebuild the panel under the control the user is dragging.</summary>
+    private bool _writingStyle;
+
+    /// <summary>The tools whose current style a panel edit writes to: each distinct tool of the
+    /// selected shapes, or, with nothing selected, the active styled tool. <paramref name="appliesTo"/>
+    /// keeps out the tools that do not read the edited property. Call it BEFORE the shapes are
+    /// replaced: a line that gains a cap changes tool, and the edit belongs to the style it had.</summary>
+    private List<EditorTool> StyleTargets(Func<EditorTool, bool> appliesTo)
+    {
+        var tools = new List<EditorTool>();
+        if (_vm.SelectedShapes.Count > 0)
+        {
+            foreach (var s in _vm.SelectedShapes)
+                if (ToolFor(s) is { } t && appliesTo(t) && !tools.Contains(t)) tools.Add(t);
+        }
+        else if (ToolStyleBook.IsStyled(_vm.CurrentTool) && appliesTo(_vm.StyleTool))
+        {
+            tools.Add(_vm.StyleTool);
+        }
+        return tools;
+    }
+
+    /// <summary>Write one change into the current style of each of <paramref name="tools"/>.</summary>
+    private void WriteStyle(IReadOnlyList<EditorTool> tools, Func<EditorTool, ToolStyle, ToolStyle> change)
+    {
+        if (tools.Count == 0) return;
+        _writingStyle = true;
+        try
+        {
+            foreach (var tool in tools) _vm.EditStyle(tool, style => change(tool, style));
+        }
+        finally { _writingStyle = false; }
+    }
+
+    private void WriteStyle(IReadOnlyList<EditorTool> tools, Func<ToolStyle, ToolStyle> change) =>
+        WriteStyle(tools, (_, style) => change(style));
+
+    /// <summary>A style change made outside the panel (a Recent entry applied, a style loaded)
+    /// refreshes the controls when they show the active tool's style. Edits the panel itself wrote
+    /// are skipped: its controls already hold those values.</summary>
+    private void OnStylesChanged(EditorTool tool)
+    {
+        // A panel edit moved the current style: the controls hold the value already, only the
+        // Recent highlight can have changed.
+        if (_writingStyle)
+        {
+            UpdateRecentHighlight();
+            return;
+        }
+        if (_vm.SelectedShapes.Count == 0 && tool == _vm.CurrentTool)
+        {
+            RefreshPropertyPanel(); // also rebuilds the Recent list
+            return;
+        }
+        if (tool == RecentToolInView()) RefreshRecentList();
+    }
+
+    // ---- Recent list ------------------------------------------------------------------------
+
+    private const double RecentPreviewWidth = 40;
+    private const double RecentPreviewHeight = 24;
+
+    /// <summary>The rows currently shown, so a style change can move the highlight without a rebuild.</summary>
+    private readonly List<(Border Row, ToolStyle Entry)> _recentRows = [];
+    private EditorTool? _recentTool;
+    private IReadOnlyDictionary<string, string>? _recentLabels;
+
+    /// <summary>The tool whose Recent list the panel shows: with a selection, the tool all selected
+    /// shapes follow (none when they differ or one has no tool); with nothing selected, the active
+    /// styled tool.</summary>
+    private EditorTool? RecentToolInView()
+    {
+        var sels = _vm.SelectedShapes;
+        if (sels.Count == 0)
+            return ToolStyleBook.IsStyled(_vm.CurrentTool) ? _vm.StyleTool : null;
+
+        EditorTool? tool = null;
+        foreach (var s in sels)
+        {
+            var t = ToolFor(s);
+            if (t is null) return null;
+            if (tool is null) tool = t;
+            else if (tool != t) return null;
+        }
+        return tool;
+    }
+
+    /// <summary>Show the Recent list of the tool in view, or hide the section. Rows are only
+    /// rebuilt when the list, the tool or the language changed.</summary>
+    private void RefreshRecentList()
+    {
+        var tool = RecentToolInView();
+        if (tool is null)
+        {
+            RecentSection.Visibility = Visibility.Collapsed;
+            RecentList.Children.Clear();
+            _recentRows.Clear();
+            _recentTool = null;
+            return;
+        }
+
+        RecentSection.Visibility = Visibility.Visible;
+        RecentTitleText.Text = Loc("Recent", "Recent");
+        var entries = _vm.Styles.Recent(tool.Value);
+        RecentEmptyText.Text = Loc("RecentEmpty", "Styles you draw with land here (up to 10).");
+        RecentEmptyText.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_recentTool == tool && ReferenceEquals(_recentLabels, _labels)
+            && _recentRows.Count == entries.Count
+            && _recentRows.Select(r => r.Entry).SequenceEqual(entries))
+        {
+            UpdateRecentHighlight();
+            return;
+        }
+
+        _recentTool = tool;
+        _recentLabels = _labels;
+        RecentList.Children.Clear();
+        _recentRows.Clear();
+        var current = _vm.Styles.Current(tool.Value);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var row = BuildRecentRow(tool.Value, entries[i], i);
+            SetRecentRowCurrent(row, entries[i].Equals(current));
+            _recentRows.Add((row, entries[i]));
+            RecentList.Children.Add(row);
+        }
+    }
+
+    private void UpdateRecentHighlight()
+    {
+        if (_recentTool is not { } tool) return;
+        var current = _vm.Styles.Current(tool);
+        foreach (var (row, entry) in _recentRows) SetRecentRowCurrent(row, entry.Equals(current));
+    }
+
+    private static void SetRecentRowCurrent(Border row, bool current)
+    {
+        if (current) row.SetResourceReference(Border.BorderBrushProperty, "AccentBackgroundBrush");
+        else row.BorderBrush = System.Windows.Media.Brushes.Transparent;
+    }
+
+    private Border BuildRecentRow(EditorTool tool, ToolStyle entry, int index)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        if (BuildRecentPreview(tool, entry) is { } preview)
+        {
+            var frame = new Border
+            {
+                Width = RecentPreviewWidth,
+                Height = RecentPreviewHeight,
+                CornerRadius = new CornerRadius(3),
+                Child = preview
+            };
+            frame.SetResourceReference(Border.BackgroundProperty, "Surface3Brush");
+            content.Children.Add(frame);
+        }
+        var description = new System.Windows.Controls.TextBlock
+        {
+            Text = DescribeRecentStyle(tool, entry),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(content.Children.Count > 0 ? 8 : 4, 0, 0, 0)
+        };
+        description.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentForegroundBrush");
+        content.Children.Add(description);
+
+        // Text rows: preview and size on the first line, the full font name under it; the outline
+        // reads from the preview, and every detail is in the tooltip.
+        object rowContent = content;
+        var tooltip = Loc("RecentUse", "Use this style");
+        if (tool == EditorTool.Text)
+        {
+            var font = new System.Windows.Controls.TextBlock
+            {
+                Text = entry.Text.FontFamily,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+            font.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentForegroundBrush");
+            var stack = new StackPanel();
+            stack.Children.Add(content);
+            stack.Children.Add(font);
+            rowContent = stack;
+            tooltip = $"{entry.Text.FontFamily}, " + string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                Loc("RecentTextFormat", "{0} px, outline {1}"),
+                FormatRecentNumber(entry.Text.FontSize),
+                FormatRecentNumber(entry.TextOutlineWidth));
+        }
+
+        var use = new Wpf.Ui.Controls.Button
+        {
+            Appearance = ControlAppearance.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(4),
+            Content = rowContent,
+            ToolTip = tooltip
+        };
+        use.Click += (_, _) => UseRecentStyle(tool, entry);
+
+        var remove = new Wpf.Ui.Controls.Button
+        {
+            Appearance = ControlAppearance.Transparent,
+            Content = "×",
+            FontSize = 16,
+            Width = 28,
+            Padding = new Thickness(0),
+            Margin = new Thickness(2, 0, 0, 0),
+            ToolTip = Loc("RecentRemove", "Remove from Recent")
+        };
+        System.Windows.Automation.AutomationProperties.SetName(remove, Loc("RecentRemove", "Remove from Recent"));
+        remove.Click += (_, _) => _vm.Styles.RemoveRecent(tool, index);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(use, 0);
+        Grid.SetColumn(remove, 1);
+        grid.Children.Add(use);
+        grid.Children.Add(remove);
+
+        return new Border
+        {
+            BorderThickness = new Thickness(2),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 0, 0, 4),
+            Child = grid
+        };
+    }
+
+    /// <summary>Make a Recent entry the tool's current style and repaint the selected shapes of
+    /// that tool with it. The edits ride the selection session's live edit, so one undo reverts them.</summary>
+    private void UseRecentStyle(EditorTool tool, ToolStyle entry)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (ToolFor(s) == tool) _vm.LiveReplaceShape(s, WithStyle(s, entry));
+        }
+        WriteStyle([tool], _ => entry);
+        RefreshPropertyPanel();
+    }
+
+    /// <summary>The shape with every field a tool style owns replaced by the style's value: the same
+    /// fields the Sel* handlers write one by one.</summary>
+    private static Shape WithStyle(Shape shape, ToolStyle style) => shape switch
+    {
+        RectangleShape r => r with { Outline = style.Outline, Fill = style.Fill, StrokeWidth = style.StrokeWidth },
+        EllipseShape e => e with { Outline = style.Outline, Fill = style.Fill, StrokeWidth = style.StrokeWidth },
+        LineShape l => l with
+        {
+            Outline = style.Outline,
+            StrokeWidth = style.StrokeWidth,
+            StartCap = style.StartCap,
+            EndCap = style.EndCap,
+            TipStyle = style.TipStyle
+        },
+        FreehandShape f => f with
+        {
+            Outline = style.Outline,
+            StrokeWidth = style.StrokeWidth,
+            Smooth = style.Smooth,
+            StartCap = style.StartCap,
+            EndCap = style.EndCap,
+            TipStyle = style.TipStyle
+        },
+        TextShape t => t with { Style = style.Text, Outline = style.TextOutlineColor, StrokeWidth = style.TextOutlineWidth },
+        StepCounterShape sc => sc with
+        {
+            Outline = style.Outline,
+            Fill = style.Fill,
+            StrokeWidth = style.StrokeWidth,
+            FontFamily = style.StepFontFamily,
+            Bold = style.StepBold,
+            Italic = style.StepItalic
+        },
+        BlurShape b => b with { Radius = Math.Max(0, style.EffectAmount) },
+        PixelateShape p => p with { BlockSize = (int)Math.Max(2, Math.Round(style.EffectAmount)) },
+        SpotlightShape sp => sp with
+        {
+            DimAmount = Math.Clamp(style.EffectAmount, 0, 1),
+            BlurRadius = Math.Max(0, style.EffectAmount2)
+        },
+        _ => shape
+    };
+
+    private static string FormatRecentNumber(double value) =>
+        Math.Round(value).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string DescribeRecentStyle(EditorTool tool, ToolStyle style)
+    {
+        string Tips() => (style.StartCap, style.EndCap) switch
+        {
+            (true, true) => Loc("RecentTipsBoth", "two tips"),
+            (true, false) => Loc("RecentTipStart", "start tip"),
+            (false, true) => Loc("RecentTipEnd", "end tip"),
+            _ => ""
+        };
+
+        var stroke = $"{FormatRecentNumber(style.StrokeWidth)} px";
+        switch (tool)
+        {
+            case EditorTool.Line:
+            case EditorTool.Arrow:
+            case EditorTool.Freehand:
+                var tips = Tips();
+                return tips.Length == 0 ? stroke : $"{stroke}, {tips}";
+            case EditorTool.Text:
+                return $"{FormatRecentNumber(style.Text.FontSize)} px";
+            case EditorTool.Blur:
+                return $"{FormatRecentNumber(style.EffectAmount)} px";
+            case EditorTool.Pixelate:
+                return $"{FormatRecentNumber(Math.Round(style.EffectAmount))} px";
+            case EditorTool.Spotlight:
+                var dim = $"{FormatRecentNumber(Math.Round(style.EffectAmount * 100))}%";
+                return style.EffectAmount2 > 0 ? $"{dim}, {FormatRecentNumber(style.EffectAmount2)} px" : dim;
+            default:
+                return stroke;
+        }
+    }
+
+    /// <summary>A small rendering of a sample shape drawn with the style, built by the same
+    /// renderer the canvas uses. Stroke and font size are clamped for the preview only. Blur,
+    /// Pixelate and Spotlight need the source image, so they get no preview.</summary>
+    private UIElement? BuildRecentPreview(EditorTool tool, ToolStyle style)
+    {
+        var stroke = Math.Clamp(style.StrokeWidth, 0, 8);
+        double width, height;
+        Shape sample;
+        switch (tool)
+        {
+            case EditorTool.Rectangle:
+            case EditorTool.Ellipse:
+            {
+                // The outline is drawn outside the box, so the canvas grows by one stroke per side.
+                width = 56 + 2 * stroke;
+                height = 20 + 2 * stroke;
+                sample = tool == EditorTool.Rectangle
+                    ? new RectangleShape(stroke, stroke, 56, 20, style.Outline, style.Fill, stroke)
+                    : new EllipseShape(stroke, stroke, 56, 20, style.Outline, style.Fill, stroke);
+                break;
+            }
+            case EditorTool.Line:
+            case EditorTool.Arrow:
+            {
+                // The sample grows with the stroke so the tips never swallow the line.
+                var pad = Math.Max(6, stroke * 3); // room for the tip caps
+                var len = Math.Max(56, stroke * 14);
+                width = len + 2 * pad;
+                height = len * 0.35 + 2 * pad;
+                sample = new LineShape(pad, pad + len * 0.35, pad + len, pad, style.Outline, stroke,
+                    StartCap: style.StartCap, EndCap: style.EndCap, TipStyle: style.TipStyle);
+                break;
+            }
+            case EditorTool.Freehand:
+            {
+                // One gentle wave, sized to the stroke, so a thick stroke still reads as a line.
+                var pad = Math.Max(6, stroke * 3);
+                var len = Math.Max(56, stroke * 14);
+                var amp = len * 0.12;
+                width = len + 2 * pad;
+                height = 2 * amp + 2 * pad;
+                var points = new List<(double X, double Y)>();
+                for (var i = 0; i <= 24; i++)
+                {
+                    var t = i / 24.0;
+                    points.Add((pad + len * t, pad + amp - amp * Math.Sin(t * Math.PI * 2)));
+                }
+                sample = new FreehandShape(points, style.Outline, stroke, 0, style.Smooth,
+                    style.StartCap, style.EndCap, style.TipStyle);
+                break;
+            }
+            case EditorTool.Text:
+            {
+                var size = Math.Clamp(style.Text.FontSize, 8, 26);
+                width = RecentPreviewWidth;
+                height = size * 1.4;
+                sample = new TextShape(0, 0, width, height, "Aa",
+                    style.Text with { FontSize = size, Align = TextAlign.Center },
+                    style.TextOutlineColor, ShapeColor.Transparent, Math.Clamp(style.TextOutlineWidth, 0, 4));
+                break;
+            }
+            case EditorTool.StepCounter:
+            {
+                var step = Math.Clamp(style.StrokeWidth, 1, 5); // radius is 2.5 x stroke
+                var radius = step * 2.5;
+                width = height = radius * 2;
+                sample = new StepCounterShape(radius, radius, 1, style.Outline, style.Fill, step,
+                    style.StepFontFamily, style.StepBold, style.StepItalic);
+                break;
+            }
+            default:
+                return null;
+        }
+
+        var host = new Canvas { Width = width, Height = height, IsHitTestVisible = false };
+        host.Children.Add(MakeUiElement(sample));
+        return new Viewbox
+        {
+            Width = RecentPreviewWidth,
+            Height = RecentPreviewHeight,
+            Stretch = Stretch.Uniform,
+            Child = host
+        };
+    }
+
     private void OnSelOutlineChanged()
     {
         if (_suppressLiveUpdates) return;
         var color = SelOutlineSwatch.SelectedColor;
+        var tools = StyleTargets(t => ToolCategory(t)?.Outline == true);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             _vm.LiveReplaceShape(s, ApplyOutlineColor(s, color));
         }
+        WriteStyle(tools, style => style with { Outline = color });
     }
 
     private void OnSelFillChanged()
     {
         if (_suppressLiveUpdates) return;
         var color = SelFillSwatch.SelectedColor;
+        var tools = StyleTargets(t => ToolCategory(t)?.Fill == true);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             _vm.LiveReplaceShape(s, ApplyFillColor(s, color));
         }
+        WriteStyle(tools, style => style with { Fill = color });
     }
 
     private void OnSelStrokeChanged()
     {
         if (_suppressLiveUpdates) return;
         var width = SelStrokeSlider.Value;
+        var tools = StyleTargets(t => ToolCategory(t)?.Stroke == true);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             _vm.LiveReplaceShape(s, ApplyStrokeWidth(s, width));
         }
+        WriteStyle(tools, style => style with { StrokeWidth = width });
     }
 
     private void OnSelFreehandSmoothChanged()
     {
         if (_suppressLiveUpdates) return;
         var smooth = SelFreehandSmoothCheck.IsChecked == true;
+        var tools = StyleTargets(t => t == EditorTool.Freehand);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             if (s is FreehandShape f && f.Smooth != smooth)
                 _vm.LiveReplaceShape(s, f with { Smooth = smooth });
         }
-        // Sticky: the next freshly-drawn freehand stroke inherits the user's last choice.
-        // The VM persists FreehandSmoothDefault to EditorDefaults on close.
-        _vm.FreehandSmoothDefault = smooth;
+        WriteStyle(tools, style => style with { Smooth = smooth });
     }
 
     /// <summary>Read the step-counter font fields and apply them to every selected step counter,
-    /// then write back to the VM defaults so subsequent step counters inherit the same look.
+    /// and to the Step counter style so the next one gets the same look.
     /// Family/Bold/Italic are handled together — each individual control's change event funnels
     /// through here, mirroring the text-style picker's <see cref="OnSelTextStyleChanged"/>.</summary>
     private void OnSelStepFontStyleChanged()
@@ -2409,16 +2791,14 @@ public partial class EditorWindow : FluentWindow
         var family = string.IsNullOrWhiteSpace(SelStepFontInput.Text) ? "Segoe UI" : SelStepFontInput.Text;
         var bold = SelStepBoldCheck.IsChecked == true;
         var italic = SelStepItalicCheck.IsChecked == true;
-
-        _vm.StepFontFamily = family;
-        _vm.StepBold = bold;
-        _vm.StepItalic = italic;
+        var tools = StyleTargets(t => t == EditorTool.StepCounter);
 
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             if (s is StepCounterShape sc)
                 _vm.LiveReplaceShape(s, sc with { FontFamily = family, Bold = bold, Italic = italic });
         }
+        WriteStyle(tools, style => style with { StepFontFamily = family, StepBold = bold, StepItalic = italic });
     }
 
     private void OnSelFreehandCapsChanged()
@@ -2426,26 +2806,26 @@ public partial class EditorWindow : FluentWindow
         if (_suppressLiveUpdates) return;
         var startCap = SelFreehandStartCapCheck.IsChecked == true;
         var endCap = SelFreehandEndCapCheck.IsChecked == true;
+        var tools = StyleTargets(t => t == EditorTool.Freehand);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             if (s is FreehandShape f && (f.StartCap != startCap || f.EndCap != endCap))
                 _vm.LiveReplaceShape(s, f with { StartCap = startCap, EndCap = endCap });
         }
-        // Sticky: next stroke inherits whichever caps the user just chose.
-        _vm.FreehandStartCapDefault = startCap;
-        _vm.FreehandEndCapDefault = endCap;
+        WriteStyle(tools, style => style with { StartCap = startCap, EndCap = endCap });
     }
 
     private void OnSelFreehandTipStyleChanged()
     {
         if (_suppressLiveUpdates) return;
         if (SelFreehandTipStyleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not LineTipStyle tip) return;
+        var tools = StyleTargets(t => t == EditorTool.Freehand);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             if (s is FreehandShape f && f.TipStyle != tip)
                 _vm.LiveReplaceShape(s, f with { TipStyle = tip });
         }
-        _vm.LineTipStyleDefault = tip;
+        WriteStyle(tools, style => style with { TipStyle = tip });
     }
 
     private void OnSelLineCapsChanged()
@@ -2453,38 +2833,26 @@ public partial class EditorWindow : FluentWindow
         if (_suppressLiveUpdates) return;
         var startCap = SelLineStartCapCheck.IsChecked == true;
         var endCap = SelLineEndCapCheck.IsChecked == true;
+        var tools = StyleTargets(t => t is EditorTool.Line or EditorTool.Arrow);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             if (s is LineShape l && (l.StartCap != startCap || l.EndCap != endCap))
                 _vm.LiveReplaceShape(s, l with { StartCap = startCap, EndCap = endCap });
         }
-        // Push the change into whichever Line/Arrow tool the user is currently in (so the next
-        // gesture inherits) AND into the matching persisted slot so it survives the session.
-        // When the user is on a non-line tool, default to writing to the Line slot — they're
-        // typically priming an "I want my plain lines to look like this" change.
-        var writeToArrow = _vm.CurrentTool == EditorTool.Arrow;
-        if (writeToArrow)
-        {
-            _vm.ArrowStartCapDefault = startCap;
-            _vm.ArrowEndCapDefault = endCap;
-        }
-        else
-        {
-            _vm.LineStartCapDefault = startCap;
-            _vm.LineEndCapDefault = endCap;
-        }
+        WriteStyle(tools, style => style with { StartCap = startCap, EndCap = endCap });
     }
 
     private void OnSelLineTipStyleChanged()
     {
         if (_suppressLiveUpdates) return;
         if (SelLineTipStyleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not LineTipStyle tip) return;
+        var tools = StyleTargets(t => t is EditorTool.Line or EditorTool.Arrow);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             if (s is LineShape l && l.TipStyle != tip)
                 _vm.LiveReplaceShape(s, l with { TipStyle = tip });
         }
-        _vm.LineTipStyleDefault = tip;
+        WriteStyle(tools, style => style with { TipStyle = tip });
     }
 
     /// <summary>(Re)populate a TipStyle ComboBox with one entry per <see cref="LineTipStyle"/>
@@ -2599,6 +2967,7 @@ public partial class EditorWindow : FluentWindow
 
     private void ApplyEffectParam(double v)
     {
+        var tools = StyleTargets(t => t is EditorTool.Blur or EditorTool.Pixelate or EditorTool.Spotlight);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             Shape? updated = s switch
@@ -2610,10 +2979,21 @@ public partial class EditorWindow : FluentWindow
             };
             if (updated is not null) _vm.LiveReplaceShape(s, updated);
         }
+        // The style keeps the same number the shape gets: radius, block size or dim (0..1).
+        WriteStyle(tools, (tool, style) => style with
+        {
+            EffectAmount = tool switch
+            {
+                EditorTool.Blur => Math.Max(0, v),
+                EditorTool.Pixelate => Math.Max(2, Math.Round(v)),
+                _ => Math.Clamp(v / 100.0, 0, 1)
+            }
+        });
     }
 
     private void ApplyEffectSecondaryParam(double v)
     {
+        var tools = StyleTargets(t => t == EditorTool.Spotlight);
         foreach (var s in _vm.SelectedShapes.ToList())
         {
             Shape? updated = s switch
@@ -2623,6 +3003,7 @@ public partial class EditorWindow : FluentWindow
             };
             if (updated is not null) _vm.LiveReplaceShape(s, updated);
         }
+        WriteStyle(tools, style => style with { EffectAmount2 = Math.Max(0, v) });
     }
 
     private void ApplyRotation(double deg)
@@ -2983,9 +3364,9 @@ public partial class EditorWindow : FluentWindow
 
     private void OnSelTextStyleChanged() => ApplyTextStyle(null);
 
-    /// <summary>Read every field of the text panel, build a TextStyle and push it to <see cref="EditorViewModel.CurrentTextStyle"/>
-    /// and to all selected TextShapes. <paramref name="alignOverride"/> lets the alignment buttons short-circuit
-    /// the read of the toggle buttons (which haven't toggled yet at click time).</summary>
+    /// <summary>Read every field of the text panel, build a TextStyle and push it to all selected
+    /// TextShapes and to the Text style. <paramref name="alignOverride"/> lets the alignment buttons
+    /// short-circuit the read of the toggle buttons (which haven't toggled yet at click time).</summary>
     private void ApplyTextStyle(TextAlign? alignOverride)
     {
         if (_suppressLiveUpdates) return;
@@ -2996,17 +3377,17 @@ public partial class EditorWindow : FluentWindow
         var color = SelTextColorSwatch.SelectedColor;
         var align = alignOverride ?? CurrentAlignFromToggles();
         var newStyle = new TextStyle(family, size, bold, italic, color, align);
-
-        _vm.CurrentTextStyle = newStyle;
+        var tools = StyleTargets(t => t == EditorTool.Text);
 
         foreach (var s in _vm.SelectedShapes.OfType<TextShape>().ToList())
         {
             _vm.LiveReplaceShape(s, s with { Style = newStyle });
         }
+        WriteStyle(tools, style => style with { Text = newStyle });
     }
 
     /// <summary>Apply the outline colour + width from the text panel to every selected TextShape and
-    /// remember them as the sticky defaults for new texts. The contour is stored on TextShape's
+    /// to the Text style. The contour is stored on TextShape's
     /// inherited Outline / StrokeWidth fields; rendering (CreateOutlinedText) only kicks in when
     /// width &gt; 0 and the colour isn't transparent, so width 0 or a transparent swatch turns the
     /// outline off. Live-edit commits happen on mouse-up / selection change, same as the other
@@ -3017,23 +3398,13 @@ public partial class EditorWindow : FluentWindow
         var color = SelTextOutlineSwatch.SelectedColor;
         var width = SelTextOutlineSlider.Value;
         SelTextOutlineBox.Text = ((int)Math.Round(width)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _vm.TextOutlineColor = color;
-        _vm.TextOutlineWidth = width;
+        var tools = StyleTargets(t => t == EditorTool.Text);
 
         foreach (var s in _vm.SelectedShapes.OfType<TextShape>().ToList())
         {
             _vm.LiveReplaceShape(s, s with { Outline = color, StrokeWidth = width });
         }
-    }
-
-    /// <summary>Text-outline knobs in the (contextual) Default properties group: they set the sticky
-    /// text-outline default for the NEXT text, without touching any current selection. Mirrors how
-    /// OutlineSwatch/StrokeSlider feed the global defaults.</summary>
-    private void OnDefaultTextOutlineChanged()
-    {
-        if (_suppressLiveUpdates) return;
-        _vm.TextOutlineColor = DefaultTextOutlineSwatch.SelectedColor;
-        _vm.TextOutlineWidth = DefaultTextOutlineSlider.Value;
+        WriteStyle(tools, style => style with { TextOutlineColor = color, TextOutlineWidth = width });
     }
 
     /// <summary>Cached system font family names. Lazy-initialized once per process — enumerating
@@ -3285,6 +3656,7 @@ public partial class EditorWindow : FluentWindow
         bool Text,
         bool Freehand,
         bool Line,
+        bool Step,
         ShapeCategory.EffectKind Effect)
     {
         public enum EffectKind { None, Blur, Pixelate, Spotlight }
@@ -3292,16 +3664,16 @@ public partial class EditorWindow : FluentWindow
 
     private static ShapeCategory? ToolCategory(EditorTool tool) => tool switch
     {
-        EditorTool.Rectangle   => new("Rectangle",   Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.None),
-        EditorTool.Ellipse     => new("Ellipse",     Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.None),
-        EditorTool.Arrow       => new("Arrow",       Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  ShapeCategory.EffectKind.None),
-        EditorTool.Line        => new("Line",        Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  ShapeCategory.EffectKind.None),
-        EditorTool.Freehand    => new("Freehand",    Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: true,  Line: false, ShapeCategory.EffectKind.None),
-        EditorTool.Text        => new("Text",        Outline: false, Fill: false, Stroke: false, Text: true,  Freehand: false, Line: false, ShapeCategory.EffectKind.None),
-        EditorTool.StepCounter => new("Step counter",Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.None),
-        EditorTool.Blur        => new("Blur",        Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.Blur),
-        EditorTool.Pixelate    => new("Pixelate",    Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.Pixelate),
-        EditorTool.Spotlight   => new("Spotlight",   Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, ShapeCategory.EffectKind.Spotlight),
+        EditorTool.Rectangle   => new("Rectangle",   Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Ellipse     => new("Ellipse",     Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Arrow       => new("Arrow",       Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Line        => new("Line",        Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Freehand    => new("Freehand",    Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: true,  Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Text        => new("Text",        Outline: false, Fill: false, Stroke: false, Text: true,  Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.StepCounter => new("Step counter",Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, Step: true,  ShapeCategory.EffectKind.None),
+        EditorTool.Blur        => new("Blur",        Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.Blur),
+        EditorTool.Pixelate    => new("Pixelate",    Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.Pixelate),
+        EditorTool.Spotlight   => new("Spotlight",   Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.Spotlight),
         // Select / Crop / SmartEraser have no per-shape props worth previewing — fall back to
         // the empty-state hint.
         _ => null,
@@ -3314,7 +3686,7 @@ public partial class EditorWindow : FluentWindow
         // A LineShape with any cap toggled on reads as "Arrow" in the user's mental model
         // (the unified tool started as a separate Line and Arrow). Use the label that matches
         // what they see.
-        LineShape l       => Loc(l.StartCap || l.EndCap ? "Shape_Arrow" : "Shape_Line", l.StartCap || l.EndCap ? "Arrow" : "Line"),
+        LineShape l       => ToolFor(l) == EditorTool.Arrow ? Loc("Shape_Arrow", "Arrow") : Loc("Shape_Line", "Line"),
         FreehandShape     => Loc("Shape_Freehand",    "Freehand"),
         TextShape         => Loc("Shape_Text",        "Text"),
         StepCounterShape  => Loc("Shape_StepCounter", "Step counter"),
@@ -3345,11 +3717,12 @@ public partial class EditorWindow : FluentWindow
     };
 
     /// <summary>Show the sections relevant to <paramref name="category"/> and pre-fill them
-    /// with the current VM defaults so the user sees the values their next stroke will inherit.
-    /// Mirrors what an active selection would show, just sourced from <c>EditorViewModel</c>
-    /// state instead of a concrete shape.</summary>
+    /// with the active tool's current style so the user sees the values their next shape gets.
+    /// Shows what a selection of that tool's shapes would (rotation aside), sourced from the
+    /// style instead of a concrete shape; editing a control writes that style.</summary>
     private void ApplyToolDefaultsToPanel(ShapeCategory category)
     {
+        var style = _vm.Styles.Current(_vm.CurrentTool);
         SelOutlineSection.Visibility = category.Outline ? Visibility.Visible : Visibility.Collapsed;
         SelFillSection.Visibility    = category.Fill    ? Visibility.Visible : Visibility.Collapsed;
         SelOutlineFillRow.Visibility = (category.Outline || category.Fill) ? Visibility.Visible : Visibility.Collapsed;
@@ -3358,59 +3731,65 @@ public partial class EditorWindow : FluentWindow
         SelFreehandSection.Visibility  = category.Freehand ? Visibility.Visible : Visibility.Collapsed;
         SelLineSection.Visibility      = category.Line ? Visibility.Visible : Visibility.Collapsed;
         SelEffectSection.Visibility    = category.Effect != ShapeCategory.EffectKind.None ? Visibility.Visible : Visibility.Collapsed;
-        // Rotation only makes sense once a concrete shape exists with an X/Y/W/H bbox, so it
-        // stays hidden in the defaults view — there's nothing to rotate yet.
+        // Rotation is a property of one concrete shape, not part of a style.
         SelRotationSection.Visibility = Visibility.Collapsed;
-        // Step counter controls are per-shape only — radius is concrete, not a sticky default.
-        // The user picks font/bold/italic on a drawn step and that propagates to subsequent ones
-        // via the StepFontFamily/StepBold/StepItalic sticky defaults.
-        SelStepCounterSection.Visibility = Visibility.Collapsed;
+        SelStepCounterSection.Visibility = category.Step ? Visibility.Visible : Visibility.Collapsed;
 
         _suppressLiveUpdates = true;
         try
         {
-            if (category.Outline) SelOutlineSwatch.SelectedColor = _vm.OutlineColor;
-            if (category.Fill)    SelFillSwatch.SelectedColor    = _vm.FillColor;
-            if (category.Stroke)  SelStrokeSlider.Value          = _vm.StrokeWidth;
+            if (category.Outline) SelOutlineSwatch.SelectedColor = style.Outline;
+            if (category.Fill)    SelFillSwatch.SelectedColor    = style.Fill;
+            if (category.Stroke)  SelStrokeSlider.Value          = style.StrokeWidth;
             if (category.Text)    ApplyDefaultsToTextSection();
+            if (category.Step)
+            {
+                _suppressStepFontInput = true;
+                try { SelStepFontInput.Text = style.StepFontFamily; }
+                finally { _suppressStepFontInput = false; }
+                SelStepBoldCheck.IsChecked = style.StepBold;
+                SelStepItalicCheck.IsChecked = style.StepItalic;
+            }
             if (category.Freehand)
             {
-                SelFreehandSmoothCheck.IsChecked = _vm.FreehandSmoothDefault;
-                SelFreehandStartCapCheck.IsChecked = _vm.FreehandStartCapDefault;
-                SelFreehandEndCapCheck.IsChecked = _vm.FreehandEndCapDefault;
-                SelectTipStyleInCombo(SelFreehandTipStyleCombo, _vm.LineTipStyleDefault);
+                SelFreehandSmoothCheck.IsChecked = style.Smooth;
+                SelFreehandStartCapCheck.IsChecked = style.StartCap;
+                SelFreehandEndCapCheck.IsChecked = style.EndCap;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, style.TipStyle);
             }
             if (category.Line)
             {
-                // Pre-fill from the active tool's defaults: Arrow tool → ArrowStart/End, Line
-                // tool → LineStart/End. The user sees what their next stroke will look like.
-                var startCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowStartCapDefault : _vm.LineStartCapDefault;
-                var endCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowEndCapDefault : _vm.LineEndCapDefault;
-                SelLineStartCapCheck.IsChecked = startCap;
-                SelLineEndCapCheck.IsChecked = endCap;
-                SelectTipStyleInCombo(SelLineTipStyleCombo, _vm.LineTipStyleDefault);
+                SelLineStartCapCheck.IsChecked = style.StartCap;
+                SelLineEndCapCheck.IsChecked = style.EndCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, style.TipStyle);
             }
-            // Effect-tool defaults: surface the slider's range/label even when no shape exists
-            // yet, so the user sees what they're about to draw. Concrete values come from the
-            // shape itself once it's drawn — here we just tee up the chrome.
+            // Effect tools: range, label and the amount the next region gets.
             switch (category.Effect)
             {
                 case ShapeCategory.EffectKind.Blur:
                     SelEffectLabel.Text = Loc("BlurRadius", "Blur radius (px)");
                     SelEffectSlider.Minimum = 0; SelEffectSlider.Maximum = 60;
+                    SelEffectSlider.Value = Math.Clamp(style.EffectAmount, 0, 60);
+                    SelEffectBox.Text = ((int)Math.Round(style.EffectAmount)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                     SelEffectSecondarySection.Visibility = Visibility.Collapsed;
                     break;
                 case ShapeCategory.EffectKind.Pixelate:
                     SelEffectLabel.Text = Loc("PixelBlockSize", "Pixel block size");
                     SelEffectSlider.Minimum = 2; SelEffectSlider.Maximum = 60;
+                    SelEffectSlider.Value = Math.Clamp(style.EffectAmount, 2, 60);
+                    SelEffectBox.Text = ((int)Math.Round(style.EffectAmount)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                     SelEffectSecondarySection.Visibility = Visibility.Collapsed;
                     break;
                 case ShapeCategory.EffectKind.Spotlight:
                     SelEffectLabel.Text = Loc("SpotlightDim", "Spotlight dim (%)");
                     SelEffectSlider.Minimum = 0; SelEffectSlider.Maximum = 100;
+                    SelEffectSlider.Value = Math.Clamp(Math.Round(style.EffectAmount * 100), 0, 100);
+                    SelEffectBox.Text = ((int)Math.Round(style.EffectAmount * 100)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                     SelEffectSecondarySection.Visibility = Visibility.Visible;
-                    SelEffectSecondaryLabel.Text = Loc("EdgeBlur", "Edge blur (px)");
+                    SelEffectSecondaryLabel.Text = Loc("SpotlightBlur", "Spotlight blur (px)");
                     SelEffectSecondarySlider.Minimum = 0; SelEffectSecondarySlider.Maximum = 60;
+                    SelEffectSecondarySlider.Value = Math.Clamp(style.EffectAmount2, 0, 60);
+                    SelEffectSecondaryBox.Text = ((int)Math.Round(style.EffectAmount2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                     break;
             }
         }
@@ -3437,118 +3816,6 @@ public partial class EditorWindow : FluentWindow
             RefreshAlignToggles(s.Align);
         }
         finally { _suppressLiveUpdates = false; }
-    }
-
-    /// <summary>Apply the default outline / fill / stroke / text-color (Default properties group)
-    /// to every selected shape in one gesture. The selection's live-edit snapshot was captured
-    /// when the shapes were selected, so this commits as a single undo step per shape (same
-    /// machinery as drag-to-move). Text color only applies to TextShape; ignored elsewhere.</summary>
-    private void OnApplyCurrentClicked(object sender, RoutedEventArgs e)
-    {
-        if (_vm.SelectedShapes.Count == 0) return;
-        var outline = _vm.OutlineColor;
-        var fill = _vm.FillColor;
-        var stroke = _vm.StrokeWidth;
-        var textColor = _vm.CurrentTextStyle.Color;
-
-        foreach (var s in _vm.SelectedShapes.ToList())
-        {
-            Shape updated;
-            if (s is TextShape t)
-            {
-                // Text uses its own default group (text colour + separate text-outline colour/width),
-                // NOT the global Outline/Fill/Stroke — applying those here would paint the text with
-                // the arrows' outline instead of its own.
-                updated = t with
-                {
-                    Style = t.Style with { Color = textColor },
-                    Outline = _vm.TextOutlineColor,
-                    StrokeWidth = _vm.TextOutlineWidth
-                };
-            }
-            // Effect regions take the effect defaults instead: outline/fill/stroke mean nothing
-            // to them, so applying those would be a no-op click on exactly the shapes whose
-            // defaults the panel is showing.
-            else if (s is BlurShape blur) updated = blur with { Radius = _vm.BlurRadiusDefault };
-            else if (s is PixelateShape pix) updated = pix with { BlockSize = _vm.PixelateBlockSizeDefault };
-            else if (s is SpotlightShape spot)
-            {
-                updated = spot with
-                {
-                    DimAmount = _vm.SpotlightDimDefault,
-                    BlurRadius = _vm.SpotlightBlurDefault,
-                };
-            }
-            else
-            {
-                updated = ApplyStrokeWidth(ApplyFillColor(ApplyOutlineColor(s, outline), fill), stroke);
-            }
-            _vm.LiveReplaceShape(s, updated);
-        }
-        RefreshPropertyPanel();
-    }
-
-    /// <summary>Adopt the selected shape's outline / fill / stroke as the default values; if the
-    /// selection is a TextShape, also lift its Style.Color into the default text color so the
-    /// next text-tool click reproduces it. On multi-selection, takes the first shape.</summary>
-    private void OnSetAsDefaultClicked(object sender, RoutedEventArgs e)
-    {
-        if (_vm.SelectedShapes.Count == 0) return;
-        var s = _vm.SelectedShapes[0];
-        // Only project properties the shape actually uses. Otherwise picking "Set as default"
-        // on e.g. a TextShape would clobber the global Outline/Fill/Stroke defaults with
-        // whatever residual values that shape happened to carry — TextShape stores its visible
-        // color in Style.Color, so its Outline/Fill aren't meaningful signal.
-        if (ShapeSupportsOutline(s)) _vm.OutlineColor = s.Outline;
-        if (ShapeSupportsFill(s)) _vm.FillColor = s.Fill;
-        if (ShapeSupportsStroke(s)) _vm.StrokeWidth = s.StrokeWidth;
-        if (s is TextShape t)
-        {
-            // Mutate via record-with so OnCurrentTextStyleChanged fires, which refreshes the
-            // TextTool factory and the text swatch through the PropertyChanged handler above.
-            _vm.CurrentTextStyle = _vm.CurrentTextStyle with { Color = t.Style.Color };
-            // Text-outline defaults are separate from the global Outline/Stroke (which ShapeSupports*
-            // deliberately skip for text), so lift the text's own outline colour + width here.
-            _vm.TextOutlineColor = t.Outline;
-            _vm.TextOutlineWidth = t.StrokeWidth;
-        }
-        // Cap defaults: project the selected shape's caps onto the matching default slot. A
-        // selected LineShape pushes into the Line OR Arrow slot based on the active tool —
-        // the user's intent is "make the kind of stroke I'm currently in look like this".
-        // FreehandShape always pushes into the Freehand slot. TipStyle is shared, so any
-        // selection updates the global default.
-        if (s is LineShape l)
-        {
-            if (_vm.CurrentTool == EditorTool.Arrow)
-            {
-                _vm.ArrowStartCapDefault = l.StartCap;
-                _vm.ArrowEndCapDefault = l.EndCap;
-            }
-            else
-            {
-                _vm.LineStartCapDefault = l.StartCap;
-                _vm.LineEndCapDefault = l.EndCap;
-            }
-            _vm.LineTipStyleDefault = l.TipStyle;
-        }
-        else if (s is FreehandShape fh)
-        {
-            _vm.FreehandStartCapDefault = fh.StartCap;
-            _vm.FreehandEndCapDefault = fh.EndCap;
-            _vm.LineTipStyleDefault = fh.TipStyle;
-        }
-        // Effect regions: promote whatever the user dialled in with the wheel to the default for
-        // the next region of that kind.
-        else if (s is BlurShape blur) _vm.BlurRadiusDefault = blur.Radius;
-        else if (s is PixelateShape pix) _vm.PixelateBlockSizeDefault = pix.BlockSize;
-        else if (s is SpotlightShape spot)
-        {
-            _vm.SpotlightDimDefault = spot.DimAmount;
-            _vm.SpotlightBlurDefault = spot.BlurRadius;
-        }
-        // Reflect the freshly-adopted defaults in the panel (e.g. the contextual text-default
-        // swatches) so the user sees the change land instead of it being a silent state update.
-        RefreshPropertyPanel();
     }
 
     private static Shape ApplyOutlineColor(Shape s, ShapeColor c) => s switch
@@ -4330,13 +4597,15 @@ public partial class EditorWindow : FluentWindow
         // up to where the V/triangle becomes wider than the stroke. 1.2× is a safety margin —
         // perceptually invisible because the cap is filled with the same colour as the stroke
         // anyway, so a small overlap underneath is harmless.
-        var inset = l.StrokeWidth * 1.2;
-        var tStart = drawStart && dist > 0 ? Math.Min(0.45, inset / dist) : 0;
-        var tEnd = drawEnd && dist > 0 ? Math.Max(0.55, 1 - inset / dist) : 1;
+        var inset = TipInset(l.StrokeWidth);
 
         var p0 = new Point(l.FromX, l.FromY);
         var p1 = new Point(cx, cy);
         var p2 = new Point(l.ToX, l.ToY);
+        // The trim is measured along the curve (arc length), not in the bezier parameter, so a
+        // curved line is cut at the same distance from the tip as a straight one.
+        var tStart = drawStart && dist > 0 ? Math.Min(0.45, ParamAtArcLength(p0, p1, p2, inset, fromEnd: false)) : 0;
+        var tEnd = drawEnd && dist > 0 ? Math.Max(0.55, ParamAtArcLength(p0, p1, p2, inset, fromEnd: true)) : 1;
         var (sp0, sp1, sp2) = TrimQuadraticBezier(p0, p1, p2, tStart, tEnd);
 
         var bezGeom = new PathGeometry();
@@ -4404,6 +4673,13 @@ public partial class EditorWindow : FluentWindow
         var halfWidth = Math.Max(2, strokeWidth * 2);
         var height = Math.Max(8, strokeWidth * 4);
         var concave = Math.Max(1, strokeWidth);
+        // The caller passes the stroke endpoint; the apex sits slightly ahead of it along the
+        // tangent so the round end of the shaft (radius strokeWidth/2, ending TipInset behind
+        // the endpoint) stays fully inside the head. This is the one place the head is built:
+        // canvas render and PNG export both go through it.
+        var shift = TipForwardShift(strokeWidth, halfWidth, height);
+        tipX += ux * shift;
+        tipY += uy * shift;
         // Right-hand perpendicular to (ux, uy) for laying out the base wings symmetrically.
         var vx = -uy;
         var vy = ux;
@@ -4437,6 +4713,46 @@ public partial class EditorWindow : FluentWindow
             Data = geom,
             Fill = fill
         };
+    }
+
+    /// <summary>Distance behind the stroke endpoint where the shaft is cut under a tip.</summary>
+    private static double TipInset(double strokeWidth) => strokeWidth * 1.2;
+
+    /// <summary>How far the head apex moves ahead of the stroke endpoint. A circle of radius
+    /// strokeWidth/2 centred on the axis at distance a from the apex of a V with half-angle
+    /// theta fits inside it when a >= r / sin(theta); the shaft end sits TipInset behind the
+    /// endpoint, so the apex moves forward by whatever is missing. A floor proportional to the
+    /// stroke width keeps a clear margin for antialiasing and thick strokes.</summary>
+    private static double TipForwardShift(double strokeWidth, double halfWidth, double height)
+    {
+        var r = strokeWidth / 2;
+        var sinTheta = halfWidth / Math.Sqrt(halfWidth * halfWidth + height * height);
+        var needed = r / sinTheta + 0.75 - TipInset(strokeWidth);
+        return Math.Max(needed, strokeWidth * 0.3);
+    }
+
+    /// <summary>Bezier parameter at which the arc length from the chosen end of the quadratic
+    /// reaches <paramref name="distance"/> (sampled; exact enough for trimming a stroke).</summary>
+    private static double ParamAtArcLength(Point p0, Point p1, Point p2, double distance, bool fromEnd)
+    {
+        const int steps = 64;
+        var prev = fromEnd ? p2 : p0;
+        var acc = 0.0;
+        for (var i = 1; i <= steps; i++)
+        {
+            var t = fromEnd ? 1.0 - (double)i / steps : (double)i / steps;
+            var pt = QuadBezier(p0, p1, p2, t);
+            var seg = Math.Sqrt((pt.X - prev.X) * (pt.X - prev.X) + (pt.Y - prev.Y) * (pt.Y - prev.Y));
+            if (acc + seg >= distance && seg > 0)
+            {
+                var f = (distance - acc) / seg;
+                var tPrev = fromEnd ? 1.0 - (double)(i - 1) / steps : (double)(i - 1) / steps;
+                return tPrev + (t - tPrev) * f;
+            }
+            acc += seg;
+            prev = pt;
+        }
+        return fromEnd ? 0 : 1;
     }
 
     /// <summary>Return the sub-bezier of the quadratic <paramref name="p0"/>..<paramref name="p2"/>
@@ -4501,7 +4817,7 @@ public partial class EditorWindow : FluentWindow
         }
 
         var hasCaps = (f.StartCap || f.EndCap) && displayPts.Count >= 2;
-        var inset = f.StrokeWidth * 1.2;
+        var inset = TipInset(f.StrokeWidth);
         var strokePts = hasCaps
             ? TrimPolyline(displayPts, trimStart: f.StartCap ? inset : 0, trimEnd: f.EndCap ? inset : 0)
             : displayPts;
@@ -5148,102 +5464,13 @@ public partial class EditorWindow : FluentWindow
             ? (SolidColorBrush)System.Windows.Media.Brushes.Transparent
             : new SolidColorBrush(System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B));
 
-    /// <summary>Swap the "Default properties" group between the shape defaults (Outline / Fill /
-    /// Stroke) and the text defaults (Text colour / Outline colour / Outline width) depending on
-    /// context: the Text tool being active, or a text-only selection. Keeps "what affects my next
-    /// text" separate from "what affects my next arrow/rectangle".</summary>
-    private void RefreshDefaultPropertiesSection()
-    {
-        var sels = _vm.SelectedShapes;
-        var textContext = _vm.CurrentTool == EditorTool.Text
-            || (sels.Count > 0 && sels.All(s => s is TextShape));
-
-        // Effect context: one of the three effect tools is active, or the selection is entirely
-        // made of effect regions. Those shapes carry no outline/fill/stroke, so showing the shape
-        // defaults next to them would offer knobs that do nothing.
-        var effectTool = _vm.CurrentTool is EditorTool.Blur or EditorTool.Pixelate or EditorTool.Spotlight;
-        var effectSelection = sels.Count > 0
-            && sels.All(s => s is BlurShape or PixelateShape or SpotlightShape);
-        var effectContext = !textContext && (effectTool || effectSelection);
-
-        DefaultShapeSection.Visibility = textContext || effectContext ? Visibility.Collapsed : Visibility.Visible;
-        DefaultTextSection.Visibility = textContext ? Visibility.Visible : Visibility.Collapsed;
-        DefaultEffectSection.Visibility = effectContext ? Visibility.Visible : Visibility.Collapsed;
-
-        if (effectContext) RefreshEffectDefaultRows(sels, effectSelection);
-
-        if (!textContext) return;
-        _suppressLiveUpdates = true;
-        try
-        {
-            DefaultTextOutlineSwatch.SelectedColor = _vm.TextOutlineColor;
-            DefaultTextOutlineSlider.Value = Math.Clamp(_vm.TextOutlineWidth, DefaultTextOutlineSlider.Minimum, DefaultTextOutlineSlider.Maximum);
-        }
-        finally { _suppressLiveUpdates = false; }
-    }
-
-    /// <summary>Show only the rows that belong to the effect in play, and sync the sliders to the
-    /// sticky defaults. Which effect is "in play" comes from the selection when there is one
-    /// (that's what the user is looking at) and from the active tool otherwise.</summary>
-    private void RefreshEffectDefaultRows(IReadOnlyList<Shape> sels, bool effectSelection)
-    {
-        var blur = effectSelection ? sels.Any(s => s is BlurShape) : _vm.CurrentTool == EditorTool.Blur;
-        var pixelate = effectSelection ? sels.Any(s => s is PixelateShape) : _vm.CurrentTool == EditorTool.Pixelate;
-        var spotlight = effectSelection ? sels.Any(s => s is SpotlightShape) : _vm.CurrentTool == EditorTool.Spotlight;
-
-        DefaultBlurRow.Visibility = blur ? Visibility.Visible : Visibility.Collapsed;
-        DefaultPixelateRow.Visibility = pixelate ? Visibility.Visible : Visibility.Collapsed;
-        DefaultSpotlightRow.Visibility = spotlight ? Visibility.Visible : Visibility.Collapsed;
-
-        _suppressLiveUpdates = true;
-        try
-        {
-            DefaultBlurSlider.Value = Math.Clamp(_vm.BlurRadiusDefault, DefaultBlurSlider.Minimum, DefaultBlurSlider.Maximum);
-            DefaultPixelateSlider.Value = Math.Clamp(_vm.PixelateBlockSizeDefault, DefaultPixelateSlider.Minimum, DefaultPixelateSlider.Maximum);
-            // Dim is stored 0..1 and shown as a percentage — the slider is the friendlier unit.
-            DefaultSpotlightDimSlider.Value = Math.Clamp(_vm.SpotlightDimDefault * 100.0, 0, 100);
-            DefaultSpotlightBlurSlider.Value = Math.Clamp(_vm.SpotlightBlurDefault, DefaultSpotlightBlurSlider.Minimum, DefaultSpotlightBlurSlider.Maximum);
-        }
-        finally { _suppressLiveUpdates = false; }
-    }
-
-    /// <summary>Wire the effect-default sliders back into the view-model. Called once from the
-    /// ctor's wiring pass, alongside the other default controls.</summary>
-    private void WireEffectDefaultSliders()
-    {
-        DefaultBlurSlider.ValueChanged += (_, e) =>
-        {
-            if (_suppressLiveUpdates) return;
-            _vm.BlurRadiusDefault = e.NewValue;
-        };
-        DefaultPixelateSlider.ValueChanged += (_, e) =>
-        {
-            if (_suppressLiveUpdates) return;
-            _vm.PixelateBlockSizeDefault = (int)Math.Round(e.NewValue);
-        };
-        DefaultSpotlightDimSlider.ValueChanged += (_, e) =>
-        {
-            if (_suppressLiveUpdates) return;
-            _vm.SpotlightDimDefault = e.NewValue / 100.0;
-        };
-        DefaultSpotlightBlurSlider.ValueChanged += (_, e) =>
-        {
-            if (_suppressLiveUpdates) return;
-            _vm.SpotlightBlurDefault = e.NewValue;
-        };
-    }
-
     private void RefreshPropertyPanel()
     {
         var sels = _vm.SelectedShapes;
-        RefreshDefaultPropertiesSection();
-        // The "Apply to selected" button in the Default properties group is only meaningful
-        // when there's at least one shape selected — anything else would be a no-op click.
-        ApplyToSelectedBtn.IsEnabled = sels.Count > 0;
         if (sels.Count == 0)
         {
             // No selection: defer to the active tool. Drawing tools render their target shape's
-            // sections pre-populated with the current VM defaults; the Select / Crop / Smart-eraser
+            // sections pre-populated with the tool's current style; the Select / Crop / Smart-eraser
             // tools (which don't produce a freestanding shape) fall through to the empty-state hint.
             var category = ToolCategory(_vm.CurrentTool);
             if (category is null)
@@ -5263,6 +5490,7 @@ public partial class EditorWindow : FluentWindow
             NoSelectionText.Visibility = Visibility.Collapsed;
             SelectedShapeStack.Visibility = Visibility.Visible;
             ApplyToolDefaultsToPanel(category);
+            RefreshRecentList();
             RefreshSelectionAdorner();
             return;
         }
@@ -5460,6 +5688,7 @@ public partial class EditorWindow : FluentWindow
         {
             _suppressLiveUpdates = false;
         }
+        RefreshRecentList();
         RefreshSelectionAdorner();
     }
 }

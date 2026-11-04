@@ -1245,8 +1245,15 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Editor_PropertiesTitleFormat" xml:space="preserve"><value>{0} Properties</value></data>
   <data name="Editor_SharedProperties" xml:space="preserve"><value>Shared Properties</value></data>
   <data name="Editor_Properties" xml:space="preserve"><value>Properties</value></data>
+  <data name="Editor_Recent" xml:space="preserve"><value>Recent</value></data>
+  <data name="Editor_RecentEmpty" xml:space="preserve"><value>Styles you draw with land here (up to 10).</value></data>
+  <data name="Editor_RecentUse" xml:space="preserve"><value>Use this style</value></data>
+  <data name="Editor_RecentRemove" xml:space="preserve"><value>Remove from Recent</value></data>
+  <data name="Editor_RecentTipsBoth" xml:space="preserve"><value>two tips</value></data>
+  <data name="Editor_RecentTipStart" xml:space="preserve"><value>start tip</value></data>
+  <data name="Editor_RecentTipEnd" xml:space="preserve"><value>end tip</value></data>
+  <data name="Editor_RecentTextFormat" xml:space="preserve"><value>{0} px, outline {1}</value></data>
   <data name="Editor_NoSelection" xml:space="preserve"><value>Select a shape to edit its properties (V tool, then click).</value></data>
-  <data name="Editor_DefaultProperties" xml:space="preserve"><value>Default properties</value></data>
   <data name="Editor_Save" xml:space="preserve"><value>Save</value></data>
   <data name="Editor_SaveAs" xml:space="preserve"><value>Save as…</value></data>
   <data name="Editor_TooltipSave" xml:space="preserve"><value>Confirm / copy to clipboard. Adds the edited image as a new history item and pushes it to the Windows clipboard so you can paste it. The original is preserved.</value></data>
@@ -1270,8 +1277,6 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Editor_PixelBlockSize" xml:space="preserve"><value>Pixel block size</value></data>
   <data name="Editor_SpotlightDim" xml:space="preserve"><value>Spotlight dim (%)</value></data>
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Spotlight blur (px)</value></data>
-  <data name="Editor_EffectWheelHint" xml:space="preserve"><value>Mouse wheel over a selected region adjusts it; Shift+wheel sets a spotlight's dim. "Set as default" adopts the selected region's values.</value></data>
-  <data name="Editor_EdgeBlur" xml:space="preserve"><value>Edge blur (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Smooth stroke</value></data>
   <data name="Editor_StartCap" xml:space="preserve"><value>Start cap</value></data>
   <data name="Editor_EndCap" xml:space="preserve"><value>End cap</value></data>
@@ -1282,10 +1287,6 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Editor_TooltipStartCap" xml:space="preserve"><value>Add an arrowhead at the start of the line / freehand stroke, oriented along the tangent at that endpoint.</value></data>
   <data name="Editor_TooltipEndCap" xml:space="preserve"><value>Add an arrowhead at the end of the line / freehand stroke, oriented along the tangent at that endpoint.</value></data>
   <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Visual style of the cap geometry — ShareX curve (V with concave base, integrates with stroke) or solid filled triangle.</value></data>
-  <data name="Editor_ApplyToSelected" xml:space="preserve"><value>Apply to selected</value></data>
-  <data name="Editor_TooltipApplyToSelected" xml:space="preserve"><value>Apply the default outline / fill / stroke above to the selected shape(s)</value></data>
-  <data name="Editor_SetAsDefault" xml:space="preserve"><value>Set as default</value></data>
-  <data name="Editor_TooltipSetAsDefault" xml:space="preserve"><value>Use the selected shape's outline/fill/stroke as the toolbar's current values</value></data>
   <data name="Editor_Undo" xml:space="preserve"><value>Undo</value></data>
   <data name="Editor_Redo" xml:space="preserve"><value>Redo</value></data>
   <!-- Tool palette tooltips. The leading shortcut letter (V/R/E/L/A/F/T/N/I/B/X/O/K/C) is part
