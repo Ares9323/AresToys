@@ -16,6 +16,7 @@ internal static class SettingsTabLabels
         "alwaysontop" => "Always on top",
         "windowsnapping" => "Window snapping",
         "newplus"    => "New File from Template",
+        "peek"       => "Peek",
         "wormholes"  => "Wormholes",
         "settings"   => "App settings",
         "debug"      => "Debug",

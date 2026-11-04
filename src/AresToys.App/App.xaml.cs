@@ -213,6 +213,10 @@ public partial class App : Application
                 services.AddSingleton<ResizerContextMenuSync>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusFolderShortcut>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.ExplorerDuplicateShortcut>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekService>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekHotkey>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekOpenWithStore>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekKeysStore>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>();
                 services.AddAresToysPlugins();
                 services.AddAresToysEditor();
@@ -357,6 +361,7 @@ public partial class App : Application
                 services.AddSingleton<IPipelineTask, OpenWindowSnappingEditorTask>();
                 services.AddSingleton<IPipelineTask, ToggleWindowSnappingTask>();
                 services.AddSingleton<IPipelineTask, SetSnapLayoutTask>();
+                services.AddSingleton<IPipelineTask, PeekTask>();
                 services.AddSingleton<IPipelineTask, NextWindowInZoneTask>();
                 services.AddSingleton<IPipelineTask, PreviousWindowInZoneTask>();
                 services.AddSingleton<IPipelineTask, AlwaysOnTopTask>();
@@ -516,6 +521,7 @@ public partial class App : Application
                 services.AddSingleton<DictationViewModel>();
                 services.AddSingleton<WindowSnappingViewModel>();
                 services.AddSingleton<NewPlusViewModel>();
+                services.AddSingleton<PeekSettingsViewModel>();
                 services.AddSingleton<SettingsViewModel>();
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<TrayIconService>();
@@ -724,7 +730,7 @@ public partial class App : Application
         // SettingsViewModel.SelectedTab. Display labels live in Services.SettingsTabLabels and
         // mirror the sidebar entries the user already recognises.
         AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["settings_tabs"] = () =>
-            new[] { "settings", "hotkeys", "uploaders", "capture", "categories", "wormholes", "theme", "debug", "about" };
+            new[] { "settings", "hotkeys", "uploaders", "capture", "categories", "wormholes", "peek", "theme", "debug", "about" };
 
         // Trace-preset dropdown for Trace to SVG's "preset" config. Concatenates the stock
         // presets (TracePresets.Stock — verbatim Illustrator Image Trace defaults) with any
@@ -1208,6 +1214,9 @@ public partial class App : Application
         // on the thread pool, so the UI thread is never held up.
         _ = _host.Services.GetRequiredService<AresToys.App.Services.Launcher.LauncherHostBridge>();
         _ = _host.Services.GetRequiredService<AresToys.App.Services.Launcher.AppStateBroadcaster>();
+        // Peek registers its Ctrl+Space binding and subscribes to SatelliteService.ModulesApplied, so it must exist
+        // before the first Apply(): that pass turns the shortcut on when the Peek module is enabled.
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Peek.PeekHotkey>();
         _host.Services.GetRequiredService<SatelliteService>().Apply();
         AresToys.App.Services.Logging.StartupTrace.Mark("satellite service applied");
     }

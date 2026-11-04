@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Automation;
+using AresToys.App.Services.Shell;
 
 namespace AresToys.App.Services.NewPlus;
 
@@ -163,6 +164,13 @@ internal static class NewPlusExplorer
     // foreground one (every tab of a window shares its handle, the folder tells the tabs apart).
     private static dynamic? FindFolderView(dynamic shell, string folder, IntPtr foreground)
     {
+        // In an Explorer window the active tab is the one the menu came from, whatever other tabs show.
+        if (ClassOf(foreground) == ExplorerClass && ExplorerWindows.FindActive(foreground) is { } active
+            && SamePath(active.Path, folder))
+        {
+            dynamic activeWindow = active.Window;
+            return activeWindow.Document;
+        }
         dynamic? fallback = null;
         foreach (dynamic window in shell.Windows())
         {

@@ -1,0 +1,73 @@
+<ui:FluentWindow x:Class="AresToys.App.Services.Peek.PeekWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Peek"
+                 Width="960" Height="640"
+                 ShowInTaskbar="False"
+                 Topmost="True"
+                 ResizeMode="NoResize"
+                 WindowStartupLocation="Manual"
+                 ShowActivated="True"
+                 ExtendsContentIntoTitleBar="True"
+                 Background="{DynamicResource Surface1Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}"
+                 PreviewKeyDown="OnPreviewKeyDown">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
+            BorderThickness="2" CornerRadius="8">
+        <Grid x:Name="Root" Background="Transparent"
+              MouseEnter="OnRootMouseEnter" MouseLeave="OnRootMouseLeave">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- Title row -->
+                <RowDefinition Height="*" />     <!-- Image -->
+                <RowDefinition Height="Auto" />  <!-- Footer -->
+            </Grid.RowDefinitions>
+
+            <!-- File name on the left, counter then close button on the right. Close hides the window (see OnClosing). -->
+            <ui:TitleBar x:Name="Bar" Grid.Row="0" Title="" ShowMinimize="False" ShowMaximize="False">
+                <ui:TitleBar.TrailingContent>
+                    <TextBlock x:Name="CounterText" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.75" />
+                </ui:TitleBar.TrailingContent>
+            </ui:TitleBar>
+
+            <Grid Grid.Row="1" Background="{DynamicResource Surface1Brush}" ClipToBounds="True">
+                <Image x:Name="PreviewImage" Margin="8" Stretch="Uniform" StretchDirection="DownOnly"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock x:Name="FallbackText" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Margin="24" TextWrapping="Wrap" TextAlignment="Center" Opacity="0.75"
+                           Visibility="Collapsed" />
+
+                <!-- Chevrons: shown only while the mouse is over the window, and only when there is a neighbour. -->
+                <ui:Button x:Name="PrevButton" HorizontalAlignment="Left" VerticalAlignment="Center"
+                           Margin="12,0,0,0" Width="40" Height="72" Padding="0"
+                           Focusable="False" Visibility="Collapsed"
+                           Icon="{ui:SymbolIcon ChevronLeft24}" Click="OnPrevClick" />
+                <ui:Button x:Name="NextButton" HorizontalAlignment="Right" VerticalAlignment="Center"
+                           Margin="0,0,12,0" Width="40" Height="72" Padding="0"
+                           Focusable="False" Visibility="Collapsed"
+                           Icon="{ui:SymbolIcon ChevronRight24}" Click="OnNextClick" />
+            </Grid>
+
+            <Border Grid.Row="2" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,1,0,0"
+                    Padding="14,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="InfoText" Grid.Column="0" VerticalAlignment="Center" Opacity="0.75" />
+                    <!-- Piece 5 puts the "Open in" menu here. -->
+                    <ContentPresenter x:Name="OpenInPresenter" Grid.Column="1" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

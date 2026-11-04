@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using AresToys.App.Resources;
+using AresToys.App.Services.Shell;
 using AresToys.Hotkeys;
 
 namespace AresToys.App.Services.NewPlus;
@@ -67,7 +68,7 @@ public sealed class ExplorerDuplicateShortcut
     {
         try
         {
-            if (NewPlusFolderShortcut.FindExplorerWindow(root) is not { } found) return null;
+            if (ExplorerWindows.FindActive(root) is not { } found) return null;
             dynamic window = found.Window;
             var sources = new List<string>();
             foreach (dynamic item in window.Document.SelectedItems())

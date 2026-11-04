@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Automation;
 using AresToys.App.Resources;
+using AresToys.App.Services.Shell;
 using AresToys.Hotkeys;
 
 namespace AresToys.App.Services.NewPlus;
@@ -21,24 +21,6 @@ public sealed class NewPlusFolderShortcut
     private const string HookId = "newplus.new-folder";
     private const uint VkN = 0x4E;
     private static readonly Regex PathInName = new(@"([A-Za-z]:\\.*|\\\\.+)$", RegexOptions.Compiled);
-
-    private const uint GW_HWNDNEXT = 2;
-    private const uint GW_CHILD = 5;
-
-    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
-    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
-
-    [ComImport, Guid("6d5140c1-7436-11ce-8034-00aa006009fa"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IServiceProvider
-    {
-        [PreserveSig] int QueryService(ref Guid service, ref Guid riid, out IntPtr result);
-    }
-
-    [ComImport, Guid("00000114-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IOleWindow
-    {
-        [PreserveSig] int GetWindow(out IntPtr hwnd);
-    }
 
     private readonly KeyboardHook _hook;
     private volatile bool _active;
@@ -115,61 +97,8 @@ public sealed class NewPlusFolderShortcut
         return DialogFolder(root);
     }
 
-    // The window's tabs all report its handle: with several, the one whose browser window is visible is the open tab.
-    private static string? ExplorerFolder(IntPtr root) => FindExplorerWindow(root)?.Path;
-
-    /// <summary>The shell window object (a folder view) of the open tab of the Explorer window <paramref name="root"/>,
-    /// with the folder it shows. Null when it shows no file system folder or cannot be told apart.</summary>
-    internal static (object Window, string Path)? FindExplorerWindow(IntPtr root)
-    {
-        var shellType = Type.GetTypeFromProgID("Shell.Application");
-        if (shellType is null) return null;
-        dynamic shell = Activator.CreateInstance(shellType)!;
-
-        var candidates = new List<(object Window, string Path)>();
-        foreach (dynamic window in shell.Windows())
-        {
-            try
-            {
-                if (new IntPtr((long)window.HWND) != root) continue;
-                string url = window.LocationURL;
-                if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.IsFile) continue;
-                candidates.Add(((object)window, uri.LocalPath));
-            }
-            catch { /* not a folder view */ }
-        }
-        if (candidates.Count == 1) return candidates[0];
-        foreach (var candidate in candidates)
-            if (IsOpenTab(candidate.Window, root)) return candidate;
-        return null;
-    }
-
-    // Every tab's window stays visible, so visibility cannot tell them apart: the open tab is the topmost
-    // ShellTabWindowClass child of the Explorer window (Explorer raises a tab when it is activated).
-    private static bool IsOpenTab(object window, IntPtr root)
-    {
-        try
-        {
-            if (window is not IServiceProvider provider) return false;
-            var topLevelBrowser = new Guid("4C96BE40-915C-11CF-99D3-00AA004AE837");
-            var oleWindow = typeof(IOleWindow).GUID;
-            if (provider.QueryService(ref topLevelBrowser, ref oleWindow, out var ptr) != 0 || ptr == IntPtr.Zero) return false;
-            try
-            {
-                var tab = (IOleWindow)Marshal.GetObjectForIUnknown(ptr);
-                return tab.GetWindow(out var hwnd) == 0 && hwnd != IntPtr.Zero && hwnd == TopmostTab(root);
-            }
-            finally { Marshal.Release(ptr); }
-        }
-        catch { return false; }
-    }
-
-    private static IntPtr TopmostTab(IntPtr root)
-    {
-        for (var child = GetWindow(root, GW_CHILD); child != IntPtr.Zero; child = GetWindow(child, GW_HWNDNEXT))
-            if (NewPlusExplorer.ClassOf(child) == "ShellTabWindowClass" && IsWindowVisible(child)) return child;
-        return IntPtr.Zero;
-    }
+    // The window's tabs all report its handle: ExplorerWindows tells the active one apart.
+    private static string? ExplorerFolder(IntPtr root) => ExplorerWindows.FindActive(root)?.Path;
 
     // A file dialog has no automation object; its address bar carries the path in its name.
     private static string? DialogFolder(IntPtr root)

@@ -25,4 +25,8 @@ public sealed class ModuleSettings
     public const string LauncherKey  = "app.modules.launcher_enabled";
     public const string WormholesKey = "app.modules.wormholes_enabled";
     public const string KeySequencesKey = "app.modules.keysequences_enabled";
+
+    /// <summary>Peek (Ctrl+Space preview in Explorer). Off unless saved as "true". It has no flag here: it runs in the
+    /// satellite, and <c>SatelliteService</c> reads this key to decide whether to start the Peek module.</summary>
+    public const string PeekKey = "app.modules.peek_enabled";
 }

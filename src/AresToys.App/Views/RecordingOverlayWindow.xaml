@@ -12,10 +12,11 @@
         <!-- Red border framing the captured area (not hit-testable so it doesn't intercept clicks
              on apps inside the recorded region). -->
         <Border BorderBrush="#FF0033" BorderThickness="2" IsHitTestVisible="False" />
-        <!-- Top-left controller: badge + Stop / Pause / Abort buttons. -->
-        <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+        <!-- Controller: badge + Stop / Pause / Abort buttons. Alignment and corner radius are set in code
+             from the Capture option (default top center, so it does not cover the File/Edit menu). -->
+        <Border x:Name="Controller" HorizontalAlignment="Center" VerticalAlignment="Top"
                 Background="#CC0033" Padding="8,4"
-                CornerRadius="0,0,4,0">
+                CornerRadius="0,0,4,4">
             <StackPanel Orientation="Horizontal">
                 <Ellipse Width="8" Height="8" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
                 <TextBlock x:Name="ElapsedLabel"

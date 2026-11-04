@@ -6,6 +6,10 @@ using System.Windows.Threading;
 
 namespace AresToys.App.Views;
 
+/// <summary>Where the recording controller sits inside the recorded area. No top right: it would
+/// cover the recorded window's minimize/maximize/close buttons.</summary>
+public enum RecordingControlsPosition { TopCenter, TopLeft, BottomLeft, BottomCenter, BottomRight }
+
 public partial class RecordingOverlayWindow : Window
 {
     private readonly DispatcherTimer _timer;
@@ -13,9 +17,19 @@ public partial class RecordingOverlayWindow : Window
     private TimeSpan _accumulated = TimeSpan.Zero;
     private bool _paused;
 
-    public RecordingOverlayWindow(int x, int y, int width, int height)
+    public RecordingOverlayWindow(int x, int y, int width, int height,
+        RecordingControlsPosition position = RecordingControlsPosition.TopCenter)
     {
         InitializeComponent();
+        // Rounded corners face inward, away from the screen edge the controller sits on.
+        (Controller.HorizontalAlignment, Controller.VerticalAlignment, Controller.CornerRadius) = position switch
+        {
+            RecordingControlsPosition.TopLeft => (HorizontalAlignment.Left, VerticalAlignment.Top, new CornerRadius(0, 0, 4, 0)),
+            RecordingControlsPosition.BottomLeft => (HorizontalAlignment.Left, VerticalAlignment.Bottom, new CornerRadius(0, 4, 0, 0)),
+            RecordingControlsPosition.BottomCenter => (HorizontalAlignment.Center, VerticalAlignment.Bottom, new CornerRadius(4, 4, 0, 0)),
+            RecordingControlsPosition.BottomRight => (HorizontalAlignment.Right, VerticalAlignment.Bottom, new CornerRadius(4, 0, 0, 0)),
+            _ => (HorizontalAlignment.Center, VerticalAlignment.Top, new CornerRadius(0, 0, 4, 4)),
+        };
         // (x,y,width,height) are physical pixels (Win32 capture region). Convert to DIPs once HwndSource exists.
         Left = x; Top = y; Width = width; Height = height;
         Loaded += (_, _) =>

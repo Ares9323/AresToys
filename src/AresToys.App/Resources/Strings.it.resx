@@ -289,6 +289,8 @@
   <data name="WorkflowActionDesc_arestoys_window_snapping_set_layout" xml:space="preserve"><value>Fa usare a un monitor un layout di snapping.</value></data>
   <data name="WorkflowActionParam_arestoys_window_snapping_set_layout_layout" xml:space="preserve"><value>Layout</value></data>
   <data name="WorkflowActionParam_arestoys_window_snapping_set_layout_monitor" xml:space="preserve"><value>Monitor</value></data>
+  <data name="WorkflowAction_arestoys_peek_toggle" xml:space="preserve"><value>Peek</value></data>
+  <data name="WorkflowActionDesc_arestoys_peek_toggle" xml:space="preserve"><value>Mostra l'anteprima del file selezionato nella finestra di Esplora file in primo piano. Eseguilo di nuovo con Peek aperto per vedere la nuova selezione. Richiede il modulo Peek attivo.</value></data>
   <data name="WorkflowActionDesc_arestoys_window_snapping_previous_window" xml:space="preserve"><value>Porta in primo piano la finestra precedente agganciata alla stessa zona della finestra in primo piano. Richiede Window snapping attivo.</value></data>
   <data name="Tray_WindowSnappingEditor" xml:space="preserve"><value>Editor Window snapping</value></data>
   <data name="Sidebar_AlwaysOnTop" xml:space="preserve"><value>Sempre in primo piano</value></data>
@@ -656,6 +658,39 @@
   <data name="Settings_ModuleLauncherTooltip" xml:space="preserve"><value>Overlay launcher da tastiera (striscia F1-F10 + tab numeriche × celle QWERTY). Disattivato, salta hotkey, voce tray e pre-warm della cache icone.</value></data>
   <data name="Settings_ModuleWormholes" xml:space="preserve"><value>Wormholes (fence desktop)</value></data>
   <data name="Settings_ModuleWormholesTooltip" xml:space="preserve"><value>Finestre trasparenti pinnate sul desktop layer che fanno mirror di cartelle o contengono shortcut curati. Funzione in sviluppo — abilita per accedere alle build preview.</value></data>
+  <data name="Settings_ModulePeek" xml:space="preserve"><value>Peek (anteprima file)</value></data>
+  <data name="Settings_ModulePeekTooltip" xml:space="preserve"><value>Premi Ctrl+Spazio su un file in Esplora risorse per vederne l'anteprima.</value></data>
+  <data name="Peek_OpenIn" xml:space="preserve"><value>Apri con</value></data>
+  <data name="Peek_OpenInDefault" xml:space="preserve"><value>App predefinita di sistema</value></data>
+  <data name="Sidebar_Peek" xml:space="preserve"><value>Peek</value></data>
+  <data name="Peek_Hint" xml:space="preserve"><value>Seleziona un file in Esplora risorse e premi la scorciatoia qui sotto. Esc o la stessa scorciatoia lo chiude. Per usare anche un'altra scorciatoia, associa il task Peek in Scorciatoie e workflow.</value></data>
+  <data name="Peek_Shortcut" xml:space="preserve"><value>Scorciatoia</value></data>
+  <data name="Peek_ShortcutHint" xml:space="preserve"><value>Apre e chiude Peek in un elenco di file di Esplora risorse. Funziona anche un tasto singolo, come Spazio.</value></data>
+  <data name="Peek_OpenKey" xml:space="preserve"><value>Apri nel programma assegnato</value></data>
+  <data name="Peek_OpenKeyHint" xml:space="preserve"><value>Con Peek aperto: apre il file nel programma assegnato alla sua estensione, oppure nell'app predefinita.</value></data>
+  <data name="Peek_Change" xml:space="preserve"><value>Cambia</value></data>
+  <data name="Peek_ErrorKeyNavigation" xml:space="preserve"><value>Questo tasto serve per muoversi in Peek.</value></data>
+  <data name="Peek_ErrorKeyMouse" xml:space="preserve"><value>Qui non si può usare un pulsante del mouse.</value></data>
+  <data name="Peek_ErrorKeysSame" xml:space="preserve"><value>I due tasti devono essere diversi.</value></data>
+  <data name="Peek_ProgramsTitle" xml:space="preserve"><value>Programmi per Apri con</value></data>
+  <data name="Peek_ProgramsHint" xml:space="preserve"><value>I programmi con cui Peek può aprire un file. Invio apre il file con l'app predefinita di Windows; il tasto per il programma assegnato lo apre con il programma assegnato alla sua estensione.</value></data>
+  <data name="Peek_AssociationsTitle" xml:space="preserve"><value>Associazioni</value></data>
+  <data name="Peek_AssociationsHint" xml:space="preserve"><value>Scegli il programma per ogni estensione. La riga .* vale per ogni estensione senza una riga propria.</value></data>
+  <data name="Peek_Name" xml:space="preserve"><value>Nome</value></data>
+  <data name="Peek_Program" xml:space="preserve"><value>Programma</value></data>
+  <data name="Peek_Arguments" xml:space="preserve"><value>Argomenti</value></data>
+  <data name="Peek_ArgumentsHint" xml:space="preserve"><value>Usa %f per il file; se vuoto vale %f.</value></data>
+  <data name="Peek_Browse" xml:space="preserve"><value>Sfoglia</value></data>
+  <data name="Peek_Add" xml:space="preserve"><value>Aggiungi</value></data>
+  <data name="Peek_Edit" xml:space="preserve"><value>Modifica</value></data>
+  <data name="Peek_Remove" xml:space="preserve"><value>Rimuovi</value></data>
+  <data name="Peek_Save" xml:space="preserve"><value>Salva</value></data>
+  <data name="Peek_Cancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="Peek_Extension" xml:space="preserve"><value>Estensione</value></data>
+  <data name="Peek_BrowseFilter" xml:space="preserve"><value>Programmi (*.exe)|*.exe|Tutti i file (*.*)|*.*</value></data>
+  <data name="Peek_ErrorSave" xml:space="preserve"><value>Impossibile salvare le impostazioni di Peek: {0}</value></data>
+  <data name="Peek_ErrorNeedNameAndProgram" xml:space="preserve"><value>Inserisci un nome e un programma.</value></data>
+  <data name="Peek_ErrorExtension" xml:space="preserve"><value>Inserisci un'estensione come .jpg, oppure .* per ogni estensione.</value></data>
   <data name="Settings_ModulesRestartHint" xml:space="preserve"><value>I gate dei moduli scattano solo all'avvio — riavvia per applicare.</value></data>
   <data name="Settings_ModulesRestartButton" xml:space="preserve"><value>Riavvia AresToys</value></data>
   <data name="Settings_ImageEffectsTitle" xml:space="preserve"><value>Effetti immagine</value></data>
@@ -685,6 +720,12 @@
   <data name="Capture_HideToastsDelay" xml:space="preserve"><value>ms di attesa prima della cattura (aumentali se la notifica si vede ancora)</value></data>
   <data name="Capture_DelaySeconds" xml:space="preserve"><value>Ritardo screenshot (secondi)</value></data>
   <data name="Capture_ImageFormat" xml:space="preserve"><value>Formato immagine</value></data>
+  <data name="Capture_RecordingControlsPosition" xml:space="preserve"><value>Posizione dei comandi di registrazione</value></data>
+  <data name="Capture_RecordingControlsTopCenter" xml:space="preserve"><value>In alto al centro</value></data>
+  <data name="Capture_RecordingControlsTopLeft" xml:space="preserve"><value>In alto a sinistra</value></data>
+  <data name="Capture_RecordingControlsBottomLeft" xml:space="preserve"><value>In basso a sinistra</value></data>
+  <data name="Capture_RecordingControlsBottomCenter" xml:space="preserve"><value>In basso al centro</value></data>
+  <data name="Capture_RecordingControlsBottomRight" xml:space="preserve"><value>In basso a destra</value></data>
   <data name="Capture_JpegQuality" xml:space="preserve"><value>Qualità JPEG</value></data>
   <data name="Capture_AutoJpeg" xml:space="preserve"><value>Passa automaticamente a JPEG quando l'output supera la soglia</value></data>
   <data name="Capture_ThresholdKb" xml:space="preserve"><value>Soglia (KB)</value></data>

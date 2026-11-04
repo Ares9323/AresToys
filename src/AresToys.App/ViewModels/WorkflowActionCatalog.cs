@@ -699,6 +699,11 @@ public static class WorkflowActionCatalog
             "Bring the previous window snapped into the same zone as the foreground window to the front. Needs Window snapping to be on.",
             "Actions"),
 
+        new("arestoys.peek-toggle",
+            "Peek",
+            "Preview the file selected in the Explorer window in front. Run it again with Peek open to preview the new selection. Needs the Peek module to be on.",
+            "Actions"),
+
         new("arestoys.open-screenshot-folder",
             "Open screenshot folder",
             "Open the configured capture folder (Settings → Capture) in Windows Explorer.",

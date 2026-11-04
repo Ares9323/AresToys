@@ -6,6 +6,7 @@ public static class SatelliteModuleNames
 {
     public const string Wormholes = "wormholes";
     public const string Launcher = "launcher";
+    public const string Peek = "peek";
 }
 
 /// <summary>A feature that runs inside the satellite process (the non elevated copy of AresToys). To add one:

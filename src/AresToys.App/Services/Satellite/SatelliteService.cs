@@ -32,6 +32,11 @@ public sealed class SatelliteService : IDisposable
     /// <summary>The pipe server. It starts listening with the first <see cref="Apply"/> that finds a module enabled.</summary>
     public SatelliteServer Server { get; }
 
+    /// <summary>Raised on a pool thread at the end of every <see cref="Apply"/> pass with the module names that are
+    /// enabled now (empty when none). Main side pieces that only make sense while a satellite module runs, like the
+    /// Peek hotkey, follow the switch through this instead of reading the settings a second time. Handlers must not throw.</summary>
+    public event Action<IReadOnlyList<string>>? ModulesApplied;
+
     /// <summary>Reads which satellite modules are enabled and starts or stops the satellite to match. Returns at once
     /// (the work runs on the thread pool), is safe to call from any thread and as often as a setting changes: calls
     /// are serialised and starting an already running satellite with the same module set does nothing. When the set
@@ -69,6 +74,8 @@ public sealed class SatelliteService : IDisposable
                     _manager.Stop();
                     _runningModules = null;
                 }
+
+                ModulesApplied?.Invoke(modules);
             }
             finally
             {
@@ -82,17 +89,20 @@ public sealed class SatelliteService : IDisposable
     }
 
     /// <summary>The same keys and defaults the main app uses for its module switches (<see cref="ModuleSettings"/>):
-    /// the Launcher is on unless saved as false, Wormholes are off unless saved as true.</summary>
+    /// the Launcher is on unless saved as false, Wormholes and Peek are off unless saved as true.</summary>
     private async Task<List<string>> ReadEnabledModulesAsync()
     {
         var launcherRaw = await _settings.GetAsync(ModuleSettings.LauncherKey, CancellationToken.None).ConfigureAwait(false);
         var wormholesRaw = await _settings.GetAsync(ModuleSettings.WormholesKey, CancellationToken.None).ConfigureAwait(false);
+        var peekRaw = await _settings.GetAsync(ModuleSettings.PeekKey, CancellationToken.None).ConfigureAwait(false);
 
         var modules = new List<string>();
         if (string.Equals(wormholesRaw, "true", StringComparison.OrdinalIgnoreCase))
             modules.Add(SatelliteModuleNames.Wormholes);
         if (!string.Equals(launcherRaw, "false", StringComparison.OrdinalIgnoreCase))
             modules.Add(SatelliteModuleNames.Launcher);
+        if (string.Equals(peekRaw, "true", StringComparison.OrdinalIgnoreCase))
+            modules.Add(SatelliteModuleNames.Peek);
         return modules;
     }
 

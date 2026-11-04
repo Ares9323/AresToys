@@ -16,6 +16,7 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
     private const string JpegQualityKey = "capture.jpeg_quality";
     private const string AutoJpegKey = "capture.auto_jpeg";
     private const string AutoJpegThresholdKbKey = "capture.auto_jpeg_threshold_kb";
+    private const string RecordingControlsPositionKey = "capture.recording_controls_position";
     private const string ExternalEditorKey = "editor.external_command";
     private const string DefaultFolder = "%USERPROFILE%\\Pictures\\AresToys";
 
@@ -97,6 +98,11 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
     [ObservableProperty]
     private string _externalEditorCommand = string.Empty;
 
+    /// <summary>Where the controller (timer, Stop, Pause, Abort) sits on the recording overlay:
+    /// "top-center" (default), "top-left", "bottom-left", "bottom-center" or "bottom-right". Persisted to <c>capture.recording_controls_position</c>.</summary>
+    [ObservableProperty]
+    private string _recordingControlsPosition = "top-center";
+
     private bool _suppressPersist;
 
     public async Task LoadAsync()
@@ -123,6 +129,9 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
         ExternalEditorCommand = (await _settings.GetAsync(ExternalEditorKey, CancellationToken.None).ConfigureAwait(true)) ?? string.Empty;
         var rawThreshold = await _settings.GetAsync(AutoJpegThresholdKbKey, CancellationToken.None).ConfigureAwait(true);
         AutoJpegThresholdKb = int.TryParse(rawThreshold, out var t) ? Math.Max(64, t) : 2048;
+
+        var rawPos = await _settings.GetAsync(RecordingControlsPositionKey, CancellationToken.None).ConfigureAwait(true);
+        RecordingControlsPosition = rawPos is "top-left" or "bottom-left" or "bottom-center" or "bottom-right" ? rawPos : "top-center";
 
         _suppressPersist = false;
     }
@@ -194,6 +203,12 @@ public sealed partial class CaptureDefaultsViewModel : ObservableObject
     {
         if (_suppressPersist) return;
         _ = _settings.SetAsync(CaptureFileNamer.PatternSettingKey, value, sensitive: false, CancellationToken.None);
+    }
+
+    partial void OnRecordingControlsPositionChanged(string value)
+    {
+        if (_suppressPersist) return;
+        _ = _settings.SetAsync(RecordingControlsPositionKey, value, sensitive: false, CancellationToken.None);
     }
 
     partial void OnImageFormatChanged(string value)

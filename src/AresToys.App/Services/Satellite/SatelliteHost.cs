@@ -69,6 +69,12 @@ public sealed class SatelliteHost : IDisposable
         services.AddSingleton<ColorWheelLauncher>();
         services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeWindowManager, AresToys.App.Services.Wormholes.WormholeWindowManager>();
         services.AddSingleton<ISatelliteModule, WormholesSatelliteModule>();
+
+        // The Peek module: reads the selection of the active Explorer tab and shows the preview window. It needs
+        // nothing beyond the shared services (theme, localization).
+        services.AddSingleton<AresToys.App.Services.Peek.PeekOpenWithStore>();
+        services.AddSingleton<AresToys.App.Services.Peek.PeekKeysStore>();
+        services.AddSingleton<ISatelliteModule, AresToys.App.Services.Peek.PeekSatelliteModule>();
     }
 
     /// <summary>Connects, registers the handlers and starts the modules. False when the satellite must exit: the main

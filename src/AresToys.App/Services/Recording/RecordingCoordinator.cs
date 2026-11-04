@@ -35,6 +35,7 @@ public sealed class RecordingCoordinator
     private const int FpsDefault = 30;
     private const string DefaultFolder = "%USERPROFILE%\\Pictures\\AresToys";
     private const string FolderSettingKey = "capture.folder";
+    private const string RecordingControlsPositionKey = "capture.recording_controls_position";
     private const string SubFolderPatternSettingKey = "capture.subfolder_pattern";
 
     /// <summary>Temp folder under %TEMP% used by pipeline-mode recordings so the raw MP4 exists
@@ -213,10 +214,19 @@ public sealed class RecordingCoordinator
         }
         _activeFormat = format;
 
+        var controlsPosition = (await _settings.GetAsync(RecordingControlsPositionKey, cancellationToken).ConfigureAwait(false)) switch
+        {
+            "top-left" => RecordingControlsPosition.TopLeft,
+            "bottom-left" => RecordingControlsPosition.BottomLeft,
+            "bottom-center" => RecordingControlsPosition.BottomCenter,
+            "bottom-right" => RecordingControlsPosition.BottomRight,
+            _ => RecordingControlsPosition.TopCenter,
+        };
+
         // Show the overlay (red border + timer + Stop/Pause/Abort) on the captured area.
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _overlay = new RecordingOverlayWindow(region.X, region.Y, region.Width, region.Height);
+            _overlay = new RecordingOverlayWindow(region.X, region.Y, region.Width, region.Height, controlsPosition);
             _overlay.StopRequested += (_, _) => _ = StopOnceAsync(null);
             _overlay.PauseRequested += (_, _) => { _recorder.Pause(); _overlay?.SetPausedVisual(true); };
             _overlay.ResumeRequested += (_, _) => { _recorder.Resume(); _overlay?.SetPausedVisual(false); };

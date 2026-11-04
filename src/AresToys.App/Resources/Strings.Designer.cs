@@ -336,6 +336,60 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Recording controls position.
+        /// </summary>
+        public static string Capture_RecordingControlsPosition {
+            get {
+                return ResourceManager.GetString("Capture_RecordingControlsPosition", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Top center.
+        /// </summary>
+        public static string Capture_RecordingControlsTopCenter {
+            get {
+                return ResourceManager.GetString("Capture_RecordingControlsTopCenter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Top left.
+        /// </summary>
+        public static string Capture_RecordingControlsTopLeft {
+            get {
+                return ResourceManager.GetString("Capture_RecordingControlsTopLeft", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom left.
+        /// </summary>
+        public static string Capture_RecordingControlsBottomLeft {
+            get {
+                return ResourceManager.GetString("Capture_RecordingControlsBottomLeft", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom center.
+        /// </summary>
+        public static string Capture_RecordingControlsBottomCenter {
+            get {
+                return ResourceManager.GetString("Capture_RecordingControlsBottomCenter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bottom right.
+        /// </summary>
+        public static string Capture_RecordingControlsBottomRight {
+            get {
+                return ResourceManager.GetString("Capture_RecordingControlsBottomRight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to JPEG quality.
         /// </summary>
         public static string Capture_JpegQuality {
@@ -5451,7 +5505,304 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("Settings_ModuleWormholesTooltip", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Peek.
+        /// </summary>
+        public static string Settings_ModulePeek {
+            get {
+                return ResourceManager.GetString("Settings_ModulePeek", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Press Ctrl+Space on a file in Explorer to preview it..
+        /// </summary>
+        public static string Settings_ModulePeekTooltip {
+            get {
+                return ResourceManager.GetString("Settings_ModulePeekTooltip", resourceCulture);
+            }
+        }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Open in.
+        /// </summary>
+        public static string Peek_OpenIn {
+            get {
+                return ResourceManager.GetString("Peek_OpenIn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to System default app.
+        /// </summary>
+        public static string Peek_OpenInDefault {
+            get {
+                return ResourceManager.GetString("Peek_OpenInDefault", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Peek.
+        /// </summary>
+        public static string Sidebar_Peek {
+            get {
+                return ResourceManager.GetString("Sidebar_Peek", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a file in Explorer and press the shortcut below. Esc or the same shortcut closes it. To use another shortcut as well, map the Peek task in Hotkeys &amp; Workflows..
+        /// </summary>
+        public static string Peek_Hint {
+            get {
+                return ResourceManager.GetString("Peek_Hint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open in programs.
+        /// </summary>
+        public static string Peek_ProgramsTitle {
+            get {
+                return ResourceManager.GetString("Peek_ProgramsTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The programs Peek can open a file with. Enter opens the file with the Windows default app; the assigned-app key opens it with the program assigned to its extension..
+        /// </summary>
+        public static string Peek_ProgramsHint {
+            get {
+                return ResourceManager.GetString("Peek_ProgramsHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Associations.
+        /// </summary>
+        public static string Peek_AssociationsTitle {
+            get {
+                return ResourceManager.GetString("Peek_AssociationsTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pick the program for each extension. A .* row is used for every extension without its own row..
+        /// </summary>
+        public static string Peek_AssociationsHint {
+            get {
+                return ResourceManager.GetString("Peek_AssociationsHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Name.
+        /// </summary>
+        public static string Peek_Name {
+            get {
+                return ResourceManager.GetString("Peek_Name", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Program.
+        /// </summary>
+        public static string Peek_Program {
+            get {
+                return ResourceManager.GetString("Peek_Program", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Arguments.
+        /// </summary>
+        public static string Peek_Arguments {
+            get {
+                return ResourceManager.GetString("Peek_Arguments", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use %f for the file; empty means %f..
+        /// </summary>
+        public static string Peek_ArgumentsHint {
+            get {
+                return ResourceManager.GetString("Peek_ArgumentsHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Browse.
+        /// </summary>
+        public static string Peek_Browse {
+            get {
+                return ResourceManager.GetString("Peek_Browse", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add.
+        /// </summary>
+        public static string Peek_Add {
+            get {
+                return ResourceManager.GetString("Peek_Add", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Edit.
+        /// </summary>
+        public static string Peek_Edit {
+            get {
+                return ResourceManager.GetString("Peek_Edit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove.
+        /// </summary>
+        public static string Peek_Remove {
+            get {
+                return ResourceManager.GetString("Peek_Remove", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        public static string Peek_Save {
+            get {
+                return ResourceManager.GetString("Peek_Save", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        public static string Peek_Cancel {
+            get {
+                return ResourceManager.GetString("Peek_Cancel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension.
+        /// </summary>
+        public static string Peek_Extension {
+            get {
+                return ResourceManager.GetString("Peek_Extension", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Programs (*.exe)|*.exe|All files (*.*)|*.*.
+        /// </summary>
+        public static string Peek_BrowseFilter {
+            get {
+                return ResourceManager.GetString("Peek_BrowseFilter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not save the Peek settings: {0}.
+        /// </summary>
+        public static string Peek_ErrorSave {
+            get {
+                return ResourceManager.GetString("Peek_ErrorSave", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a name and a program..
+        /// </summary>
+        public static string Peek_ErrorNeedNameAndProgram {
+            get {
+                return ResourceManager.GetString("Peek_ErrorNeedNameAndProgram", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter an extension such as .jpg, or .* for every extension..
+        /// </summary>
+        public static string Peek_ErrorExtension {
+            get {
+                return ResourceManager.GetString("Peek_ErrorExtension", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Shortcut.
+        /// </summary>
+        public static string Peek_Shortcut {
+            get {
+                return ResourceManager.GetString("Peek_Shortcut", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Opens and closes Peek in an Explorer file list. A single key such as Space works too..
+        /// </summary>
+        public static string Peek_ShortcutHint {
+            get {
+                return ResourceManager.GetString("Peek_ShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open in assigned app.
+        /// </summary>
+        public static string Peek_OpenKey {
+            get {
+                return ResourceManager.GetString("Peek_OpenKey", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to While Peek is open: opens the file in the program assigned to its extension, or in the default app..
+        /// </summary>
+        public static string Peek_OpenKeyHint {
+            get {
+                return ResourceManager.GetString("Peek_OpenKeyHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Change.
+        /// </summary>
+        public static string Peek_Change {
+            get {
+                return ResourceManager.GetString("Peek_Change", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This key is used to move inside Peek..
+        /// </summary>
+        public static string Peek_ErrorKeyNavigation {
+            get {
+                return ResourceManager.GetString("Peek_ErrorKeyNavigation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A mouse button cannot be used here..
+        /// </summary>
+        public static string Peek_ErrorKeyMouse {
+            get {
+                return ResourceManager.GetString("Peek_ErrorKeyMouse", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The two keys must differ..
+        /// </summary>
+        public static string Peek_ErrorKeysSame {
+            get {
+                return ResourceManager.GetString("Peek_ErrorKeysSame", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Start minimized.
         /// </summary>
@@ -7600,6 +7951,24 @@ namespace AresToys.App.Resources {
         public static string WorkflowActionParam_arestoys_window_snapping_set_layout_monitor {
             get {
                 return ResourceManager.GetString("WorkflowActionParam_arestoys_window_snapping_set_layout_monitor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Peek.
+        /// </summary>
+        public static string WorkflowAction_arestoys_peek_toggle {
+            get {
+                return ResourceManager.GetString("WorkflowAction_arestoys_peek_toggle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview the file selected in the Explorer window in front.
+        /// </summary>
+        public static string WorkflowActionDesc_arestoys_peek_toggle {
+            get {
+                return ResourceManager.GetString("WorkflowActionDesc_arestoys_peek_toggle", resourceCulture);
             }
         }
 

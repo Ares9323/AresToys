@@ -5,6 +5,7 @@
                  xmlns:vm="clr-namespace:AresToys.App.ViewModels"
                  xmlns:Markup="clr-namespace:AresToys.App.Markup"
                  xmlns:behaviors="clr-namespace:AresToys.App.Behaviors"
+                 xmlns:views="clr-namespace:AresToys.App.Views"
                  Title="AresToys"
                  Icon="pack://application:,,,/Assets/icon.ico"
                  Width="900" Height="600"
@@ -316,6 +317,11 @@
                            Content="{Markup:Loc Sidebar_NewPlus}"
                            Command="{Binding ShowNewPlusCommand}"
                            Appearance="{Binding IsNewPlusSelected, Converter={StaticResource BoolToAppearance}}" />
+                <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                           Margin="0,0,0,4"
+                           Content="{Markup:Loc Sidebar_Peek}"
+                           Command="{Binding ShowPeekCommand}"
+                           Appearance="{Binding IsPeekSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
                            Content="{Markup:Loc Sidebar_WormholesSettings}"
@@ -1293,6 +1299,17 @@
                           SelectedItem="{Binding Capture.ImageFormat, Mode=TwoWay}"
                           HorizontalAlignment="Left" Width="160" Margin="0,0,0,8" />
 
+                <TextBlock Text="{Markup:Loc Capture_RecordingControlsPosition}" FontWeight="SemiBold" Margin="0,4,0,4" />
+                <ComboBox SelectedValuePath="Tag"
+                          SelectedValue="{Binding Capture.RecordingControlsPosition, Mode=TwoWay}"
+                          HorizontalAlignment="Left" Width="160" Margin="0,0,0,8">
+                    <ComboBoxItem Tag="top-center" Content="{Markup:Loc Capture_RecordingControlsTopCenter}" />
+                    <ComboBoxItem Tag="top-left" Content="{Markup:Loc Capture_RecordingControlsTopLeft}" />
+                    <ComboBoxItem Tag="bottom-left" Content="{Markup:Loc Capture_RecordingControlsBottomLeft}" />
+                    <ComboBoxItem Tag="bottom-center" Content="{Markup:Loc Capture_RecordingControlsBottomCenter}" />
+                    <ComboBoxItem Tag="bottom-right" Content="{Markup:Loc Capture_RecordingControlsBottomRight}" />
+                </ComboBox>
+
                 <TextBlock Text="{Markup:Loc Capture_JpegQuality}" FontWeight="SemiBold" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
@@ -2107,6 +2124,9 @@
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
+
+            <!-- Peek: module switch, "Open in" programs and extension associations. The view scrolls itself. -->
+            <views:PeekSettingsView Visibility="{Binding IsPeekSelected, Converter={StaticResource BoolToVisibility}}" />
 
             <!-- Window snapping: drag a window while holding Shift to snap it into a layout zone.
                  Switch, layout editor entry and the look of the overlay shown while dragging. -->

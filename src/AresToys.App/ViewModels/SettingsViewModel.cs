@@ -22,6 +22,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private const string LauncherModuleKey   = ModuleSettings.LauncherKey;
     private const string WormholesModuleKey  = ModuleSettings.WormholesKey;
     private const string KeySequencesModuleKey = ModuleSettings.KeySequencesKey;
+    private const string PeekModuleKey = ModuleSettings.PeekKey;
     private readonly AutostartService _autostart;
     private readonly ElevationService _elevation;
     private readonly ISettingsStore _settingsStore;
@@ -48,6 +49,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DictationViewModel dictation,
         WindowSnappingViewModel windowSnapping,
         NewPlusViewModel newPlus,
+        PeekSettingsViewModel peek,
         PopupWindowViewModel clipboardVm,
         AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings,
         AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime,
@@ -70,6 +72,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         Dictation = dictation;
         WindowSnapping = windowSnapping;
         NewPlus = newPlus;
+        Peek = peek;
         // Initial state mirrors Task Scheduler — the on-disk task is the single source of truth
         // for the autostart toggle.
         _suppressAutostartPersist = true;
@@ -129,6 +132,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public DictationViewModel Dictation { get; }
     public WindowSnappingViewModel WindowSnapping { get; }
     public NewPlusViewModel NewPlus { get; }
+    public PeekSettingsViewModel Peek { get; }
 
     [ObservableProperty]
     private SettingsTab _selectedTab = SettingsTab.Hotkeys;
@@ -294,6 +298,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _wormholesModuleEnabled;
 
+    /// <summary>Bound to the Settings → Modules "Peek" toggle (Ctrl+Space file preview in Explorer).
+    /// Defaults OFF: only a stored "true" turns it on.</summary>
+    [ObservableProperty]
+    private bool _peekModuleEnabled;
+
     /// <summary>Bound to the Settings → Modules "Key Sequences" toggle. Defaults OFF — the module
     /// installs a global keyboard stream listener when enabled, so opt-in only. Toggle persists
     /// immediately; takes effect at next launch (the listener install path runs once at startup).</summary>
@@ -339,6 +348,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private bool _suppressClipboardModulePersist;
     private bool _suppressLauncherModulePersist;
     private bool _suppressWormholesModulePersist;
+    private bool _suppressPeekModulePersist;
     private bool _suppressKeySequencesModulePersist;
     private bool _suppressKeySequencesPositionPersist;
 
@@ -439,6 +449,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _suppressWormholesModulePersist = true;
         try { WormholesModuleEnabled = string.Equals(rawWormholesModule, "true", StringComparison.OrdinalIgnoreCase); }
         finally { _suppressWormholesModulePersist = false; }
+
+        var rawPeekModule = await _settingsStore.GetAsync(PeekModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressPeekModulePersist = true;
+        try { PeekModuleEnabled = string.Equals(rawPeekModule, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressPeekModulePersist = false; }
 
         var rawKeySequencesModule = await _settingsStore.GetAsync(KeySequencesModuleKey, CancellationToken.None).ConfigureAwait(true);
         _suppressKeySequencesModulePersist = true;
@@ -561,6 +576,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         ModulesRestartRequired = true;
     }
 
+    // Peek restarts by itself on Apply (the satellite follows the key), so no restart hint.
+    partial void OnPeekModuleEnabledChanged(bool value)
+    {
+        if (_suppressPeekModulePersist) return;
+        _ = PersistModuleAndApplySatelliteAsync(PeekModuleKey, value);
+    }
+
     /// <summary>Saves a module switch, then lets the satellite follow it. The save is awaited first because
     /// <see cref="AresToys.App.Services.Satellite.SatelliteService.Apply"/> reads the switches from the store.</summary>
     private async Task PersistModuleAndApplySatelliteAsync(string key, bool value)
@@ -610,6 +632,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public bool IsDictationSelected => SelectedTab == SettingsTab.Dictation;
     public bool IsWindowSnappingSelected => SelectedTab == SettingsTab.WindowSnapping;
     public bool IsNewPlusSelected => SelectedTab == SettingsTab.NewPlus;
+    public bool IsPeekSelected => SelectedTab == SettingsTab.Peek;
     public bool IsSettingsSelected   => SelectedTab == SettingsTab.Settings;
     public bool IsDebugSelected     => SelectedTab == SettingsTab.Debug;
     public bool IsAboutSelected     => SelectedTab == SettingsTab.About;
@@ -628,6 +651,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(IsDictationSelected));
         OnPropertyChanged(nameof(IsWindowSnappingSelected));
         OnPropertyChanged(nameof(IsNewPlusSelected));
+        OnPropertyChanged(nameof(IsPeekSelected));
         OnPropertyChanged(nameof(IsSettingsSelected));
         OnPropertyChanged(nameof(IsDebugSelected));
         OnPropertyChanged(nameof(IsAboutSelected));
@@ -638,6 +662,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (value == SettingsTab.Dictation) _ = Dictation.LoadAsync();
         if (value == SettingsTab.WindowSnapping) _ = WindowSnapping.LoadAsync();
         if (value == SettingsTab.NewPlus) _ = NewPlus.LoadAsync();
+        if (value == SettingsTab.Peek) _ = Peek.LoadAsync();
     }
 
     [RelayCommand] private void ShowUploaders() => SelectedTab = SettingsTab.Uploaders;
@@ -650,9 +675,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand] private void ShowDictation() => SelectedTab = SettingsTab.Dictation;
     [RelayCommand] private void ShowWindowSnapping() => SelectedTab = SettingsTab.WindowSnapping;
     [RelayCommand] private void ShowNewPlus() => SelectedTab = SettingsTab.NewPlus;
+    [RelayCommand] private void ShowPeek() => SelectedTab = SettingsTab.Peek;
     [RelayCommand] private void ShowSettings()   => SelectedTab = SettingsTab.Settings;
     [RelayCommand] private void ShowDebug()     => SelectedTab = SettingsTab.Debug;
     [RelayCommand] private void ShowAbout()     => SelectedTab = SettingsTab.About;
 }
 
-public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, Dictation, WindowSnapping, NewPlus, Wormholes, Settings, Debug, About }
+public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, Dictation, WindowSnapping, NewPlus, Peek, Wormholes, Settings, Debug, About }
