@@ -498,8 +498,12 @@ public partial class EditorWindow : FluentWindow
         PopulateTipStyleCombo(SelLineTipStyleCombo);
 
         // Footer.
-        if (_labels.TryGetValue("Undo", out var undo)) UndoButton.Content = undo;
-        if (_labels.TryGetValue("Redo", out var redo)) RedoButton.Content = redo;
+        if (_labels.TryGetValue("TooltipUndo", out var tUndo)) UndoButton.ToolTip = tUndo;
+        if (_labels.TryGetValue("TooltipRedo", out var tRedo)) RedoButton.ToolTip = tRedo;
+        if (_labels.TryGetValue("TooltipZoomOut", out var tZoomOut)) ZoomOutButton.ToolTip = tZoomOut;
+        if (_labels.TryGetValue("TooltipZoomIn", out var tZoomIn)) ZoomInButton.ToolTip = tZoomIn;
+        if (_labels.TryGetValue("TooltipZoomReset", out var tZoomReset)) ZoomResetButton.ToolTip = tZoomReset;
+        if (_labels.TryGetValue("TooltipZoomLevel", out var tZoomLevel)) ZoomLabelBox.ToolTip = tZoomLevel;
 
         // Re-run RefreshPropertyPanel so dynamic strings (panel title, effect labels) pick up
         // the new dictionary on the next paint — the populate path reads through Loc() now.
@@ -3720,11 +3724,19 @@ public partial class EditorWindow : FluentWindow
     /// with the active tool's current style so the user sees the values their next shape gets.
     /// Shows what a selection of that tool's shapes would (rotation aside), sourced from the
     /// style instead of a concrete shape; editing a control writes that style.</summary>
+    /// <summary>With a fill the swatch is the shape's outline; without one (line, arrow, freehand) it is the
+    /// colour of the stroke itself, so it says so.</summary>
+    private void UpdateOutlineLabel()
+        => SelOutlineLabel.Text = SelFillSection.Visibility == Visibility.Visible
+            ? Loc("Outline", "Outline")
+            : Loc("StrokeColor", "Stroke color");
+
     private void ApplyToolDefaultsToPanel(ShapeCategory category)
     {
         var style = _vm.Styles.Current(_vm.CurrentTool);
         SelOutlineSection.Visibility = category.Outline ? Visibility.Visible : Visibility.Collapsed;
         SelFillSection.Visibility    = category.Fill    ? Visibility.Visible : Visibility.Collapsed;
+        UpdateOutlineLabel();
         SelOutlineFillRow.Visibility = (category.Outline || category.Fill) ? Visibility.Visible : Visibility.Collapsed;
         SelStrokeSection.Visibility  = category.Stroke  ? Visibility.Visible : Visibility.Collapsed;
         SelTextStyleSection.Visibility = category.Text  ? Visibility.Visible : Visibility.Collapsed;
@@ -5510,6 +5522,7 @@ public partial class EditorWindow : FluentWindow
         // Hide the Fill block when no selected shape supports fill (arrows/lines/freehand/text).
         var anyFillCapable = sels.Any(ShapeSupportsFill);
         SelFillSection.Visibility = anyFillCapable ? Visibility.Visible : Visibility.Collapsed;
+        UpdateOutlineLabel();
 
         // Hide outline + stroke for text-only selections (text uses Style.Color and FontSize).
         var anyOutlineCapable = sels.Any(ShapeSupportsOutline);

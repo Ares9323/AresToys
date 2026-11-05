@@ -675,6 +675,9 @@
   <data name="Settings_ModulePeekTooltip" xml:space="preserve"><value>Press Ctrl+Space on a file in Explorer to preview it.</value></data>
   <data name="Peek_OpenIn" xml:space="preserve"><value>Open in</value></data>
   <data name="Peek_OpenInDefault" xml:space="preserve"><value>System default app</value></data>
+  <data name="Peek_Lines" xml:space="preserve"><value>{0} lines</value></data>
+  <data name="Peek_Truncated" xml:space="preserve"><value>Showing only the first {0}</value></data>
+  <data name="Peek_NoWebView" xml:space="preserve"><value>Install the WebView2 Runtime to preview this file.</value></data>
   <data name="Sidebar_Peek" xml:space="preserve"><value>Peek</value></data>
   <data name="Peek_Hint" xml:space="preserve"><value>Select a file in Explorer and press the shortcut below. Esc or the same shortcut closes it. To use another shortcut as well, map the Peek task in Hotkeys &amp; Workflows.</value></data>
   <data name="Peek_Shortcut" xml:space="preserve"><value>Shortcut</value></data>
@@ -1258,7 +1261,7 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Editor_SaveAs" xml:space="preserve"><value>Save as…</value></data>
   <data name="Editor_TooltipSave" xml:space="preserve"><value>Confirm / copy to clipboard. Adds the edited image as a new history item and pushes it to the Windows clipboard so you can paste it. The original is preserved.</value></data>
   <data name="Editor_TooltipSaveAs" xml:space="preserve"><value>Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.</value></data>
-  <data name="Editor_TooltipCancel" xml:space="preserve"><value>Discard edits and close. The original stays in history; the Windows clipboard is not changed.</value></data>
+  <data name="Editor_TooltipCancel" xml:space="preserve"><value>Discard edits and close. The original stays in history; the Windows clipboard is not changed. (Esc)</value></data>
   <data name="Editor_Outline" xml:space="preserve"><value>Outline</value></data>
   <data name="Editor_Fill" xml:space="preserve"><value>Fill</value></data>
   <data name="Editor_Text" xml:space="preserve"><value>Text</value></data>
@@ -1278,33 +1281,40 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Editor_SpotlightDim" xml:space="preserve"><value>Spotlight dim (%)</value></data>
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Spotlight blur (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Smooth stroke</value></data>
-  <data name="Editor_StartCap" xml:space="preserve"><value>Start cap</value></data>
-  <data name="Editor_EndCap" xml:space="preserve"><value>End cap</value></data>
+  <data name="Editor_StartCap" xml:space="preserve"><value>Start</value></data>
+  <data name="Editor_EndCap" xml:space="preserve"><value>End</value></data>
   <data name="Editor_TipStyle" xml:space="preserve"><value>Tip style</value></data>
-  <data name="Editor_TipStyle_ShareXCurve" xml:space="preserve"><value>ShareX curve</value></data>
+  <data name="Editor_TipStyle_ShareXCurve" xml:space="preserve"><value>Curved</value></data>
+  <data name="Editor_StrokeColor" xml:space="preserve"><value>Stroke color</value></data>
   <data name="Editor_TipStyle_FilledTriangle" xml:space="preserve"><value>Filled triangle</value></data>
   <data name="Editor_TooltipSmoothStroke" xml:space="preserve"><value>Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke.</value></data>
   <data name="Editor_TooltipStartCap" xml:space="preserve"><value>Add an arrowhead at the start of the line / freehand stroke, oriented along the tangent at that endpoint.</value></data>
   <data name="Editor_TooltipEndCap" xml:space="preserve"><value>Add an arrowhead at the end of the line / freehand stroke, oriented along the tangent at that endpoint.</value></data>
-  <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Visual style of the cap geometry — ShareX curve (V with concave base, integrates with stroke) or solid filled triangle.</value></data>
+  <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Shape of the tip: Curved (a V with a concave base that blends into the stroke) or a solid filled triangle.</value></data>
   <data name="Editor_Undo" xml:space="preserve"><value>Undo</value></data>
   <data name="Editor_Redo" xml:space="preserve"><value>Redo</value></data>
+  <data name="Editor_TooltipUndo" xml:space="preserve"><value>Undo (Ctrl+Z)</value></data>
+  <data name="Editor_TooltipRedo" xml:space="preserve"><value>Redo (Ctrl+Y)</value></data>
+  <data name="Editor_TooltipZoomOut" xml:space="preserve"><value>Zoom out</value></data>
+  <data name="Editor_TooltipZoomIn" xml:space="preserve"><value>Zoom in</value></data>
+  <data name="Editor_TooltipZoomReset" xml:space="preserve"><value>Actual size (1:1)</value></data>
+  <data name="Editor_TooltipZoomLevel" xml:space="preserve"><value>Current zoom</value></data>
   <!-- Tool palette tooltips. The leading shortcut letter (V/R/E/L/A/F/T/N/I/B/X/O/K/C) is part
        of the localised string so translators can keep or drop the hint as needed. -->
-  <data name="Editor_Tool_Select" xml:space="preserve"><value>V Select</value></data>
-  <data name="Editor_Tool_Rectangle" xml:space="preserve"><value>R Rectangle</value></data>
-  <data name="Editor_Tool_Ellipse" xml:space="preserve"><value>E Ellipse</value></data>
-  <data name="Editor_Tool_Line" xml:space="preserve"><value>L Line</value></data>
-  <data name="Editor_Tool_Arrow" xml:space="preserve"><value>A Arrow</value></data>
-  <data name="Editor_Tool_Freehand" xml:space="preserve"><value>F Freehand</value></data>
-  <data name="Editor_Tool_Text" xml:space="preserve"><value>T Text</value></data>
-  <data name="Editor_Tool_Step" xml:space="preserve"><value>S Step counter</value></data>
-  <data name="Editor_Tool_Image" xml:space="preserve"><value>I Image</value></data>
-  <data name="Editor_Tool_Blur" xml:space="preserve"><value>B Blur</value></data>
-  <data name="Editor_Tool_Pixelate" xml:space="preserve"><value>X Pixelate</value></data>
-  <data name="Editor_Tool_Spotlight" xml:space="preserve"><value>O Spotlight</value></data>
-  <data name="Editor_Tool_SmartEraser" xml:space="preserve"><value>K Smart eraser — fills the rect with a bilinear gradient of the 4 corner colors</value></data>
-  <data name="Editor_Tool_Crop" xml:space="preserve"><value>C Crop</value></data>
+  <data name="Editor_Tool_Select" xml:space="preserve"><value>Select (V)</value></data>
+  <data name="Editor_Tool_Rectangle" xml:space="preserve"><value>Rectangle (R)</value></data>
+  <data name="Editor_Tool_Ellipse" xml:space="preserve"><value>Ellipse (E)</value></data>
+  <data name="Editor_Tool_Line" xml:space="preserve"><value>Line (L)</value></data>
+  <data name="Editor_Tool_Arrow" xml:space="preserve"><value>Arrow (A)</value></data>
+  <data name="Editor_Tool_Freehand" xml:space="preserve"><value>Freehand (F)</value></data>
+  <data name="Editor_Tool_Text" xml:space="preserve"><value>Text (T)</value></data>
+  <data name="Editor_Tool_Step" xml:space="preserve"><value>Step counter (S)</value></data>
+  <data name="Editor_Tool_Image" xml:space="preserve"><value>Image (I)</value></data>
+  <data name="Editor_Tool_Blur" xml:space="preserve"><value>Blur (B)</value></data>
+  <data name="Editor_Tool_Pixelate" xml:space="preserve"><value>Pixelate (X)</value></data>
+  <data name="Editor_Tool_Spotlight" xml:space="preserve"><value>Spotlight (O)</value></data>
+  <data name="Editor_Tool_SmartEraser" xml:space="preserve"><value>Smart Eraser (K)</value></data>
+  <data name="Editor_Tool_Crop" xml:space="preserve"><value>Crop (C)</value></data>
   <data name="Editor_Tool_Resize" xml:space="preserve"><value>Resize…</value></data>
   <data name="Editor_Tool_Trace" xml:space="preserve"><value>Trace to SVG…</value></data>
   <data name="Editor_Tool_MagicEraser" xml:space="preserve"><value>Remove background…</value></data>

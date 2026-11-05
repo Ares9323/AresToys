@@ -1605,7 +1605,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to End cap.
+        ///   Looks up a localized string similar to End.
         /// </summary>
         public static string Editor_EndCap {
             get {
@@ -1949,7 +1949,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Start cap.
+        ///   Looks up a localized string similar to Start.
         /// </summary>
         public static string Editor_StartCap {
             get {
@@ -2021,11 +2021,20 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ShareX curve.
+        ///   Looks up a localized string similar to Curved.
         /// </summary>
         public static string Editor_TipStyle_ShareXCurve {
             get {
                 return ResourceManager.GetString("Editor_TipStyle_ShareXCurve", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stroke color.
+        /// </summary>
+        public static string Editor_StrokeColor {
+            get {
+                return ResourceManager.GetString("Editor_StrokeColor", resourceCulture);
             }
         }
         
@@ -2039,7 +2048,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A Arrow.
+        ///   Looks up a localized string similar to Arrow (A).
         /// </summary>
         public static string Editor_Tool_Arrow {
             get {
@@ -2048,7 +2057,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to B Blur.
+        ///   Looks up a localized string similar to Blur (B).
         /// </summary>
         public static string Editor_Tool_Blur {
             get {
@@ -2057,7 +2066,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to C Crop.
+        ///   Looks up a localized string similar to Crop (C).
         /// </summary>
         public static string Editor_Tool_Crop {
             get {
@@ -2066,7 +2075,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to E Ellipse.
+        ///   Looks up a localized string similar to Ellipse (E).
         /// </summary>
         public static string Editor_Tool_Ellipse {
             get {
@@ -2075,7 +2084,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to F Freehand.
+        ///   Looks up a localized string similar to Freehand (F).
         /// </summary>
         public static string Editor_Tool_Freehand {
             get {
@@ -2084,7 +2093,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to I Image.
+        ///   Looks up a localized string similar to Image (I).
         /// </summary>
         public static string Editor_Tool_Image {
             get {
@@ -2093,7 +2102,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to L Line.
+        ///   Looks up a localized string similar to Line (L).
         /// </summary>
         public static string Editor_Tool_Line {
             get {
@@ -2111,7 +2120,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to X Pixelate.
+        ///   Looks up a localized string similar to Pixelate (X).
         /// </summary>
         public static string Editor_Tool_Pixelate {
             get {
@@ -2120,7 +2129,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to R Rectangle.
+        ///   Looks up a localized string similar to Rectangle (R).
         /// </summary>
         public static string Editor_Tool_Rectangle {
             get {
@@ -2138,7 +2147,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to V Select.
+        ///   Looks up a localized string similar to Select (V).
         /// </summary>
         public static string Editor_Tool_Select {
             get {
@@ -2147,7 +2156,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to K Smart eraser — fills the rect with a bilinear gradient of the 4 corner colors.
+        ///   Looks up a localized string similar to Smart Eraser (K).
         /// </summary>
         public static string Editor_Tool_SmartEraser {
             get {
@@ -2156,7 +2165,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to O Spotlight.
+        ///   Looks up a localized string similar to Spotlight (O).
         /// </summary>
         public static string Editor_Tool_Spotlight {
             get {
@@ -2165,7 +2174,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to S Step counter.
+        ///   Looks up a localized string similar to Step counter (S).
         /// </summary>
         public static string Editor_Tool_Step {
             get {
@@ -2174,7 +2183,7 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to T Text.
+        ///   Looks up a localized string similar to Text (T).
         /// </summary>
         public static string Editor_Tool_Text {
             get {
@@ -2265,6 +2274,60 @@ namespace AresToys.App.Resources {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Undo (Ctrl+Z).
+        /// </summary>
+        public static string Editor_TooltipUndo {
+            get {
+                return ResourceManager.GetString("Editor_TooltipUndo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Redo (Ctrl+Y).
+        /// </summary>
+        public static string Editor_TooltipRedo {
+            get {
+                return ResourceManager.GetString("Editor_TooltipRedo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Zoom out.
+        /// </summary>
+        public static string Editor_TooltipZoomOut {
+            get {
+                return ResourceManager.GetString("Editor_TooltipZoomOut", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Zoom in.
+        /// </summary>
+        public static string Editor_TooltipZoomIn {
+            get {
+                return ResourceManager.GetString("Editor_TooltipZoomIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Actual size (1:1).
+        /// </summary>
+        public static string Editor_TooltipZoomReset {
+            get {
+                return ResourceManager.GetString("Editor_TooltipZoomReset", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Current zoom.
+        /// </summary>
+        public static string Editor_TooltipZoomLevel {
+            get {
+                return ResourceManager.GetString("Editor_TooltipZoomLevel", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Add noise.
         /// </summary>
@@ -5555,6 +5618,33 @@ namespace AresToys.App.Resources {
         public static string Peek_OpenInDefault {
             get {
                 return ResourceManager.GetString("Peek_OpenInDefault", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} lines.
+        /// </summary>
+        public static string Peek_Lines {
+            get {
+                return ResourceManager.GetString("Peek_Lines", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Showing only the first {0}.
+        /// </summary>
+        public static string Peek_Truncated {
+            get {
+                return ResourceManager.GetString("Peek_Truncated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Install the WebView2 Runtime to preview this file.
+        /// </summary>
+        public static string Peek_NoWebView {
+            get {
+                return ResourceManager.GetString("Peek_NoWebView", resourceCulture);
             }
         }
 

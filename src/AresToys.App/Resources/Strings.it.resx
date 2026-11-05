@@ -662,6 +662,9 @@
   <data name="Settings_ModulePeekTooltip" xml:space="preserve"><value>Premi Ctrl+Spazio su un file in Esplora risorse per vederne l'anteprima.</value></data>
   <data name="Peek_OpenIn" xml:space="preserve"><value>Apri con</value></data>
   <data name="Peek_OpenInDefault" xml:space="preserve"><value>App predefinita di sistema</value></data>
+  <data name="Peek_Lines" xml:space="preserve"><value>{0} righe</value></data>
+  <data name="Peek_Truncated" xml:space="preserve"><value>Mostrati solo i primi {0}</value></data>
+  <data name="Peek_NoWebView" xml:space="preserve"><value>Installa WebView2 Runtime per vedere l'anteprima di questo file.</value></data>
   <data name="Sidebar_Peek" xml:space="preserve"><value>Peek</value></data>
   <data name="Peek_Hint" xml:space="preserve"><value>Seleziona un file in Esplora risorse e premi la scorciatoia qui sotto. Esc o la stessa scorciatoia lo chiude. Per usare anche un'altra scorciatoia, associa il task Peek in Scorciatoie e workflow.</value></data>
   <data name="Peek_Shortcut" xml:space="preserve"><value>Scorciatoia</value></data>
@@ -1194,7 +1197,7 @@ I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano 
   <data name="Editor_SaveAs" xml:space="preserve"><value>Salva con nome…</value></data>
   <data name="Editor_TooltipSave" xml:space="preserve"><value>Conferma / copia nella clipboard. Aggiunge l'immagine modificata come nuovo elemento della cronologia e la mette nella clipboard di Windows pronta per l'incolla. L'originale viene preservato.</value></data>
   <data name="Editor_TooltipSaveAs" xml:space="preserve"><value>Esporta su un file scelto da te. Il formato dipende dal filtro del dialogo (PNG / JPEG / BMP / GIF). Non tocca la cronologia.</value></data>
-  <data name="Editor_TooltipCancel" xml:space="preserve"><value>Annulla le modifiche e chiudi. L'originale resta in cronologia; la clipboard di Windows non viene modificata.</value></data>
+  <data name="Editor_TooltipCancel" xml:space="preserve"><value>Annulla le modifiche e chiudi. L'originale resta in cronologia; la clipboard di Windows non viene modificata. (Esc)</value></data>
   <data name="Editor_Outline" xml:space="preserve"><value>Contorno</value></data>
   <data name="Editor_Fill" xml:space="preserve"><value>Riempimento</value></data>
   <data name="Editor_Text" xml:space="preserve"><value>Testo</value></data>
@@ -1214,31 +1217,38 @@ I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano 
   <data name="Editor_SpotlightDim" xml:space="preserve"><value>Oscuramento riflettore (%)</value></data>
   <data name="Editor_SpotlightBlur" xml:space="preserve"><value>Sfocatura riflettore (px)</value></data>
   <data name="Editor_SmoothStroke" xml:space="preserve"><value>Tratto fluido</value></data>
-  <data name="Editor_StartCap" xml:space="preserve"><value>Punta inizio</value></data>
-  <data name="Editor_EndCap" xml:space="preserve"><value>Punta fine</value></data>
+  <data name="Editor_StartCap" xml:space="preserve"><value>Inizio</value></data>
+  <data name="Editor_EndCap" xml:space="preserve"><value>Fine</value></data>
   <data name="Editor_TipStyle" xml:space="preserve"><value>Stile punta</value></data>
-  <data name="Editor_TipStyle_ShareXCurve" xml:space="preserve"><value>Curva ShareX</value></data>
+  <data name="Editor_TipStyle_ShareXCurve" xml:space="preserve"><value>Curva</value></data>
+  <data name="Editor_StrokeColor" xml:space="preserve"><value>Colore tratto</value></data>
   <data name="Editor_TipStyle_FilledTriangle" xml:space="preserve"><value>Triangolo pieno</value></data>
   <data name="Editor_TooltipSmoothStroke" xml:space="preserve"><value>Applica il taglio degli angoli Chaikin + il rendering Catmull-Rom per rimuovere il tremolio della mano da questo tratto.</value></data>
   <data name="Editor_TooltipStartCap" xml:space="preserve"><value>Aggiunge una punta a freccia all'inizio della linea / tratto a mano libera, orientata lungo la tangente a quell'estremità.</value></data>
   <data name="Editor_TooltipEndCap" xml:space="preserve"><value>Aggiunge una punta a freccia alla fine della linea / tratto a mano libera, orientata lungo la tangente a quell'estremità.</value></data>
-  <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Stile geometrico della punta — curva ShareX (V con base concava, si integra con il tratto) o triangolo pieno solido.</value></data>
+  <data name="Editor_TooltipTipStyle" xml:space="preserve"><value>Forma della punta: Curva (una V con base concava che si fonde con il tratto) o un triangolo pieno.</value></data>
   <data name="Editor_Undo" xml:space="preserve"><value>Annulla</value></data>
   <data name="Editor_Redo" xml:space="preserve"><value>Ripeti</value></data>
-  <data name="Editor_Tool_Select" xml:space="preserve"><value>V Seleziona</value></data>
-  <data name="Editor_Tool_Rectangle" xml:space="preserve"><value>R Rettangolo</value></data>
-  <data name="Editor_Tool_Ellipse" xml:space="preserve"><value>E Ellisse</value></data>
-  <data name="Editor_Tool_Line" xml:space="preserve"><value>L Linea</value></data>
-  <data name="Editor_Tool_Arrow" xml:space="preserve"><value>A Freccia</value></data>
-  <data name="Editor_Tool_Freehand" xml:space="preserve"><value>F Mano libera</value></data>
-  <data name="Editor_Tool_Text" xml:space="preserve"><value>T Testo</value></data>
-  <data name="Editor_Tool_Step" xml:space="preserve"><value>S Contatore</value></data>
-  <data name="Editor_Tool_Image" xml:space="preserve"><value>I Immagine</value></data>
-  <data name="Editor_Tool_Blur" xml:space="preserve"><value>B Sfocatura</value></data>
-  <data name="Editor_Tool_Pixelate" xml:space="preserve"><value>X Pixel</value></data>
-  <data name="Editor_Tool_Spotlight" xml:space="preserve"><value>O Riflettore</value></data>
-  <data name="Editor_Tool_SmartEraser" xml:space="preserve"><value>K Gomma intelligente — riempie il riquadro con un gradiente bilineare dei 4 colori d'angolo</value></data>
-  <data name="Editor_Tool_Crop" xml:space="preserve"><value>C Ritaglia</value></data>
+  <data name="Editor_TooltipUndo" xml:space="preserve"><value>Annulla modifica (Ctrl+Z)</value></data>
+  <data name="Editor_TooltipRedo" xml:space="preserve"><value>Ripeti (Ctrl+Y)</value></data>
+  <data name="Editor_TooltipZoomOut" xml:space="preserve"><value>Riduci</value></data>
+  <data name="Editor_TooltipZoomIn" xml:space="preserve"><value>Ingrandisci</value></data>
+  <data name="Editor_TooltipZoomReset" xml:space="preserve"><value>Dimensione reale (1:1)</value></data>
+  <data name="Editor_TooltipZoomLevel" xml:space="preserve"><value>Zoom attuale</value></data>
+  <data name="Editor_Tool_Select" xml:space="preserve"><value>Seleziona (V)</value></data>
+  <data name="Editor_Tool_Rectangle" xml:space="preserve"><value>Rettangolo (R)</value></data>
+  <data name="Editor_Tool_Ellipse" xml:space="preserve"><value>Ellisse (E)</value></data>
+  <data name="Editor_Tool_Line" xml:space="preserve"><value>Linea (L)</value></data>
+  <data name="Editor_Tool_Arrow" xml:space="preserve"><value>Freccia (A)</value></data>
+  <data name="Editor_Tool_Freehand" xml:space="preserve"><value>Mano libera (F)</value></data>
+  <data name="Editor_Tool_Text" xml:space="preserve"><value>Testo (T)</value></data>
+  <data name="Editor_Tool_Step" xml:space="preserve"><value>Contatore (S)</value></data>
+  <data name="Editor_Tool_Image" xml:space="preserve"><value>Immagine (I)</value></data>
+  <data name="Editor_Tool_Blur" xml:space="preserve"><value>Sfocatura (B)</value></data>
+  <data name="Editor_Tool_Pixelate" xml:space="preserve"><value>Pixel (X)</value></data>
+  <data name="Editor_Tool_Spotlight" xml:space="preserve"><value>Riflettore (O)</value></data>
+  <data name="Editor_Tool_SmartEraser" xml:space="preserve"><value>Gomma intelligente (K)</value></data>
+  <data name="Editor_Tool_Crop" xml:space="preserve"><value>Ritaglia (C)</value></data>
   <data name="Editor_Tool_Resize" xml:space="preserve"><value>Ridimensiona…</value></data>
   <data name="Editor_Tool_Trace" xml:space="preserve"><value>Vettorizza in SVG…</value></data>
   <data name="Editor_Tool_MagicEraser" xml:space="preserve"><value>Rimuovi sfondo…</value></data>
