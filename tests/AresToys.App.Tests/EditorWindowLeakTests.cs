@@ -20,11 +20,15 @@ public class EditorWindowLeakTests
         {
             try
             {
-                // The editor XAML needs the app's merged theme dictionaries and pack:// resources.
+                // The editor XAML needs the app's theme dictionaries. A plain Application with AppResources merged:
+                // an AresToys.App.App would run its whole OnStartup (elevation, database, hooks, tray) on the first drain.
                 if (Application.Current is null)
                 {
-                    var app = new AresToys.App.App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                    app.InitializeComponent();
+                    var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                    app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                    {
+                        Source = new Uri("pack://application:,,,/AresToys;component/AppResources.xaml", UriKind.Absolute),
+                    });
                 }
                 var weak = OpenAndCloseEditor();
                 for (var i = 0; i < 5 && weak.IsAlive; i++)
