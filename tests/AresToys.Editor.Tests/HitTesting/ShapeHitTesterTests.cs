@@ -17,15 +17,15 @@ public class ShapeHitTesterTests
     }
 
     [Fact]
-    public void RectangleNoFill_WholeInteriorIsHittable()
+    public void RectangleNoFill_OnlyOutlineBandIsHittable()
     {
-        // A transparent-fill rectangle is grabbable anywhere inside its box (not just on the
-        // thin stroke), so a large empty rect can be selected/dragged without pixel-hunting the
-        // border. Points outside the box still miss.
+        // A transparent-fill rectangle is see-through: only a band around its outline grabs it,
+        // inside or outside the box, so a click in the middle reaches what lies beneath.
         var r = new RectangleShape(10, 10, 100, 50, Red, Tx, 2);
-        Assert.True(ShapeHitTester.IsHit(r, 11, 30));   // near the stroke
-        Assert.True(ShapeHitTester.IsHit(r, 50, 30));   // dead centre (was a miss before the fix)
-        Assert.False(ShapeHitTester.IsHit(r, 200, 30)); // outside → miss
+        Assert.True(ShapeHitTester.IsHit(r, 14, 30, tolerance: 8));   // just inside the left edge
+        Assert.True(ShapeHitTester.IsHit(r, 4, 30, tolerance: 8));    // just outside the left edge
+        Assert.False(ShapeHitTester.IsHit(r, 50, 30, tolerance: 8));  // dead centre: miss
+        Assert.False(ShapeHitTester.IsHit(r, 200, 30, tolerance: 8)); // far outside: miss
     }
 
     [Fact]
@@ -44,14 +44,14 @@ public class ShapeHitTesterTests
     }
 
     [Fact]
-    public void Ellipse_NoFill_WholeInteriorIsHittable()
+    public void Ellipse_NoFill_OnlyOutlineBandIsHittable()
     {
-        // Same fix as the rectangle: a transparent-fill ellipse is grabbable anywhere within its
-        // ellipse area, not just along the perimeter. Points outside the ellipse still miss.
+        // Same rule as the rectangle: a transparent-fill ellipse is grabbed only near its curve.
         var e = new EllipseShape(0, 0, 100, 50, Red, Tx, 2);
-        Assert.True(ShapeHitTester.IsHit(e, 100, 25));  // on the right vertex
-        Assert.True(ShapeHitTester.IsHit(e, 50, 25));   // centre (was a miss before the fix)
-        Assert.False(ShapeHitTester.IsHit(e, 2, 2));    // corner, outside the ellipse → miss
+        Assert.True(ShapeHitTester.IsHit(e, 100, 25, tolerance: 8));  // on the right vertex
+        Assert.True(ShapeHitTester.IsHit(e, 95, 25, tolerance: 8));   // just inside the curve
+        Assert.False(ShapeHitTester.IsHit(e, 50, 25, tolerance: 8));  // centre: miss
+        Assert.False(ShapeHitTester.IsHit(e, 0, 0, tolerance: 8));    // box corner, outside: miss
     }
 
     [Fact]

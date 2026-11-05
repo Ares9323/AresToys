@@ -66,6 +66,9 @@ public partial class EditorWindow : FluentWindow
     // _editingTextShape is non-null only when modifying an existing TextShape.
     private System.Windows.Controls.TextBox? _activeTextBox;
     private TextShape? _editingTextShape;
+    // Pixels beneath each effect (screenshot + the shapes placed before it), cached by shape identity.
+    // Assigned first thing in the constructor, before anything can ask for a redraw.
+    private readonly AresToys.Editor.Rendering.BeneathComposer _beneath;
     // Live outline preview drawn behind the inline editor so "text with an outline" previews the
     // real crisp geometry while typing, not just a soft glow. Built via the same CreateOutlinedText
     // used for the committed shape, so preview == result. Rebuilt on every keystroke.
@@ -120,6 +123,7 @@ public partial class EditorWindow : FluentWindow
 
     public EditorWindow(EditorViewModel viewModel, AresToys.Core.Imaging.IImageEncoder? encoder = null)
     {
+        _beneath = new AresToys.Editor.Rendering.BeneathComposer(MakeUiElement);
         InitializeComponent();
         _vm = viewModel;
         DataContext = _vm;
@@ -1699,7 +1703,7 @@ public partial class EditorWindow : FluentWindow
                 }
             }
 
-            var hit = ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y);
+            var hit = ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y, HitTolerance);
             if (hit is not null)
             {
                 if (e.ClickCount == 2 && hit is TextShape ts)
@@ -1787,7 +1791,7 @@ public partial class EditorWindow : FluentWindow
         {
             var shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
             var fromTool = _vm.CurrentTool;
-            var sameTypeHit = HitTestShapeOfType(_vm.Shapes, expectedType, p.X, p.Y);
+            var sameTypeHit = HitTestShapeOfType(_vm.Shapes, expectedType, p.X, p.Y, HitTolerance);
             if (sameTypeHit is not null)
             {
                 CommitPendingLiveEdit();
@@ -1798,7 +1802,7 @@ public partial class EditorWindow : FluentWindow
             }
             if (_vm.AltClickFallback == AltClickFallback.SelectAny)
             {
-                var anyHit = ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y);
+                var anyHit = ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y, HitTolerance);
                 if (anyHit is not null)
                 {
                     CommitPendingLiveEdit();
@@ -1842,11 +1846,11 @@ public partial class EditorWindow : FluentWindow
     /// <summary>Top-down hit test that only considers shapes whose runtime type matches
     /// <paramref name="t"/>. Iterates back-to-front (last = top) so the topmost matching shape
     /// wins on overlap, mirroring <see cref="ShapeHitTester.HitTest"/>'s own ordering.</summary>
-    private static Shape? HitTestShapeOfType(IReadOnlyList<Shape> shapes, Type t, double px, double py)
+    private static Shape? HitTestShapeOfType(IReadOnlyList<Shape> shapes, Type t, double px, double py, double tolerance)
     {
         for (var i = shapes.Count - 1; i >= 0; i--)
         {
-            if (shapes[i].GetType() == t && ShapeHitTester.IsHit(shapes[i], px, py))
+            if (shapes[i].GetType() == t && ShapeHitTester.IsHit(shapes[i], px, py, tolerance))
                 return shapes[i];
         }
         return null;
@@ -2036,16 +2040,23 @@ public partial class EditorWindow : FluentWindow
         return false;
     }
 
+    /// <summary>Grab zone around outlines in canvas units: a constant on screen at any zoom.</summary>
+    private double HitTolerance => ShapeHitTester.ScreenTolerance / _zoom;
+
     private void UpdateCursorForGripHover(System.Windows.Point p)
     {
-        if (_vm.CurrentTool != EditorTool.Select || _vm.SelectedShapes.Count != 1)
+        if (_vm.CurrentTool != EditorTool.Select)
         {
             if (DrawingCanvas.Cursor != null) DrawingCanvas.Cursor = null;
             return;
         }
-        var sel = _vm.SelectedShapes[0];
-        var rotOffset = sel is RectangleShape or EllipseShape or TextShape ? 25.0 / _zoom : 0;
-        var grip = ShapeGripLayout.HitTest(sel, p.X, p.Y, ShapeGripLayout.DefaultHitTolerance / _zoom, rotOffset);
+        var grip = GripKind.None;
+        if (_vm.SelectedShapes.Count == 1)
+        {
+            var sel = _vm.SelectedShapes[0];
+            var rotOffset = sel is RectangleShape or EllipseShape or TextShape ? 25.0 / _zoom : 0;
+            grip = ShapeGripLayout.HitTest(sel, p.X, p.Y, ShapeGripLayout.DefaultHitTolerance / _zoom, rotOffset);
+        }
         Cursor? c = grip switch
         {
             GripKind.TopLeft or GripKind.BottomRight or GripKind.Resize => Cursors.SizeNWSE,
@@ -2056,7 +2067,8 @@ public partial class EditorWindow : FluentWindow
             GripKind.Rotate => Cursors.Cross,
             GripKind.Bend => Cursors.Hand,
             GripKind.Tail => Cursors.Hand,
-            _ => null
+            // No grip under the pointer: move cursor over anything a click would grab.
+            _ => ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y, HitTolerance) is not null ? Cursors.SizeAll : null
         };
         if (DrawingCanvas.Cursor != c) DrawingCanvas.Cursor = c;
     }
@@ -2227,7 +2239,7 @@ public partial class EditorWindow : FluentWindow
         // RMB semantics (e.g. scrollbar context menu) we shouldn't override.
         if (IsScrollBarOrInputControl(e.OriginalSource as DependencyObject)) return;
 
-        var hit = ShapeHitTester.HitTest(_vm.Shapes, e.GetPosition(DrawingCanvas).X, e.GetPosition(DrawingCanvas).Y);
+        var hit = ShapeHitTester.HitTest(_vm.Shapes, e.GetPosition(DrawingCanvas).X, e.GetPosition(DrawingCanvas).Y, HitTolerance);
         if (hit is StepCounterShape step)
         {
             CommitPendingLiveEdit();
@@ -4154,27 +4166,22 @@ public partial class EditorWindow : FluentWindow
     private void RedrawAll()
     {
         DrawingCanvas.Children.Clear();
-        // Effects (blur / pixelate / spotlight / smart-eraser) render BELOW annotations
-        // regardless of insertion order. Without this split, dropping a blur over an
-        // existing arrow visually erases the arrow because the blur's UIElement is just a
-        // cropped+blurred copy of the source pixels — it doesn't include the annotation
-        // layer above. The two-pass render keeps arrows / text / step counters always on
-        // top of effects, matching what the user expects ("the blur should leave my
-        // arrows visible"). Relative order WITHIN each bucket is preserved so stacking
-        // two effects (or two annotations) still respects the user's z-stacking.
-        foreach (var shape in _vm.Shapes)
+        // One pass in creation order (true layers): every shape sits on top of the ones before it.
+        // An effect (blur / pixelate / spotlight / smart-eraser) works on what is beneath it at that
+        // point (screenshot, earlier annotations, earlier effects), so it is built from the
+        // composite of the shapes before it, not from the bare screenshot.
+        var shapes = VisibleShapes();
+        var source = SourceImage.Source as BitmapSource;
+        for (var i = 0; i < shapes.Count; i++)
         {
-            if (ReferenceEquals(shape, _editingTextShape)) continue;
-            if (!IsEffectShape(shape)) continue;
-            DrawingCanvas.Children.Add(MakeUiElement(shape));
-        }
-        foreach (var shape in _vm.Shapes)
-        {
-            if (ReferenceEquals(shape, _editingTextShape)) continue;
-            if (IsEffectShape(shape)) continue;
-            DrawingCanvas.Children.Add(MakeUiElement(shape));
+            var shape = shapes[i];
+            var beneath = source is not null && AresToys.Editor.Rendering.BeneathComposer.IsEffect(shape)
+                ? _beneath.Beneath(source, shapes, i)
+                : null;
+            DrawingCanvas.Children.Add(MakeUiElement(shape, beneath));
         }
         RedrawPreview();
+        _beneath.Trim();
         RefreshSelectionAdorner();
         // Pending-crop overlay sits on TOP of shapes + adorners + preview so the dim shading
         // applies uniformly and the action buttons are clickable. Redrawn after the standard
@@ -4190,8 +4197,11 @@ public partial class EditorWindow : FluentWindow
         }
     }
 
-    private static bool IsEffectShape(Shape s) =>
-        s is BlurShape or PixelateShape or SpotlightShape or SmartEraserShape;
+    /// <summary>The shapes the canvas draws, in creation order. The text being edited inline is left
+    /// out: the live TextBox stands in for it, and effects placed after it do not see it until the
+    /// edit is committed.</summary>
+    private List<Shape> VisibleShapes() =>
+        _vm.Shapes.Where(s => !ReferenceEquals(s, _editingTextShape)).ToList();
 
     private void RedrawPreview()
     {
@@ -4215,7 +4225,15 @@ public partial class EditorWindow : FluentWindow
             }
             return;
         }
-        var ui = MakeUiElement(_vm.PreviewShape);
+        // A preview effect is the topmost shape: it works on everything currently on the canvas.
+        BitmapSource? beneath = null;
+        if (AresToys.Editor.Rendering.BeneathComposer.IsEffect(_vm.PreviewShape)
+            && SourceImage.Source is BitmapSource previewSource)
+        {
+            var below = VisibleShapes();
+            beneath = _beneath.Beneath(previewSource, below, below.Count);
+        }
+        var ui = MakeUiElement(_vm.PreviewShape, beneath);
         if (ui is FrameworkElement fe1) fe1.Tag = "preview";
         DrawingCanvas.Children.Add(ui);
     }
@@ -4481,8 +4499,13 @@ public partial class EditorWindow : FluentWindow
         return (minX, minY, maxX - minX, maxY - minY);
     }
 
-    private UIElement MakeUiElement(Shape shape)
+    /// <summary><paramref name="beneath"/> is the composite under an effect shape (screenshot plus the
+    /// shapes placed before it, see <see cref="AresToys.Editor.Rendering.BeneathComposer"/>). Callers
+    /// that draw a shape outside the layer stack (selection copy) pass none and an effect reads the
+    /// original screenshot.</summary>
+    private UIElement MakeUiElement(Shape shape, BitmapSource? beneath = null)
     {
+        var under = beneath ?? SourceImage.Source as BitmapSource;
         UIElement ui = shape switch
         {
             RectangleShape r => CreateRectangle(r),
@@ -4491,11 +4514,11 @@ public partial class EditorWindow : FluentWindow
             FreehandShape f => CreateFreehand(f),
             TextShape t => CreateText(t),
             StepCounterShape c => CreateStepCounter(c),
-            BlurShape b => CreateBlur(b),
-            PixelateShape p => CreatePixelate(p),
-            SpotlightShape s => CreateSpotlight(s),
+            BlurShape b => CreateBlur(b, under),
+            PixelateShape p => CreatePixelate(p, under),
+            SpotlightShape s => CreateSpotlight(s, under),
             ImageShape i => CreateImage(i),
-            SmartEraserShape se => CreateSmartEraser(se),
+            SmartEraserShape se => CreateSmartEraser(se, under),
             _ => throw new NotSupportedException($"Unknown shape kind: {shape.GetType().Name}")
         };
         // Drawn shapes never intercept clicks: hit-testing happens geometrically via ShapeHitTester.
@@ -5117,9 +5140,9 @@ public partial class EditorWindow : FluentWindow
         _ => System.Windows.TextAlignment.Left
     };
 
-    private UIElement CreateBlur(BlurShape b)
+    private static UIElement CreateBlur(BlurShape b, BitmapSource? src)
     {
-        if (SourceImage.Source is not BitmapSource src) return EmptyRectFor(b.X, b.Y, b.Width, b.Height);
+        if (src is null) return EmptyRectFor(b.X, b.Y, b.Width, b.Height);
         // Crop the source to the rect so the BlurEffect operates only on the relevant region —
         // applying it to the full-size image and clipping creates an offset halo.
         var ix = (int)Math.Max(0, Math.Floor(b.X));
@@ -5148,9 +5171,9 @@ public partial class EditorWindow : FluentWindow
         return img;
     }
 
-    private UIElement CreatePixelate(PixelateShape p)
+    private static UIElement CreatePixelate(PixelateShape p, BitmapSource? src)
     {
-        if (SourceImage.Source is not BitmapSource src) return EmptyRectFor(p.X, p.Y, p.Width, p.Height);
+        if (src is null) return EmptyRectFor(p.X, p.Y, p.Width, p.Height);
         var blockSize = Math.Max(2, p.BlockSize);
         var ix = (int)Math.Max(0, Math.Floor(p.X));
         var iy = (int)Math.Max(0, Math.Floor(p.Y));
@@ -5177,10 +5200,10 @@ public partial class EditorWindow : FluentWindow
         return img;
     }
 
-    private UIElement CreateSpotlight(SpotlightShape s)
+    private UIElement CreateSpotlight(SpotlightShape s, BitmapSource? src)
     {
-        var canvasW = DrawingCanvas.Width > 0 ? DrawingCanvas.Width : (SourceImage.Source as BitmapSource)?.PixelWidth ?? 0;
-        var canvasH = DrawingCanvas.Height > 0 ? DrawingCanvas.Height : (SourceImage.Source as BitmapSource)?.PixelHeight ?? 0;
+        var canvasW = DrawingCanvas.Width > 0 ? DrawingCanvas.Width : src?.PixelWidth ?? 0;
+        var canvasH = DrawingCanvas.Height > 0 ? DrawingCanvas.Height : src?.PixelHeight ?? 0;
 
         // Even-odd geometry covers the canvas with a hole at the spotlight rect.
         var outer = new RectangleGeometry(new Rect(0, 0, canvasW, canvasH));
@@ -5195,7 +5218,7 @@ public partial class EditorWindow : FluentWindow
         // Blur layer: instead of one full-size Image with Effect (which produces phantom duplicates
         // because the effect's expanded bounds escape the Clip), crop the four U-strips around the
         // spotlight rect and blur each one in place.
-        if (s.BlurRadius > 0 && SourceImage.Source is BitmapSource src)
+        if (s.BlurRadius > 0 && src is not null)
         {
             var sx = (int)Math.Max(0, Math.Floor(s.X));
             var sy = (int)Math.Max(0, Math.Floor(s.Y));
@@ -5311,11 +5334,11 @@ public partial class EditorWindow : FluentWindow
         return canvas;
     }
 
-    private UIElement CreateSmartEraser(SmartEraserShape s)
+    private static UIElement CreateSmartEraser(SmartEraserShape s, BitmapSource? src)
     {
-        if (SourceImage.Source is not BitmapSource src) return EmptyRectFor(s.X, s.Y, s.Width, s.Height);
+        if (src is null) return EmptyRectFor(s.X, s.Y, s.Width, s.Height);
 
-        // Sample the four corners of the rect from the source bitmap.
+        // Sample the four corners of the rect from the bitmap beneath the eraser.
         var (tl, tr, bl, br) = SampleCornerColors(src, s.X, s.Y, s.Width, s.Height);
 
         // Build a 2×2 BGRA bitmap with the four corner colors. WPF's BitmapScalingMode=Linear
