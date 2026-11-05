@@ -31,6 +31,15 @@ public sealed class SatelliteProcessManager : IDisposable
         _logger = logger;
     }
 
+    /// <summary>The process id of the running satellite, or 0 when none runs.</summary>
+    public int ProcessId
+    {
+        get
+        {
+            lock (_gate) return IsAlive(_process) ? _process!.Id : 0;
+        }
+    }
+
     /// <summary>Starts the satellite for <paramref name="modules"/> on the thread pool and returns at once. Does
     /// nothing when a satellite process is already alive or a start is already on its way.</summary>
     public void EnsureStarted(IReadOnlyCollection<string> modules)

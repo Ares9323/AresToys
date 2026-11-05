@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using AresToys.App.Services.Pins;
 using AresToys.App.Services.Satellite;
 using AresToys.App.Services.Shell;
 
@@ -23,6 +24,7 @@ namespace AresToys.App.Services.Peek;
 public sealed class PeekSatelliteModule : ISatelliteModule
 {
     public const string ShowRequest = "peek.show";
+    public const string HideRequest = "peek.hide";
 
     private Dispatcher? _dispatcher;
     private ILogger? _logger;
@@ -31,6 +33,9 @@ public sealed class PeekSatelliteModule : ISatelliteModule
     private PeekOpenWithConfig? _config;
     private PeekKeysStore? _keysStore;
     private volatile PeekKeys _keys = PeekKeys.Default;
+    private PeekWindowStore? _windowStore;
+    private volatile PeekWindowSettings _windowSettings = PeekWindowSettings.Default;
+    private PeekShowAsStore? _showAsStore;
     private bool _stopped;
 
     /// <summary>The running module of this satellite process, or null while Peek is off. How a Wormhole window reaches Peek
@@ -51,7 +56,10 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         _logger = services.GetService<ILoggerFactory>()?.CreateLogger<PeekSatelliteModule>();
         _openWith = services.GetService<PeekOpenWithStore>();
         _keysStore = services.GetService<PeekKeysStore>();
+        _windowStore = services.GetService<PeekWindowStore>();
+        _showAsStore = services.GetService<PeekShowAsStore>();
         channel.Handle(ShowRequest, OnShowAsync);
+        channel.Handle(HideRequest, OnHideAsync);
         Current = this;
     }
 
@@ -73,6 +81,15 @@ public sealed class PeekSatelliteModule : ISatelliteModule
             _logger?.LogWarning(ex, "Peek module: closing the window failed");
         }
         _window = null;
+    }
+
+    private async Task<JsonElement?> OnHideAsync(JsonElement? data)
+    {
+        var dispatcher = _dispatcher;
+        if (dispatcher is null || _stopped) return Answer(false);
+
+        await dispatcher.InvokeAsync(() => _window?.HidePeek()).Task.ConfigureAwait(false);
+        return Answer(false);
     }
 
     private async Task<JsonElement?> OnShowAsync(JsonElement? data)
@@ -126,6 +143,30 @@ public sealed class PeekSatelliteModule : ISatelliteModule
                 _logger?.LogWarning(ex, "Peek module: reading the Peek keys failed, keeping the last ones");
             }
         }
+
+        if (_showAsStore is not null)
+        {
+            try
+            {
+                PeekShowAs.Apply(await _showAsStore.LoadAsync().ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Peek module: reading the Show as picks failed, keeping the last ones");
+            }
+        }
+
+        if (_windowStore is not null)
+        {
+            try
+            {
+                _windowSettings = await _windowStore.LoadAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Peek module: reading the Peek window settings failed, keeping the last ones");
+            }
+        }
     }
 
     /// <summary>STA thread. The first selected file of the active tab of <paramref name="root"/> and the files around it
@@ -141,13 +182,21 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         return (new[] { file }, 0);
     }
 
-    /// <summary>UI thread only. True when the window is on screen afterwards.</summary>
+    /// <summary>UI thread only. True when the window is on screen afterwards. A visible window that already shows the requested file hides instead (false).</summary>
     private bool ShowWindow(IReadOnlyList<string> files, int index, IntPtr anchor)
     {
         if (_stopped) return false;
 
         var window = EnsureWindow();
+        // The key on the file Peek already shows closes it; another file re-targets the window.
+        if (window.IsVisible && string.Equals(window.CurrentPath, files[Math.Clamp(index, 0, files.Count - 1)], StringComparison.OrdinalIgnoreCase))
+        {
+            window.HidePeek();
+            return false;
+        }
+
         window.Keys = _keys;
+        window.Settings = _windowSettings;
         window.Show(files, index, anchor);
         // The key went to the main app, so this process is not the foreground one and Activate alone may leave the
         // window without keyboard focus (arrows, Esc). The main app granted the right just before the request.
@@ -164,10 +213,48 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         window.OpenRequested += OnOpenRequested;
         window.OpenAssignedRequested += OnOpenAssignedRequested;
         window.OpenInRequested += OnOpenInRequested;
+        window.BoundsRemembered += OnBoundsRemembered;
+        window.ShowAsRequested += OnShowAsRequested;
         window.ProgramsProvider = path => _config is { } cfg ? PeekOpenWithLauncher.GetProgramsFor(cfg, path) : Array.Empty<PeekProgram>();
         window.AssignedProvider = path => _config is { } cfg ? PeekOpenWithLauncher.FindAssigned(cfg, path) : null;
         _window = window;
         return window;
+    }
+
+    /// <summary>An entry of the "Show as" menu: saves the pick of the file's extension (null = Auto removes it), makes it
+    /// the pick Peek uses at once and shows the file again. The window never writes settings itself.</summary>
+    private async void OnShowAsRequested(string path, string? pick)
+    {
+        if (_showAsStore is null) return;
+
+        try
+        {
+            var extension = Path.GetExtension(path);
+            if (extension.Length == 0) return;
+            PeekShowAs.Apply(await _showAsStore.SetAsync(extension, pick).ConfigureAwait(true));
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Peek module: saving the Show as pick failed");
+        }
+
+        _window?.ReloadCurrent();
+    }
+
+    /// <summary>The window was hidden at new bounds: stores them so the next Peek opens there. The window never writes
+    /// settings itself. A failed save is logged and the bounds are lost until the next hide.</summary>
+    private async void OnBoundsRemembered(PixelRect bounds)
+    {
+        if (_windowStore is null) return;
+
+        try
+        {
+            await _windowStore.SaveBoundsAsync(bounds).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Peek module: saving the window bounds failed");
+        }
     }
 
     /// <summary>Enter in the window: opens the file with the Windows default app, like a double click would (this

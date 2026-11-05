@@ -707,6 +707,8 @@
   <data name="Peek_ErrorSave" xml:space="preserve"><value>Could not save the Peek settings: {0}</value></data>
   <data name="Peek_ErrorNeedNameAndProgram" xml:space="preserve"><value>Enter a name and a program.</value></data>
   <data name="Peek_ErrorExtension" xml:space="preserve"><value>Enter an extension such as .jpg, or .* for every extension.</value></data>
+  <data name="Peek_FitToContent" xml:space="preserve"><value>Fit window to content</value></data>
+  <data name="Peek_FitToContentHint" xml:space="preserve"><value>Size the Peek window to the image it shows. Other files open at the last size you used.</value></data>
   <data name="Settings_ModulesRestartHint" xml:space="preserve"><value>Module gates run only at startup — restart to apply.</value></data>
   <data name="Settings_ModulesRestartButton" xml:space="preserve"><value>Restart AresToys</value></data>
   <data name="Settings_EditorAltClickSelectAny" xml:space="preserve"><value>Alt+click selects any shape (not only same type)</value></data>
@@ -1631,4 +1633,19 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="Dictation_ModelFileFilter" xml:space="preserve"><value>Whisper models (*.bin)|*.bin|All files (*.*)|*.*</value></data>
   <data name="Dictation_ModelChosenMissing" xml:space="preserve"><value>The chosen file does not exist: {0}</value></data>
   <data name="Dictation_DownloadModel" xml:space="preserve"><value>Download the model</value></data>
+  <data name="Peek_ShowAs" xml:space="preserve"><value>Show as</value></data>
+  <data name="Peek_ShowAsAuto" xml:space="preserve"><value>Auto</value></data>
+  <data name="Peek_Nav" xml:space="preserve"><value>Browse</value></data>
+  <data name="Peek_NavAll" xml:space="preserve"><value>All</value></data>
+  <data name="Peek_NavFamily" xml:space="preserve"><value>Same family</value></data>
+  <data name="Peek_NavExtension" xml:space="preserve"><value>Same extension</value></data>
+  <data name="Peek_NavHint" xml:space="preserve"><value>Which files of the folder the previous and next buttons go through: all of them, only files of the same family (images, videos, 3D models, ...) or only files with the same extension.</value></data>
+  <data name="Peek_ShowAsText" xml:space="preserve"><value>Text</value></data>
+  <data name="Peek_ShowAsCode" xml:space="preserve"><value>Code</value></data>
+  <data name="Peek_ShowAsShell" xml:space="preserve"><value>Windows preview</value></data>
+  <data name="Peek_ShowAsImage" xml:space="preserve"><value>Image</value></data>
+  <data name="Peek_ShowAsNone" xml:space="preserve"><value>No preview</value></data>
+  <data name="Peek_FileTypesTitle" xml:space="preserve"><value>File types</value></data>
+  <data name="Peek_FileTypesHint" xml:space="preserve"><value>The view you picked with Show as in the Peek footer, for each extension. Remove one to go back to Auto.</value></data>
+  <data name="Peek_FileTypesEmpty" xml:space="preserve"><value>No extension has its own view yet.</value></data>
 </root>

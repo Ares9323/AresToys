@@ -82,6 +82,8 @@ public sealed class PeekHotkey
     {
         if (!_active || _satellite.Server.Current is null) return false;
         var root = NewPlusExplorer.ForegroundRoot();
+        // Peek itself in front: the key closes it, whatever child of the window holds the focus.
+        if (_service.IsPeekWindow(root)) return true;
         var rootClass = NewPlusExplorer.ClassOf(root);
         var isDesktop = rootClass is "Progman" or "WorkerW";
         if (rootClass != "CabinetWClass" && !isDesktop) return false;
@@ -94,5 +96,9 @@ public sealed class PeekHotkey
 
     // The key arrived here, so this process owns the foreground right: PeekService hands it to the satellite on this
     // thread before it sends the request.
-    private void OnPressed() => _ = _service.ToggleAsync(NewPlusExplorer.ForegroundRoot());
+    private void OnPressed()
+    {
+        var root = NewPlusExplorer.ForegroundRoot();
+        _ = _service.IsPeekWindow(root) ? _service.HideAsync() : _service.ToggleAsync(root);
+    }
 }

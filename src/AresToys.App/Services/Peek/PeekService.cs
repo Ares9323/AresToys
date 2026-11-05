@@ -1,14 +1,16 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using AresToys.App.Native;
 using AresToys.App.Services.Satellite;
 
 namespace AresToys.App.Services.Peek;
 
 /// <summary>Asks the Peek module in the non elevated satellite to preview the selection of an Explorer window. The one
 /// place that sends <c>peek.show</c>: the Ctrl+Space key (<see cref="PeekHotkey"/>) and the workflow task
-/// (<c>PeekTask</c>) both go through it. The satellite shows the preview of the active tab's selection, or retargets an
-/// open window to it; the open window closes itself with Ctrl+Space or Esc, so there is no close request.</summary>
+/// (<c>PeekTask</c>) both go through it, and of <c>peek.hide</c>, sent when the Peek key is pressed while Peek itself is
+/// in front. The satellite shows the preview of the active tab's selection, retargets an open window to it, or closes
+/// the window when it already shows that file.</summary>
 public sealed class PeekService
 {
     private const int RequestTimeoutMs = 1500;
@@ -44,6 +46,45 @@ public sealed class PeekService
     {
         HandOffForeground();
         return Task.Run(() => RequestShowAsync(root));
+    }
+
+    /// <summary>True when <paramref name="root"/> is the Peek window: a top-level window of the satellite process with
+    /// the Peek title. Cheap and cached state only (hook thread). Native children of the window (web view, shell
+    /// preview) never change the foreground top-level window, so this holds wherever the focus is inside Peek.</summary>
+    public bool IsPeekWindow(IntPtr root)
+    {
+        var pid = _satellite.SatelliteProcessId;
+        if (pid == 0 || root == IntPtr.Zero) return false;
+        if (AppNativeMethods.GetWindowThreadProcessId(root, out var owner) == 0 || owner != (uint)pid) return false;
+
+        return AppNativeMethods.GetProp(root, PeekWindow.WindowMarker) != IntPtr.Zero;
+    }
+
+    /// <summary>Closes the open Peek window (the Peek key pressed while Peek is in front). Sends <c>peek.hide</c> from
+    /// the pool. A failure is logged; the window stays open then.</summary>
+    public Task HideAsync() => Task.Run(RequestHideAsync);
+
+    private async Task RequestHideAsync()
+    {
+        try
+        {
+            var channel = _satellite.Server.Current;
+            if (channel is null)
+            {
+                _logger.LogWarning("Peek: no satellite connected, nothing to hide");
+                return;
+            }
+
+            var answer = await channel.RequestAsync(PeekSatelliteModule.HideRequest, null, RequestTimeoutMs).ConfigureAwait(false);
+            if (answer is null || !answer.Ok)
+            {
+                _logger.LogWarning("Peek: the satellite did not hide the preview ({Reason})", answer?.Error ?? "no answer");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Peek: asking the satellite to hide the preview failed");
+        }
     }
 
     private async Task<bool> RequestShowAsync(IntPtr root)

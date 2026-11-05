@@ -217,6 +217,8 @@ public partial class App : Application
                 services.AddSingleton<AresToys.App.Services.Peek.PeekHotkey>();
                 services.AddSingleton<AresToys.App.Services.Peek.PeekOpenWithStore>();
                 services.AddSingleton<AresToys.App.Services.Peek.PeekKeysStore>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekWindowStore>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekShowAsStore>();
                 services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>();
                 services.AddAresToysPlugins();
                 services.AddAresToysEditor();

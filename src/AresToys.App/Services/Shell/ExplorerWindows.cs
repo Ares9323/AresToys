@@ -16,6 +16,8 @@ public static class ExplorerWindows
     private const uint GW_HWNDNEXT = 2;
     private const uint GW_CHILD = 5;
     private const uint SVGIO_ALLVIEW = 2;
+    /// <summary>Without it Items returns the folder's internal order, not the order Explorer shows (sort and groups).</summary>
+    private const uint SVGIO_FLAG_VIEWORDER = 0x80000000;
     private const uint SIGDN_FILESYSPATH = 0x80058000;
     private const int SWC_DESKTOP = 0x8;
     private const int SWFO_NEEDDISPATCH = 1;
@@ -182,7 +184,7 @@ public static class ExplorerWindows
             if (browser.QueryActiveShellView(out view) != 0 || view is not IFolderView folderView) return null;
 
             var arrayIid = typeof(IShellItemArray).GUID;
-            if (folderView.Items(SVGIO_ALLVIEW, ref arrayIid, out var arrayPtr) != 0 || arrayPtr == IntPtr.Zero) return null;
+            if (folderView.Items(SVGIO_ALLVIEW | SVGIO_FLAG_VIEWORDER, ref arrayIid, out var arrayPtr) != 0 || arrayPtr == IntPtr.Zero) return null;
             try { array = (IShellItemArray)Marshal.GetObjectForIUnknown(arrayPtr); }
             finally { Marshal.Release(arrayPtr); }
 

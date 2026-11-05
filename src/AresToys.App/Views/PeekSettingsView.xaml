@@ -61,6 +61,24 @@
                     </Grid>
                     <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
                                Text="{Binding Peek.KeyErrorText}" />
+
+                    <!-- The window: fit it to the image shown (off: it opens at the last size and place used). -->
+                    <CheckBox IsChecked="{Binding Peek.FitToContent, Mode=TwoWay}"
+                              Content="{Markup:Loc Peek_FitToContent}"
+                              Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                              HorizontalAlignment="Left" Margin="0,12,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
+                               Text="{Markup:Loc Peek_FitToContentHint}" />
+                    <!-- Browse: which files of the folder previous and next go through. -->
+                    <TextBlock Text="{Markup:Loc Peek_Nav}" FontSize="12" Margin="0,12,0,4" />
+                    <ComboBox ItemsSource="{Binding Peek.BrowseChoices}"
+                              SelectedValuePath="Mode" DisplayMemberPath="Name"
+                              SelectedValue="{Binding Peek.BrowseMode, Mode=TwoWay}"
+                              HorizontalAlignment="Left" MinWidth="200" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
+                               Margin="0,4,0,0" Text="{Markup:Loc Peek_NavHint}" />
+                    <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Text="{Binding Peek.FitErrorText}" />
                 </StackPanel>
             </Border>
 
@@ -192,6 +210,39 @@
                                    Content="{Markup:Loc Peek_Add}"
                                    Command="{Binding Peek.AddAssociationCommand}" />
                     </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Card 4: the views picked with "Show as" in the footer, one row per extension. -->
+            <Border Background="{DynamicResource Surface1Brush}" CornerRadius="4" Padding="14" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="{Markup:Loc Peek_FileTypesTitle}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
+                               Margin="0,0,0,8" Text="{Markup:Loc Peek_FileTypesHint}" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
+                               Text="{Markup:Loc Peek_FileTypesEmpty}"
+                               Visibility="{Binding Peek.NoFileTypes, Converter={StaticResource BoolToVisibility}}" />
+                    <ItemsControl ItemsSource="{Binding Peek.FileTypes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Extension}" VerticalAlignment="Center"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Text="{Binding PickName}" VerticalAlignment="Center" />
+                                    <ui:Button Grid.Column="2" Margin="8,0,0,0" Padding="14,4"
+                                               Content="{Markup:Loc Peek_Remove}"
+                                               Command="{Binding RemoveCommand}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Text="{Binding Peek.FileTypesErrorText}" />
                 </StackPanel>
             </Border>
 

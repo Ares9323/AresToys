@@ -74,6 +74,8 @@ public sealed class SatelliteHost : IDisposable
         // nothing beyond the shared services (theme, localization).
         services.AddSingleton<AresToys.App.Services.Peek.PeekOpenWithStore>();
         services.AddSingleton<AresToys.App.Services.Peek.PeekKeysStore>();
+        services.AddSingleton<AresToys.App.Services.Peek.PeekWindowStore>();
+        services.AddSingleton<AresToys.App.Services.Peek.PeekShowAsStore>();
         services.AddSingleton<ISatelliteModule, AresToys.App.Services.Peek.PeekSatelliteModule>();
     }
 

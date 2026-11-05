@@ -9,8 +9,11 @@ using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
+using AresToys.App.Services.Pins;
 using AresToys.App.Services.Zones;
+using AresToys.Capture;
 using AresToys.Hotkeys;
+using PixelRect = AresToys.App.Services.Pins.PixelRect;
 
 namespace AresToys.App.Services.Peek;
 
@@ -19,28 +22,59 @@ namespace AresToys.App.Services.Peek;
 /// The window is created once and re-used: <see cref="Show(IReadOnlyList{string}, int, IntPtr)"/> shows or
 /// re-targets it, Esc and the close button only hide it, <see cref="Shutdown"/> really closes it.
 /// Images are decoded on the thread pool (<see cref="PeekImageLoader"/>); text, code, Markdown and HTML go through one
-/// web view (<see cref="PeekWebContent"/> builds the page). UI thread only.</summary>
+/// web view (<see cref="PeekWebContent"/> builds the page); any other file with a registered Windows preview handler
+/// is shown by that handler in <see cref="PeekShellPreview"/>. The window can be resized with the mouse and opens at
+/// the bounds it had when it was last hidden (<see cref="BoundsRemembered"/>); with
+/// <see cref="PeekWindowSettings.FitToContent"/> it sizes itself to each image instead. All the sizing is in physical
+/// pixels on the window handle. UI thread only.</summary>
 public partial class PeekWindow : FluentWindow
 {
     private const double WorkAreaFraction = 0.7;
+    private const double FitCapFraction = 0.9;
     private const uint MonitorDefaultToPrimary = 1;
+    private const uint MonitorDefaultToNearest = 2;
     private const uint SwpNoSize = 0x0001;
     private const int MonitorInfoExSize = 104;
 
     private IReadOnlyList<string> _files = Array.Empty<string>();
+    private IReadOnlyList<string> _allFiles = Array.Empty<string>();
+    private PeekBrowseMode _browse;
     private int _index;
     private bool _allowClose;
-    private bool _mouseOver;
+    private PeekNavOverlay? _nav;
     private int _targetPixelWidth;
     private int _version;
     private CancellationTokenSource? _loadCts;
     private Task<bool>? _webReady;
     private bool _webRuntimeMissing;
     private bool _navigationAllowed;
+    private bool _videoShown;
+    private string _videoInfo = string.Empty;
+
+    // Sizing state. _saved: the bounds last stored (or handed to BoundsRemembered). _geometryIsFit: the window has
+    // the size of an image, not the user's; _remembered is then the user's bounds from before (null when never used).
+    private PixelRect? _saved;
+    private PixelRect? _remembered;
+    private bool _geometryIsFit;
+
+    /// <summary>The window title until a file is shown (then the title is the file name).</summary>
+    public const string WindowTitle = "Peek";
+
+    /// <summary>Window property set on the Peek window's handle. The main app recognises Peek as the foreground window by
+    /// it and the satellite's process id, so the toggle key can close it whatever child (web view, shell preview) holds
+    /// the focus. The title cannot serve: it follows the file shown.</summary>
+    public const string WindowMarker = "AresToys.Peek";
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        AresToys.App.Native.AppNativeMethods.SetProp(new WindowInteropHelper(this).Handle, WindowMarker, 1);
+    }
 
     public PeekWindow()
     {
         InitializeComponent();
+        Title = WindowTitle;
         _openInButton = new Wpf.Ui.Controls.Button
         {
             Content = AresToys.App.Resources.Strings.Peek_OpenIn,
@@ -50,9 +84,152 @@ public partial class PeekWindow : FluentWindow
         };
         _openInButton.Click += OnOpenInClick;
         OpenInHost.Content = _openInButton;
+        _showAsButton = new Wpf.Ui.Controls.Button
+        {
+            Icon = new SymbolIcon(SymbolRegular.ChevronDown24),
+            Focusable = false,
+            Visibility = Visibility.Collapsed,
+        };
+        _showAsButton.Click += OnShowAsClick;
+        ShowAsPresenter.Content = _showAsButton;
+        _browseButton = new Wpf.Ui.Controls.Button
+        {
+            Icon = new SymbolIcon(SymbolRegular.ChevronDown24),
+            Focusable = false,
+            Visibility = Visibility.Collapsed,
+        };
+        _browseButton.Click += OnBrowseClick;
+        BrowsePresenter.Content = _browseButton;
+    }
+
+    private readonly Wpf.Ui.Controls.Button _browseButton;
+
+    /// <summary>The "Browse" button names the mode; it shows only when the folder has more than one file.</summary>
+    private void UpdateBrowseButton()
+    {
+        _browseButton.Content = AresToys.App.Resources.Strings.Peek_Nav + ": " + PeekBrowse.DisplayName(_browse);
+        _browseButton.Visibility = _allFiles.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnBrowseClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = _browseButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+        foreach (var mode in new[] { PeekBrowseMode.All, PeekBrowseMode.Family, PeekBrowseMode.Extension })
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = PeekBrowse.DisplayName(mode), IsChecked = mode == _browse };
+            item.Click += (_, _) => ChooseBrowse(mode);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    /// <summary>A mode picked in the footer: the list is filtered again around the current file (still shown, no reload),
+    /// the counter and chevrons follow, and the choice is saved.</summary>
+    private void ChooseBrowse(PeekBrowseMode mode)
+    {
+        if (mode == _browse) return;
+        _browse = mode;
+        ApplyBrowse(CurrentPath);
+        CounterText.Text = _files.Count == 0 ? string.Empty : string.Format(CultureInfo.CurrentCulture, "{0} / {1}", _index + 1, _files.Count);
+        UpdateChevrons();
+        UpdateBrowseButton();
+        Settings.SaveBrowse?.Invoke(mode);
+    }
+
+    /// <summary>Sets <see cref="_files"/> and <see cref="_index"/> from the whole folder list by the browse mode, around
+    /// <paramref name="current"/>.</summary>
+    private void ApplyBrowse(string? current)
+    {
+        (_files, _index) = PeekBrowse.Filter(_allFiles, current, _browse);
     }
 
     private readonly Wpf.Ui.Controls.Button _openInButton;
+    private readonly Wpf.Ui.Controls.Button _showAsButton;
+
+    /// <summary>Raised when an entry of the "Show as" menu is chosen: the file and the pick id (<see cref="PeekShowAs"/>),
+    /// null for Auto. The module saves the pick, then calls <see cref="ReloadCurrent"/>.</summary>
+    public event Action<string, string?>? ShowAsRequested;
+
+    /// <summary>Shows the current file again from scratch (a "Show as" pick changed).</summary>
+    public void ReloadCurrent()
+    {
+        if (IsVisible && CurrentPath is not null)
+        {
+            ShowCurrent();
+        }
+    }
+
+    /// <summary>The "Show as" button: hidden for a file with no extension or a video, else it names the current pick.</summary>
+    private void UpdateShowAsButton(string? path, PeekPreviewKind kind)
+    {
+        if (path is null || Path.GetExtension(path).Length == 0 || kind == PeekPreviewKind.Video)
+        {
+            _showAsButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var pick = PeekShowAs.PickFor(path);
+        _showAsButton.Content = AresToys.App.Resources.Strings.Peek_ShowAs + ": "
+            + (pick is null ? AresToys.App.Resources.Strings.Peek_ShowAsAuto : PeekShowAs.DisplayName(pick));
+        _showAsButton.Visibility = Visibility.Visible;
+    }
+
+    private void OnShowAsClick(object sender, RoutedEventArgs e)
+    {
+        if (CurrentPath is not { } path) return;
+        var current = PeekShowAs.PickFor(path);
+        var menu = new ContextMenu { PlacementTarget = _showAsButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+
+        System.Windows.Controls.MenuItem Entry(string header, string? pick, bool isChecked)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = header, IsChecked = isChecked };
+            item.Click += (_, _) => ShowAsRequested?.Invoke(path, pick);
+            return item;
+        }
+
+        menu.Items.Add(Entry($"{AresToys.App.Resources.Strings.Peek_ShowAsAuto} ({AutoKindName(path)})", null, current is null));
+        menu.Items.Add(new Separator());
+        foreach (var pick in PeekShowAs.BasicPicks)
+        {
+            menu.Items.Add(Entry(PeekShowAs.DisplayName(pick), pick, current == pick));
+        }
+
+        var code = new System.Windows.Controls.MenuItem
+        {
+            Header = AresToys.App.Resources.Strings.Peek_ShowAsCode,
+            IsChecked = current?.StartsWith(PeekShowAs.CodePrefix, StringComparison.Ordinal) == true,
+        };
+        foreach (var language in PeekPreview.CodeLanguageChoices)
+        {
+            var pick = PeekShowAs.CodePrefix + language.Id;
+            code.Items.Add(Entry(language.DisplayName, pick, current == pick));
+        }
+
+        menu.Items.Add(code);
+        if (PeekPreview.PreviewHandlerFor(path) is not null)
+        {
+            menu.Items.Add(Entry(PeekShowAs.DisplayName(PeekShowAs.Shell), PeekShowAs.Shell, current == PeekShowAs.Shell));
+        }
+
+        if (PeekPreview.CanDecodeAsImage(path))
+        {
+            menu.Items.Add(Entry(PeekShowAs.DisplayName(PeekShowAs.Image), PeekShowAs.Image, current == PeekShowAs.Image));
+        }
+
+        menu.IsOpen = true;
+    }
+
+    /// <summary>What the built-in rules would show the file as, for the "Auto (...)" entry: the language for code.</summary>
+    private static string AutoKindName(string path) => PeekPreview.AutoKindFor(path) switch
+    {
+        PeekPreviewKind.Code => PeekPreview.AutoLanguageFor(path).DisplayName,
+        PeekPreviewKind.Markdown => "Markdown",
+        PeekPreviewKind.Html => "HTML",
+        PeekPreviewKind.Image => AresToys.App.Resources.Strings.Peek_ShowAsImage,
+        PeekPreviewKind.Shell => AresToys.App.Resources.Strings.Peek_ShowAsShell,
+        _ => AresToys.App.Resources.Strings.Peek_ShowAsNone,
+    };
 
     /// <summary>Gives the programs of the "Open in" menu for a file path (the assigned one first). The window knows
     /// nothing about where they come from. Null or an empty list hides the button.</summary>
@@ -72,6 +249,14 @@ public partial class PeekWindow : FluentWindow
     /// Settings applies to the next Peek.</summary>
     public PeekKeys Keys { get; set; } = PeekKeys.Default;
 
+    /// <summary>The saved bounds and the fit option; the module sets them before each <see cref="Show"/>, so a change
+    /// saved in Settings applies to the next Peek.</summary>
+    public PeekWindowSettings Settings { get; set; } = PeekWindowSettings.Default;
+
+    /// <summary>Raised with the window's bounds (physical pixels) when the window is hidden or shut down and they differ
+    /// from the saved ones. Never raised for the size of an image the window was fitted to. The module saves them.</summary>
+    public event Action<PixelRect>? BoundsRemembered;
+
     /// <summary>The file shown now, or null when the list is empty.</summary>
     public string? CurrentPath => _index >= 0 && _index < _files.Count ? _files[_index] : null;
 
@@ -79,12 +264,15 @@ public partial class PeekWindow : FluentWindow
     public ContentPresenter OpenInHost => OpenInPresenter;
 
     /// <summary>Shows the window (or re-targets it when already visible) on <paramref name="files"/> at
-    /// <paramref name="index"/>, sized to about 70% of the work area of the monitor holding
-    /// <paramref name="anchorHwnd"/> (the primary monitor when it is zero) and centered on it.</summary>
+    /// <paramref name="index"/>. A window that was hidden opens at its saved bounds (kept on a connected monitor), or,
+    /// with none saved or when fitting to an image, at about 70% of the work area of the monitor holding
+    /// <paramref name="anchorHwnd"/> (the primary monitor when it is zero), centered on it. A window already visible
+    /// keeps its place and size.</summary>
     public void Show(IReadOnlyList<string> files, int index, IntPtr anchorHwnd)
     {
-        _files = files;
-        _index = files.Count == 0 ? 0 : Math.Clamp(index, 0, files.Count - 1);
+        _allFiles = files;
+        _browse = Settings.Browse;
+        ApplyBrowse(files.Count == 0 ? null : files[Math.Clamp(index, 0, files.Count - 1)]);
 
         Place(anchorHwnd);
         if (!IsVisible)
@@ -92,6 +280,17 @@ public partial class PeekWindow : FluentWindow
             base.Show();
         }
 
+        if (_nav is null)
+        {
+            _nav = new PeekNavOverlay(this, NavArea);
+            _nav.PreviousClicked += () => MoveTo(_index - 1);
+            _nav.NextClicked += () => MoveTo(_index + 1);
+            LocationChanged += (_, _) => _nav?.Sync();
+            SizeChanged += (_, _) => _nav?.Sync();
+            StateChanged += (_, _) => _nav?.Sync();
+        }
+
+        _nav.Start();
         Activate();
         ShowCurrent();
     }
@@ -100,8 +299,14 @@ public partial class PeekWindow : FluentWindow
     public void Shutdown()
     {
         _allowClose = true;
+        _nav?.Stop();
+        _nav?.Close();
+        _nav = null;
+        RememberBounds();
         CancelLoad();
         PreviewWeb.Dispose();
+        PreviewShell.Dispose();
+        PeekShellPreview.ReleaseFactories();
         Close();
     }
 
@@ -117,9 +322,14 @@ public partial class PeekWindow : FluentWindow
         base.OnClosing(e);
     }
 
-    private void HidePeek()
+    /// <summary>The one way Peek hides: remembers the bounds, cancels a load in flight and hides the window.</summary>
+    public void HidePeek()
     {
+        RememberBounds();
         CancelLoad();
+        PeekShellPreview.StopHelper();
+        StopVideo();
+        _nav?.Stop();
         Hide();
     }
 
@@ -163,24 +373,14 @@ public partial class PeekWindow : FluentWindow
         e.Handled = true;
     }
 
-    /// <summary>The two configurable keys. The window has the focus, so the main app's hook never sees them: the
-    /// toggle shortcut closes the window, the open key asks to open the file in its assigned program. The settings
-    /// refuse the navigation keys, so these never shadow the cases above. Auto-repeat is ignored: a key still held
-    /// from the press that opened Peek must not close it at once. True when the key was one of them.</summary>
+    /// <summary>The open key: asks to open the file in its assigned program. The toggle shortcut is not handled here:
+    /// the main app's global binding owns it (see PeekHotkey), also when the focus is in a native child. The settings
+    /// refuse the navigation keys, so this never shadows the cases above. Auto-repeat is ignored. True when the key
+    /// was the open key.</summary>
     private bool HandleConfiguredKey(Key key, bool isRepeat)
     {
         var vk = (uint)KeyInterop.VirtualKeyFromKey(key);
         var modifiers = CurrentModifiers();
-        if (PeekKeys.Matches(Keys.Toggle, modifiers, vk))
-        {
-            if (!isRepeat)
-            {
-                HidePeek();
-            }
-
-            return true;
-        }
-
         if (PeekKeys.Matches(Keys.OpenAssigned, modifiers, vk))
         {
             if (!isRepeat && CurrentPath is { } path)
@@ -205,23 +405,7 @@ public partial class PeekWindow : FluentWindow
         return result;
     }
 
-    private void OnPrevClick(object sender, RoutedEventArgs e) => MoveTo(_index - 1);
-
-    private void OnNextClick(object sender, RoutedEventArgs e) => MoveTo(_index + 1);
-
-    private void OnRootMouseEnter(object sender, MouseEventArgs e)
-    {
-        _mouseOver = true;
-        UpdateChevrons();
-    }
-
-    private void OnRootMouseLeave(object sender, MouseEventArgs e)
-    {
-        _mouseOver = false;
-        UpdateChevrons();
-    }
-
-    /// <summary>Moves to another file; no wrap-around, so a move past either end does nothing.</summary>
+        /// <summary>Moves to another file; no wrap-around, so a move past either end does nothing.</summary>
     private void MoveTo(int index)
     {
         if (_files.Count == 0 || index < 0 || index >= _files.Count || index == _index)
@@ -272,10 +456,24 @@ public partial class PeekWindow : FluentWindow
     /// <summary>The program assigned to the file's extension, or null; shown in bold in the menu.</summary>
     public Func<string, PeekProgram?>? AssignedProvider { get; set; }
 
-    private void UpdateChevrons()
+    private void UpdateChevrons() => _nav?.SetAvailability(_index > 0, _index < _files.Count - 1);
+
+    /// <summary>The preview area on screen in physical pixels, for the chevron overlay; null while Peek is not shown.</summary>
+    private PeekNavArea? NavArea()
     {
-        PrevButton.Visibility = _mouseOver && _index > 0 ? Visibility.Visible : Visibility.Collapsed;
-        NextButton.Visibility = _mouseOver && _index < _files.Count - 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (!IsVisible || WindowState == WindowState.Minimized || PresentationSource.FromVisual(Viewport) is not { } source)
+        {
+            return null;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(Viewport);
+        var topLeft = Viewport.PointToScreen(new System.Windows.Point(0, 0));
+        return new PeekNavArea(
+            (int)Math.Round(topLeft.X),
+            (int)Math.Round(topLeft.Y),
+            (int)Math.Round(Viewport.ActualWidth * dpi.DpiScaleX),
+            (int)Math.Round(Viewport.ActualHeight * dpi.DpiScaleY),
+            source.CompositionTarget.TransformFromDevice);
     }
 
     /// <summary>Fills the title row for the current file at once and starts the decode; a decode still running for
@@ -283,6 +481,7 @@ public partial class PeekWindow : FluentWindow
     private void ShowCurrent()
     {
         CancelLoad();
+        StopVideo();
         var path = CurrentPath;
         var name = path is null ? string.Empty : Path.GetFileName(path);
 
@@ -290,13 +489,24 @@ public partial class PeekWindow : FluentWindow
         Bar.Title = name;
         CounterText.Text = _files.Count == 0 ? string.Empty : string.Format(CultureInfo.CurrentCulture, "{0} / {1}", _index + 1, _files.Count);
         PreviewImage.Source = null;
+        PreviewImage.StretchDirection = StretchDirection.DownOnly;
         FallbackText.Visibility = Visibility.Collapsed;
         InfoText.Text = string.Empty;
         UpdateChevrons();
+        UpdateBrowseButton();
         UpdateOpenInButton();
         var kind = path is null ? PeekPreviewKind.None : PeekPreview.For(path);
-        var isWeb = kind is PeekPreviewKind.Html or PeekPreviewKind.Markdown or PeekPreviewKind.Code;
+        UpdateShowAsButton(path, kind);
+        if (_geometryIsFit && !(Settings.FitToContent && kind == PeekPreviewKind.Image))
+        {
+            // The window still has the size of the last image and this file is not one to fit: the user's size is back.
+            RestoreRemembered();
+        }
+
+        _targetPixelWidth = WorkAreaOf(new WindowInteropHelper(this).Handle, MonitorDefaultToNearest).Width;
+        var isWeb = kind is PeekPreviewKind.Html or PeekPreviewKind.Markdown or PeekPreviewKind.Code or PeekPreviewKind.Video;
         PreviewWeb.Visibility = isWeb ? Visibility.Visible : Visibility.Collapsed;
+        PreviewShell.Visibility = kind == PeekPreviewKind.Shell ? Visibility.Visible : Visibility.Collapsed;
         ReturnFocusToWindow();
         if (path is null)
         {
@@ -305,7 +515,36 @@ public partial class PeekWindow : FluentWindow
 
         var cts = new CancellationTokenSource();
         _loadCts = cts;
-        _ = isWeb ? LoadWebAsync(path, kind, ++_version, cts.Token) : LoadAsync(path, ++_version, cts.Token);
+        if (kind == PeekPreviewKind.Shell)
+        {
+            _ = LoadShellAsync(path, ++_version, cts.Token);
+        }
+        else
+        {
+            _ = isWeb ? LoadWebAsync(path, kind, ++_version, cts.Token) : LoadAsync(path, ++_version, cts.Token);
+        }
+    }
+
+    /// <summary>A file a Windows preview handler shows: lets the window lay the host out and repaint first (the
+    /// handler loads out of process and holds the UI thread while it does), then hosts the handler. A file that
+    /// moved on meanwhile is dropped by the version check; a handler that fails gives the name only.</summary>
+    private async Task LoadShellAsync(string path, int version, CancellationToken ct)
+    {
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+        if (!IsCurrent(version, ct))
+        {
+            return;
+        }
+
+        PreviewShell.BackgroundColor = CurrentBackground();
+        if (!PreviewShell.Load(path))
+        {
+            ShowNameOnly(path);
+            return;
+        }
+
+        ReturnFocusToWindow();
+        InfoText.Text = PeekShellPreview.FormatInfo(path);
     }
 
     private bool IsCurrent(int version, CancellationToken ct) => version == _version && !ct.IsCancellationRequested;
@@ -315,7 +554,7 @@ public partial class PeekWindow : FluentWindow
     /// window work again until the next click into a page.</summary>
     private void ReturnFocusToWindow()
     {
-        if (PreviewWeb.IsKeyboardFocusWithin)
+        if (PreviewWeb.IsKeyboardFocusWithin || PreviewShell.HasFocusWithin)
         {
             Focus();
         }
@@ -333,7 +572,9 @@ public partial class PeekWindow : FluentWindow
             var theme = CurrentPageTheme();
             try
             {
-                page = await Task.Run(() => PeekWebContent.Build(path, kind, theme, ct), ct);
+                page = await Task.Run(() => kind == PeekPreviewKind.Video
+                    ? PeekWebContent.BuildVideo(path, theme, version)
+                    : PeekWebContent.Build(path, kind, theme, ct), ct);
             }
             catch (OperationCanceledException)
             {
@@ -391,8 +632,52 @@ public partial class PeekWindow : FluentWindow
         }
         else
         {
+            _videoShown = kind == PeekPreviewKind.Video;
+            _videoInfo = page.Info;
             core.NavigateToString(page.Html);
             InfoText.Text = page.Info;
+        }
+    }
+
+    /// <summary>Stops the video of the last page and lets go of its file: the web view keeps playing (and keeps the
+    /// file open) when it is hidden or when the next file is not a web page. No navigation, so the guard is untouched.</summary>
+    private void StopVideo()
+    {
+        if (!_videoShown)
+        {
+            return;
+        }
+
+        _videoShown = false;
+        if (PreviewWeb.CoreWebView2 is { } core)
+        {
+            _ = core.ExecuteScriptAsync("var v=document.getElementById('v');if(v){v.pause();v.removeAttribute('src');v.load();}");
+        }
+    }
+
+    /// <summary>A message from the video page: <c>ok|width|height|seconds|version</c> adds the resolution and duration
+    /// to the footer, <c>err|version</c> (the engine cannot play the file) gives the name only. Messages of a page
+    /// that is not the current one are dropped.</summary>
+    private void OnVideoMessage(string message)
+    {
+        var parts = message.Split('|');
+        if (!_videoShown || parts.Length < 2 || CurrentPath is not { } path
+            || !int.TryParse(parts[^1], NumberStyles.None, CultureInfo.InvariantCulture, out var version) || version != _version)
+        {
+            return;
+        }
+
+        if (parts[0] == "err")
+        {
+            StopVideo();
+            ShowNameOnly(path);
+        }
+        else if (parts[0] == "ok" && parts.Length == 5
+                 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var width)
+                 && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var height)
+                 && double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
+        {
+            InfoText.Text = PeekWebContent.DescribeVideo(_videoInfo, width, height, seconds);
         }
     }
 
@@ -400,6 +685,7 @@ public partial class PeekWindow : FluentWindow
     private void ShowNameOnly(string path, string? message = null)
     {
         PreviewWeb.Visibility = Visibility.Collapsed;
+        PreviewShell.Visibility = Visibility.Collapsed;
         FallbackText.Text = message ?? Path.GetFileName(path);
         FallbackText.Visibility = Visibility.Visible;
     }
@@ -417,7 +703,9 @@ public partial class PeekWindow : FluentWindow
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "AresToys-Data", "WebView2", "Peek");
             Directory.CreateDirectory(folder);
-            var environment = await CoreWebView2Environment.CreateAsync(null, folder);
+            // A video starts playing with sound when Peek opens: no click ever reaches the page first.
+            var options = new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required" };
+            var environment = await CoreWebView2Environment.CreateAsync(null, folder, options);
             await PreviewWeb.EnsureCoreWebView2Async(environment);
 
             var core = PreviewWeb.CoreWebView2;
@@ -446,6 +734,13 @@ public partial class PeekWindow : FluentWindow
             core.DownloadStarting += (_, e) => e.Cancel = true;
             core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
             core.NavigationCompleted += (_, _) => ReturnFocusToWindow();
+            core.WebMessageReceived += (_, e) =>
+            {
+                if (e.TryGetWebMessageAsString() is { } message)
+                {
+                    OnVideoMessage(message);
+                }
+            };
             _webRuntimeMissing = false;
             return true;
         }
@@ -517,6 +812,16 @@ public partial class PeekWindow : FluentWindow
         }
 
         InfoText.Text = FormatInfo(info);
+
+        // The footer text is final now, so the fixed part of the window (title row, footer, frame) is measured right.
+        if (Settings.FitToContent && info.Bitmap is not null)
+        {
+            FitToImage(info.PixelWidth, info.PixelHeight);
+        }
+        else if (_geometryIsFit)
+        {
+            RestoreRemembered();
+        }
     }
 
     private void CancelLoad()
@@ -525,6 +830,15 @@ public partial class PeekWindow : FluentWindow
         _loadCts?.Cancel();
         _loadCts?.Dispose();
         _loadCts = null;
+
+        // The hosted handler goes with the load. Its window may hold the keyboard focus and is destroyed here:
+        // take the focus back first, or the arrows and Esc would have nowhere to go.
+        var shellHadFocus = PreviewShell.HasFocusWithin;
+        PreviewShell.Unload();
+        if (shellHadFocus)
+        {
+            Focus();
+        }
     }
 
     private static string FormatInfo(PeekImageInfo info)
@@ -539,39 +853,175 @@ public partial class PeekWindow : FluentWindow
         return size.Length == 0 ? pixels : pixels + "  ·  " + size;
     }
 
-    /// <summary>Sizes the window to 70% of the work area of the anchor's monitor and centers it there. Works in
-    /// physical pixels on the window handle, so the result is right on a monitor with another scale than the one
-    /// the window was last on: the window is first moved onto the target monitor (which settles its DPI), then sized.</summary>
+    /// <summary>Puts a window that was hidden where it opens: at its saved bounds, kept on a connected monitor, or, with
+    /// none saved or when the first file is an image to fit to, at 70% of the work area of the anchor's monitor,
+    /// centered. A window already visible is left as it is. Works in physical pixels on the window handle, so the
+    /// result is right on a monitor with another scale than the one the window was last on: the window is first moved
+    /// onto the target monitor (which settles its DPI), then sized.</summary>
     private void Place(IntPtr anchorHwnd)
     {
-        var info = new ZoneNative.MonitorInfoEx { Size = MonitorInfoExSize };
-        var monitor = MonitorFromWindow(anchorHwnd, MonitorDefaultToPrimary);
-        var work = monitor != 0 && ZoneNative.GetMonitorInfo(monitor, ref info)
-            ? info.Work
-            : new ZoneNative.Rect { Left = 0, Top = 0, Right = 1920, Bottom = 1040 };
-
-        var width = (int)Math.Round((work.Right - work.Left) * WorkAreaFraction);
-        var height = (int)Math.Round((work.Bottom - work.Top) * WorkAreaFraction);
-        var x = work.Left + (work.Right - work.Left - width) / 2;
-        var y = work.Top + (work.Bottom - work.Top - height) / 2;
-        _targetPixelWidth = width;
-
         var hwnd = new WindowInteropHelper(this).EnsureHandle();
-        ZoneNative.SetWindowPos(hwnd, 0, x, y, 0, 0, SwpNoSize | ZoneNative.SwpNoZOrder | ZoneNative.SwpNoActivate);
-        ZoneNative.SetWindowPos(hwnd, 0, x, y, width, height, ZoneNative.SwpNoZOrder | ZoneNative.SwpNoActivate);
+        if (IsVisible)
+        {
+            return;
+        }
 
-        if (!IsVisible && PresentationSource.FromVisual(this) is { } source)
+        if (WindowState != WindowState.Normal)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        var fitFirst = Settings.FitToContent && CurrentPath is { } first && PeekPreview.For(first) == PeekPreviewKind.Image;
+        var fallback = DefaultBounds(WorkAreaOf(anchorHwnd, MonitorDefaultToPrimary));
+        _saved = Settings.Bounds;
+        _geometryIsFit = fitFirst;
+        _remembered = fitFirst ? Settings.Bounds : null;
+
+        var target = fallback;
+        if (!fitFirst && Settings.Bounds is { } saved)
+        {
+            var monitors = MonitorEnumeration.Enumerate();
+            var rects = monitors.Select(m => new PixelRect(m.X, m.Y, m.Width, m.Height)).ToList();
+            target = PinPlacement.EnsureVisible(saved, rects, WorkAreaOf(0, MonitorDefaultToPrimary));
+        }
+
+        ApplyBounds(hwnd, target);
+        if (PresentationSource.FromVisual(this) is { } source)
         {
             // Let WPF's Left/Top/Width/Height agree with the handle before the first Show, so it does not
             // move the window back to its own idea of the position.
             var fromDevice = source.CompositionTarget.TransformFromDevice;
-            var topLeft = fromDevice.Transform(new System.Windows.Point(x, y));
-            var size = fromDevice.Transform(new System.Windows.Point(width, height));
+            var topLeft = fromDevice.Transform(new System.Windows.Point(target.X, target.Y));
+            var size = fromDevice.Transform(new System.Windows.Point(target.Width, target.Height));
             Left = topLeft.X;
             Top = topLeft.Y;
             Width = size.X;
             Height = size.Y;
         }
+    }
+
+    /// <summary>The default bounds: 70% of <paramref name="work"/>, centered on it.</summary>
+    private static PixelRect DefaultBounds(PixelRect work)
+    {
+        var width = (int)Math.Round(work.Width * WorkAreaFraction);
+        var height = (int)Math.Round(work.Height * WorkAreaFraction);
+        return new PixelRect(work.X + (work.Width - width) / 2, work.Y + (work.Height - height) / 2, width, height);
+    }
+
+    /// <summary>Moves the window onto the monitor of <paramref name="bounds"/> first (which settles its DPI), then sizes it.</summary>
+    private static void ApplyBounds(nint hwnd, PixelRect bounds)
+    {
+        ZoneNative.SetWindowPos(hwnd, 0, bounds.X, bounds.Y, 0, 0, SwpNoSize | ZoneNative.SwpNoZOrder | ZoneNative.SwpNoActivate);
+        ZoneNative.SetWindowPos(hwnd, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height, ZoneNative.SwpNoZOrder | ZoneNative.SwpNoActivate);
+    }
+
+    /// <summary>The work area (taskbar excluded) of the monitor that holds <paramref name="hwnd"/>, or the one given
+    /// by <paramref name="flags"/> when the handle is on none (the primary one for a zero handle).</summary>
+    private static PixelRect WorkAreaOf(nint hwnd, uint flags)
+    {
+        var info = new ZoneNative.MonitorInfoEx { Size = MonitorInfoExSize };
+        var monitor = MonitorFromWindow(hwnd, flags);
+        var work = monitor != 0 && ZoneNative.GetMonitorInfo(monitor, ref info)
+            ? info.Work
+            : new ZoneNative.Rect { Left = 0, Top = 0, Right = 1920, Bottom = 1040 };
+        return new PixelRect(work.Left, work.Top, work.Right - work.Left, work.Bottom - work.Top);
+    }
+
+    /// <summary>The window's bounds in physical pixels, or null when it is not in the normal state (minimized or
+    /// maximized) or has no handle yet.</summary>
+    private PixelRect? CurrentBounds()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (WindowState != WindowState.Normal || hwnd == 0 || !ZoneNative.GetWindowRect(hwnd, out var rect))
+        {
+            return null;
+        }
+
+        return new PixelRect(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+    }
+
+    /// <summary>Hands the bounds the user left the window with to <see cref="BoundsRemembered"/>, when they changed:
+    /// the window's own bounds, or, while it has the size of an image, the ones it had before.</summary>
+    private void RememberBounds()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        var bounds = _geometryIsFit ? _remembered : CurrentBounds();
+        if (bounds is { } rect && rect != _saved)
+        {
+            _saved = rect;
+            BoundsRemembered?.Invoke(rect);
+        }
+    }
+
+    /// <summary>Sizes the window so the image shows at 100% (one image pixel is one physical pixel) in the viewport,
+    /// plus whatever the window has around the viewport (title row, footer, frame). At most 90% of the work area of
+    /// the monitor the window is on, at least the minimum size; centered where the window is now and kept inside the
+    /// work area. The user's bounds are kept for the files that are not fitted.</summary>
+    private void FitToImage(int imagePixelWidth, int imagePixelHeight)
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (CurrentBounds() is not { } current)
+        {
+            return;
+        }
+
+        if (!_geometryIsFit)
+        {
+            _remembered = current;
+            _geometryIsFit = true;
+        }
+
+        UpdateLayout();
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var margin = PreviewImage.Margin;
+        var work = WorkAreaOf(hwnd, MonitorDefaultToNearest);
+        var needWidth = imagePixelWidth + (int)Math.Ceiling(
+            current.Width - Viewport.ActualWidth * dpi.DpiScaleX + (margin.Left + margin.Right) * dpi.DpiScaleX);
+        var needHeight = imagePixelHeight + (int)Math.Ceiling(
+            current.Height - Viewport.ActualHeight * dpi.DpiScaleY + (margin.Top + margin.Bottom) * dpi.DpiScaleY);
+        var minWidth = (int)Math.Ceiling(MinWidth * dpi.DpiScaleX);
+        var minHeight = (int)Math.Ceiling(MinHeight * dpi.DpiScaleY);
+        var width = Math.Max(minWidth, Math.Min(needWidth, (int)(work.Width * FitCapFraction)));
+        var height = Math.Max(minHeight, Math.Min(needHeight, (int)(work.Height * FitCapFraction)));
+
+        // The image fills the viewport only when one side is not padded out to the minimum size; a small image in a
+        // minimum size window stays at its own size instead of being blown up.
+        PreviewImage.StretchDirection = needWidth >= minWidth || needHeight >= minHeight
+            ? StretchDirection.Both
+            : StretchDirection.DownOnly;
+        ResizeAroundCenter(hwnd, current, width, height, work);
+    }
+
+    /// <summary>Gives the window back the size it had before it was fitted to an image (the default size when it
+    /// never had one), centered where it is now.</summary>
+    private void RestoreRemembered()
+    {
+        _geometryIsFit = false;
+        PreviewImage.StretchDirection = StretchDirection.DownOnly;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (CurrentBounds() is not { } current)
+        {
+            return;
+        }
+
+        var work = WorkAreaOf(hwnd, MonitorDefaultToNearest);
+        var size = _remembered ?? DefaultBounds(work);
+        ResizeAroundCenter(hwnd, current, size.Width, size.Height, work);
+    }
+
+    /// <summary>Resizes the window around its center, then moves it back inside <paramref name="work"/> if that pushed
+    /// it out (its top left corner wins when it is larger than the work area).</summary>
+    private static void ResizeAroundCenter(nint hwnd, PixelRect current, int width, int height, PixelRect work)
+    {
+        var x = current.X + current.Width / 2 - width / 2;
+        var y = current.Y + current.Height / 2 - height / 2;
+        x = Math.Max(work.X, Math.Min(x, work.Right - width));
+        y = Math.Max(work.Y, Math.Min(y, work.Bottom - height));
+        ZoneNative.SetWindowPos(hwnd, 0, x, y, width, height, ZoneNative.SwpNoZOrder | ZoneNative.SwpNoActivate);
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]

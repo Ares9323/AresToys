@@ -69,6 +69,66 @@ internal static class PeekWebContent
         }
     }
 
+    /// <summary>The page for a <see cref="PeekPreviewKind.Video"/> file: one <c>video</c> element with controls that
+    /// starts playing, reading the file from <see cref="FileHost"/>. The page posts <c>ok|width|height|seconds|version</c>
+    /// once the video's metadata is known and <c>err|version</c> when the engine cannot play it; Space does nothing in
+    /// the page (it is the key that closes Peek). The footer text is the type and size.</summary>
+    public static PeekWebPage BuildVideo(string path, PeekPageTheme theme, int version)
+    {
+        var info = DescribeVideo(path);
+        var v = version.ToString(CultureInfo.InvariantCulture);
+        var sb = new StringBuilder(2048);
+        sb.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\">");
+        sb.Append("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; media-src https://")
+          .Append(FileHost).Append("; style-src 'unsafe-inline'; script-src 'unsafe-inline'\">");
+        sb.Append("<style>:root{--bg:").Append(theme.Background).Append(";color-scheme:").Append(theme.Dark ? "dark" : "light")
+          .Append("}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}")
+          .Append("video{display:block;width:100%;height:100%;object-fit:contain;outline:none}</style></head><body>");
+        sb.Append("<video id=\"v\" controls autoplay tabindex=\"-1\" disablepictureinpicture src=\"https://").Append(FileHost)
+          .Append('/').Append(Uri.EscapeDataString(Path.GetFileName(path))).Append("\"></video><script>");
+        sb.Append("var v=document.getElementById('v');var n=").Append(v).Append(';')
+          .Append("function post(s){window.chrome.webview.postMessage(s);}")
+          .Append("document.addEventListener('keydown',function(e){if(e.code==='Space'||e.key===' ')e.preventDefault();},true);")
+          .Append("v.addEventListener('keyup',function(e){if(e.code==='Space'||e.key===' ')e.preventDefault();},true);")
+          .Append("v.addEventListener('loadedmetadata',function(){if(!v.videoWidth){post('err|'+n);return;}")
+          .Append("post('ok|'+v.videoWidth+'|'+v.videoHeight+'|'+v.duration+'|'+n);});")
+          .Append("v.addEventListener('error',function(){post('err|'+n);});")
+          .Append("var p=v.play();if(p&&p.catch)p.catch(function(){});");
+        sb.Append("</script></body></html>");
+        return new PeekWebPage(sb.ToString(), info);
+    }
+
+    /// <summary>The footer text of a video before its metadata is known: the extension and the size.</summary>
+    public static string DescribeVideo(string path)
+    {
+        var type = Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
+        try
+        {
+            return type + "  ·  " + FormatBytes(new FileInfo(path).Length);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The file vanished or is unreadable: the footer omits the size.
+            return type;
+        }
+    }
+
+    /// <summary>The footer text of a video once the page reported its metadata.</summary>
+    public static string DescribeVideo(string baseInfo, int width, int height, double seconds)
+    {
+        var text = baseInfo + "  ·  " + string.Create(CultureInfo.CurrentCulture, $"{width}×{height}");
+        if (double.IsFinite(seconds) && seconds >= 0)
+        {
+            var total = (long)Math.Round(seconds);
+            var span = TimeSpan.FromSeconds(total);
+            text += "  ·  " + (span.TotalHours >= 1
+                ? string.Create(CultureInfo.InvariantCulture, $"{(long)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}")
+                : string.Create(CultureInfo.InvariantCulture, $"{span.Minutes}:{span.Seconds:00}"));
+        }
+
+        return text;
+    }
+
     /// <summary>Bytes as B, KB, MB or GB (1024 steps), one decimal in the current culture, none for plain bytes.</summary>
     public static string FormatBytes(long bytes)
     {

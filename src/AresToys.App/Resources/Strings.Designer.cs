@@ -5838,6 +5838,24 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Fit window to content.
+        /// </summary>
+        public static string Peek_FitToContent {
+            get {
+                return ResourceManager.GetString("Peek_FitToContent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Size the Peek window to the image it shows. Other files open at the last size you used..
+        /// </summary>
+        public static string Peek_FitToContentHint {
+            get {
+                return ResourceManager.GetString("Peek_FitToContentHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Shortcut.
         /// </summary>
         public static string Peek_Shortcut {
@@ -10910,6 +10928,66 @@ namespace AresToys.App.Resources {
 
         public static string NewPlusMenu_OpenTemplates {
             get { return ResourceManager.GetString("NewPlusMenu_OpenTemplates", resourceCulture); }
+        }
+
+        public static string Peek_ShowAs {
+            get { return ResourceManager.GetString("Peek_ShowAs", resourceCulture); }
+        }
+
+        public static string Peek_Nav {
+            get { return ResourceManager.GetString("Peek_Nav", resourceCulture); }
+        }
+
+        public static string Peek_NavAll {
+            get { return ResourceManager.GetString("Peek_NavAll", resourceCulture); }
+        }
+
+        public static string Peek_NavFamily {
+            get { return ResourceManager.GetString("Peek_NavFamily", resourceCulture); }
+        }
+
+        public static string Peek_NavExtension {
+            get { return ResourceManager.GetString("Peek_NavExtension", resourceCulture); }
+        }
+
+        public static string Peek_NavHint {
+            get { return ResourceManager.GetString("Peek_NavHint", resourceCulture); }
+        }
+
+        public static string Peek_ShowAsAuto {
+            get { return ResourceManager.GetString("Peek_ShowAsAuto", resourceCulture); }
+        }
+
+        public static string Peek_ShowAsText {
+            get { return ResourceManager.GetString("Peek_ShowAsText", resourceCulture); }
+        }
+
+        public static string Peek_ShowAsCode {
+            get { return ResourceManager.GetString("Peek_ShowAsCode", resourceCulture); }
+        }
+
+        public static string Peek_ShowAsShell {
+            get { return ResourceManager.GetString("Peek_ShowAsShell", resourceCulture); }
+        }
+
+        public static string Peek_ShowAsImage {
+            get { return ResourceManager.GetString("Peek_ShowAsImage", resourceCulture); }
+        }
+
+        public static string Peek_ShowAsNone {
+            get { return ResourceManager.GetString("Peek_ShowAsNone", resourceCulture); }
+        }
+
+        public static string Peek_FileTypesTitle {
+            get { return ResourceManager.GetString("Peek_FileTypesTitle", resourceCulture); }
+        }
+
+        public static string Peek_FileTypesHint {
+            get { return ResourceManager.GetString("Peek_FileTypesHint", resourceCulture); }
+        }
+
+        public static string Peek_FileTypesEmpty {
+            get { return ResourceManager.GetString("Peek_FileTypesEmpty", resourceCulture); }
         }
 
     }

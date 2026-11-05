@@ -32,6 +32,9 @@ public sealed class SatelliteService : IDisposable
     /// <summary>The pipe server. It starts listening with the first <see cref="Apply"/> that finds a module enabled.</summary>
     public SatelliteServer Server { get; }
 
+    /// <summary>The process id of the running satellite, or 0 when none runs. Cheap: safe on the hook thread.</summary>
+    public int SatelliteProcessId => _manager.ProcessId;
+
     /// <summary>Raised on a pool thread at the end of every <see cref="Apply"/> pass with the module names that are
     /// enabled now (empty when none). Main side pieces that only make sense while a satellite module runs, like the
     /// Peek hotkey, follow the switch through this instead of reading the settings a second time. Handlers must not throw.</summary>

@@ -694,6 +694,8 @@
   <data name="Peek_ErrorSave" xml:space="preserve"><value>Impossibile salvare le impostazioni di Peek: {0}</value></data>
   <data name="Peek_ErrorNeedNameAndProgram" xml:space="preserve"><value>Inserisci un nome e un programma.</value></data>
   <data name="Peek_ErrorExtension" xml:space="preserve"><value>Inserisci un'estensione come .jpg, oppure .* per ogni estensione.</value></data>
+  <data name="Peek_FitToContent" xml:space="preserve"><value>Adatta la finestra al contenuto</value></data>
+  <data name="Peek_FitToContentHint" xml:space="preserve"><value>Ridimensiona la finestra di Peek sull'immagine mostrata. Gli altri file si aprono all'ultima dimensione usata.</value></data>
   <data name="Settings_ModulesRestartHint" xml:space="preserve"><value>I gate dei moduli scattano solo all'avvio — riavvia per applicare.</value></data>
   <data name="Settings_ModulesRestartButton" xml:space="preserve"><value>Riavvia AresToys</value></data>
   <data name="Settings_ImageEffectsTitle" xml:space="preserve"><value>Effetti immagine</value></data>
@@ -1563,4 +1565,19 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="Dictation_ModelFileFilter" xml:space="preserve"><value>Modelli Whisper (*.bin)|*.bin|Tutti i file (*.*)|*.*</value></data>
   <data name="Dictation_ModelChosenMissing" xml:space="preserve"><value>Il file scelto non esiste: {0}</value></data>
   <data name="Dictation_DownloadModel" xml:space="preserve"><value>Scarica il modello</value></data>
+  <data name="Peek_ShowAs" xml:space="preserve"><value>Mostra come</value></data>
+  <data name="Peek_ShowAsAuto" xml:space="preserve"><value>Auto</value></data>
+  <data name="Peek_Nav" xml:space="preserve"><value>Sfoglia</value></data>
+  <data name="Peek_NavAll" xml:space="preserve"><value>Tutti</value></data>
+  <data name="Peek_NavFamily" xml:space="preserve"><value>Stessa famiglia</value></data>
+  <data name="Peek_NavExtension" xml:space="preserve"><value>Stessa estensione</value></data>
+  <data name="Peek_NavHint" xml:space="preserve"><value>Quali file della cartella scorrono i pulsanti avanti e indietro: tutti, solo quelli della stessa famiglia (immagini, video, modelli 3D, ...) o solo quelli con la stessa estensione.</value></data>
+  <data name="Peek_ShowAsText" xml:space="preserve"><value>Testo</value></data>
+  <data name="Peek_ShowAsCode" xml:space="preserve"><value>Codice</value></data>
+  <data name="Peek_ShowAsShell" xml:space="preserve"><value>Anteprima di Windows</value></data>
+  <data name="Peek_ShowAsImage" xml:space="preserve"><value>Immagine</value></data>
+  <data name="Peek_ShowAsNone" xml:space="preserve"><value>Nessuna anteprima</value></data>
+  <data name="Peek_FileTypesTitle" xml:space="preserve"><value>Tipi di file</value></data>
+  <data name="Peek_FileTypesHint" xml:space="preserve"><value>La vista scelta con Mostra come nel piè di pagina di Peek, per ogni estensione. Rimuovine una per tornare ad Auto.</value></data>
+  <data name="Peek_FileTypesEmpty" xml:space="preserve"><value>Nessuna estensione ha ancora una vista propria.</value></data>
 </root>

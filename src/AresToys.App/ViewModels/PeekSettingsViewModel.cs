@@ -12,6 +12,9 @@ using Microsoft.Win32;
 
 namespace AresToys.App.ViewModels;
 
+/// <summary>A browse mode and its name in the settings list.</summary>
+public sealed record PeekBrowseChoice(PeekBrowseMode Mode, string Name);
+
 /// <summary>Backs the Peek sidebar section: the "Open in" programs and the extension to program associations.
 /// The module switch itself stays on <see cref="SettingsViewModel"/> (it persists and applies the satellite).
 /// Every change is saved at once through <see cref="PeekOpenWithStore"/>; the satellite reads the config fresh
@@ -20,17 +23,22 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
 {
     private readonly PeekOpenWithStore _store;
     private readonly PeekKeysStore _keysStore;
+    private readonly PeekWindowStore _windowStore;
+    private readonly PeekShowAsStore _showAsStore;
     private readonly ILogger<PeekSettingsViewModel> _logger;
+    private bool _showingFit;
     private PeekOpenWithConfig _config = new();
     private PeekKeys _keys = PeekKeys.Default;
     private bool _loading;
     private string? _editingId;
 
-    public PeekSettingsViewModel(PeekOpenWithStore store, PeekKeysStore keysStore, AresToys.App.Services.Launcher.IconService icons, ILogger<PeekSettingsViewModel> logger)
+    public PeekSettingsViewModel(PeekOpenWithStore store, PeekKeysStore keysStore, PeekWindowStore windowStore, PeekShowAsStore showAsStore, AresToys.App.Services.Launcher.IconService icons, ILogger<PeekSettingsViewModel> logger)
     {
         Icons = icons;
         _store = store;
         _keysStore = keysStore;
+        _windowStore = windowStore;
+        _showAsStore = showAsStore;
         _logger = logger;
         ProgramChoices.Add(DefaultChoice);
         ShowKeys();
@@ -51,6 +59,137 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
     {
         ToggleText = PeekKeysStore.Format(_keys.Toggle);
         OpenKeyText = PeekKeysStore.Format(_keys.OpenAssigned);
+    }
+
+    // ---- file types (the "Show as" picks) ----
+
+    /// <summary>The extensions that have a "Show as" pick, for the File types list.</summary>
+    public ObservableCollection<PeekFileTypeRow> FileTypes { get; } = new();
+
+    /// <summary>True when no extension has a pick (shows the empty line).</summary>
+    [ObservableProperty] private bool _noFileTypes = true;
+
+    private async Task LoadFileTypesAsync()
+    {
+        try
+        {
+            ShowFileTypes(await _showAsStore.LoadAsync(CancellationToken.None).ConfigureAwait(true));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Peek settings: could not load the file types");
+            ShowFileTypes(new Dictionary<string, string>());
+        }
+    }
+
+    private void ShowFileTypes(IReadOnlyDictionary<string, string> picks)
+    {
+        FileTypes.Clear();
+        foreach (var pair in picks.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (PeekShowAs.Resolve(pair.Value) is null) continue;
+            FileTypes.Add(new PeekFileTypeRow(this, pair.Key, PeekShowAs.DisplayName(pair.Value)));
+        }
+
+        NoFileTypes = FileTypes.Count == 0;
+    }
+
+    internal async Task RemoveFileTypeAsync(PeekFileTypeRow row)
+    {
+        try
+        {
+            ShowFileTypes(await _showAsStore.SetAsync(row.Extension, null, CancellationToken.None).ConfigureAwait(true));
+            FileTypesErrorText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Peek settings: could not remove the file type");
+            FileTypesErrorText = SaveErrorText(ex);
+            await LoadFileTypesAsync().ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>Why a file type could not be removed; empty when there is nothing to say.</summary>
+    [ObservableProperty] private string _fileTypesErrorText = string.Empty;
+
+    // ---- the window ----
+
+    /// <summary>Size the Peek window to the image it shows. Saved at once; the satellite reads it at each Peek.</summary>
+    [ObservableProperty] private bool _fitToContent;
+
+    /// <summary>Why the fit option could not be saved or read; empty when there is nothing to say.</summary>
+    [ObservableProperty] private string _fitErrorText = string.Empty;
+
+    partial void OnFitToContentChanged(bool value)
+    {
+        if (_showingFit) return;
+        _ = SaveFitAsync(value);
+    }
+
+    private async Task SaveFitAsync(bool value)
+    {
+        try
+        {
+            await _windowStore.SaveFitAsync(value, CancellationToken.None).ConfigureAwait(true);
+            FitErrorText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Peek settings: could not save the fit option");
+            FitErrorText = SaveErrorText(ex);
+        }
+    }
+
+    /// <summary>The three browse modes with their names, for the Browse choice.</summary>
+    public IReadOnlyList<PeekBrowseChoice> BrowseChoices { get; } = new[]
+    {
+        new PeekBrowseChoice(PeekBrowseMode.All, AresToys.App.Resources.Strings.Peek_NavAll),
+        new PeekBrowseChoice(PeekBrowseMode.Family, AresToys.App.Resources.Strings.Peek_NavFamily),
+        new PeekBrowseChoice(PeekBrowseMode.Extension, AresToys.App.Resources.Strings.Peek_NavExtension),
+    };
+
+    /// <summary>Which files of the folder Peek's previous and next go through. Saved at once; the satellite reads it at each Peek.</summary>
+    [ObservableProperty] private PeekBrowseMode _browseMode;
+
+    partial void OnBrowseModeChanged(PeekBrowseMode value)
+    {
+        if (_showingFit) return;
+        _ = SaveBrowseAsync(value);
+    }
+
+    private async Task SaveBrowseAsync(PeekBrowseMode value)
+    {
+        try
+        {
+            await _windowStore.SaveBrowseAsync(value, CancellationToken.None).ConfigureAwait(true);
+            FitErrorText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Peek settings: could not save the browse mode");
+            FitErrorText = SaveErrorText(ex);
+        }
+    }
+
+    private async Task LoadFitAsync()
+    {
+        try
+        {
+            var window = await _windowStore.LoadAsync(CancellationToken.None).ConfigureAwait(true);
+            _showingFit = true;
+            FitToContent = window.FitToContent;
+            BrowseMode = window.Browse;
+            FitErrorText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Peek settings: could not load the window settings");
+            FitErrorText = SaveErrorText(ex);
+        }
+        finally
+        {
+            _showingFit = false;
+        }
     }
 
     [RelayCommand]
@@ -147,6 +286,9 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         {
             _logger.LogError(ex, "Peek settings: could not load the Peek keys");
         }
+
+        await LoadFitAsync().ConfigureAwait(true);
+        await LoadFileTypesAsync().ConfigureAwait(true);
 
         try
         {
@@ -360,6 +502,26 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         if (rest.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || rest.IndexOfAny(' ', '*', '.') >= 0) return null;
         return s;
     }
+}
+
+/// <summary>One File types row: an extension and the name of the view picked for it with "Show as".</summary>
+public sealed partial class PeekFileTypeRow : ObservableObject
+{
+    private readonly PeekSettingsViewModel _owner;
+
+    internal PeekFileTypeRow(PeekSettingsViewModel owner, string extension, string pickName)
+    {
+        _owner = owner;
+        Extension = extension;
+        PickName = pickName;
+    }
+
+    public string Extension { get; }
+
+    public string PickName { get; }
+
+    [RelayCommand]
+    private Task RemoveAsync() => _owner.RemoveFileTypeAsync(this);
 }
 
 /// <summary>One extension to program row. <see cref="ProgramId"/> is "" for the system default app.</summary>

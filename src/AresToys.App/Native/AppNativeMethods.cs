@@ -23,6 +23,13 @@ internal static partial class AppNativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetForegroundWindow(IntPtr hWnd);
 
+    [LibraryImport("user32.dll", EntryPoint = "SetPropW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetProp(IntPtr hWnd, string lpString, IntPtr hData);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetPropW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial IntPtr GetProp(IntPtr hWnd, string lpString);
+
     /// <summary>EnumWindows callback. Return true to keep enumerating, false to stop. Used by
     /// <see cref="AresToys.App.Services.TargetWindowTracker"/> to walk the top-level Z-order
     /// looking for a non-AresToys paste candidate when AresToys itself is foreground.</summary>

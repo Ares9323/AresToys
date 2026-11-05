@@ -19,6 +19,11 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // The Low integrity helper that hosts a Windows preview handler for Peek: it touches nothing of the app
+        // (no hooks, no settings, no single instance guard, no logging), so it is handled before anything else.
+        if (AresToys.App.Services.Peek.PeekHandlerHost.IsHostRequest(args))
+            return AresToys.App.Services.Peek.PeekHandlerHost.Run(args);
+
         // Velopack docs: call Build().Run() as the very first line. When invoked with one of the
         // hook arguments (--veloapp-install, --veloapp-uninstall, --veloapp-firstrun, …) it
         // performs the action and calls Environment.Exit, so we never reach the WPF startup
