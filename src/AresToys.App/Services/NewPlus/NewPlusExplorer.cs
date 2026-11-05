@@ -15,8 +15,6 @@ internal static class NewPlusExplorer
 {
     // SVSI_SELECT | SVSI_EDIT share bit 0; EDIT is 3. Plus DESELECTOTHERS (4), ENSUREVISIBLE (8), FOCUSED (0x10).
     private const int SelectForRename = 0x3 | 0x4 | 0x8 | 0x10;
-    private const int SWC_DESKTOP = 0x8;
-    private const int SWFO_NEEDDISPATCH = 1;
     private const uint GA_ROOT = 2;
     private const byte VK_F2 = 0x71;
     private const uint KEYEVENTF_KEYUP = 0x2;
@@ -151,7 +149,7 @@ internal static class NewPlusExplorer
         if (shellType is null) return false;
         dynamic shell = Activator.CreateInstance(shellType)!;
 
-        dynamic? view = IsDesktop(folder) ? FindDesktopView(shell) : FindFolderView(shell, folder, foreground);
+        dynamic? view = IsDesktop(folder) ? FindDesktopView() : FindFolderView(shell, folder, foreground);
         if (view is null) return false;
 
         dynamic item = view.Folder.ParseName(name);
@@ -187,13 +185,11 @@ internal static class NewPlusExplorer
         return fallback;
     }
 
-    private static dynamic? FindDesktopView(dynamic shell)
+    private static dynamic? FindDesktopView()
     {
-        object? location = null;
-        object? root = null;
-        dynamic windows = shell.Windows();
-        dynamic? window = windows.FindWindowSW(ref location, ref root, SWC_DESKTOP, out int _, SWFO_NEEDDISPATCH);
-        return window?.Document;
+        if (ExplorerWindows.FindDesktop() is not { } desktop) return null;
+        dynamic window = desktop.Window;
+        return window.Document;
     }
 
     private static bool IsDesktop(string folder)

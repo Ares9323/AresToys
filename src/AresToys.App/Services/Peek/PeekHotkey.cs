@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AresToys.App.Services.Peek;
 
-/// <summary>The Peek shortcut (Ctrl+Space by default, see <see cref="PeekKeys"/>) in an Explorer window whose focus is in the file list: asks the Peek module in the non elevated
+/// <summary>The Peek shortcut (Ctrl+Space by default, see <see cref="PeekKeys"/>) in an Explorer window whose focus is in the file list, or on the desktop icons: asks the Peek module in the non elevated
 /// satellite to preview the selected file. The main app only owns the key (its keyboard hook reaches elevated windows
 /// too); reading the selection and showing the window happen in the satellite, whose Shell.Application sees a normal
 /// Explorer. Active only while the Peek module is enabled and the satellite is connected, so with the module off the key
@@ -75,17 +75,21 @@ public sealed class PeekHotkey
     private void OnModulesApplied(IReadOnlyList<string> modules)
         => SetActive(modules.Contains(SatelliteModuleNames.Peek, StringComparer.OrdinalIgnoreCase));
 
-    // Hook thread: only cheap checks. The key is ours only in an Explorer window whose focus is in the file list (not
-    // the address bar, the search box or a rename box, where the same key means something else) and only with a satellite to answer.
+    // Hook thread: only cheap checks. The key is ours only in an Explorer window whose focus is in the file list, or on
+    // the desktop whose focus is in its icon list (not the address bar, the search box or a rename box, where the same
+    // key means something else) and only with a satellite to answer.
     private bool CanHandle()
     {
         if (!_active || _satellite.Server.Current is null) return false;
         var root = NewPlusExplorer.ForegroundRoot();
-        if (NewPlusExplorer.ClassOf(root) != "CabinetWClass") return false;
+        var rootClass = NewPlusExplorer.ClassOf(root);
+        var isDesktop = rootClass is "Progman" or "WorkerW";
+        if (rootClass != "CabinetWClass" && !isDesktop) return false;
         var thread = GetWindowThreadProcessId(root, out _);
         var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
         if (thread == 0 || !GetGUIThreadInfo(thread, ref info)) return false;
-        return NewPlusExplorer.ClassOf(info.hwndFocus) is "DirectUIHWND" or "SysListView32";
+        var focus = NewPlusExplorer.ClassOf(info.hwndFocus);
+        return isDesktop ? focus == "SysListView32" : focus is "DirectUIHWND" or "SysListView32";
     }
 
     // The key arrived here, so this process owns the foreground right: PeekService hands it to the satellite on this

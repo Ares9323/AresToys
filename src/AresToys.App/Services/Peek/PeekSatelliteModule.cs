@@ -13,11 +13,13 @@ namespace AresToys.App.Services.Peek;
 
 /// <summary>Peek inside the satellite (the non elevated process, the only one whose <c>Shell.Application</c> sees a
 /// normal Explorer): answers <c>peek.show</c> {root} with {shown}. It reads the selection of the active tab of the
-/// Explorer window <c>root</c> on a thread of its own (COM), takes the first selected file, asks for the files of the
-/// folder view in the order Explorer shows them and opens the <see cref="PeekWindow"/> on it, or retargets the window
-/// when it is already open. Folders in the selection are skipped. The window is created on the first request.
+/// Explorer window <c>root</c> (or of the desktop, when <c>root</c> is the desktop window) on a thread of its own
+/// (COM), takes the first selected file, asks for the files of the folder view in the order Explorer shows them and
+/// opens the <see cref="PeekWindow"/> on it, or retargets the window when it is already open. Folders in the
+/// selection are skipped. The window is created on the first request.
 /// <para>The request comes from <see cref="PeekHotkey"/> in the main app. Handlers run on the thread pool, so the window
-/// is touched on the dispatcher only.</para></summary>
+/// is touched on the dispatcher only. A Wormhole window, which lives in this same process, skips the request and calls
+/// <see cref="ShowAsync"/> through <see cref="Current"/>.</para></summary>
 public sealed class PeekSatelliteModule : ISatelliteModule
 {
     public const string ShowRequest = "peek.show";
@@ -28,8 +30,16 @@ public sealed class PeekSatelliteModule : ISatelliteModule
     private PeekOpenWithStore? _openWith;
     private PeekOpenWithConfig? _config;
     private PeekKeysStore? _keysStore;
-    private PeekKeys _keys = PeekKeys.Default;
+    private volatile PeekKeys _keys = PeekKeys.Default;
     private bool _stopped;
+
+    /// <summary>The running module of this satellite process, or null while Peek is off. How a Wormhole window reaches Peek
+    /// in-process: it calls <see cref="ShowAsync"/> on this instance, and when it is null the key is not handled.</summary>
+    internal static PeekSatelliteModule? Current { get; private set; }
+
+    /// <summary>The Peek keys as last loaded (the defaults until the first load). Read on the UI thread by the Wormhole
+    /// windows to match the toggle key.</summary>
+    internal PeekKeys Keys => _keys;
 
     public string Name => SatelliteModuleNames.Peek;
 
@@ -42,16 +52,17 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         _openWith = services.GetService<PeekOpenWithStore>();
         _keysStore = services.GetService<PeekKeysStore>();
         channel.Handle(ShowRequest, OnShowAsync);
+        Current = this;
     }
 
-    /// <summary>Nothing to start: the window is created by the first request, so a Peek that is never used costs nothing.</summary>
-    public void Start()
-    {
-    }
+    /// <summary>The window is created by the first request, so a Peek that is never used costs nothing. The settings are
+    /// read now, so a Wormhole can match the toggle key before the first Peek.</summary>
+    public void Start() => _ = RefreshConfigAsync();
 
     public void Stop()
     {
         _stopped = true;
+        if (ReferenceEquals(Current, this)) Current = null;
         try
         {
             // Shutdown allows the real close; a plain Close would only hide the window.
@@ -66,22 +77,31 @@ public sealed class PeekSatelliteModule : ISatelliteModule
 
     private async Task<JsonElement?> OnShowAsync(JsonElement? data)
     {
-        var dispatcher = _dispatcher ?? throw new InvalidOperationException("The Peek module is not registered.");
         var root = ReadRoot(data);
         if (root == IntPtr.Zero || _stopped) return Answer(false);
-
-        await RefreshConfigAsync().ConfigureAwait(false);
 
         var logger = _logger;
         var target = await RunStaAsync(() => ReadTarget(root, logger)).ConfigureAwait(false);
         if (target is not { } found) return Answer(false);
 
-        var shown = await dispatcher.InvokeAsync(() => ShowWindow(found.Files, found.Index, root)).Task.ConfigureAwait(false);
-        return Answer(shown);
+        return Answer(await ShowAsync(found.Files, found.Index, root).ConfigureAwait(false));
     }
 
-    /// <summary>Loads the Open in settings and the Peek keys again so a change made in Settings shows up in the next Peek.</summary>
-    private async Task RefreshConfigAsync()
+    /// <summary>The one entry that puts files on screen: <c>peek.show</c> and the Wormhole windows (same process) both
+    /// end here. Loads the settings again, then shows <paramref name="files"/> at <paramref name="index"/> on the UI
+    /// thread, placed on the monitor of <paramref name="anchor"/>. Any thread. True when the window is on screen afterwards.</summary>
+    internal async Task<bool> ShowAsync(IReadOnlyList<string> files, int index, IntPtr anchor)
+    {
+        var dispatcher = _dispatcher ?? throw new InvalidOperationException("The Peek module is not registered.");
+        if (_stopped || files.Count == 0) return false;
+
+        await RefreshConfigAsync().ConfigureAwait(false);
+        return await dispatcher.InvokeAsync(() => ShowWindow(files, index, anchor)).Task.ConfigureAwait(false);
+    }
+
+    /// <summary>Loads the Open in settings and the Peek keys again so a change made in Settings shows up in the next Peek.
+    /// A Wormhole calls it when it gets the keyboard focus, so its copy of <see cref="Keys"/> follows a change too.</summary>
+    internal async Task RefreshConfigAsync()
     {
         if (_openWith is not null)
         {

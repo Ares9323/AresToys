@@ -1,9 +1,13 @@
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using Microsoft.Web.WebView2.Core;
+using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using AresToys.App.Services.Zones;
 using AresToys.Hotkeys;
@@ -14,7 +18,8 @@ namespace AresToys.App.Services.Peek;
 /// counter on the title row, the pixel and file size in the footer, and the arrow, Home, End, Enter and Esc keys.
 /// The window is created once and re-used: <see cref="Show(IReadOnlyList{string}, int, IntPtr)"/> shows or
 /// re-targets it, Esc and the close button only hide it, <see cref="Shutdown"/> really closes it.
-/// UI thread only; the image decode runs on the thread pool (<see cref="PeekImageLoader"/>).</summary>
+/// Images are decoded on the thread pool (<see cref="PeekImageLoader"/>); text, code, Markdown and HTML go through one
+/// web view (<see cref="PeekWebContent"/> builds the page). UI thread only.</summary>
 public partial class PeekWindow : FluentWindow
 {
     private const double WorkAreaFraction = 0.7;
@@ -29,6 +34,9 @@ public partial class PeekWindow : FluentWindow
     private int _targetPixelWidth;
     private int _version;
     private CancellationTokenSource? _loadCts;
+    private Task<bool>? _webReady;
+    private bool _webRuntimeMissing;
+    private bool _navigationAllowed;
 
     public PeekWindow()
     {
@@ -93,6 +101,7 @@ public partial class PeekWindow : FluentWindow
     {
         _allowClose = true;
         CancelLoad();
+        PreviewWeb.Dispose();
         Close();
     }
 
@@ -285,6 +294,10 @@ public partial class PeekWindow : FluentWindow
         InfoText.Text = string.Empty;
         UpdateChevrons();
         UpdateOpenInButton();
+        var kind = path is null ? PeekPreviewKind.None : PeekPreview.For(path);
+        var isWeb = kind is PeekPreviewKind.Html or PeekPreviewKind.Markdown or PeekPreviewKind.Code;
+        PreviewWeb.Visibility = isWeb ? Visibility.Visible : Visibility.Collapsed;
+        ReturnFocusToWindow();
         if (path is null)
         {
             return;
@@ -292,8 +305,186 @@ public partial class PeekWindow : FluentWindow
 
         var cts = new CancellationTokenSource();
         _loadCts = cts;
-        _ = LoadAsync(path, ++_version, cts.Token);
+        _ = isWeb ? LoadWebAsync(path, kind, ++_version, cts.Token) : LoadAsync(path, ++_version, cts.Token);
     }
+
+    private bool IsCurrent(int version, CancellationToken ct) => version == _version && !ct.IsCancellationRequested;
+
+    /// <summary>The web view is a native window: once the user clicks into a page it keeps the keyboard focus and
+    /// the arrows, Home and End scroll the page. Moving to another file takes the focus back, so the keys of this
+    /// window work again until the next click into a page.</summary>
+    private void ReturnFocusToWindow()
+    {
+        if (PreviewWeb.IsKeyboardFocusWithin)
+        {
+            Focus();
+        }
+    }
+
+    /// <summary>Text, code, Markdown or HTML: builds the page off the UI thread (HTML is served from its own file),
+    /// then navigates the web view. A page that finishes after another file was requested is dropped.</summary>
+    private async Task LoadWebAsync(string path, PeekPreviewKind kind, int version, CancellationToken ct)
+    {
+        // Start the web view while the page is built; creating the browser is the slow part of the first preview.
+        var readyTask = EnsureWebViewAsync();
+        PeekWebPage? page = null;
+        if (kind != PeekPreviewKind.Html)
+        {
+            var theme = CurrentPageTheme();
+            try
+            {
+                page = await Task.Run(() => PeekWebContent.Build(path, kind, theme, ct), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                // Another file was requested meanwhile: nothing to show for this one.
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The file vanished, is locked or is unreadable: like an undecodable image, show its name only.
+                if (IsCurrent(version, ct))
+                {
+                    ShowNameOnly(path);
+                }
+
+                return;
+            }
+        }
+
+        var ready = await readyTask;
+        if (!ready)
+        {
+            _webReady = null; // Try again at the next web preview (the runtime may have been installed meanwhile).
+        }
+
+        if (!IsCurrent(version, ct))
+        {
+            return;
+        }
+
+        if (!ready)
+        {
+            ShowNameOnly(path, _webRuntimeMissing ? AresToys.App.Resources.Strings.Peek_NoWebView : null);
+            return;
+        }
+
+        var core = PreviewWeb.CoreWebView2;
+        var isHtml = kind == PeekPreviewKind.Html;
+        var folder = Path.GetDirectoryName(path);
+        core.ClearVirtualHostNameToFolderMapping(PeekWebContent.FileHost);
+        if (!string.IsNullOrEmpty(folder))
+        {
+            core.SetVirtualHostNameToFolderMapping(PeekWebContent.FileHost, folder, CoreWebView2HostResourceAccessKind.DenyCors);
+        }
+
+        // An HTML file runs no scripts. Our own pages for Markdown and code need theirs (highlight.js).
+        core.Settings.IsScriptEnabled = !isHtml;
+        PreviewWeb.DefaultBackgroundColor = isHtml ? System.Drawing.Color.White : ToDrawingColor(CurrentBackground());
+        _navigationAllowed = true;
+        if (page is null)
+        {
+            // The query keeps an edited file from coming out of the browser cache.
+            core.Navigate("https://" + PeekWebContent.FileHost + "/" + Uri.EscapeDataString(Path.GetFileName(path))
+                + "?v=" + DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture));
+            InfoText.Text = PeekWebContent.DescribeHtml(path);
+        }
+        else
+        {
+            core.NavigateToString(page.Html);
+            InfoText.Text = page.Info;
+        }
+    }
+
+    /// <summary>The file name over an empty area (what an image that cannot be decoded gets), or <paramref name="message"/>.</summary>
+    private void ShowNameOnly(string path, string? message = null)
+    {
+        PreviewWeb.Visibility = Visibility.Collapsed;
+        FallbackText.Text = message ?? Path.GetFileName(path);
+        FallbackText.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Creates the web view's browser once, on the first web preview, and keeps it for the window's life.
+    /// It has its own user data folder: the main app's folder cannot be shared with this non elevated process. The
+    /// task is False when the runtime is missing or the browser could not start.</summary>
+    private Task<bool> EnsureWebViewAsync() => _webReady ??= InitWebViewAsync();
+
+    private async Task<bool> InitWebViewAsync()
+    {
+        try
+        {
+            var folder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AresToys-Data", "WebView2", "Peek");
+            Directory.CreateDirectory(folder);
+            var environment = await CoreWebView2Environment.CreateAsync(null, folder);
+            await PreviewWeb.EnsureCoreWebView2Async(environment);
+
+            var core = PreviewWeb.CoreWebView2;
+            core.Settings.IsZoomControlEnabled = false;
+            core.Settings.AreDefaultContextMenusEnabled = false;
+            core.Settings.AreDevToolsEnabled = false;
+            core.Settings.IsStatusBarEnabled = false;
+            core.Settings.IsPasswordAutosaveEnabled = false;
+            core.Settings.IsGeneralAutofillEnabled = false;
+            core.SetVirtualHostNameToFolderMapping(PeekWebContent.AssetsHost,
+                Path.Combine(AppContext.BaseDirectory, "Peek", "Web"), CoreWebView2HostResourceAccessKind.DenyCors);
+
+            // Only the navigation this window started goes through: links, redirects and window.open do nothing.
+            core.NavigationStarting += (_, e) =>
+            {
+                if (_navigationAllowed)
+                {
+                    _navigationAllowed = false;
+                }
+                else
+                {
+                    e.Cancel = true;
+                }
+            };
+            core.NewWindowRequested += (_, e) => e.Handled = true;
+            core.DownloadStarting += (_, e) => e.Cancel = true;
+            core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
+            core.NavigationCompleted += (_, _) => ReturnFocusToWindow();
+            _webRuntimeMissing = false;
+            return true;
+        }
+        catch (WebView2RuntimeNotFoundException)
+        {
+            _webRuntimeMissing = true;
+            return false;
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException or InvalidOperationException
+                                       or IOException or UnauthorizedAccessException)
+        {
+            // The browser process could not start (blocked user data folder, missing Web assets folder): the
+            // window shows the file name, like an image that cannot be decoded.
+            _webRuntimeMissing = false;
+            return false;
+        }
+    }
+
+    /// <summary>The page colours from the app theme: the Surface1 background of this window and its text colour; dark
+    /// when that background is dark (the app theme manager's answer when the resource is missing).</summary>
+    private static PeekPageTheme CurrentPageTheme()
+    {
+        var background = CurrentBackground();
+        var hasResource = Application.Current?.TryFindResource("Surface1Color") is Color;
+        var luminance = (0.2126 * background.R + 0.7152 * background.G + 0.0722 * background.B) / 255;
+        var dark = hasResource ? luminance < 0.5 : ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+        var foreground = (Application.Current?.TryFindResource("AccentForegroundBrush") as SolidColorBrush)?.Color
+            ?? (dark ? Color.FromRgb(0xE6, 0xE6, 0xE6) : Color.FromRgb(0x20, 0x20, 0x20));
+        return new PeekPageTheme(dark, ToCss(background), ToCss(foreground));
+    }
+
+    private static Color CurrentBackground()
+        => Application.Current?.TryFindResource("Surface1Color") is Color color
+            ? color
+            : ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark ? Color.FromRgb(0x1E, 0x1E, 0x1E) : Colors.White;
+
+    private static string ToCss(Color color) => string.Create(CultureInfo.InvariantCulture, $"#{color.R:X2}{color.G:X2}{color.B:X2}");
+
+    private static System.Drawing.Color ToDrawingColor(Color color) => System.Drawing.Color.FromArgb(color.R, color.G, color.B);
 
     private async Task LoadAsync(string path, int version, CancellationToken ct)
     {
@@ -338,7 +529,7 @@ public partial class PeekWindow : FluentWindow
 
     private static string FormatInfo(PeekImageInfo info)
     {
-        var size = info.FileBytes >= 0 ? FormatBytes(info.FileBytes) : string.Empty;
+        var size = info.FileBytes >= 0 ? PeekWebContent.FormatBytes(info.FileBytes) : string.Empty;
         if (info.Bitmap is null)
         {
             return size;
@@ -346,24 +537,6 @@ public partial class PeekWindow : FluentWindow
 
         var pixels = string.Format(CultureInfo.CurrentCulture, "{0} x {1}", info.PixelWidth, info.PixelHeight);
         return size.Length == 0 ? pixels : pixels + "  ·  " + size;
-    }
-
-    /// <summary>Bytes as B, KB, MB or GB (1024 steps), one decimal in the current culture, none for plain bytes.</summary>
-    private static string FormatBytes(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB"];
-        var value = (double)bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        var number = unit == 0
-            ? ((long)value).ToString(CultureInfo.CurrentCulture)
-            : value.ToString("0.#", CultureInfo.CurrentCulture);
-        return number + " " + units[unit];
     }
 
     /// <summary>Sizes the window to 70% of the work area of the anchor's monitor and centers it there. Works in

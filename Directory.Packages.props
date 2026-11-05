@@ -81,6 +81,9 @@
          Windows 11 / Edge; on Win10 it lazy-installs on first use via the Evergreen runtime. -->
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.2792.45" />
 
+    <!-- Markdown to HTML for the Peek preview (Markdown files rendered in the web view). -->
+    <PackageVersion Include="Markdig" Version="1.5.1" />
+
     <!-- Velopack: installer + portable + delta auto-update. Used by AresToys.Updater (runtime
          hooks + UpdateManager) and indirectly by AresToys.App (Main has to call VelopackApp.Run
          before WPF starts so install/uninstall hooks intercept the right way). The CLI tool

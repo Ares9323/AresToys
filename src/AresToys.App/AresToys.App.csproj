@@ -49,6 +49,7 @@
     <PackageReference Include="QRCoder" />
     <PackageReference Include="ZXing.Net" />
     <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="Velopack" />
   </ItemGroup>
   <ItemGroup>
@@ -65,6 +66,12 @@
          picker grid. Monochrome, scales crisply at any DPI, plays nicely with the dark theme
          (Foreground bound to AccentForeground / Surface text). -->
     <Resource Include="Assets\Fonts\FontAwesome-Solid.otf" />
+    <!-- highlight.js 11.9.0 (BSD-3, see the LICENSE beside it) and its styles for the Peek web previews. The web view
+         loads them from disk through a virtual host, so they are copied next to the exe, not embedded. -->
+    <Content Include="Services\Peek\Web\**">
+      <Link>Peek\Web\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- Default .sxcu files seeded into %LOCALAPPDATA%\AresToys\custom-uploaders\ on first run.
          CopyToOutputDirectory because we read them from disk at runtime — embedding as
          AssemblyResource would force NavigationToString plumbing in the seed step. -->

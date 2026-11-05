@@ -5,6 +5,20 @@ using Wpf.Ui.Controls;
 
 namespace AresToys.App.Converters;
 
+/// <summary>MultiBinding: [0] a file path, [1] the <see cref="AresToys.App.Services.Launcher.IconService"/>; returns
+/// the file's shell icon at 32 px (null when the path is empty or has no icon). Lets an item template show an exe's
+/// icon without the item type knowing about icons.</summary>
+public sealed class PathIconConverter : IMultiValueConverter
+{
+    public object? Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture)
+        => values.Length >= 2 && values[0] is string { Length: > 0 } path && values[1] is AresToys.App.Services.Launcher.IconService icons
+            ? icons.GetIconAtSize(path, 32)
+            : null;
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 public sealed class BoolToAppearanceConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

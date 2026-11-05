@@ -17,6 +17,8 @@ public static class ExplorerWindows
     private const uint GW_CHILD = 5;
     private const uint SVGIO_ALLVIEW = 2;
     private const uint SIGDN_FILESYSPATH = 0x80058000;
+    private const int SWC_DESKTOP = 0x8;
+    private const int SWFO_NEEDDISPATCH = 1;
 
     private static readonly Guid SidTopLevelBrowser = new("4C96BE40-915C-11CF-99D3-00AA004AE837");
 
@@ -115,15 +117,38 @@ public static class ExplorerWindows
         return null;
     }
 
+    /// <summary>The folder view <paramref name="root"/> stands for: the desktop when it is the desktop window (class
+    /// Progman or WorkerW), else the active tab of the Explorer window (<see cref="FindActive"/>). The desktop is not
+    /// in <c>Shell.Application.Windows()</c>, it is asked for apart (SWC_DESKTOP); its folder is the user's Desktop.</summary>
+    private static (object Window, string Path)? FindView(IntPtr root)
+        => NewPlusExplorer.ClassOf(root) is "Progman" or "WorkerW" ? FindDesktop() : FindActive(root);
+
+    /// <summary>The desktop's shell window (dispatch object) and the user's Desktop folder; null when the shell has none.
+    /// The one place that asks for it (New+ selects a new file on the desktop through it too).</summary>
+    internal static (object Window, string Path)? FindDesktop()
+    {
+        var shellType = Type.GetTypeFromProgID("Shell.Application");
+        if (shellType is null) return null;
+        dynamic shell = Activator.CreateInstance(shellType)!;
+
+        object? location = null;
+        object? where = null;
+        dynamic windows = shell.Windows();
+        dynamic? window = windows.FindWindowSW(ref location, ref where, SWC_DESKTOP, out int _, SWFO_NEEDDISPATCH);
+        if (window is null) return null;
+        return ((object)window, Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+    }
+
     /// <summary>The paths selected in the active tab of the Explorer window <paramref name="root"/> (the foreground
-    /// Explorer window when omitted), folders included, in selection order. Empty when there is no such window,
-    /// nothing is selected or Explorer's automation surface fails. Run on an STA thread.</summary>
+    /// Explorer window when omitted) or on the desktop when <paramref name="root"/> is the desktop window, folders
+    /// included, in selection order. Empty when there is no such window, nothing is selected or Explorer's
+    /// automation surface fails. Run on an STA thread.</summary>
     public static IReadOnlyList<string> GetActiveSelection(IntPtr root = default, ILogger? logger = null)
     {
         try
         {
             if (root == IntPtr.Zero) root = NewPlusExplorer.ForegroundRoot();
-            if (root == IntPtr.Zero || FindActive(root) is not { } found) return Array.Empty<string>();
+            if (root == IntPtr.Zero || FindView(root) is not { } found) return Array.Empty<string>();
 
             var paths = new List<string>();
             dynamic window = found.Window;
@@ -141,7 +166,8 @@ public static class ExplorerWindows
         }
     }
 
-    /// <summary>All file system items of the active tab of the Explorer window <paramref name="root"/> in the order
+    /// <summary>All file system items of the active tab of the Explorer window <paramref name="root"/> (or of the
+    /// desktop when it is the desktop window) in the order
     /// the user sees them (the view's sort and grouping), folders left out, with the index of
     /// <paramref name="selectedPath"/> in that list (case-insensitive; -1 when it is not among them). Null when
     /// the view cannot be read. Run on an STA thread.</summary>
@@ -151,7 +177,7 @@ public static class ExplorerWindows
         IShellItemArray? array = null;
         try
         {
-            if (FindActive(root) is not { } found) return null;
+            if (FindView(root) is not { } found) return null;
             if (QueryTopLevel(found.Window, typeof(IShellBrowser).GUID) is not IShellBrowser browser) return null;
             if (browser.QueryActiveShellView(out view) != 0 || view is not IFolderView folderView) return null;
 

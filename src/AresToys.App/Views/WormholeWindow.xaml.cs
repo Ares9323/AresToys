@@ -147,6 +147,12 @@ public partial class WormholeWindow : Window
         InitializeComponent();
         DataContext = record;
         ItemsHost.ItemsSource = _items;
+        // The Peek key may have been changed in Settings (main process): read it again when the list gets the focus.
+        ItemsHost.GotKeyboardFocus += (_, e) =>
+        {
+            if (e.OldFocus is DependencyObject old && ItemsHost.IsAncestorOf(old)) return;
+            _ = Services.Peek.PeekSatelliteModule.Current?.RefreshConfigAsync();
+        };
         TabStrip.ItemsSource = _tabs;
 
         // Wire the default CollectionView's predicate so SearchBox filters the visible tiles
@@ -2433,6 +2439,8 @@ public partial class WormholeWindow : Window
         var ctrl  = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift)   == ModifierKeys.Shift;
 
+        if (TryPeek(e)) return;
+
         if (e.Key == Key.Delete)
         {
             if (_record.IsLocked) return;
@@ -2494,6 +2502,42 @@ public partial class WormholeWindow : Window
             return;
         }
     }
+
+    /// <summary>The Peek toggle key on the tile list: previews the first selected file, the arrows of the preview then
+    /// walk the files of this wormhole in the order shown (folders and tiles hidden by the search left out). The key
+    /// and the preview are Peek's (<see cref="Services.Peek.PeekSatelliteModule"/>, same process): with the Peek module
+    /// off, while a tile is being renamed or with no file selected the key is not handled. Returns true when taken.</summary>
+    private bool TryPeek(KeyEventArgs e)
+    {
+        if (_renamingItem is not null || Services.Peek.PeekSatelliteModule.Current is not { } peek) return false;
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var modifiers = AresToys.Hotkeys.HotkeyModifiers.None;
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Alt;
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Control;
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Shift;
+        if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Win;
+        if (!Services.Peek.PeekKeys.Matches(peek.Keys.Toggle, modifiers, (uint)KeyInterop.VirtualKeyFromKey(key))) return false;
+
+        var selected = ItemsHost.SelectedItems.OfType<WormholeItemViewModel>().ToHashSet();
+        var files = new List<string>();
+        var index = -1;
+        var shown = CollectionViewSource.GetDefaultView(_items).OfType<WormholeItemViewModel>();
+        foreach (var vm in shown)
+        {
+            if (string.IsNullOrEmpty(vm.AbsolutePath) || !File.Exists(vm.AbsolutePath)) continue;
+            if (index < 0 && selected.Contains(vm)) index = files.Count;
+            files.Add(vm.AbsolutePath);
+        }
+        if (index < 0) return false;
+
+        e.Handled = true;
+        if (!e.IsRepeat) ShowPeek(peek, files, index);
+        return true;
+    }
+
+    private async void ShowPeek(Services.Peek.PeekSatelliteModule peek, IReadOnlyList<string> files, int index)
+        => await peek.ShowAsync(files, index, new System.Windows.Interop.WindowInteropHelper(this).Handle);
 
     // -----------------------------------------------------------------------------------------
     // Inline rename of a single tile (F2)

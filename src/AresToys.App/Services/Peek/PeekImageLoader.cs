@@ -17,14 +17,6 @@ internal sealed record PeekImageInfo(BitmapSource? Bitmap, int PixelWidth, int P
 /// awaits them. The returned bitmaps are frozen and safe to hand to the dispatcher thread.</summary>
 internal static class PeekImageLoader
 {
-    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp", ".ico", ".jxr",
-    };
-
-    /// <summary>True when Peek previews this extension as an image.</summary>
-    public static bool IsSupported(string path) => SupportedExtensions.Contains(Path.GetExtension(path));
-
     /// <summary>Decodes the image at <paramref name="path"/> with its EXIF rotation applied, downscaled at decode
     /// time so its longest side is at most <paramref name="maxPixelWidth"/> (never enlarged). Null when the file
     /// is not a supported image or cannot be read. Throws <see cref="OperationCanceledException"/> when
@@ -44,7 +36,7 @@ internal static class PeekImageLoader
     {
         ct.ThrowIfCancellationRequested();
         var bytes = ReadLength(path);
-        if (!IsSupported(path))
+        if (PeekPreview.For(path) != PeekPreviewKind.Image)
         {
             return new PeekImageInfo(null, 0, 0, bytes);
         }

@@ -26,8 +26,9 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
     private bool _loading;
     private string? _editingId;
 
-    public PeekSettingsViewModel(PeekOpenWithStore store, PeekKeysStore keysStore, ILogger<PeekSettingsViewModel> logger)
+    public PeekSettingsViewModel(PeekOpenWithStore store, PeekKeysStore keysStore, AresToys.App.Services.Launcher.IconService icons, ILogger<PeekSettingsViewModel> logger)
     {
+        Icons = icons;
         _store = store;
         _keysStore = keysStore;
         _logger = logger;
@@ -113,6 +114,9 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
 
     /// <summary>The programs, for the list.</summary>
     public ObservableCollection<PeekProgram> Programs { get; } = new();
+
+    /// <summary>Shell icons for the program list (the shared cached service the Launcher uses).</summary>
+    public AresToys.App.Services.Launcher.IconService Icons { get; }
 
     /// <summary>"System default app" followed by the programs: the items of every association combo box.</summary>
     public ObservableCollection<PeekProgram> ProgramChoices { get; } = new();
@@ -223,6 +227,8 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         EditArgs = string.Empty;
         ErrorText = string.Empty;
         IsEditing = true;
+        // Saves a click: the file picker opens at once; cancelling it leaves the empty fields to fill by hand.
+        BrowseProgram();
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedProgram))]
@@ -261,7 +267,17 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
             Filter = Strings.Peek_BrowseFilter,
             CheckFileExists = true,
         };
-        if (dialog.ShowDialog() == true) EditExe = dialog.FileName;
+        if (dialog.ShowDialog() != true) return;
+        EditExe = dialog.FileName;
+        EditName = PascalCaseName(Path.GetFileNameWithoutExtension(dialog.FileName));
+    }
+
+    /// <summary>"vectorcraft" -> "Vectorcraft", "pdf-craft_tool" -> "PdfCraftTool": every run of letters and
+    /// digits starts upper case, the rest of each run is kept as written, separators are dropped.</summary>
+    private static string PascalCaseName(string fileName)
+    {
+        var parts = System.Text.RegularExpressions.Regex.Split(fileName, @"[^\p{L}\p{N}]+");
+        return string.Concat(parts.Where(p => p.Length > 0).Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
     }
 
     [RelayCommand]
