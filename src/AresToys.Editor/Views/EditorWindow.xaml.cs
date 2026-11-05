@@ -2849,13 +2849,20 @@ public partial class EditorWindow : FluentWindow
         if (_suppressLiveUpdates) return;
         var startCap = SelLineStartCapCheck.IsChecked == true;
         var endCap = SelLineEndCapCheck.IsChecked == true;
-        var tools = StyleTargets(t => t is EditorTool.Line or EditorTool.Arrow);
-        foreach (var s in _vm.SelectedShapes.ToList())
+        // The caps decide the tool: any cap is an Arrow, none a Line. A line that gains or loses
+        // a cap becomes the other tool, so the edit is written to the style it becomes.
+        var target = startCap || endCap ? EditorTool.Arrow : EditorTool.Line;
+        var lines = _vm.SelectedShapes.OfType<LineShape>().ToList();
+        foreach (var l in lines)
         {
-            if (s is LineShape l && (l.StartCap != startCap || l.EndCap != endCap))
-                _vm.LiveReplaceShape(s, l with { StartCap = startCap, EndCap = endCap });
+            if (l.StartCap != startCap || l.EndCap != endCap)
+                _vm.LiveReplaceShape(l, l with { StartCap = startCap, EndCap = endCap });
         }
-        WriteStyle(tools, style => style with { StartCap = startCap, EndCap = endCap });
+        var active = _vm.CurrentTool is EditorTool.Line or EditorTool.Arrow;
+        if (lines.Count > 0 || active)
+            WriteStyle([target], (_, style) => style with { StartCap = startCap, EndCap = endCap });
+        // Switching tool rebuilds the panel under _suppressLiveUpdates, so this does not echo back.
+        if (active && _vm.CurrentTool != target) _vm.CurrentTool = target;
     }
 
     private void OnSelLineTipStyleChanged()

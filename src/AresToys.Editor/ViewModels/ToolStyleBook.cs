@@ -33,7 +33,7 @@ public sealed class ToolStyleBook
     public ToolStyleBook()
     {
         foreach (var tool in StyledTools)
-            _slots[tool] = new Slot { Current = ToolStyle.InitialFor(tool) };
+            _slots[tool] = new Slot { Current = Normalize(tool, ToolStyle.InitialFor(tool)) };
     }
 
     /// <summary>Raised with the tool whose current style or Recent list changed.</summary>
@@ -52,6 +52,7 @@ public sealed class ToolStyleBook
     {
         ArgumentNullException.ThrowIfNull(style);
         var slot = SlotFor(tool);
+        style = Normalize(tool, style);
         if (slot.Current.Equals(style)) return;
         slot.Current = style;
         Changed?.Invoke(tool);
@@ -66,6 +67,7 @@ public sealed class ToolStyleBook
     public void Remember(EditorTool tool, ToolStyle style)
     {
         ArgumentNullException.ThrowIfNull(style);
+        style = Normalize(tool, style);
         var recent = SlotFor(tool).Recent;
         if (recent.Count > 0 && recent[0].Equals(style)) return;
         var existing = recent.FindIndex(s => s.Equals(style));
@@ -90,12 +92,23 @@ public sealed class ToolStyleBook
     {
         var recent = SlotFor(tool).Recent;
         recent.Clear();
-        foreach (var s in styles)
+        foreach (var raw in styles)
         {
             if (recent.Count >= MaxRecent) break;
+            var s = Normalize(tool, raw);
             if (!recent.Contains(s)) recent.Add(s);
         }
     }
+
+    /// <summary>Line and Arrow are told apart by their caps alone: a Line style never has a cap,
+    /// an Arrow style always has at least one (End when it would have none). Every write and load
+    /// goes through here, so no other code needs to keep the two apart.</summary>
+    public static ToolStyle Normalize(EditorTool tool, ToolStyle style) => tool switch
+    {
+        EditorTool.Line when style.StartCap || style.EndCap => style with { StartCap = false, EndCap = false },
+        EditorTool.Arrow when !style.StartCap && !style.EndCap => style with { EndCap = true },
+        _ => style
+    };
 
     private Slot SlotFor(EditorTool tool) =>
         _slots.TryGetValue(tool, out var slot)

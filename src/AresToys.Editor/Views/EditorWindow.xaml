@@ -449,15 +449,15 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <CheckBox x:Name="SelLineStartCapCheck" Grid.Column="0"
-                                      Content="Start"
-                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
-                                      MinWidth="0" Margin="0,0,6,0"
-                                      ToolTip="Add a ShareX-style arrowhead at the From end of this line, oriented along the bezier tangent at that point." />
-                            <CheckBox x:Name="SelLineEndCapCheck" Grid.Column="1" MinWidth="0"
+                            <CheckBox x:Name="SelLineEndCapCheck" Grid.Column="0" MinWidth="0" Margin="0,0,6,0"
                                       Content="End"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
                                       ToolTip="Add a ShareX-style arrowhead at the To end of this line, oriented along the bezier tangent at that point." />
+                            <CheckBox x:Name="SelLineStartCapCheck" Grid.Column="1"
+                                      Content="Start"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      MinWidth="0"
+                                      ToolTip="Add a ShareX-style arrowhead at the From end of this line, oriented along the bezier tangent at that point." />
                         </Grid>
                         <TextBlock x:Name="SelLineTipStyleLabel" Text="Tip style" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
                         <ComboBox x:Name="SelLineTipStyleCombo"
