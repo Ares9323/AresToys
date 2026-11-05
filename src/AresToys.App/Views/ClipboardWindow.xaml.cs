@@ -127,6 +127,7 @@ public partial class ClipboardWindow : Wpf.Ui.Controls.FluentWindow
         // skips the query entirely (version-skip path).
         IsVisibleChanged += (_, e) =>
         {
+            ViewModel.SetPopupVisible(e.NewValue is true);
             if (e.NewValue is not true)
             {
                 // Hidden: no playback in the background and no lock on the file (issue #22).

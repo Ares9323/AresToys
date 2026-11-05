@@ -35,7 +35,8 @@ public sealed class CategoryRotationService
     /// safely ignore it.</summary>
     public async Task<int> RunAsync(CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        var conn = lease.Connection;
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         // Pull every category row up-front (one query) instead of one round-trip per category.
@@ -67,7 +68,8 @@ public sealed class CategoryRotationService
     public async Task<int> EnforceMaxItemsForAsync(string category, int maxItems, CancellationToken cancellationToken)
     {
         if (maxItems <= 0 || string.IsNullOrEmpty(category)) return 0;
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        var conn = lease.Connection;
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         return await SoftDeleteOverCountAsync(conn, category, maxItems, nowMs, cancellationToken).ConfigureAwait(false);
     }

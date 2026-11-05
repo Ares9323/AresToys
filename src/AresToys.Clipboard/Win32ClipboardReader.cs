@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using AresToys.Clipboard.Native;
 
 namespace AresToys.Clipboard;
@@ -11,22 +13,44 @@ namespace AresToys.Clipboard;
 [SupportedOSPlatform("windows")]
 public sealed class Win32ClipboardReader : IClipboardReader
 {
-    private readonly IForegroundProcessProbe _probe;
+    // Size limits, so one huge copy (an Excel range, a browser page, a giant image) cannot
+    // stall the reader or fill memory. Anything over a limit is capped or skipped, and logged.
+
+    /// <summary>Text, HTML and RTF payloads above this many bytes are not stored whole: the
+    /// Unicode text is stored instead (capped at this size), or the copy is skipped when there is none.</summary>
+    private const long MaxTextBytes = 16L * 1024 * 1024;
+
+    /// <summary>Previews and search text are built from at most this much of the payload.</summary>
+    private const int PreviewSourceBytes = 64 * 1024;
+
+    /// <summary>Largest picture (width x height) converted from CF_DIB; above it the copy is skipped.</summary>
+    private const long MaxDibPixels = 100_000_000;
+
+    /// <summary>Another app can hold the clipboard open for a moment right after copying;
+    /// the read waits and tries again a few times before giving up.</summary>
+    private const int OpenAttempts = 5;
+    private const int OpenRetryDelayMs = 20;
+
+    private readonly ILogger<Win32ClipboardReader> _logger;
     private readonly uint _cfHtml;
     private readonly uint _cfRtf;
     private readonly uint _cfPng;
 
-    public Win32ClipboardReader(IForegroundProcessProbe probe)
+    public Win32ClipboardReader(ILogger<Win32ClipboardReader>? logger = null)
     {
-        _probe = probe;
+        _logger = logger ?? NullLogger<Win32ClipboardReader>.Instance;
         _cfHtml = ClipboardNativeMethods.RegisterClipboardFormat("HTML Format");
         _cfRtf = ClipboardNativeMethods.RegisterClipboardFormat("Rich Text Format");
         _cfPng = ClipboardNativeMethods.RegisterClipboardFormat("PNG");
     }
 
-    public ClipboardChange? ReadCurrent(IntPtr ownerHwnd)
+    public ClipboardChange? ReadCurrent(IntPtr ownerHwnd, ForegroundSnapshot foreground, DateTimeOffset capturedAt)
     {
-        if (!ClipboardNativeMethods.OpenClipboard(ownerHwnd)) return null;
+        if (!OpenClipboardWithRetry(ownerHwnd))
+        {
+            _logger.LogWarning("Clipboard could not be opened after {Attempts} attempts (held by another app)", OpenAttempts);
+            return null;
+        }
         try
         {
             var (format, payload, preview, files) = ReadFirstAvailable();
@@ -34,9 +58,9 @@ public sealed class Win32ClipboardReader : IClipboardReader
 
             return new ClipboardChange(
                 Format: format,
-                CapturedAt: DateTimeOffset.UtcNow,
-                SourceProcess: _probe.GetForegroundProcessName(),
-                SourceWindow: _probe.GetForegroundWindowTitle(),
+                CapturedAt: capturedAt,
+                SourceProcess: foreground.ProcessName,
+                SourceWindow: foreground.WindowTitle,
                 Payload: payload,
                 PreviewText: preview,
                 FilePaths: files);
@@ -45,6 +69,16 @@ public sealed class Win32ClipboardReader : IClipboardReader
         {
             ClipboardNativeMethods.CloseClipboard();
         }
+    }
+
+    private static bool OpenClipboardWithRetry(IntPtr ownerHwnd)
+    {
+        for (var attempt = 0; attempt < OpenAttempts; attempt++)
+        {
+            if (ClipboardNativeMethods.OpenClipboard(ownerHwnd)) return true;
+            if (attempt < OpenAttempts - 1) Thread.Sleep(OpenRetryDelayMs);
+        }
+        return false;
     }
 
     private (ClipboardFormat Format, ReadOnlyMemory<byte> Payload, string? Preview, string[]? Files) ReadFirstAvailable()
@@ -57,41 +91,53 @@ public sealed class Win32ClipboardReader : IClipboardReader
         }
         if (ClipboardNativeMethods.IsClipboardFormatAvailable(_cfHtml))
         {
-            var bytes = ReadGlobalBytes(_cfHtml);
+            var bytes = ReadGlobalBytes(_cfHtml, MaxTextBytes, out var size);
+            if (bytes is null) return UnicodeTextInstead("HTML", size);
+            // A browser "Copy image" puts only an <img> in CF_HTML next to the picture: with no visible text
+            // that is the picture, so it becomes an Image. If the picture cannot be read, the Html item stays.
+            if (HasPictureFormat() && ExtractHtmlPreview(bytes).Length == 0 && TryReadPicture() is { } picture)
+                return (ClipboardFormat.Image, picture, "[image]", null);
             // Prefer CF_UNICODETEXT (UTF-16, always clean) for the preview when available — some
             // sources put double-encoded UTF-8 in CF_HTML and our extractor would inherit the
             // mojibake. Fall back to extracting plaintext from the HTML body otherwise.
             var preview = ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfUnicodeText)
-                ? TruncatePreview(ReadUnicodeText())
+                ? TruncatePreview(ReadUnicodeText(PreviewSourceBytes / 2, out _))
                 : ExtractHtmlPreview(bytes);
             return (ClipboardFormat.Html, bytes, preview, null);
         }
         if (ClipboardNativeMethods.IsClipboardFormatAvailable(_cfRtf))
         {
-            var bytes = ReadGlobalBytes(_cfRtf);
+            var bytes = ReadGlobalBytes(_cfRtf, MaxTextBytes, out var size);
+            if (bytes is null) return UnicodeTextInstead("RTF", size);
             var preview = ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfUnicodeText)
-                ? TruncatePreview(ReadUnicodeText())
+                ? TruncatePreview(ReadUnicodeText(PreviewSourceBytes / 2, out _))
                 : ExtractRtfPreview(bytes);
             return (ClipboardFormat.Rtf, bytes, preview, null);
         }
         if (ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfUnicodeText))
         {
-            var text = ReadUnicodeText();
-            var bytes = Encoding.UTF8.GetBytes(text);
-            return (ClipboardFormat.Text, bytes, text, null);
+            var text = ReadUnicodeText((int)(MaxTextBytes / 2), out var truncated);
+            if (truncated)
+                _logger.LogWarning("Clipboard text is over the {Limit} byte limit: stored capped", MaxTextBytes);
+            return TextResult(text);
         }
         // The registered "PNG" format (browsers, image editors, AresToys itself) keeps the alpha
         // channel; CF_DIB goes through a BMP decode that drops it, so a transparent image would
         // come back with a black or white background.
         if (ClipboardNativeMethods.IsClipboardFormatAvailable(_cfPng))
         {
-            var pngBytes = ReadGlobalBytes(_cfPng);
+            var pngBytes = ReadGlobalBytes(_cfPng, Array.MaxLength, out var size);
+            if (pngBytes is null)
+            {
+                _logger.LogWarning("Clipboard PNG skipped: {Bytes} bytes is over the array limit", size);
+                return (ClipboardFormat.None, ReadOnlyMemory<byte>.Empty, null, null);
+            }
             if (IsPng(pngBytes)) return (ClipboardFormat.Image, pngBytes, "[image]", null);
         }
         if (ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfDib))
         {
-            var dibBytes = ReadGlobalBytes(ClipboardNativeMethods.CfDib);
-            var pngBytes = TryConvertDibToPng(dibBytes);
+            var dibBytes = ReadDibBytes();
+            var pngBytes = dibBytes is null ? null : TryConvertDibToPng(dibBytes);
             return pngBytes is not null
                 ? (ClipboardFormat.Image, pngBytes, "[image]", null)
                 : (ClipboardFormat.None, ReadOnlyMemory<byte>.Empty, null, null);
@@ -99,21 +145,71 @@ public sealed class Win32ClipboardReader : IClipboardReader
         return (ClipboardFormat.None, ReadOnlyMemory<byte>.Empty, null, null);
     }
 
+    private bool HasPictureFormat()
+        => ClipboardNativeMethods.IsClipboardFormatAvailable(_cfPng)
+           || ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfDib);
+
+    /// <summary>The picture of the copy as PNG bytes: the registered PNG format first, then CF_DIB converted.
+    /// Null when neither reads. Called with the clipboard open.</summary>
+    private byte[]? TryReadPicture()
+    {
+        if (ClipboardNativeMethods.IsClipboardFormatAvailable(_cfPng))
+        {
+            var pngBytes = ReadGlobalBytes(_cfPng, Array.MaxLength, out _);
+            if (pngBytes is not null && IsPng(pngBytes)) return pngBytes;
+        }
+        if (ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfDib))
+        {
+            var dibBytes = ReadDibBytes();
+            return dibBytes is null ? null : TryConvertDibToPng(dibBytes);
+        }
+        return null;
+    }
+
+    /// <summary>Plain text item. The text is also the search text, indexed from its first 64 KB only.</summary>
+    private static (ClipboardFormat Format, ReadOnlyMemory<byte> Payload, string? Preview, string[]? Files) TextResult(string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        var preview = text.Length > PreviewSourceBytes ? text[..PreviewSourceBytes] : text;
+        return (ClipboardFormat.Text, bytes, preview, null);
+    }
+
+    /// <summary>An HTML or RTF payload over the limit: keep only its Unicode text, or skip the copy when there is none.</summary>
+    private (ClipboardFormat Format, ReadOnlyMemory<byte> Payload, string? Preview, string[]? Files) UnicodeTextInstead(string label, long size)
+    {
+        if (ClipboardNativeMethods.IsClipboardFormatAvailable(ClipboardNativeMethods.CfUnicodeText))
+        {
+            var text = ReadUnicodeText((int)(MaxTextBytes / 2), out var truncated);
+            if (text.Length > 0)
+            {
+                _logger.LogWarning("Clipboard {Label} of {Bytes} bytes is over the {Limit} byte limit: stored as plain text only{Capped}",
+                    label, size, MaxTextBytes, truncated ? " (text capped too)" : string.Empty);
+                return TextResult(text);
+            }
+        }
+        _logger.LogWarning("Clipboard {Label} of {Bytes} bytes is over the {Limit} byte limit and has no text: skipped", label, size, MaxTextBytes);
+        return (ClipboardFormat.None, ReadOnlyMemory<byte>.Empty, null, null);
+    }
+
     private static bool IsPng(byte[] bytes)
         => bytes.Length > 8 && bytes[0] == 0x89 && bytes[1] == (byte)'P' && bytes[2] == (byte)'N' && bytes[3] == (byte)'G';
 
-    private static byte[] ReadGlobalBytes(uint format)
+    /// <summary>Copies the clipboard block of a format. Null when it is bigger than <paramref name="maxBytes"/>
+    /// (its size is still reported); an empty array when there is no data.</summary>
+    private static byte[]? ReadGlobalBytes(uint format, long maxBytes, out long size)
     {
+        size = 0;
         var hMem = ClipboardNativeMethods.GetClipboardData(format);
         if (hMem == IntPtr.Zero) return [];
-        var size = (int)ClipboardNativeMethods.GlobalSize(hMem);
+        size = (long)ClipboardNativeMethods.GlobalSize(hMem);
         if (size <= 0) return [];
+        if (size > maxBytes || size > Array.MaxLength) return null;
         var ptr = ClipboardNativeMethods.GlobalLock(hMem);
         if (ptr == IntPtr.Zero) return [];
         try
         {
             var buffer = new byte[size];
-            Marshal.Copy(ptr, buffer, 0, size);
+            Marshal.Copy(ptr, buffer, 0, (int)size);
             return buffer;
         }
         finally
@@ -122,15 +218,67 @@ public sealed class Win32ClipboardReader : IClipboardReader
         }
     }
 
-    private static string ReadUnicodeText()
+    /// <summary>CF_DIB bytes, read only when the picture is at most <see cref="MaxDibPixels"/>:
+    /// the size is taken from the header before anything is copied. Null when over the limit.</summary>
+    private byte[]? ReadDibBytes()
     {
+        var hMem = ClipboardNativeMethods.GetClipboardData(ClipboardNativeMethods.CfDib);
+        if (hMem == IntPtr.Zero) return [];
+        var size = (long)ClipboardNativeMethods.GlobalSize(hMem);
+        if (size <= 0) return [];
+        var ptr = ClipboardNativeMethods.GlobalLock(hMem);
+        if (ptr == IntPtr.Zero) return [];
+        try
+        {
+            if (size >= 12)
+            {
+                // BITMAPINFOHEADER: biWidth at 4, biHeight at 8 (negative = top-down).
+                var pixels = Math.Abs((long)Marshal.ReadInt32(ptr, 4)) * Math.Abs((long)Marshal.ReadInt32(ptr, 8));
+                if (pixels > MaxDibPixels)
+                {
+                    _logger.LogWarning("Clipboard picture of {Pixels} pixels is over the {Limit} pixel limit: skipped", pixels, MaxDibPixels);
+                    return null;
+                }
+            }
+            if (size > Array.MaxLength)
+            {
+                _logger.LogWarning("Clipboard picture of {Bytes} bytes is over the array limit: skipped", size);
+                return null;
+            }
+            var buffer = new byte[size];
+            Marshal.Copy(ptr, buffer, 0, (int)size);
+            return buffer;
+        }
+        finally
+        {
+            ClipboardNativeMethods.GlobalUnlock(hMem);
+        }
+    }
+
+    /// <summary>Reads CF_UNICODETEXT, at most <paramref name="maxChars"/> characters.
+    /// <paramref name="truncated"/> is true when the clipboard held more.</summary>
+    private static string ReadUnicodeText(int maxChars, out bool truncated)
+    {
+        truncated = false;
         var hMem = ClipboardNativeMethods.GetClipboardData(ClipboardNativeMethods.CfUnicodeText);
         if (hMem == IntPtr.Zero) return string.Empty;
+        var held = (long)ClipboardNativeMethods.GlobalSize(hMem) / 2;
+        if (held <= 0) return string.Empty;
         var ptr = ClipboardNativeMethods.GlobalLock(hMem);
         if (ptr == IntPtr.Zero) return string.Empty;
         try
         {
-            return Marshal.PtrToStringUni(ptr) ?? string.Empty;
+            var count = (int)Math.Min(held, maxChars);
+            var text = Marshal.PtrToStringUni(ptr, count);
+            var nul = text.IndexOf('\0');
+            if (nul >= 0) return text[..nul];
+            if (held > maxChars)
+            {
+                truncated = true;
+                // Do not cut a surrogate pair in half.
+                if (text.Length > 0 && char.IsHighSurrogate(text[^1])) text = text[..^1];
+            }
+            return text;
         }
         finally
         {
@@ -156,26 +304,23 @@ public sealed class Win32ClipboardReader : IClipboardReader
         return paths;
     }
 
-    private static string ExtractPreview(byte[] bytes)
-    {
-        if (bytes.Length == 0) return string.Empty;
-        var text = Encoding.UTF8.GetString(bytes);
-        if (text.Length > 256) text = text[..256] + "…";
-        return text;
-    }
-
     private static string TruncatePreview(string text)
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
         return text.Length > 256 ? text[..256] + "…" : text;
     }
 
+    /// <summary>The first <see cref="PreviewSourceBytes"/> of a payload as text, so the preview
+    /// regexes never run over a multi-megabyte page.</summary>
+    private static string PreviewSourceText(byte[] bytes)
+        => Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, PreviewSourceBytes));
+
     /// <summary>Strips CF_HTML preamble + tags so the row preview / FTS index sees readable text
     /// instead of "Version:0.9 StartHTML:..." gibberish.</summary>
     private static string ExtractHtmlPreview(byte[] bytes)
     {
         if (bytes.Length == 0) return string.Empty;
-        var text = Encoding.UTF8.GetString(bytes);
+        var text = PreviewSourceText(bytes);
 
         var fragStart = text.IndexOf("<!--StartFragment-->", StringComparison.OrdinalIgnoreCase);
         if (fragStart >= 0) text = text[(fragStart + "<!--StartFragment-->".Length)..];
@@ -210,7 +355,7 @@ public sealed class Win32ClipboardReader : IClipboardReader
     private static string ExtractRtfPreview(byte[] bytes)
     {
         if (bytes.Length == 0) return string.Empty;
-        var text = Encoding.UTF8.GetString(bytes);
+        var text = PreviewSourceText(bytes);
         // \word, \word123, \'hh hex escapes, then strip braces and collapse whitespace.
         text = Regex.Replace(text, @"\\'[0-9a-fA-F]{2}", " ");
         text = Regex.Replace(text, @"\\[a-zA-Z]+-?\d* ?", " ");

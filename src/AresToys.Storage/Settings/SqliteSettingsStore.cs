@@ -19,17 +19,22 @@ public sealed class SqliteSettingsStore : ISettingsStore
     public async Task<string?> GetAsync(string key, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(key);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT value, is_sensitive FROM settings WHERE key = $key LIMIT 1;";
-        cmd.Parameters.AddWithValue("$key", key);
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return null;
+        string stored;
+        bool sensitive;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            cmd.CommandText = "SELECT value, is_sensitive FROM settings WHERE key = $key LIMIT 1;";
+            cmd.Parameters.AddWithValue("$key", key);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return null;
 
-        var stored = reader.GetString(0);
-        var sensitive = reader.GetInt32(1) == 1;
+            stored = reader.GetString(0);
+            sensitive = reader.GetInt32(1) == 1;
+        }
         if (!sensitive) return stored;
 
+        // DPAPI runs after the lease is gone: it does not need the connection.
         var ciphertext = Convert.FromBase64String(stored);
         var plaintext = _protector.Unprotect(ciphertext);
         return Encoding.UTF8.GetString(plaintext);
@@ -39,13 +44,13 @@ public sealed class SqliteSettingsStore : ISettingsStore
     {
         ArgumentException.ThrowIfNullOrEmpty(key);
         ArgumentNullException.ThrowIfNull(value);
-        var conn = _database.GetOpenConnection();
 
         var stored = sensitive
             ? Convert.ToBase64String(_protector.Protect(Encoding.UTF8.GetBytes(value)))
             : value;
 
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO settings (key, value, is_sensitive) VALUES ($key, $value, $sensitive)
             ON CONFLICT(key) DO UPDATE SET value = $value, is_sensitive = $sensitive;
@@ -59,8 +64,8 @@ public sealed class SqliteSettingsStore : ISettingsStore
     public async Task<bool> RemoveAsync(string key, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(key);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = "DELETE FROM settings WHERE key = $key;";
         cmd.Parameters.AddWithValue("$key", key);
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -71,19 +76,28 @@ public sealed class SqliteSettingsStore : ISettingsStore
         bool includeSensitive = false,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        // Filter at SQL level when sensitive entries should be skipped — saves us from
-        // unprotecting payloads we'll discard anyway and keeps the streaming cost flat.
-        cmd.CommandText = includeSensitive
-            ? "SELECT key, value, is_sensitive FROM settings ORDER BY key;"
-            : "SELECT key, value, is_sensitive FROM settings WHERE is_sensitive = 0 ORDER BY key;";
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        // The rows are read in one go under the lease and handed out after it is released: a
+        // reader kept open across the yields would hold the connection for as long as the
+        // caller takes to consume each entry (and deadlock a caller that uses the store inside
+        // its loop).
+        var rows = new List<(string Key, string Stored, bool Sensitive)>();
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
-            var key = reader.GetString(0);
-            var stored = reader.GetString(1);
-            var sensitive = reader.GetInt32(2) == 1;
+            await using var cmd = lease.Connection.CreateCommand();
+            // Filter at SQL level when sensitive entries should be skipped: saves us from
+            // unprotecting payloads we'll discard anyway.
+            cmd.CommandText = includeSensitive
+                ? "SELECT key, value, is_sensitive FROM settings ORDER BY key;"
+                : "SELECT key, value, is_sensitive FROM settings WHERE is_sensitive = 0 ORDER BY key;";
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                rows.Add((reader.GetString(0), reader.GetString(1), reader.GetInt32(2) == 1));
+            }
+        }
+
+        foreach (var (key, stored, sensitive) in rows)
+        {
             string value;
             if (sensitive)
             {

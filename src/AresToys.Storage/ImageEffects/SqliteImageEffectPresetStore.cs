@@ -22,8 +22,8 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
 
     public async Task<IReadOnlyList<EffectPreset>> ListAsync(CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = "SELECT id, name, effects_json, sort_order FROM image_effect_presets ORDER BY sort_order, name;";
         var results = new List<EffectPreset>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -38,8 +38,8 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
     public async Task<EffectPreset?> GetAsync(string id, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = "SELECT id, name, effects_json FROM image_effect_presets WHERE id = $id LIMIT 1;";
         cmd.Parameters.AddWithValue("$id", id);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -57,8 +57,17 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
         var json = _serializer.Serialize(preset);
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await WriteAsync(preset, sortOrder, json, nowMs, cancellationToken).ConfigureAwait(false);
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>The upsert statement, run under its own lease so the Changed event fires after
+    /// the lease is released.</summary>
+    private async Task WriteAsync(EffectPreset preset, int? sortOrder, string json, long nowMs, CancellationToken cancellationToken)
+    {
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         // ON CONFLICT clause keeps the INSERT atomic and preserves created_at on update. When
         // sortOrder is null the existing value is kept (excluded.* would clobber it).
         cmd.CommandText = sortOrder is null
@@ -85,18 +94,19 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
         cmd.Parameters.AddWithValue("$now", nowMs);
         if (sortOrder is not null) cmd.Parameters.AddWithValue("$sort", sortOrder.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM image_effect_presets WHERE id = $id;";
-        cmd.Parameters.AddWithValue("$id", id);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        int rows;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM image_effect_presets WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", id);
+            rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (rows > 0) Changed?.Invoke(this, EventArgs.Empty);
         return rows > 0;
     }
@@ -105,18 +115,21 @@ public sealed class SqliteImageEffectPresetStore : IImageEffectPresetStore
     {
         ArgumentNullException.ThrowIfNull(orderedIds);
         if (orderedIds.Count == 0) return;
-        var conn = _database.GetOpenConnection();
-        await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        for (var i = 0; i < orderedIds.Count; i++)
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
-            await using var cmd = conn.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = "UPDATE image_effect_presets SET sort_order = $order WHERE id = $id;";
-            cmd.Parameters.AddWithValue("$order", i);
-            cmd.Parameters.AddWithValue("$id", orderedIds[i]);
-            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            var conn = lease.Connection;
+            await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            for (var i = 0; i < orderedIds.Count; i++)
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = "UPDATE image_effect_presets SET sort_order = $order WHERE id = $id;";
+                cmd.Parameters.AddWithValue("$order", i);
+                cmd.Parameters.AddWithValue("$id", orderedIds[i]);
+                await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
-        await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

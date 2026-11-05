@@ -13,12 +13,14 @@ public sealed class ClipboardCaptureGate : IClipboardCaptureGate
         _options = options;
     }
 
-    public GateDecision Evaluate()
+    public GateDecision Evaluate() => Evaluate(_probe.GetForeground());
+
+    public GateDecision Evaluate(ForegroundSnapshot foreground)
     {
         var opts = _options.CurrentValue;
         if (opts.IncognitoActive) return new GateDecision(Allow: false, Reason: "incognito");
 
-        var process = _probe.GetForegroundProcessName();
+        var process = foreground.ProcessName;
         if (process is null) return new GateDecision(Allow: true, Reason: null);
 
         if (IsBlocked(opts.BlockedProcesses, process))

@@ -23,24 +23,32 @@ public sealed class ItemStore : IItemStore
     {
         ArgumentNullException.ThrowIfNull(item);
         item = NormalizeVideoPayload(item);
-        var conn = _database.GetOpenConnection();
 
         // Dedup: if the most recent non-deleted item has the same kind and identical payload,
         // bump its created_at instead of inserting a duplicate (e.g. user pastes "ciao" 5 times).
         // Videos are skipped: two recordings are never "the same paste twice", and the probe
         // would decrypt a legacy row's whole video payload just to compare it.
-        var dedupId = item.Kind == ItemKind.Video
-            ? null
-            : await TryDedupAsync(conn, item, cancellationToken).ConfigureAwait(false);
+        // The probe (with its DPAPI decrypt of the candidate) runs under the lease: it reads and
+        // may update the row it compares against.
+        long? dedupId = null;
+        if (item.Kind != ItemKind.Video)
+        {
+            await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+            var conn = lease.Connection;
+            dedupId = await TryDedupAsync(conn, item, cancellationToken).ConfigureAwait(false);
+            // A row captured before Files thumbnails existed gets one from the repeat copy.
+            if (dedupId is not null && item.Thumbnail is { Length: > 0 } repeatThumb)
+                await SetThumbnailIfMissingCoreAsync(conn, dedupId.Value, repeatThumb, cancellationToken).ConfigureAwait(false);
+        }
         if (dedupId is not null)
         {
-            // A row captured before Files thumbnails existed gets one from the repeat copy.
-            if (item.Thumbnail is { Length: > 0 } repeatThumb)
-                await SetThumbnailIfMissingAsync(dedupId.Value, repeatThumb, cancellationToken).ConfigureAwait(false);
             ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Added, dedupId.Value));
             return dedupId.Value;
         }
 
+        // The DPAPI encode and the thumbnail are CPU work that does not need the connection, so
+        // the lease is not held for them: the UI and the other stores can use the database
+        // while a large image is processed.
         var encoded = _serializer.Encode(item.Payload);
 
         // Pre-generate a small PNG thumbnail for image items so the popup/timeline can render
@@ -51,54 +59,72 @@ public sealed class ItemStore : IItemStore
             thumbnail = ThumbnailGenerator.TryGenerate(item.Payload, maxSide: 96);
         }
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO items
-                (kind, source, created_at, pinned, source_process, source_window,
-                 payload, payload_size, blob_ref, uploaded_url, uploader_id, search_text, thumbnail, category, label, trigger)
-            VALUES
-                ($kind, $source, $created_at, $pinned, $source_process, $source_window,
-                 $payload, $payload_size, $blob_ref, $uploaded_url, $uploader_id, $search_text, $thumbnail, $category, $label, $trigger);
-            SELECT last_insert_rowid();
-            """;
-        cmd.Parameters.AddWithValue("$kind", item.Kind.ToString());
-        cmd.Parameters.AddWithValue("$source", item.Source.ToString());
-        cmd.Parameters.AddWithValue("$created_at", item.CreatedAt.ToUnixTimeMilliseconds());
-        cmd.Parameters.AddWithValue("$pinned", item.Pinned ? 1 : 0);
-        cmd.Parameters.AddWithValue("$source_process", (object?)item.SourceProcess ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$source_window", (object?)item.SourceWindow ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$payload", encoded);
-        cmd.Parameters.AddWithValue("$payload_size", item.PayloadSize);
-        cmd.Parameters.AddWithValue("$blob_ref", (object?)item.BlobRef ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$uploaded_url", (object?)item.UploadedUrl ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$uploader_id", (object?)item.UploaderId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$search_text", (object?)item.SearchText ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$thumbnail", (object?)thumbnail ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$category", string.IsNullOrEmpty(item.Category) ? "Clipboard" : item.Category);
-        cmd.Parameters.AddWithValue("$label", (object?)NormalizeLabel(item.Label) ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$trigger", (object?)NormalizeTrigger(item.Trigger) ?? DBNull.Value);
+        long newId;
+        var category = string.IsNullOrEmpty(item.Category) ? "Clipboard" : item.Category;
+        var maxItems = 0;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var conn = lease.Connection;
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO items
+                    (kind, source, created_at, pinned, source_process, source_window,
+                     payload, payload_size, blob_ref, uploaded_url, uploader_id, search_text, thumbnail, category, label, trigger)
+                VALUES
+                    ($kind, $source, $created_at, $pinned, $source_process, $source_window,
+                     $payload, $payload_size, $blob_ref, $uploaded_url, $uploader_id, $search_text, $thumbnail, $category, $label, $trigger);
+                SELECT last_insert_rowid();
+                """;
+            cmd.Parameters.AddWithValue("$kind", item.Kind.ToString());
+            cmd.Parameters.AddWithValue("$source", item.Source.ToString());
+            cmd.Parameters.AddWithValue("$created_at", item.CreatedAt.ToUnixTimeMilliseconds());
+            cmd.Parameters.AddWithValue("$pinned", item.Pinned ? 1 : 0);
+            cmd.Parameters.AddWithValue("$source_process", (object?)item.SourceProcess ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$source_window", (object?)item.SourceWindow ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$payload", encoded);
+            cmd.Parameters.AddWithValue("$payload_size", item.PayloadSize);
+            cmd.Parameters.AddWithValue("$blob_ref", (object?)item.BlobRef ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$uploaded_url", (object?)item.UploadedUrl ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$uploader_id", (object?)item.UploaderId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$search_text", (object?)item.SearchText ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$thumbnail", (object?)thumbnail ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$category", category);
+            cmd.Parameters.AddWithValue("$label", (object?)NormalizeLabel(item.Label) ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$trigger", (object?)NormalizeTrigger(item.Trigger) ?? DBNull.Value);
 
-        var newId = (long)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+            newId = (long)(await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+
+            // The category cap is read under the same lease as the insert; the trim itself runs
+            // after the lease is released, because the rotation service takes its own.
+            if (_categoryRotation is not null)
+            {
+                try
+                {
+                    maxItems = await ReadMaxItemsAsync(conn, category, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Rotation is best-effort: a transient SQLite hiccup mustn't fail the add.
+                    // The next periodic sweep will catch up.
+                }
+            }
+        }
 
         // Per-category MaxItems enforcement happens HERE (synchronously after the insert) so
-        // a "MaxItems = 1" category really only ever shows the single newest item — waiting
+        // a "MaxItems = 1" category really only ever shows the single newest item: waiting
         // for the periodic timer would let an item sit visible for up to 30s before being
         // trimmed, which feels like a bug to the user. The cap is read from the categories
-        // table inside the rotation service; we just kick it. No-op when the category has no
+        // table above; we just kick the rotation service. No-op when the category has no
         // cap or when the rotation service isn't wired (legacy / test cases).
-        if (_categoryRotation is not null)
+        if (_categoryRotation is not null && maxItems > 0)
         {
             try
             {
-                var category = string.IsNullOrEmpty(item.Category) ? "Clipboard" : item.Category;
-                var maxItems = await ReadMaxItemsAsync(conn, category, cancellationToken).ConfigureAwait(false);
-                if (maxItems > 0)
-                    await _categoryRotation.EnforceMaxItemsForAsync(category, maxItems, cancellationToken).ConfigureAwait(false);
+                await _categoryRotation.EnforceMaxItemsForAsync(category, maxItems, cancellationToken).ConfigureAwait(false);
             }
             catch
             {
-                // Rotation is best-effort — a transient SQLite hiccup mustn't fail the add.
-                // The next periodic sweep will catch up.
+                // Same best-effort rule as the cap read above.
             }
         }
 
@@ -127,7 +153,8 @@ public sealed class ItemStore : IItemStore
 
     public async Task<ItemRecord?> GetByIdAsync(long id, bool includePayload, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        var conn = lease.Connection;
         await using var cmd = conn.CreateCommand();
         var payloadColumn = includePayload ? PayloadColumnSql : "NULL AS payload";
         cmd.CommandText = $"SELECT {RecordColumnsSql}, {payloadColumn}, items.thumbnail FROM items WHERE items.id = $id LIMIT 1;";
@@ -140,7 +167,8 @@ public sealed class ItemStore : IItemStore
     public async Task<IReadOnlyList<ItemRecord>> ListAsync(ItemQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        var conn = lease.Connection;
 
         // When the caller doesn't need the payload (e.g. popup list), skip its column entirely so we
         // don't pay the per-row DPAPI decryption cost — for 200 image rows that's the difference
@@ -216,28 +244,32 @@ public sealed class ItemStore : IItemStore
 
     public async Task<bool> SetPinnedAsync(long id, bool pinned, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
-        // Pin: stamp pin_sort_order = MAX(existing pinned) + 1 so new pins queue at the
-        // bottom of the pinned strip instead of jumping to the top (which would otherwise
-        // happen because every fresh pin would share order=0 and the created_at tiebreaker
-        // would put the newest at the top — surprising when the user has a curated order).
-        // Unpin: reset to 0 so the row doesn't keep a stale slot if the user re-pins later.
-        int newOrder = 0;
-        if (pinned)
+        bool ok;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
-            await using var maxCmd = conn.CreateCommand();
-            maxCmd.CommandText = "SELECT COALESCE(MAX(pin_sort_order), 0) FROM items WHERE pinned = 1 AND id <> $id AND deleted_at IS NULL;";
-            maxCmd.Parameters.AddWithValue("$id", id);
-            var v = await maxCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            newOrder = (v is null or DBNull ? 0 : Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture)) + 1;
+            var conn = lease.Connection;
+            // Pin: stamp pin_sort_order = MAX(existing pinned) + 1 so new pins queue at the
+            // bottom of the pinned strip instead of jumping to the top (which would otherwise
+            // happen because every fresh pin would share order=0 and the created_at tiebreaker
+            // would put the newest at the top — surprising when the user has a curated order).
+            // Unpin: reset to 0 so the row doesn't keep a stale slot if the user re-pins later.
+            int newOrder = 0;
+            if (pinned)
+            {
+                await using var maxCmd = conn.CreateCommand();
+                maxCmd.CommandText = "SELECT COALESCE(MAX(pin_sort_order), 0) FROM items WHERE pinned = 1 AND id <> $id AND deleted_at IS NULL;";
+                maxCmd.Parameters.AddWithValue("$id", id);
+                var v = await maxCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                newOrder = (v is null or DBNull ? 0 : Convert.ToInt32(v, System.Globalization.CultureInfo.InvariantCulture)) + 1;
+            }
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE items SET pinned = $pinned, pin_sort_order = $order WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$pinned", pinned ? 1 : 0);
+            cmd.Parameters.AddWithValue("$order", newOrder);
+            cmd.Parameters.AddWithValue("$id", id);
+            var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            ok = rows == 1;
         }
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "UPDATE items SET pinned = $pinned, pin_sort_order = $order WHERE id = $id;";
-        cmd.Parameters.AddWithValue("$pinned", pinned ? 1 : 0);
-        cmd.Parameters.AddWithValue("$order", newOrder);
-        cmd.Parameters.AddWithValue("$id", id);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        var ok = rows == 1;
         if (ok) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.PinnedChanged, id));
         return ok;
     }
@@ -253,27 +285,30 @@ public sealed class ItemStore : IItemStore
     {
         ArgumentNullException.ThrowIfNull(orderedIds);
         if (orderedIds.Count == 0) return;
-        var conn = _database.GetOpenConnection();
-        await using var tx = await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        try
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
-            await using var cmd = conn.CreateCommand();
-            cmd.Transaction = (SqliteTransaction)tx;
-            cmd.CommandText = "UPDATE items SET pin_sort_order = $order WHERE id = $id;";
-            var orderParam = cmd.Parameters.Add("$order", Microsoft.Data.Sqlite.SqliteType.Integer);
-            var idParam = cmd.Parameters.Add("$id", Microsoft.Data.Sqlite.SqliteType.Integer);
-            for (var i = 0; i < orderedIds.Count; i++)
+            var conn = lease.Connection;
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                orderParam.Value = i + 1;       // 1-based so 0 stays reserved for "never pinned"
-                idParam.Value = orderedIds[i];
-                await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                await using var cmd = conn.CreateCommand();
+                cmd.Transaction = (SqliteTransaction)tx;
+                cmd.CommandText = "UPDATE items SET pin_sort_order = $order WHERE id = $id;";
+                var orderParam = cmd.Parameters.Add("$order", Microsoft.Data.Sqlite.SqliteType.Integer);
+                var idParam = cmd.Parameters.Add("$id", Microsoft.Data.Sqlite.SqliteType.Integer);
+                for (var i = 0; i < orderedIds.Count; i++)
+                {
+                    orderParam.Value = i + 1;       // 1-based so 0 stays reserved for "never pinned"
+                    idParam.Value = orderedIds[i];
+                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+                await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
-            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {
-            await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
-            throw;
+            catch
+            {
+                await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw;
+            }
         }
         ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, -1));
     }
@@ -282,7 +317,8 @@ public sealed class ItemStore : IItemStore
     {
         ArgumentNullException.ThrowIfNull(uploaderId);
         ArgumentNullException.ThrowIfNull(url);
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        var conn = lease.Connection;
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE items SET uploaded_url = $url, uploader_id = $uid WHERE id = $id;";
         cmd.Parameters.AddWithValue("$url", url);
@@ -310,22 +346,26 @@ public sealed class ItemStore : IItemStore
 
     public async Task<int> ClearAllExceptPinnedAsync(string? category, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await using var cmd = conn.CreateCommand();
-        var sql = "UPDATE items SET deleted_at = $now WHERE deleted_at IS NULL AND pinned = 0";
-        if (!string.IsNullOrEmpty(category)) sql += " AND category = $category";
-        cmd.CommandText = sql + ";";
-        cmd.Parameters.AddWithValue("$now", nowMs);
-        if (!string.IsNullOrEmpty(category)) cmd.Parameters.AddWithValue("$category", category);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        int rows;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            var sql = "UPDATE items SET deleted_at = $now WHERE deleted_at IS NULL AND pinned = 0";
+            if (!string.IsNullOrEmpty(category)) sql += " AND category = $category";
+            cmd.CommandText = sql + ";";
+            cmd.Parameters.AddWithValue("$now", nowMs);
+            if (!string.IsNullOrEmpty(category)) cmd.Parameters.AddWithValue("$category", category);
+            rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (rows > 0) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Deleted, -1));
         return rows;
     }
 
     public async Task<int> HardDeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        var conn = lease.Connection;
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             DELETE FROM items
@@ -339,8 +379,6 @@ public sealed class ItemStore : IItemStore
 
     public async Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, ItemKind? newKind, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
-
         // Resolve the kind the row will have AFTER this update so we can refresh the columns the
         // popup's LEFT-hand list renders from — search_text (the row snippet + FTS index) for
         // text-shaped rows, and the inline thumbnail for images. Without this refresh the list
@@ -354,7 +392,8 @@ public sealed class ItemStore : IItemStore
         }
         else
         {
-            await using var kindCmd = conn.CreateCommand();
+            await using var kindLease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+            await using var kindCmd = kindLease.Connection.CreateCommand();
             kindCmd.CommandText = "SELECT kind FROM items WHERE id = $id LIMIT 1;";
             kindCmd.Parameters.AddWithValue("$id", id);
             var kindRaw = await kindCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -382,19 +421,23 @@ public sealed class ItemStore : IItemStore
         if (isTextLike) sets.Add("search_text = $search");
         if (effectiveKind is ItemKind.Image) sets.Add("thumbnail = $thumb");
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"UPDATE items SET {string.Join(", ", sets)} WHERE id = $id;";
-        cmd.Parameters.AddWithValue("$payload", encoded);
-        cmd.Parameters.AddWithValue("$size", newPayloadSize);
-        cmd.Parameters.AddWithValue("$id", id);
-        // Kind is stored as its enum NAME everywhere else (AddAsync, the ListAsync filter, Map's
-        // Enum.Parse) — keep that convention here too. The previous (int)k cast wrote "0"/"1",
-        // which slipped past Map (Enum.Parse accepts numerics) but broke the kind = $kind filter
-        // in ListAsync for converted items.
-        if (newKind is { } k) cmd.Parameters.AddWithValue("$kind", k.ToString());
-        if (isTextLike) cmd.Parameters.AddWithValue("$search", (object?)newSearchText ?? DBNull.Value);
-        if (effectiveKind is ItemKind.Image) cmd.Parameters.AddWithValue("$thumb", (object?)newThumbnail ?? DBNull.Value);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        int rows;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            cmd.CommandText = $"UPDATE items SET {string.Join(", ", sets)} WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$payload", encoded);
+            cmd.Parameters.AddWithValue("$size", newPayloadSize);
+            cmd.Parameters.AddWithValue("$id", id);
+            // Kind is stored as its enum NAME everywhere else (AddAsync, the ListAsync filter, Map's
+            // Enum.Parse) — keep that convention here too. The previous (int)k cast wrote "0"/"1",
+            // which slipped past Map (Enum.Parse accepts numerics) but broke the kind = $kind filter
+            // in ListAsync for converted items.
+            if (newKind is { } k) cmd.Parameters.AddWithValue("$kind", k.ToString());
+            if (isTextLike) cmd.Parameters.AddWithValue("$search", (object?)newSearchText ?? DBNull.Value);
+            if (effectiveKind is ItemKind.Image) cmd.Parameters.AddWithValue("$thumb", (object?)newThumbnail ?? DBNull.Value);
+            rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;
     }
@@ -472,8 +515,8 @@ public sealed class ItemStore : IItemStore
 
     private async Task<bool> UpdateScalarAsync(string sql, long id, object value, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = sql;
         cmd.Parameters.AddWithValue("$val", value);
         cmd.Parameters.AddWithValue("$id", id);
@@ -614,10 +657,11 @@ public sealed class ItemStore : IItemStore
 
     public async Task<bool> AddTagAsync(long itemId, long tagId, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
         int rows;
-        await using (var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
+            var conn = lease.Connection;
+            await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (var link = conn.CreateCommand())
             {
                 link.Transaction = tx;
@@ -642,10 +686,11 @@ public sealed class ItemStore : IItemStore
 
     public async Task<bool> RemoveTagAsync(long itemId, long tagId, CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
         int rows;
-        await using (var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false))
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
+            var conn = lease.Connection;
+            await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (var unlink = conn.CreateCommand())
             {
                 unlink.Transaction = tx;
@@ -675,12 +720,15 @@ public sealed class ItemStore : IItemStore
     public async Task<bool> SetCategoryAsync(long id, string category, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(category);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "UPDATE items SET category = $cat WHERE id = $id;";
-        cmd.Parameters.AddWithValue("$cat", category);
-        cmd.Parameters.AddWithValue("$id", id);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        int rows;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            cmd.CommandText = "UPDATE items SET category = $cat WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$cat", category);
+            cmd.Parameters.AddWithValue("$id", id);
+            rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;
     }
@@ -688,12 +736,15 @@ public sealed class ItemStore : IItemStore
     public async Task<bool> SetLabelAsync(long id, string? label, CancellationToken cancellationToken)
     {
         var normalised = NormalizeLabel(label);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "UPDATE items SET label = $label WHERE id = $id;";
-        cmd.Parameters.AddWithValue("$label", (object?)normalised ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$id", id);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        int rows;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            cmd.CommandText = "UPDATE items SET label = $label WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$label", (object?)normalised ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$id", id);
+            rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;
     }
@@ -702,7 +753,14 @@ public sealed class ItemStore : IItemStore
     {
         ArgumentNullException.ThrowIfNull(thumbnail);
         if (thumbnail.Length == 0) return false;
-        var conn = _database.GetOpenConnection();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        return await SetThumbnailIfMissingCoreAsync(lease.Connection, id, thumbnail, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The thumbnail update on a connection the caller already leased: AddAsync's dedup
+    /// path uses it while it holds the lease, so it never acquires a second one.</summary>
+    private static async Task<bool> SetThumbnailIfMissingCoreAsync(SqliteConnection conn, long id, byte[] thumbnail, CancellationToken cancellationToken)
+    {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE items SET thumbnail = $thumb WHERE id = $id AND thumbnail IS NULL;";
         cmd.Parameters.AddWithValue("$thumb", thumbnail);
@@ -714,20 +772,23 @@ public sealed class ItemStore : IItemStore
     public async Task<bool> SetTriggerAsync(long id, string? trigger, CancellationToken cancellationToken)
     {
         var normalised = NormalizeTrigger(trigger);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "UPDATE items SET trigger = $trigger WHERE id = $id;";
-        cmd.Parameters.AddWithValue("$trigger", (object?)normalised ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$id", id);
-        var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        int rows;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await using var cmd = lease.Connection.CreateCommand();
+            cmd.CommandText = "UPDATE items SET trigger = $trigger WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$trigger", (object?)normalised ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$id", id);
+            rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
         if (rows == 1) ItemsChanged?.Invoke(this, new ItemsChangedEventArgs(ItemsChangeKind.Updated, id));
         return rows == 1;
     }
 
     public async Task<IReadOnlyList<TriggerBinding>> ListTriggerBindingsAsync(CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = """
             SELECT id, trigger FROM items
             WHERE trigger IS NOT NULL AND TRIM(trigger) != '' AND deleted_at IS NULL;

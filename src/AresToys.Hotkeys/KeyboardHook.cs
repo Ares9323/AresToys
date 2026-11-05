@@ -61,10 +61,19 @@ public sealed class KeyboardHook : IDisposable
     private readonly object _streamListenersLock = new();
 
     private readonly LowLevelKeyboardProc _hookProc;
+    // The two handles are written only by the hook thread (set in HookThreadMain, cleared when it ends) and read by
+    // IsInstalled and the procs, so every access goes through Volatile or Interlocked.
     private IntPtr _hookHandle = IntPtr.Zero;
 
     private readonly LowLevelKeyboardProc _mouseProc;
     private IntPtr _mouseHookHandle = IntPtr.Zero;
+
+    /// <summary>The thread both hooks live on, with its own message loop. Windows calls a low-level hook proc on the
+    /// thread that installed it and waits for it on every key and mouse event system wide, so a UI thread that is busy
+    /// (a big copy, a database write, a list rebuild) would stall the input of the whole PC if the hooks lived there.</summary>
+    private Thread? _hookThread;
+    private uint _hookThreadId;
+    private readonly object _installLock = new();
     /// <summary>Mouse buttons whose press was swallowed for a binding: the release is swallowed too.</summary>
     private readonly HashSet<uint> _suppressedMouseUps = [];
     private readonly object _suppressedMouseUpsLock = new();
@@ -75,12 +84,12 @@ public sealed class KeyboardHook : IDisposable
         _mouseProc = MouseHookProc;
     }
 
-    /// <summary>Register or replace a key combination by id. <paramref name="callback"/> runs on the
-    /// hook thread (the message-pump thread of whoever installed the hook) — keep it fast and
-    /// dispatch heavy work elsewhere. Suppress=true makes us "win" against the foreground app and
+    /// <summary>Register or replace a key combination by id. <paramref name="callback"/> runs on a
+    /// thread-pool thread, never on the hook thread. Suppress=true makes us "win" against the foreground app and
     /// any OS reservation (Win+V etc).
-    /// <para><paramref name="when"/> lets the binding decide per event whether it applies: it runs ON THE HOOK THREAD for
-    /// each matching key down, so it must only read cached state (no I/O, no locks, no logging). When it returns false the
+    /// <para><paramref name="when"/> lets the binding decide per event whether it applies: it runs ON THE HOOK THREAD (a
+    /// dedicated thread, not the UI thread) for each matching key down, so it must only read cached state (no I/O, no
+    /// DispatcherObject, no waiting on the UI thread, no logging). When it returns false the
     /// event is not ours: it passes through untouched and later bindings for the same key are still tried.
     /// <paramref name="repeat"/> fires the callback on every auto-repeat key down of a held key too, instead of once per
     /// press (the dummy key that keeps Win combos away from the shell is still injected once per press).</para></summary>
@@ -96,7 +105,7 @@ public sealed class KeyboardHook : IDisposable
     }
 
     /// <summary>True while the hook is installed (<see cref="Install"/> succeeded and <see cref="Uninstall"/> has not run).</summary>
-    public bool IsInstalled => _hookHandle != IntPtr.Zero;
+    public bool IsInstalled => Volatile.Read(ref _hookHandle) != IntPtr.Zero;
 
     /// <summary>Remove a binding by id. Returns true if it existed.</summary>
     public bool Unregister(string id)
@@ -143,32 +152,84 @@ public sealed class KeyboardHook : IDisposable
         }
     }
 
+    /// <summary>Starts the hook thread and returns once both hooks are set (the mouse one is optional). Throws if the
+    /// keyboard hook cannot be installed. Does nothing when already installed.</summary>
     public void Install()
     {
-        if (_hookHandle != IntPtr.Zero) return;
-        // Per Win32 docs, hMod for WH_KEYBOARD_LL must be the module containing the hook proc, but
-        // any non-null HMODULE in the same process actually works (the OS only checks it's loaded).
-        _hookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, _hookProc, GetModuleHandle(null!), 0);
-        if (_hookHandle == IntPtr.Zero)
+        lock (_installLock)
         {
-            throw new InvalidOperationException($"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
+            if (_hookThread is not null) return;
+
+            using var ready = new ManualResetEventSlim();
+            var failure = new string?[1];
+            var thread = new Thread(() => HookThreadMain(ready, failure))
+            {
+                IsBackground = true,
+                Name = "AresToys input hook",
+                Priority = ThreadPriority.AboveNormal,
+            };
+            thread.Start();
+            ready.Wait();
+            if (failure[0] is { } message)
+            {
+                thread.Join();
+                throw new InvalidOperationException(message);
+            }
+            _hookThread = thread;
         }
-        // Mouse bindings are an extra: if this hook cannot be installed the keyboard ones still work.
-        _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(null!), 0);
     }
 
     public void Uninstall()
     {
-        if (_hookHandle != IntPtr.Zero)
+        Thread? thread;
+        uint threadId;
+        lock (_installLock)
         {
-            _ = UnhookWindowsHookEx(_hookHandle);
-            _hookHandle = IntPtr.Zero;
+            thread = _hookThread;
+            threadId = _hookThreadId;
+            _hookThread = null;
+            _hookThreadId = 0;
         }
-        if (_mouseHookHandle != IntPtr.Zero)
+        if (thread is null) return;
+
+        // WM_QUIT ends the thread's GetMessage loop and the thread unhooks on its way out. The thread never waits on
+        // the UI thread, so the join is short; the timeout only keeps a wedged hook proc from hanging the exit.
+        _ = PostThreadMessage(threadId, WM_QUIT, UIntPtr.Zero, IntPtr.Zero);
+        _ = thread.Join(2000);
+    }
+
+    private void HookThreadMain(ManualResetEventSlim ready, string?[] failure)
+    {
+        try
         {
-            _ = UnhookWindowsHookEx(_mouseHookHandle);
-            _mouseHookHandle = IntPtr.Zero;
+            // Touching the queue creates it, so the WM_QUIT of Uninstall cannot miss it.
+            _ = PeekMessage(out _, IntPtr.Zero, 0, 0, PM_NOREMOVE);
+            _hookThreadId = GetCurrentThreadId();
+
+            // Per Win32 docs, hMod for WH_KEYBOARD_LL must be the module containing the hook proc, but
+            // any non-null HMODULE in the same process actually works (the OS only checks it's loaded).
+            var keyboard = SetWindowsHookEx(WH_KEYBOARD_LL, _hookProc, GetModuleHandle(null!), 0);
+            if (keyboard == IntPtr.Zero)
+            {
+                failure[0] = $"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}";
+                return;
+            }
+            Volatile.Write(ref _hookHandle, keyboard);
+            // Mouse bindings are an extra: if this hook cannot be installed the keyboard ones still work.
+            Volatile.Write(ref _mouseHookHandle, SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, GetModuleHandle(null!), 0));
         }
+        finally
+        {
+            ready.Set();
+        }
+
+        // The hook procs run from inside GetMessage on this thread. 0 is WM_QUIT and -1 an error: both end the loop.
+        while (GetMessage(out _, IntPtr.Zero, 0, 0) > 0) { }
+
+        var mouse = Interlocked.Exchange(ref _mouseHookHandle, IntPtr.Zero);
+        if (mouse != IntPtr.Zero) _ = UnhookWindowsHookEx(mouse);
+        var keyboardHandle = Interlocked.Exchange(ref _hookHandle, IntPtr.Zero);
+        if (keyboardHandle != IntPtr.Zero) _ = UnhookWindowsHookEx(keyboardHandle);
     }
 
     /// <summary>Mouse buttons use the same binding slot as keys, with the virtual key codes Windows gives them
@@ -180,11 +241,18 @@ public sealed class KeyboardHook : IDisposable
     {
         if (nCode < 0) return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
 
-        var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
-        if ((data.flags & LLMHF_INJECTED) != 0)
+        // Moves and wheel turns are most of the traffic and none of them is ours: let them go before reading the struct.
+        var msg = (int)wParam.ToInt64();
+        if (msg is not (WM_LBUTTONDOWN or WM_LBUTTONUP or WM_RBUTTONDOWN or WM_RBUTTONUP or WM_MBUTTONDOWN or WM_MBUTTONUP
+            or WM_XBUTTONDOWN or WM_XBUTTONUP))
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
 
-        var msg = (int)wParam.ToInt64();
+        // MSLLHOOKSTRUCT: mouseData at offset 8, flags at 12. Read in place, no copy of the struct.
+        var mouseData = (uint)Marshal.ReadInt32(lParam, 8);
+        var mouseFlags = (uint)Marshal.ReadInt32(lParam, 12);
+        if ((mouseFlags & LLMHF_INJECTED) != 0)
+            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+
         uint vk;
         bool isDown;
         switch (msg)
@@ -197,7 +265,7 @@ public sealed class KeyboardHook : IDisposable
             case WM_MBUTTONUP:   vk = 0x04; isDown = false; break;
             case WM_XBUTTONDOWN:
             case WM_XBUTTONUP:
-                vk = (data.mouseData >> 16) == 2 ? 0x06u : 0x05u;
+                vk = (mouseData >> 16) == 2 ? 0x06u : 0x05u;
                 isDown = msg == WM_XBUTTONDOWN;
                 break;
             default:
@@ -266,7 +334,14 @@ public sealed class KeyboardHook : IDisposable
     {
         if (nCode < 0) return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
 
-        var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+        // KBDLLHOOKSTRUCT fields read in place (vkCode 0, scanCode 4, flags 8, time 12): no struct copy per key.
+        var data = new KBDLLHOOKSTRUCT
+        {
+            vkCode = (uint)Marshal.ReadInt32(lParam, 0),
+            scanCode = (uint)Marshal.ReadInt32(lParam, 4),
+            flags = (uint)Marshal.ReadInt32(lParam, 8),
+            time = (uint)Marshal.ReadInt32(lParam, 12),
+        };
         // Skip events we (or another tool) injected via SendInput, otherwise we recurse.
         if ((data.flags & LLKHF_INJECTED) != 0)
             return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
@@ -341,9 +416,9 @@ public sealed class KeyboardHook : IDisposable
         if (data.vkCode is VK_SNAPSHOT or VK_PAUSE)
         {
             // Timing uses the time Windows stamped on the event, not when we got to process
-            // it. The hook runs on the UI thread: when the PC is under load (or the workflow
-            // the KEYDOWN just started keeps the UI thread busy, e.g. a full-desktop capture)
-            // the trailing KEYUP can be processed more than a second after the KEYDOWN, and
+            // it. When the PC is under load (or the workflow the KEYDOWN just started
+            // keeps it busy, e.g. a full-desktop capture) the trailing KEYUP can be
+            // processed more than a second after the KEYDOWN, and
             // with a processing-time clock it passed both the quiet-gap and cooldown checks
             // and fired the workflow a second time (#21, "still happens on a slow PC").
             var nowTick = data.time;
@@ -472,8 +547,19 @@ public sealed class KeyboardHook : IDisposable
     /// state, and we want the FOREGROUND layout the user is typing into.</summary>
     private static char? TryGetPrintableChar(uint vkCode, uint scanCode)
     {
+        // The hook thread has no windows and never receives key messages, so GetKeyboardState would give it a
+        // stale table: the modifiers and Caps Lock are read from the live keyboard state instead.
         var keyboardState = new byte[256];
-        if (!GetKeyboardState(keyboardState)) return null;
+        SetKeyState(keyboardState, VK_SHIFT);
+        SetKeyState(keyboardState, VK_CONTROL);
+        SetKeyState(keyboardState, VK_MENU);
+        SetKeyState(keyboardState, VK_LSHIFT);
+        SetKeyState(keyboardState, VK_RSHIFT);
+        SetKeyState(keyboardState, VK_LCONTROL);
+        SetKeyState(keyboardState, VK_RCONTROL);
+        SetKeyState(keyboardState, VK_LMENU);
+        SetKeyState(keyboardState, VK_RMENU);
+        if ((GetKeyState(VK_CAPITAL) & 1) != 0) keyboardState[VK_CAPITAL] = 1;
 
         // ToUnicodeEx returns:
         //   >  0 : number of chars written to the buffer (typically 1 for ordinary keys, 2 for
@@ -481,7 +567,7 @@ public sealed class KeyboardHook : IDisposable
         //   == 0 : no translation (modifier, F-key, arrow, etc.).
         //   <  0 : dead key — translation pending; we treat as null and let the next press
         //          (which arrives as a composed char) handle it.
-        var layout = GetKeyboardLayout(0);
+        var layout = GetKeyboardLayout(GetWindowThreadProcessId(GetForegroundWindow(), out _));
         var buffer = new char[8];
         var result = ToUnicodeEx(vkCode, scanCode, keyboardState, buffer, buffer.Length, 0, layout);
         if (result <= 0) return null;
@@ -526,6 +612,11 @@ public sealed class KeyboardHook : IDisposable
         _ = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
     }
 
+    private static void SetKeyState(byte[] state, int vk)
+    {
+        if ((GetAsyncKeyState(vk) & 0x8000) != 0) state[vk] = 0x80;
+    }
+
     private static HotkeyModifiers ReadModifiers()
     {
         var m = HotkeyModifiers.None;
@@ -561,6 +652,8 @@ public sealed class KeyboardHook : IDisposable
 
     private const int WH_KEYBOARD_LL = 13;
     private const int WH_MOUSE_LL = 14;
+    private const uint WM_QUIT = 0x0012;
+    private const uint PM_NOREMOVE = 0x0000;
     private const int WM_LBUTTONDOWN = 0x0201;
     private const int WM_LBUTTONUP = 0x0202;
     private const int WM_RBUTTONDOWN = 0x0204;
@@ -595,6 +688,13 @@ public sealed class KeyboardHook : IDisposable
     private const int VK_MENU = 0x12; // Alt
     private const uint VK_SNAPSHOT = 0x2C; // PrintScreen
     private const uint VK_PAUSE = 0x13;    // Pause / Break
+    private const int VK_LSHIFT = 0xA0;
+    private const int VK_RSHIFT = 0xA1;
+    private const int VK_LCONTROL = 0xA2;
+    private const int VK_RCONTROL = 0xA3;
+    private const int VK_LMENU = 0xA4;
+    private const int VK_RMENU = 0xA5;
+    private const int VK_CAPITAL = 0x14;
     private const int VK_LWIN = 0x5B;
     private const int VK_RWIN = 0x5C;
 
@@ -654,11 +754,42 @@ public sealed class KeyboardHook : IDisposable
     private static extern short GetAsyncKeyState(int vKey);
 
     [DllImport("user32.dll")]
+    private static extern short GetKeyState(int vKey);
+
+    [DllImport("user32.dll")]
     private static extern IntPtr GetKeyboardLayout(uint idThread);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public UIntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public int ptX;
+        public int ptY;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetKeyboardState(byte[] lpKeyState);
+    private static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostThreadMessage(uint idThread, uint msg, UIntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
 
     // CA1838 forbids StringBuilder for P/Invoke; use a managed char[] buffer instead — same
     // marshalling, fewer allocations. ToUnicodeEx writes UTF-16 code units directly into it.

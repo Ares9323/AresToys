@@ -294,9 +294,44 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         {
             if (e.Kind == ItemsChangeKind.Updated && (e.ItemId == -1 || e.ItemId == _previewedItemId))
                 _previewStale = true;
+            // Popup closed: the bumped version marks the list stale, PrepareAsync refreshes on open.
+            if (!_popupVisible) return;
             _ = ReloadTriggerPresenceAsync();
-            _ = RefreshAsync(CancellationToken.None);
+            RequestRefresh();
         });
+    }
+
+    private bool _popupVisible;
+    private bool _refreshInFlight;
+    private bool _refreshQueued;
+
+    /// <summary>Set by the popup window on show/hide (UI thread). Showing with a stale list
+    /// (a change landed between PrepareAsync and Show) refreshes right away.</summary>
+    public void SetPopupVisible(bool visible)
+    {
+        _popupVisible = visible;
+        if (visible && System.Threading.Interlocked.Read(ref _itemsVersion) != _lastRefreshedVersion)
+        {
+            _ = ReloadTriggerPresenceAsync();
+            RequestRefresh();
+        }
+    }
+
+    /// <summary>Coalesced refresh: one in flight, at most one queued behind it (UI thread).</summary>
+    private async void RequestRefresh()
+    {
+        if (_refreshInFlight) { _refreshQueued = true; return; }
+        _refreshInFlight = true;
+        try
+        {
+            do
+            {
+                _refreshQueued = false;
+                await RefreshAsync(CancellationToken.None).ConfigureAwait(true);
+            }
+            while (_refreshQueued);
+        }
+        finally { _refreshInFlight = false; }
     }
 
     public ObservableCollection<ItemRowViewModel> Rows { get; }
@@ -925,6 +960,7 @@ public sealed partial class PopupWindowViewModel : ObservableObject, IDisposable
         var current = System.Threading.Interlocked.Read(ref _itemsVersion);
         if (current != _lastRefreshedVersion)
         {
+            _ = ReloadTriggerPresenceAsync();
             await RefreshAsync(cancellationToken).ConfigureAwait(true);
         }
 

@@ -8,7 +8,25 @@ public sealed partial class ForegroundProcessProbe : IForegroundProcessProbe
     public string? GetForegroundProcessName()
     {
         var hwnd = NativeForeground.GetForegroundWindow();
-        if (hwnd == IntPtr.Zero) return null;
+        return hwnd == IntPtr.Zero ? null : ProcessNameOf(hwnd);
+    }
+
+    public string? GetForegroundWindowTitle()
+    {
+        var hwnd = NativeForeground.GetForegroundWindow();
+        return hwnd == IntPtr.Zero ? null : TitleOf(hwnd);
+    }
+
+    public ForegroundSnapshot GetForeground()
+    {
+        var hwnd = NativeForeground.GetForegroundWindow();
+        return hwnd == IntPtr.Zero
+            ? new ForegroundSnapshot(null, null)
+            : new ForegroundSnapshot(ProcessNameOf(hwnd), TitleOf(hwnd));
+    }
+
+    private static string? ProcessNameOf(IntPtr hwnd)
+    {
         _ = NativeForeground.GetWindowThreadProcessId(hwnd, out var pid);
         if (pid == 0) return null;
         try
@@ -20,10 +38,8 @@ public sealed partial class ForegroundProcessProbe : IForegroundProcessProbe
         catch (InvalidOperationException) { return null; }
     }
 
-    public string? GetForegroundWindowTitle()
+    private static string? TitleOf(IntPtr hwnd)
     {
-        var hwnd = NativeForeground.GetForegroundWindow();
-        if (hwnd == IntPtr.Zero) return null;
         var len = NativeForeground.GetWindowTextLength(hwnd);
         if (len <= 0) return null;
         var buffer = new char[len + 1];

@@ -31,6 +31,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IMigration, Migration003AddPinSortOrder>();
         services.AddSingleton<IMigration, Migration004AddItemTrigger>();
         services.AddSingleton<IMigration, Migration005AddTags>();
+        services.AddSingleton<IMigration, Migration006AddDedupIndex>();
         services.AddSingleton<MigrationRunner>(sp =>
             new MigrationRunner(sp.GetServices<IMigration>()));
         services.AddSingleton<IAresToysDatabase, AresToysDatabase>();

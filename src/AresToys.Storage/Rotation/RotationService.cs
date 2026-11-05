@@ -18,18 +18,27 @@ public sealed class RotationService : IRotationService
     public async Task<RotationResult> RunAsync(RotationPolicy policy, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(policy);
-        var conn = _database.GetOpenConnection();
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var ageCutoffMs = DateTimeOffset.UtcNow.Subtract(policy.MaxAge).ToUnixTimeMilliseconds();
         var hardCutoffMs = DateTimeOffset.UtcNow.Subtract(policy.SoftDeleteGracePeriod).ToUnixTimeMilliseconds();
 
         var softDeleted = 0;
-        softDeleted += await SoftDeleteOverCountAsync(conn, policy.MaxItems, nowMs, cancellationToken).ConfigureAwait(false);
-        softDeleted += await SoftDeleteOverAgeAsync(conn, ageCutoffMs, nowMs, cancellationToken).ConfigureAwait(false);
+        int hardDeleted;
+        HashSet<string> alive;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var conn = lease.Connection;
+            softDeleted += await SoftDeleteOverCountAsync(conn, policy.MaxItems, nowMs, cancellationToken).ConfigureAwait(false);
+            softDeleted += await SoftDeleteOverAgeAsync(conn, ageCutoffMs, nowMs, cancellationToken).ConfigureAwait(false);
 
-        var hardDeleted = await HardDeleteAsync(conn, hardCutoffMs, cancellationToken).ConfigureAwait(false);
+            hardDeleted = await HardDeleteAsync(conn, hardCutoffMs, cancellationToken).ConfigureAwait(false);
 
-        var orphans = await CleanupOrphanBlobsAsync(conn, cancellationToken).ConfigureAwait(false);
+            alive = await ReadAliveBlobRefsAsync(conn, cancellationToken).ConfigureAwait(false);
+        }
+
+        // The blob folder sweep is file I/O and does not need the connection, so the lease is
+        // already released: the clipboard pipeline is not held up while files are deleted.
+        var orphans = await DeleteOrphanBlobsAsync(alive, cancellationToken).ConfigureAwait(false);
 
         return new RotationResult(softDeleted, hardDeleted, orphans);
     }
@@ -78,19 +87,21 @@ public sealed class RotationService : IRotationService
         return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
-    private async Task<int> CleanupOrphanBlobsAsync(SqliteConnection conn, CancellationToken ct)
+    private static async Task<HashSet<string>> ReadAliveBlobRefsAsync(SqliteConnection conn, CancellationToken ct)
     {
         var alive = new HashSet<string>(StringComparer.Ordinal);
-        await using (var cmd = conn.CreateCommand())
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT blob_ref FROM items WHERE blob_ref IS NOT NULL;";
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
-            cmd.CommandText = "SELECT blob_ref FROM items WHERE blob_ref IS NOT NULL;";
-            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-            while (await reader.ReadAsync(ct).ConfigureAwait(false))
-            {
-                alive.Add(reader.GetString(0));
-            }
+            alive.Add(reader.GetString(0));
         }
+        return alive;
+    }
 
+    private async Task<int> DeleteOrphanBlobsAsync(HashSet<string> alive, CancellationToken ct)
+    {
         var removed = 0;
         await foreach (var blobRef in _blobs.EnumerateAllAsync(ct).ConfigureAwait(false))
         {

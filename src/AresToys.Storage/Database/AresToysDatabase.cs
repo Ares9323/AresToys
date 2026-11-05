@@ -10,6 +10,7 @@ public sealed class AresToysDatabase : IAresToysDatabase
     private readonly IStoragePathResolver _paths;
     private readonly MigrationRunner _migrationRunner;
     private readonly ILogger<AresToysDatabase> _logger;
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private SqliteConnection? _connection;
     private bool _initialized;
 
@@ -50,6 +51,30 @@ public sealed class AresToysDatabase : IAresToysDatabase
         _logger.LogInformation("AresToys database initialized at {Path}", dbPath);
     }
 
+    public async ValueTask<DatabaseLease> AcquireAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return new DatabaseLease(GetOpenConnection(), ReleaseGate);
+        }
+        catch
+        {
+            _gate.Release();
+            throw;
+        }
+    }
+
+    private void ReleaseGate()
+    {
+        // The gate is gone once the database is disposed; a lease that outlives it has nothing to free.
+        try { _gate.Release(); }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>The raw connection, with no serialisation. For tests and migrations only: every
+    /// store operation goes through <see cref="AcquireAsync"/>, which is what keeps two threads
+    /// from using the connection at once.</summary>
     public SqliteConnection GetOpenConnection()
     {
         if (!_initialized || _connection is null)
@@ -68,5 +93,6 @@ public sealed class AresToysDatabase : IAresToysDatabase
             _connection = null;
         }
         _initialized = false;
+        _gate.Dispose();
     }
 }

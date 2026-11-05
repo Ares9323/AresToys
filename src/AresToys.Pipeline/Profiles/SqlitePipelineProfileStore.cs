@@ -16,8 +16,8 @@ public sealed class SqlitePipelineProfileStore : IPipelineProfileStore
     public async Task<PipelineProfile?> GetAsync(string id, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = "SELECT id, display_name, trigger, tasks_json FROM pipeline_profiles WHERE id = $id LIMIT 1;";
         cmd.Parameters.AddWithValue("$id", id);
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -27,8 +27,8 @@ public sealed class SqlitePipelineProfileStore : IPipelineProfileStore
 
     public async Task<IReadOnlyList<PipelineProfile>> ListAsync(CancellationToken cancellationToken)
     {
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = "SELECT id, display_name, trigger, tasks_json FROM pipeline_profiles ORDER BY id;";
         var results = new List<PipelineProfile>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -42,8 +42,8 @@ public sealed class SqlitePipelineProfileStore : IPipelineProfileStore
     public async Task UpsertAsync(PipelineProfile profile, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO pipeline_profiles (id, display_name, trigger, tasks_json)
             VALUES ($id, $display, $trigger, $tasks)
@@ -62,8 +62,8 @@ public sealed class SqlitePipelineProfileStore : IPipelineProfileStore
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
-        var conn = _database.GetOpenConnection();
-        await using var cmd = conn.CreateCommand();
+        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = lease.Connection.CreateCommand();
         cmd.CommandText = "DELETE FROM pipeline_profiles WHERE id = $id;";
         cmd.Parameters.AddWithValue("$id", id);
         var rows = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
