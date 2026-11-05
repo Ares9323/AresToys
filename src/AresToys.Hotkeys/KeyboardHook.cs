@@ -18,6 +18,16 @@ public sealed class KeyboardHook : IDisposable
     private readonly HashSet<uint> _heldKeys = [];
     private readonly object _heldKeysLock = new();
 
+    /// <summary>The <c>KBDLLHOOKSTRUCT.time</c> of the last KEYDOWN of each held key (under <see cref="_heldKeysLock"/>).
+    /// Windows can drop a KEYUP when a foreground change races the key (Peek taking the foreground on Space): the
+    /// key then stays in <see cref="_heldKeys"/> and the next real press would be read as auto repeat and swallowed.
+    /// Auto repeat refreshes this tick every ~33 ms, so a KEYDOWN of a held key whose last event is older than
+    /// <see cref="HeldKeyStaleMs"/> is a fresh press.</summary>
+    private readonly Dictionary<uint, uint> _heldKeyLastDownTick = new();
+
+    /// <summary>Longer than the longest keyboard repeat delay Windows offers (1 s), so a held key never re-fires.</summary>
+    private const uint HeldKeyStaleMs = 1500;
+
     /// <summary>vkCodes whose KEYDOWN we've already suppressed for a matching hotkey — their
     /// matching KEYUP must be suppressed too, otherwise keys with "on release" semantics (most
     /// notably VK_APPS = the Menu key, which opens the active window's context menu on KEYUP,
@@ -366,7 +376,11 @@ public sealed class KeyboardHook : IDisposable
 
         if (isKeyUp)
         {
-            lock (_heldKeysLock) _heldKeys.Remove(data.vkCode);
+            lock (_heldKeysLock)
+            {
+                _heldKeys.Remove(data.vkCode);
+                _heldKeyLastDownTick.Remove(data.vkCode);
+            }
             // If the matching KEYDOWN was suppressed for a hotkey match, swallow the KEYUP too.
             // VK_APPS (Menu key) is the canonical case: its "open context menu" trigger fires
             // on key release, so a KEYDOWN-only suppression leaks the menu pop to the active
@@ -459,7 +473,14 @@ public sealed class KeyboardHook : IDisposable
         }
         else
         {
-            lock (_heldKeysLock) firstPress = _heldKeys.Add(data.vkCode);
+            lock (_heldKeysLock)
+            {
+                // A held key whose last KEYDOWN is stale lost its KEYUP: this is a new press, not a repeat.
+                firstPress = _heldKeys.Add(data.vkCode)
+                             || !_heldKeyLastDownTick.TryGetValue(data.vkCode, out var lastDown)
+                             || unchecked(data.time - lastDown) >= HeldKeyStaleMs;
+                _heldKeyLastDownTick[data.vkCode] = data.time;
+            }
         }
 
         if (firstPress || matched.Repeat)

@@ -90,6 +90,18 @@ public static class ExplorerWindows
         [PreserveSig] int BindToHandler();
         [PreserveSig] int GetParent();
         [PreserveSig] int GetDisplayName(uint sigdn, out IntPtr name);
+        [PreserveSig] int GetAttributes(uint mask, out uint attributes);
+    }
+
+    private const uint SFGAO_FOLDER = 0x20000000;
+    private const uint SFGAO_STREAM = 0x00400000;
+
+    // The shell item already tells a file from a folder (a zip is folder and stream, and counts as a file), so no
+    // File.Exists per item; the file system is asked only when the shell cannot tell.
+    private static bool IsFileItem(IShellItem item, string path)
+    {
+        if (item.GetAttributes(SFGAO_FOLDER | SFGAO_STREAM, out var attributes) < 0) return File.Exists(path);
+        return (attributes & SFGAO_FOLDER) == 0 || (attributes & SFGAO_STREAM) != 0;
     }
 
     /// <summary>The shell window object (a folder view) of the active tab of the Explorer window <paramref name="root"/>,
@@ -200,7 +212,7 @@ public static class ExplorerWindows
                     string? path;
                     try { path = Marshal.PtrToStringUni(namePtr); }
                     finally { CoTaskMemFree(namePtr); }
-                    if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue; // folders and virtual items
+                    if (string.IsNullOrEmpty(path) || !IsFileItem(item, path)) continue; // folders and virtual items
                     if (index < 0 && string.Equals(path, selectedPath, StringComparison.OrdinalIgnoreCase)) index = items.Count;
                     items.Add(path);
                 }

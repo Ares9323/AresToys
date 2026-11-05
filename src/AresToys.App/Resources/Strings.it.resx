@@ -1568,6 +1568,22 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="Peek_ShowAs" xml:space="preserve"><value>Mostra come</value></data>
   <data name="Peek_ShowAsAuto" xml:space="preserve"><value>Auto</value></data>
   <data name="Peek_Nav" xml:space="preserve"><value>Sfoglia</value></data>
+  <data name="Peek_Zoom" xml:space="preserve"><value>Zoom</value></data>
+  <data name="Peek_ZoomAuto" xml:space="preserve"><value>Auto</value></data>
+  <data name="Peek_ZoomFit" xml:space="preserve"><value>Adatta</value></data>
+  <data name="Peek_ZoomFill" xml:space="preserve"><value>Riempi</value></data>
+  <data name="Peek_ZoomWidth" xml:space="preserve"><value>Larghezza</value></data>
+  <data name="Peek_ZoomHeight" xml:space="preserve"><value>Altezza</value></data>
+  <data name="Peek_ZoomLock" xml:space="preserve"><value>Blocca</value></data>
+  <data name="Peek_RotateLeft" xml:space="preserve"><value>Ruota a sinistra</value></data>
+  <data name="Peek_RotateRight" xml:space="preserve"><value>Ruota a destra</value></data>
+  <data name="Peek_FlipHorizontal" xml:space="preserve"><value>Specchia in orizzontale</value></data>
+  <data name="Peek_RotateLeftViewOnly" xml:space="preserve"><value>Ruota a sinistra (solo vista per questo formato)</value></data>
+  <data name="Peek_RotateRightViewOnly" xml:space="preserve"><value>Ruota a destra (solo vista per questo formato)</value></data>
+  <data name="Peek_FlipHorizontalViewOnly" xml:space="preserve"><value>Specchia in orizzontale (solo vista per questo formato)</value></data>
+  <data name="Peek_SaveFailed" xml:space="preserve"><value>Impossibile salvare la modifica nel file</value></data>
+  <data name="Peek_StripShow" xml:space="preserve"><value>Mostra miniature</value></data>
+  <data name="Peek_StripHide" xml:space="preserve"><value>Nascondi miniature</value></data>
   <data name="Peek_NavAll" xml:space="preserve"><value>Tutti</value></data>
   <data name="Peek_NavFamily" xml:space="preserve"><value>Stessa famiglia</value></data>
   <data name="Peek_NavExtension" xml:space="preserve"><value>Stessa estensione</value></data>

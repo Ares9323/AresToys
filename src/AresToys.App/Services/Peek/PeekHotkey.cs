@@ -34,6 +34,11 @@ public sealed class PeekHotkey
     private readonly PeekService _service;
     private readonly ILogger<PeekHotkey>? _logger;
     private volatile bool _active;
+    // What CanHandle decided on the hook thread for the press about to run: the foreground root and whether it is Peek
+    // itself (hide) or an Explorer window (show). OnPressed uses it and never reads the foreground again.
+    private volatile Decision? _decision;
+
+    private sealed record Decision(IntPtr Root, bool IsPeek);
 
     public PeekHotkey(KeyboardHook hook, PeekKeysStore keys, SatelliteService satellite, PeekService service,
         ILogger<PeekHotkey>? logger = null)
@@ -83,7 +88,11 @@ public sealed class PeekHotkey
         if (!_active || _satellite.Server.Current is null) return false;
         var root = NewPlusExplorer.ForegroundRoot();
         // Peek itself in front: the key closes it, whatever child of the window holds the focus.
-        if (_service.IsPeekWindow(root)) return true;
+        if (_service.IsPeekWindow(root))
+        {
+            _decision = new Decision(root, true);
+            return true;
+        }
         var rootClass = NewPlusExplorer.ClassOf(root);
         var isDesktop = rootClass is "Progman" or "WorkerW";
         if (rootClass != "CabinetWClass" && !isDesktop) return false;
@@ -91,14 +100,16 @@ public sealed class PeekHotkey
         var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
         if (thread == 0 || !GetGUIThreadInfo(thread, ref info)) return false;
         var focus = NewPlusExplorer.ClassOf(info.hwndFocus);
-        return isDesktop ? focus == "SysListView32" : focus is "DirectUIHWND" or "SysListView32";
+        var ours = isDesktop ? focus == "SysListView32" : focus is "DirectUIHWND" or "SysListView32";
+        if (ours) _decision = new Decision(root, false);
+        return ours;
     }
 
     // The key arrived here, so this process owns the foreground right: PeekService hands it to the satellite on this
     // thread before it sends the request.
     private void OnPressed()
     {
-        var root = NewPlusExplorer.ForegroundRoot();
-        _ = _service.IsPeekWindow(root) ? _service.HideAsync() : _service.ToggleAsync(root);
+        if (_decision is not { } decision) return;
+        _ = decision.IsPeek ? _service.HideAsync() : _service.ToggleAsync(decision.Root);
     }
 }

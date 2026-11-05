@@ -29,6 +29,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- Title row -->
                 <RowDefinition Height="*" />     <!-- Image -->
+                <RowDefinition Height="Auto" />  <!-- Thumbnail strip -->
                 <RowDefinition Height="Auto" />  <!-- Footer -->
             </Grid.RowDefinitions>
 
@@ -40,9 +41,12 @@
             </ui:TitleBar>
 
             <Grid x:Name="Viewport" Grid.Row="1" Background="{DynamicResource Surface1Brush}" ClipToBounds="True">
-                <Image x:Name="PreviewImage" Margin="8" Stretch="Uniform" StretchDirection="DownOnly"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       RenderOptions.BitmapScalingMode="HighQuality" />
+                <!-- A canvas: the image is placed by code at its zoomed size and may be larger than the area
+                     (the viewport clips it); see ApplyZoom. -->
+                <Canvas x:Name="ImageLayer" IsHitTestVisible="False">
+                    <Image x:Name="PreviewImage" Stretch="Fill" RenderTransformOrigin="0.5,0.5"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                </Canvas>
                 <!-- Text, code, Markdown and HTML. A web view is a native window drawn over everything in its
                      area: the chevrons live in PeekNavOverlay, an owned window above it. -->
                 <wv2:WebView2 x:Name="PreviewWeb" Visibility="Collapsed" />
@@ -55,7 +59,9 @@
 
             </Grid>
 
-            <Border Grid.Row="2" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,1,0,0"
+            <local:PeekThumbnailStrip x:Name="Strip" Grid.Row="2" Visibility="Collapsed" />
+
+            <Border Grid.Row="3" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,1,0,0"
                     Padding="14,8">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -64,12 +70,15 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- The "Browse" menu button: which files of the folder previous and next go through. -->
-                        <ContentPresenter x:Name="BrowsePresenter" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <ContentPresenter x:Name="BrowsePresenter" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ContentPresenter x:Name="StripTogglePresenter" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <TextBlock x:Name="InfoText" VerticalAlignment="Center" Opacity="0.75" />
                     </StackPanel>
                     <!-- Piece 5 puts the "Open in" menu here. -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- The "Show as" menu button: how the extension of the file is shown. -->
+                        <!-- The image zoom menu and the rotate and flip buttons (built in code). -->
+                        <ContentPresenter x:Name="ZoomPresenter" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <ContentPresenter x:Name="ShowAsPresenter" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <ContentPresenter x:Name="OpenInPresenter" VerticalAlignment="Center" />
                     </StackPanel>

@@ -10938,6 +10938,70 @@ namespace AresToys.App.Resources {
             get { return ResourceManager.GetString("Peek_Nav", resourceCulture); }
         }
 
+        public static string Peek_Zoom {
+            get { return ResourceManager.GetString("Peek_Zoom", resourceCulture); }
+        }
+
+        public static string Peek_ZoomAuto {
+            get { return ResourceManager.GetString("Peek_ZoomAuto", resourceCulture); }
+        }
+
+        public static string Peek_ZoomFit {
+            get { return ResourceManager.GetString("Peek_ZoomFit", resourceCulture); }
+        }
+
+        public static string Peek_ZoomFill {
+            get { return ResourceManager.GetString("Peek_ZoomFill", resourceCulture); }
+        }
+
+        public static string Peek_ZoomWidth {
+            get { return ResourceManager.GetString("Peek_ZoomWidth", resourceCulture); }
+        }
+
+        public static string Peek_ZoomHeight {
+            get { return ResourceManager.GetString("Peek_ZoomHeight", resourceCulture); }
+        }
+
+        public static string Peek_ZoomLock {
+            get { return ResourceManager.GetString("Peek_ZoomLock", resourceCulture); }
+        }
+
+        public static string Peek_RotateLeft {
+            get { return ResourceManager.GetString("Peek_RotateLeft", resourceCulture); }
+        }
+
+        public static string Peek_RotateRight {
+            get { return ResourceManager.GetString("Peek_RotateRight", resourceCulture); }
+        }
+
+        public static string Peek_FlipHorizontal {
+            get { return ResourceManager.GetString("Peek_FlipHorizontal", resourceCulture); }
+        }
+
+        public static string Peek_RotateLeftViewOnly {
+            get { return ResourceManager.GetString("Peek_RotateLeftViewOnly", resourceCulture); }
+        }
+
+        public static string Peek_RotateRightViewOnly {
+            get { return ResourceManager.GetString("Peek_RotateRightViewOnly", resourceCulture); }
+        }
+
+        public static string Peek_FlipHorizontalViewOnly {
+            get { return ResourceManager.GetString("Peek_FlipHorizontalViewOnly", resourceCulture); }
+        }
+
+        public static string Peek_SaveFailed {
+            get { return ResourceManager.GetString("Peek_SaveFailed", resourceCulture); }
+        }
+
+        public static string Peek_StripShow {
+            get { return ResourceManager.GetString("Peek_StripShow", resourceCulture); }
+        }
+
+        public static string Peek_StripHide {
+            get { return ResourceManager.GetString("Peek_StripHide", resourceCulture); }
+        }
+
         public static string Peek_NavAll {
             get { return ResourceManager.GetString("Peek_NavAll", resourceCulture); }
         }

@@ -392,6 +392,26 @@ public sealed class IconService
     /// <see cref="ExtractViaShellItemImageFactoryWithOverlay"/>. Returns null on COM failure so
     /// the caller can fall through to the legacy paths.</summary>
     private static BitmapSource? ExtractViaShellItemImageFactory(string path, int sizePx)
+        => ExtractViaShellItemImageFactory(path, sizePx, SIIGBF.ResizeToFit | SIIGBF.IconOnly);
+
+    /// <summary>The content thumbnail Explorer shows for <paramref name="path"/> (from the shell thumbnail cache, any
+    /// format with a thumbnail handler), scaled to fit a <paramref name="sizePx"/> square with its aspect kept; a file
+    /// with no thumbnail gets its icon. Not cached here (the caller owns that) and it does not touch the icon cache.
+    /// Safe from any thread but meant for a single threaded apartment one, as the shell handlers expect. Null on failure.</summary>
+    public BitmapSource? GetThumbnail(string? rawPath, int sizePx)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath) || sizePx <= 0) return null;
+        try
+        {
+            return ExtractViaShellItemImageFactory(Normalize(rawPath), sizePx, SIIGBF.ResizeToFit);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static BitmapSource? ExtractViaShellItemImageFactory(string path, int sizePx, SIIGBF flags)
     {
         var iid = new Guid("BCC18B79-BA16-442F-80C4-8A59C30C463B"); // IID_IShellItemImageFactory
         if (SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out var ppv) != 0 || ppv == IntPtr.Zero)
@@ -406,7 +426,7 @@ public sealed class IconService
             // SIIGBF.ResizeToFit (=0) + IconOnly — IconOnly skips the thumbnail path so we don't
             // accidentally get a content preview for image / video / pdf files (we want the file
             // type icon for tiles). ResizeToFit is the documented "scale the source to fit" flag.
-            var hr = factory.GetImage(size, SIIGBF.ResizeToFit | SIIGBF.IconOnly, out hbitmap);
+            var hr = factory.GetImage(size, flags, out hbitmap);
             if (hr != 0 || hbitmap == IntPtr.Zero) return null;
 
             var src = Imaging.CreateBitmapSourceFromHBitmap(

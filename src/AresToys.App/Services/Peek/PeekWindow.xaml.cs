@@ -100,9 +100,381 @@ public partial class PeekWindow : FluentWindow
         };
         _browseButton.Click += OnBrowseClick;
         BrowsePresenter.Content = _browseButton;
+        _stripButton = new Wpf.Ui.Controls.Button { Focusable = false, Visibility = Visibility.Collapsed };
+        _stripButton.Click += (_, _) => ToggleStrip();
+        StripTogglePresenter.Content = _stripButton;
+        Strip.FileChosen += index => MoveTo(index);
+        BuildZoomControls();
+        Viewport.SizeChanged += (_, _) => ApplyZoom();
+        Viewport.MouseLeftButtonDown += OnViewportMouseDown;
+        Viewport.MouseRightButtonDown += OnViewportMouseDown;
+        Viewport.MouseMove += OnViewportMouseMove;
+        Viewport.MouseLeftButtonUp += (_, _) => Viewport.ReleaseMouseCapture();
+        Viewport.MouseRightButtonUp += (_, _) => Viewport.ReleaseMouseCapture();
+        Viewport.MouseWheel += OnViewportMouseWheel;
+        Viewport.LostMouseCapture += (_, _) => _panning = false;
+    }
+
+    private const double ImageMargin = 8;
+
+    private readonly Wpf.Ui.Controls.Button _zoomButton = new()
+    {
+        Icon = new SymbolIcon(SymbolRegular.ChevronDown24),
+        Focusable = false,
+    };
+
+    private StackPanel _zoomPanel = null!;
+    private PeekZoomMode _zoom;
+    private int _imageWidth;
+    private bool _fullDecodeStarted;
+    private int _imageGeneration;
+    private int _imageHeight;
+    private int _rotation;
+    private bool _flipped;
+    private double? _lastScale;
+    private double? _lockScale;
+
+    /// <summary>The scale set by Ctrl+wheel: for the file shown only (not saved, a new file goes back to the saved mode),
+    /// ended by picking a mode in the zoom menu. Null while the mode decides.</summary>
+    private double? _customScale;
+    private System.Windows.Point _pan;
+    private bool _canPan;
+    private bool _panning;
+    private System.Windows.Point _panStartMouse;
+    private System.Windows.Point _panStartOffset;
+
+    /// <summary>The footer part for images: the zoom menu button and the rotate left, rotate right and flip buttons.</summary>
+    private void BuildZoomControls()
+    {
+        Wpf.Ui.Controls.Button IconButton(SymbolRegular symbol, Action action)
+        {
+            var button = new Wpf.Ui.Controls.Button
+            {
+                Icon = new SymbolIcon(symbol),
+                Focusable = false,
+                Margin = new Thickness(4, 0, 0, 0),
+            };
+            button.Click += (_, _) => action();
+            return button;
+        }
+
+        _zoomButton.Click += OnZoomClick;
+        _zoomPanel = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed };
+        _zoomPanel.Children.Add(_zoomButton);
+        _rotateLeftButton = IconButton(SymbolRegular.ArrowRotateCounterclockwise24, () => Rotate(-90));
+        _rotateRightButton = IconButton(SymbolRegular.ArrowRotateClockwise24, () => Rotate(90));
+        _flipButton = IconButton(SymbolRegular.FlipHorizontal24, Flip);
+        _zoomPanel.Children.Add(_rotateLeftButton);
+        _zoomPanel.Children.Add(_rotateRightButton);
+        _zoomPanel.Children.Add(_flipButton);
+        _saveTimer.Tick += (_, _) => FlushSave();
+        ZoomPresenter.Content = _zoomPanel;
+        UpdateZoomButton();
+        UpdateTurnTips();
+    }
+
+    private Wpf.Ui.Controls.Button _rotateLeftButton = null!;
+    private Wpf.Ui.Controls.Button _rotateRightButton = null!;
+    private Wpf.Ui.Controls.Button _flipButton = null!;
+
+    /// <summary>The tooltips of the rotate and flip buttons: a format Peek cannot write back (<see cref="_canSave"/>
+    /// false) says the turn is for the view only.</summary>
+    private void UpdateTurnTips()
+    {
+        _rotateLeftButton.ToolTip = _canSave ? AresToys.App.Resources.Strings.Peek_RotateLeft : AresToys.App.Resources.Strings.Peek_RotateLeftViewOnly;
+        _rotateRightButton.ToolTip = _canSave ? AresToys.App.Resources.Strings.Peek_RotateRight : AresToys.App.Resources.Strings.Peek_RotateRightViewOnly;
+        _flipButton.ToolTip = _canSave ? AresToys.App.Resources.Strings.Peek_FlipHorizontal : AresToys.App.Resources.Strings.Peek_FlipHorizontalViewOnly;
+    }
+
+    /// <summary>The footer zoom button: the mode, or the percentage while a Ctrl+wheel scale is in force.</summary>
+    private void UpdateZoomButton()
+        => _zoomButton.Content = AresToys.App.Resources.Strings.Peek_Zoom + ": "
+            + (_customScale is { } custom
+                ? string.Format(CultureInfo.CurrentCulture, "{0:0}%", custom * 100)
+                : PeekZoom.DisplayName(_zoom));
+
+    private void OnZoomClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = _zoomButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+        foreach (var mode in PeekZoom.All)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = PeekZoom.DisplayName(mode), IsChecked = _customScale is null && mode == _zoom };
+            item.Click += (_, _) => ChooseZoom(mode);
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    /// <summary>A zoom mode picked in the footer: applied to the image now, kept for the next files, and saved. Lock
+    /// holds the scale the image has now. It also ends a Ctrl+wheel scale, even when the mode is the one already saved.</summary>
+    private void ChooseZoom(PeekZoomMode mode)
+    {
+        if (mode == _zoom && _customScale is null) return;
+        var changed = mode != _zoom;
+        _zoom = mode;
+        _customScale = null;
+        _lockScale = _lastScale;
+        _pan = new System.Windows.Point();
+        UpdateZoomButton();
+        ApplyZoom();
+        if (changed)
+        {
+            Settings.SaveZoom?.Invoke(mode);
+        }
+    }
+
+    /// <summary>Rotation by a quarter turn (negative: left): the view turns at once and, for a format Peek can write
+    /// back, the file is saved turned shortly after (<see cref="ScheduleSave"/>).</summary>
+    private void Rotate(int degrees)
+    {
+        _rotation = ((_rotation + degrees) % 360 + 360) % 360;
+        _pan = new System.Windows.Point();
+        ApplyZoom();
+        ScheduleSave();
+    }
+
+    /// <summary>Horizontal flip of what is on screen, saved like <see cref="Rotate"/>: the flip comes after the
+    /// rotation, so the angle turns around with it.</summary>
+    private void Flip()
+    {
+        _flipped = !_flipped;
+        _rotation = (360 - _rotation) % 360;
+        _pan = new System.Windows.Point();
+        ApplyZoom();
+        ScheduleSave();
+    }
+
+    // Saving a turn (PeekImageSave is the one writer). The view state (_rotation, _flipped) is relative to the image as
+    // decoded; _onDisk is the part of it the file already holds (a write that succeeded while the user kept turning),
+    // so a write applies only the rest.
+    private readonly System.Windows.Threading.DispatcherTimer _saveTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private bool _canSave;
+    private bool _savePending;
+    private string? _savePath;
+    private PeekTurn _onDisk = PeekTurn.None;
+    private string _infoBase = string.Empty;
+
+    /// <summary>A turn was made: the file is written about 800 ms after the last click, so several clicks make one
+    /// write. Nothing for a file Peek cannot write back.</summary>
+    private void ScheduleSave()
+    {
+        if (!_canSave || CurrentPath is not { } path) return;
+        _savePath = path;
+        _savePending = true;
+        InfoText.Text = _infoBase;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    /// <summary>Starts the write of the pending turn now: when the timer ends, and before the window moves to another
+    /// file or hides. With <paramref name="blocking"/> (the window is shutting down) the write finishes before this
+    /// returns.</summary>
+    private void FlushSave(bool blocking = false)
+    {
+        _saveTimer.Stop();
+        if (!_savePending || _savePath is not { } path) return;
+        _savePending = false;
+        var shown = new PeekTurn(_flipped, _rotation);
+        var rest = _onDisk.Inverse.Then(shown);
+        if (rest.IsNone) return;
+        if (blocking)
+        {
+            PeekImageSave.Save(path, rest);
+            return;
+        }
+
+        _ = SaveTurnAsync(path, rest, shown, _version);
+    }
+
+    /// <summary>Writes <paramref name="rest"/> on the thread pool. A file Peek has moved on from only has its thumbnail
+    /// refreshed. On the file still shown, a failure says so in the footer (the view stays turned, the file is
+    /// untouched); a success makes <paramref name="shown"/> the part the file holds and, when the user has not turned
+    /// again, loads the file as written in place of the turned view, so nothing is turned twice.</summary>
+    private async Task SaveTurnAsync(string path, PeekTurn rest, PeekTurn shown, int version)
+    {
+        var saved = await Task.Run(() => PeekImageSave.Save(path, rest));
+        if (saved)
+        {
+            Strip.Refresh(path);
+        }
+
+        if (version != _version || !string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase)) return;
+        if (!saved)
+        {
+            InfoText.Text = _infoBase + "  ·  " + AresToys.App.Resources.Strings.Peek_SaveFailed;
+            return;
+        }
+
+        _onDisk = shown;
+        var info = await PeekImageLoader.LoadWithInfoAsync(path, _targetPixelWidth, CancellationToken.None);
+        if (version != _version || new PeekTurn(_flipped, _rotation) != shown || info.Bitmap is not { } bitmap) return;
+        PreviewImage.Source = bitmap;
+        _imageGeneration++;
+        _fullDecodeStarted = false;
+        _imageWidth = info.PixelWidth;
+        _imageHeight = info.PixelHeight;
+        _rotation = 0;
+        _flipped = false;
+        _onDisk = PeekTurn.None;
+        _infoBase = FormatInfo(info);
+        InfoText.Text = _infoBase;
+        ApplyZoom();
+    }
+
+    /// <summary>The zoom buttons show only for a file drawn as an image.</summary>
+    private void UpdateZoomControls(PeekPreviewKind kind)
+        => _zoomPanel.Visibility = kind == PeekPreviewKind.Image ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Sizes and places the image in the viewport by the zoom mode, from its real pixel size (swapped when
+    /// turned a quarter) in physical pixels of the viewport, so 100% is one image pixel per screen pixel whatever the
+    /// decoded bitmap's resolution. Called on a new image, a mode, rotation or flip change, a pan and a viewport resize.</summary>
+    private void ApplyZoom()
+    {
+        var viewWidth = Viewport.ActualWidth;
+        var viewHeight = Viewport.ActualHeight;
+        if (PreviewImage.Source is null || _imageWidth <= 0 || _imageHeight <= 0 || viewWidth <= 0 || viewHeight <= 0)
+        {
+            _canPan = false;
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(Viewport);
+        var quarter = _rotation % 180 != 0;
+        var shownWidth = quarter ? _imageHeight : _imageWidth;
+        var shownHeight = quarter ? _imageWidth : _imageHeight;
+        var scale = _customScale ?? PeekZoom.Scale(_zoom, shownWidth, shownHeight,
+            (viewWidth - 2 * ImageMargin) * dpi.DpiScaleX, (viewHeight - 2 * ImageMargin) * dpi.DpiScaleY,
+            viewWidth * dpi.DpiScaleX, viewHeight * dpi.DpiScaleY, _lockScale);
+        _lastScale = scale;
+        if (_customScale is not null)
+        {
+            UpdateZoomButton();
+        }
+
+
+        // The size the image has in its own frame, before the quarter turn; the render transform turns it around its center.
+        var width = _imageWidth * scale / dpi.DpiScaleX;
+        var height = _imageHeight * scale / dpi.DpiScaleY;
+        var onScreenWidth = quarter ? height : width;
+        var onScreenHeight = quarter ? width : height;
+        var maxX = Math.Max(0, (onScreenWidth - viewWidth) / 2);
+        var maxY = Math.Max(0, (onScreenHeight - viewHeight) / 2);
+        _pan = new System.Windows.Point(Math.Clamp(_pan.X, -maxX, maxX), Math.Clamp(_pan.Y, -maxY, maxY));
+        _canPan = maxX > 0.5 || maxY > 0.5;
+        Viewport.Cursor = _canPan ? Cursors.Hand : null;
+
+        PreviewImage.Width = width;
+        PreviewImage.Height = height;
+        Canvas.SetLeft(PreviewImage, (viewWidth - width) / 2 + _pan.X);
+        Canvas.SetTop(PreviewImage, (viewHeight - height) / 2 + _pan.Y);
+        var transform = new TransformGroup();
+        transform.Children.Add(new ScaleTransform(_flipped ? -1 : 1, 1));
+        transform.Children.Add(new RotateTransform(_rotation));
+        PreviewImage.RenderTransform = transform;
+
+        if (!_fullDecodeStarted && PreviewImage.Source is System.Windows.Media.Imaging.BitmapSource shown && shown.PixelWidth < _imageWidth
+            && scale > (double)shown.PixelWidth / _imageWidth + 1e-6 && CurrentPath is { } path)
+        {
+            _fullDecodeStarted = true;
+            _ = LoadFullResolutionAsync(path, _version, _imageGeneration, _loadCts?.Token ?? CancellationToken.None);
+        }
+    }
+
+    /// <summary>The first decode is downscaled to the monitor width for speed. When the zoom needs more pixels than that
+    /// bitmap holds, the file is decoded once more at full size and swapped in; scale and pan already use the real
+    /// pixel size, so nothing jumps. Dropped when another file, another load of this one or Esc came first.</summary>
+    private async Task LoadFullResolutionAsync(string path, int version, int generation, CancellationToken ct)
+    {
+        PeekImageInfo info;
+        try
+        {
+            info = await PeekImageLoader.LoadWithInfoAsync(path, 0, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (version != _version || generation != _imageGeneration || ct.IsCancellationRequested
+            || info.Bitmap is not { } bitmap || info.PixelWidth != _imageWidth || info.PixelHeight != _imageHeight)
+        {
+            return;
+        }
+
+        PreviewImage.Source = bitmap;
+        ApplyZoom();
+    }
+
+    private void OnViewportMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_canPan || PreviewImage.Source is null) return;
+        _panning = true;
+        _panStartMouse = e.GetPosition(Viewport);
+        _panStartOffset = _pan;
+        Viewport.CaptureMouse();
+        e.Handled = true;
+    }
+
+    /// <summary>Ctrl+wheel zooms by <see cref="PeekZoom.WheelStep"/> a notch around the cursor: the image point under it
+    /// stays where it is (the image turns around its center, so the offset of the cursor from the center scales with
+    /// the zoom whatever the rotation). The scale is for this file only, see <see cref="_customScale"/>. The wheel
+    /// without Ctrl does nothing here.</summary>
+    private void OnViewportMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || PreviewImage.Source is null || _lastScale is not { } old)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var next = PeekZoom.Step(old, e.Delta / 120.0);
+        if (Math.Abs(next - old) < 1e-9) return;
+        var cursor = e.GetPosition(Viewport);
+        var k = next / old;
+        var dx = cursor.X - (Viewport.ActualWidth / 2 + _pan.X);
+        var dy = cursor.Y - (Viewport.ActualHeight / 2 + _pan.Y);
+        _pan = new System.Windows.Point(_pan.X + dx * (1 - k), _pan.Y + dy * (1 - k));
+        _customScale = next;
+        ApplyZoom();
+    }
+
+    private void OnViewportMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_panning) return;
+        var position = e.GetPosition(Viewport);
+        _pan = new System.Windows.Point(_panStartOffset.X + position.X - _panStartMouse.X, _panStartOffset.Y + position.Y - _panStartMouse.Y);
+        ApplyZoom();
     }
 
     private readonly Wpf.Ui.Controls.Button _browseButton;
+    private readonly Wpf.Ui.Controls.Button _stripButton;
+    private bool _stripOn = true;
+
+    /// <summary>Gives the thumbnail strip the list the arrows walk and the current index; the strip shows only when that
+    /// list has more than one file and the strip is on. Called where the list changes.</summary>
+    private void FeedStrip()
+    {
+        Strip.SetFiles(_files, _index);
+        UpdateStrip();
+    }
+
+    private void UpdateStrip()
+    {
+        Strip.Visibility = _stripOn && _files.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        Strip.SetCurrent(_index);
+        _stripButton.Icon = new SymbolIcon(_stripOn ? SymbolRegular.ImageMultiple24 : SymbolRegular.ImageOff24);
+        _stripButton.ToolTip = _stripOn ? AresToys.App.Resources.Strings.Peek_StripHide : AresToys.App.Resources.Strings.Peek_StripShow;
+        _stripButton.Visibility = _allFiles.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ToggleStrip()
+    {
+        _stripOn = !_stripOn;
+        UpdateStrip();
+        Settings.SaveStrip?.Invoke(_stripOn);
+    }
+
 
     /// <summary>The "Browse" button names the mode; it shows only when the folder has more than one file.</summary>
     private void UpdateBrowseButton()
@@ -134,6 +506,7 @@ public partial class PeekWindow : FluentWindow
         CounterText.Text = _files.Count == 0 ? string.Empty : string.Format(CultureInfo.CurrentCulture, "{0} / {1}", _index + 1, _files.Count);
         UpdateChevrons();
         UpdateBrowseButton();
+        FeedStrip();
         Settings.SaveBrowse?.Invoke(mode);
     }
 
@@ -263,6 +636,20 @@ public partial class PeekWindow : FluentWindow
     /// <summary>The footer slot on the right where the "Open in" menu goes.</summary>
     public ContentPresenter OpenInHost => OpenInPresenter;
 
+    /// <summary>Gives the window the whole folder list (Explorer's view order) after the file was shown alone, so the
+    /// arrows, chevrons, counter and Browse filter walk the folder. Dropped when the window no longer shows
+    /// <paramref name="current"/>. UI thread.</summary>
+    public void SetFolderList(IReadOnlyList<string> files, string current)
+    {
+        if (!IsVisible || !string.Equals(CurrentPath, current, StringComparison.OrdinalIgnoreCase)) return;
+        _allFiles = files;
+        ApplyBrowse(current);
+        CounterText.Text = _files.Count == 0 ? string.Empty : string.Format(CultureInfo.CurrentCulture, "{0} / {1}", _index + 1, _files.Count);
+        UpdateChevrons();
+        UpdateBrowseButton();
+        FeedStrip();
+    }
+
     /// <summary>Shows the window (or re-targets it when already visible) on <paramref name="files"/> at
     /// <paramref name="index"/>. A window that was hidden opens at its saved bounds (kept on a connected monitor), or,
     /// with none saved or when fitting to an image, at about 70% of the work area of the monitor holding
@@ -272,7 +659,15 @@ public partial class PeekWindow : FluentWindow
     {
         _allFiles = files;
         _browse = Settings.Browse;
+        _stripOn = Settings.Strip;
+        if (_zoom != Settings.Zoom)
+        {
+            _zoom = Settings.Zoom;
+            UpdateZoomButton();
+        }
+
         ApplyBrowse(files.Count == 0 ? null : files[Math.Clamp(index, 0, files.Count - 1)]);
+        FeedStrip();
 
         Place(anchorHwnd);
         if (!IsVisible)
@@ -303,6 +698,7 @@ public partial class PeekWindow : FluentWindow
         _nav?.Close();
         _nav = null;
         RememberBounds();
+        FlushSave(blocking: true);
         CancelLoad();
         PreviewWeb.Dispose();
         PreviewShell.Dispose();
@@ -326,6 +722,7 @@ public partial class PeekWindow : FluentWindow
     public void HidePeek()
     {
         RememberBounds();
+        FlushSave();
         CancelLoad();
         PeekShellPreview.StopHelper();
         StopVideo();
@@ -480,6 +877,7 @@ public partial class PeekWindow : FluentWindow
     /// an earlier file is cancelled and, if it finishes anyway, its result is dropped by the version check.</summary>
     private void ShowCurrent()
     {
+        FlushSave();
         CancelLoad();
         StopVideo();
         var path = CurrentPath;
@@ -489,14 +887,28 @@ public partial class PeekWindow : FluentWindow
         Bar.Title = name;
         CounterText.Text = _files.Count == 0 ? string.Empty : string.Format(CultureInfo.CurrentCulture, "{0} / {1}", _index + 1, _files.Count);
         PreviewImage.Source = null;
-        PreviewImage.StretchDirection = StretchDirection.DownOnly;
+        _lockScale = _lastScale;
+        _customScale = null;
+        UpdateZoomButton();
+        _imageWidth = _imageHeight = 0;
+        _rotation = 0;
+        _flipped = false;
+        _onDisk = PeekTurn.None;
+        _canSave = false;
+        _infoBase = string.Empty;
+        UpdateTurnTips();
+        _pan = new System.Windows.Point();
+        _canPan = false;
+        Viewport.Cursor = null;
         FallbackText.Visibility = Visibility.Collapsed;
         InfoText.Text = string.Empty;
         UpdateChevrons();
         UpdateBrowseButton();
         UpdateOpenInButton();
+        UpdateStrip();
         var kind = path is null ? PeekPreviewKind.None : PeekPreview.For(path);
         UpdateShowAsButton(path, kind);
+        UpdateZoomControls(kind);
         if (_geometryIsFit && !(Settings.FitToContent && kind == PeekPreviewKind.Image))
         {
             // The window still has the size of the last image and this file is not one to fit: the user's size is back.
@@ -784,9 +1196,13 @@ public partial class PeekWindow : FluentWindow
     private async Task LoadAsync(string path, int version, CancellationToken ct)
     {
         PeekImageInfo info;
+        bool canSave;
         try
         {
+            // Whether a turn can be written back is read from the file header while the pixels decode.
+            var probe = Task.Run(() => PeekImageSave.CanSave(path), ct);
             info = await PeekImageLoader.LoadWithInfoAsync(path, _targetPixelWidth, ct);
+            canSave = await probe;
         }
         catch (OperationCanceledException)
         {
@@ -800,9 +1216,17 @@ public partial class PeekWindow : FluentWindow
             return;
         }
 
+        _canSave = canSave && info.Bitmap is not null;
+        UpdateTurnTips();
+
         if (info.Bitmap is { } bitmap)
         {
             PreviewImage.Source = bitmap;
+            _imageGeneration++;
+            _fullDecodeStarted = false;
+            _imageWidth = info.PixelWidth;
+            _imageHeight = info.PixelHeight;
+            ApplyZoom();
             FallbackText.Visibility = Visibility.Collapsed;
         }
         else
@@ -811,7 +1235,8 @@ public partial class PeekWindow : FluentWindow
             FallbackText.Visibility = Visibility.Visible;
         }
 
-        InfoText.Text = FormatInfo(info);
+        _infoBase = FormatInfo(info);
+        InfoText.Text = _infoBase;
 
         // The footer text is final now, so the fixed part of the window (title row, footer, frame) is measured right.
         if (Settings.FitToContent && info.Bitmap is not null)
@@ -822,6 +1247,8 @@ public partial class PeekWindow : FluentWindow
         {
             RestoreRemembered();
         }
+
+        ApplyZoom();
     }
 
     private void CancelLoad()
@@ -977,22 +1404,16 @@ public partial class PeekWindow : FluentWindow
 
         UpdateLayout();
         var dpi = VisualTreeHelper.GetDpi(this);
-        var margin = PreviewImage.Margin;
         var work = WorkAreaOf(hwnd, MonitorDefaultToNearest);
         var needWidth = imagePixelWidth + (int)Math.Ceiling(
-            current.Width - Viewport.ActualWidth * dpi.DpiScaleX + (margin.Left + margin.Right) * dpi.DpiScaleX);
+            current.Width - Viewport.ActualWidth * dpi.DpiScaleX + 2 * ImageMargin * dpi.DpiScaleX);
         var needHeight = imagePixelHeight + (int)Math.Ceiling(
-            current.Height - Viewport.ActualHeight * dpi.DpiScaleY + (margin.Top + margin.Bottom) * dpi.DpiScaleY);
+            current.Height - Viewport.ActualHeight * dpi.DpiScaleY + 2 * ImageMargin * dpi.DpiScaleY);
         var minWidth = (int)Math.Ceiling(MinWidth * dpi.DpiScaleX);
         var minHeight = (int)Math.Ceiling(MinHeight * dpi.DpiScaleY);
         var width = Math.Max(minWidth, Math.Min(needWidth, (int)(work.Width * FitCapFraction)));
         var height = Math.Max(minHeight, Math.Min(needHeight, (int)(work.Height * FitCapFraction)));
 
-        // The image fills the viewport only when one side is not padded out to the minimum size; a small image in a
-        // minimum size window stays at its own size instead of being blown up.
-        PreviewImage.StretchDirection = needWidth >= minWidth || needHeight >= minHeight
-            ? StretchDirection.Both
-            : StretchDirection.DownOnly;
         ResizeAroundCenter(hwnd, current, width, height, work);
     }
 
@@ -1001,7 +1422,6 @@ public partial class PeekWindow : FluentWindow
     private void RestoreRemembered()
     {
         _geometryIsFit = false;
-        PreviewImage.StretchDirection = StretchDirection.DownOnly;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (CurrentBounds() is not { } current)
         {

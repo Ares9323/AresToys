@@ -1636,6 +1636,22 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="Peek_ShowAs" xml:space="preserve"><value>Show as</value></data>
   <data name="Peek_ShowAsAuto" xml:space="preserve"><value>Auto</value></data>
   <data name="Peek_Nav" xml:space="preserve"><value>Browse</value></data>
+  <data name="Peek_Zoom" xml:space="preserve"><value>Zoom</value></data>
+  <data name="Peek_ZoomAuto" xml:space="preserve"><value>Auto</value></data>
+  <data name="Peek_ZoomFit" xml:space="preserve"><value>Fit</value></data>
+  <data name="Peek_ZoomFill" xml:space="preserve"><value>Fill</value></data>
+  <data name="Peek_ZoomWidth" xml:space="preserve"><value>Width</value></data>
+  <data name="Peek_ZoomHeight" xml:space="preserve"><value>Height</value></data>
+  <data name="Peek_ZoomLock" xml:space="preserve"><value>Lock</value></data>
+  <data name="Peek_RotateLeft" xml:space="preserve"><value>Rotate left</value></data>
+  <data name="Peek_RotateRight" xml:space="preserve"><value>Rotate right</value></data>
+  <data name="Peek_FlipHorizontal" xml:space="preserve"><value>Flip horizontally</value></data>
+  <data name="Peek_RotateLeftViewOnly" xml:space="preserve"><value>Rotate left (view only for this format)</value></data>
+  <data name="Peek_RotateRightViewOnly" xml:space="preserve"><value>Rotate right (view only for this format)</value></data>
+  <data name="Peek_FlipHorizontalViewOnly" xml:space="preserve"><value>Flip horizontally (view only for this format)</value></data>
+  <data name="Peek_SaveFailed" xml:space="preserve"><value>Could not save the change to the file</value></data>
+  <data name="Peek_StripShow" xml:space="preserve"><value>Show thumbnails</value></data>
+  <data name="Peek_StripHide" xml:space="preserve"><value>Hide thumbnails</value></data>
   <data name="Peek_NavAll" xml:space="preserve"><value>All</value></data>
   <data name="Peek_NavFamily" xml:space="preserve"><value>Same family</value></data>
   <data name="Peek_NavExtension" xml:space="preserve"><value>Same extension</value></data>

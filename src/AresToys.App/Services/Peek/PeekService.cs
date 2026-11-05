@@ -20,6 +20,9 @@ public sealed class PeekService
 
     private readonly SatelliteService _satellite;
     private readonly ILogger<PeekService> _logger;
+    // One request (show or hide) in flight at a time: a press while one runs is dropped, so a second press never
+    // reads the selection the first is still showing and closes it.
+    private int _inFlight;
 
     public PeekService(SatelliteService satellite, ILogger<PeekService> logger)
     {
@@ -44,8 +47,13 @@ public sealed class PeekService
     /// shown: false when no satellite answers, it refuses, or nothing is selected.</summary>
     public Task<bool> ToggleAsync(IntPtr root)
     {
+        if (Interlocked.CompareExchange(ref _inFlight, 1, 0) != 0) return Task.FromResult(false);
         HandOffForeground();
-        return Task.Run(() => RequestShowAsync(root));
+        return Task.Run(async () =>
+        {
+            try { return await RequestShowAsync(root).ConfigureAwait(false); }
+            finally { Volatile.Write(ref _inFlight, 0); }
+        });
     }
 
     /// <summary>True when <paramref name="root"/> is the Peek window: a top-level window of the satellite process with
@@ -62,7 +70,15 @@ public sealed class PeekService
 
     /// <summary>Closes the open Peek window (the Peek key pressed while Peek is in front). Sends <c>peek.hide</c> from
     /// the pool. A failure is logged; the window stays open then.</summary>
-    public Task HideAsync() => Task.Run(RequestHideAsync);
+    public Task HideAsync()
+    {
+        if (Interlocked.CompareExchange(ref _inFlight, 1, 0) != 0) return Task.CompletedTask;
+        return Task.Run(async () =>
+        {
+            try { await RequestHideAsync().ConfigureAwait(false); }
+            finally { Volatile.Write(ref _inFlight, 0); }
+        });
+    }
 
     private async Task RequestHideAsync()
     {

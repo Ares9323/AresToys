@@ -7,7 +7,9 @@ namespace AresToys.App.Services.Peek;
 
 /// <summary>What the Peek window needs about its size: the bounds it had when it was last hidden (physical pixels on
 /// the virtual screen, null until it has been used) and whether it should size itself to the image it shows.</summary>
-public sealed record PeekWindowSettings(PixelRect? Bounds, bool FitToContent, PeekBrowseMode Browse = PeekBrowseMode.All, Action<PeekBrowseMode>? SaveBrowse = null)
+public sealed record PeekWindowSettings(PixelRect? Bounds, bool FitToContent, PeekBrowseMode Browse = PeekBrowseMode.All, Action<PeekBrowseMode>? SaveBrowse = null,
+    PeekZoomMode Zoom = PeekZoomMode.Auto, Action<PeekZoomMode>? SaveZoom = null,
+    bool Strip = true, Action<bool>? SaveStrip = null)
 {
     public static PeekWindowSettings Default { get; } = new(null, false);
 }
@@ -24,13 +26,52 @@ public sealed class PeekWindowStore(ISettingsStore settings, ILogger<PeekWindowS
     /// <summary>The browse filter ("all", "family" or "extension"; see <see cref="PeekBrowse"/>), all when missing.</summary>
     public const string BrowseKey = "peek.browse";
 
+    /// <summary>The image zoom mode (see <see cref="PeekZoom"/>), auto when missing.</summary>
+    public const string ZoomKey = "peek.zoom";
+
+    /// <summary>Whether the thumbnail strip shows ("1" or "0"), on when missing.</summary>
+    public const string StripKey = "peek.strip";
+
     /// <summary>The stored settings; a missing or invalid value gives its default (invalid data is logged).</summary>
     public async Task<PeekWindowSettings> LoadAsync(CancellationToken ct = default)
     {
         var bounds = ParseBounds(await ReadAsync(BoundsKey, ct).ConfigureAwait(false));
         var fit = await ReadAsync(FitKey, ct).ConfigureAwait(false) == "1";
         var browse = PeekBrowse.Parse(await ReadAsync(BrowseKey, ct).ConfigureAwait(false));
-        return new PeekWindowSettings(bounds, fit, browse, mode => _ = SaveBrowseQuietlyAsync(mode));
+        var zoom = PeekZoom.Parse(await ReadAsync(ZoomKey, ct).ConfigureAwait(false));
+        var strip = await ReadAsync(StripKey, ct).ConfigureAwait(false) != "0";
+        return new PeekWindowSettings(bounds, fit, browse, mode => _ = SaveBrowseQuietlyAsync(mode),
+            zoom, mode => _ = SaveZoomQuietlyAsync(mode), strip, on => _ = SaveStripQuietlyAsync(on));
+    }
+
+    public Task SaveStripAsync(bool on, CancellationToken ct = default)
+        => settings.SetAsync(StripKey, on ? "1" : "0", sensitive: false, ct);
+
+    private async Task SaveStripQuietlyAsync(bool on)
+    {
+        try
+        {
+            await SaveStripAsync(on).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Peek window: saving the thumbnail strip choice failed");
+        }
+    }
+
+    public Task SaveZoomAsync(PeekZoomMode mode, CancellationToken ct = default)
+        => settings.SetAsync(ZoomKey, PeekZoom.Format(mode), sensitive: false, ct);
+
+    private async Task SaveZoomQuietlyAsync(PeekZoomMode mode)
+    {
+        try
+        {
+            await SaveZoomAsync(mode).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Peek window: saving the zoom mode failed");
+        }
     }
 
     public Task SaveBrowseAsync(PeekBrowseMode mode, CancellationToken ct = default)

@@ -98,10 +98,29 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         if (root == IntPtr.Zero || _stopped) return Answer(false);
 
         var logger = _logger;
-        var target = await RunStaAsync(() => ReadTarget(root, logger)).ConfigureAwait(false);
-        if (target is not { } found) return Answer(false);
+        var file = await RunStaAsync(() => ReadSelectedFile(root, logger)).ConfigureAwait(false);
+        if (file is null) return Answer(false);
 
-        return Answer(await ShowAsync(found.Files, found.Index, root).ConfigureAwait(false));
+        // The selected file shows at once; the folder list (navigation) follows when it is read.
+        var shown = await ShowAsync(new[] { file }, 0, root).ConfigureAwait(false);
+        if (shown) _ = FillFolderListAsync(root, file, logger);
+        return Answer(shown);
+    }
+
+    // Reads the folder view in the view's order and hands it to the open window, which keeps it only while it still
+    // shows the file. Runs after the answer: a failure leaves the single file.
+    private async Task FillFolderListAsync(IntPtr root, string file, ILogger? logger)
+    {
+        try
+        {
+            var view = await RunStaAsync(() => ExplorerWindows.GetViewItems(root, file)).ConfigureAwait(false);
+            if (view is not { Index: >= 0 } found || _dispatcher is not { } dispatcher || _stopped) return;
+            await dispatcher.InvokeAsync(() => _window?.SetFolderList(found.Items, file)).Task.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogDebug(ex, "Peek module: reading the folder list failed");
+        }
     }
 
     /// <summary>The one entry that puts files on screen: <c>peek.show</c> and the Wormhole windows (same process) both
@@ -112,7 +131,8 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         var dispatcher = _dispatcher ?? throw new InvalidOperationException("The Peek module is not registered.");
         if (_stopped || files.Count == 0) return false;
 
-        await RefreshConfigAsync().ConfigureAwait(false);
+        // Not awaited: a change saved in Settings reaches Peek on the next press, which does not wait for four stores.
+        _ = RefreshConfigAsync();
         return await dispatcher.InvokeAsync(() => ShowWindow(files, index, anchor)).Task.ConfigureAwait(false);
     }
 
@@ -169,18 +189,10 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         }
     }
 
-    /// <summary>STA thread. The first selected file of the active tab of <paramref name="root"/> and the files around it
-    /// in the view's order. When the view cannot be read, or does not list that file, the file is shown alone.
-    /// Null when no file is selected (nothing, or only folders).</summary>
-    private static (IReadOnlyList<string> Files, int Index)? ReadTarget(IntPtr root, ILogger? logger)
-    {
-        var file = ExplorerWindows.GetActiveSelection(root, logger).FirstOrDefault(File.Exists);
-        if (file is null) return null;
-
-        if (ExplorerWindows.GetViewItems(root, file) is { Index: >= 0 } view)
-            return (view.Items, view.Index);
-        return (new[] { file }, 0);
-    }
+    /// <summary>STA thread. The first selected file of the active tab of <paramref name="root"/>, or null when no file
+    /// is selected (nothing, or only folders).</summary>
+    private static string? ReadSelectedFile(IntPtr root, ILogger? logger)
+        => ExplorerWindows.GetActiveSelection(root, logger).FirstOrDefault(File.Exists);
 
     /// <summary>UI thread only. True when the window is on screen afterwards. A visible window that already shows the requested file hides instead (false).</summary>
     private bool ShowWindow(IReadOnlyList<string> files, int index, IntPtr anchor)
