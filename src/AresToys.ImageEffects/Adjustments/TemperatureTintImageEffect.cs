@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/TemperatureTintImageEffect.cs.
+/// <summary>Effect inspired by ShareX.
 /// Temperature shifts blue ↔ red (cool/warm); tint shifts magenta ↔ green.</summary>
 public sealed class TemperatureTintImageEffect : AdjustmentImageEffectBase
 {

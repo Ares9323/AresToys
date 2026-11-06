@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/GammaImageEffect.cs. Gamma table is
+/// <summary>Effect inspired by ShareX. Gamma table is
 /// rebuilt on demand and cached across calls so a slider sweep doesn't recompute 256 pow()
 /// per frame.</summary>
 public sealed class GammaImageEffect : AdjustmentImageEffectBase

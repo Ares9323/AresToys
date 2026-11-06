@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/SolarizeImageEffect.cs. Inverts every
+/// <summary>Effect inspired by ShareX. Inverts every
 /// channel value above the threshold; channel values below are left unchanged. Produces the
 /// classic darkroom solarisation look.</summary>
 public sealed class SolarizeImageEffect : AdjustmentImageEffectBase

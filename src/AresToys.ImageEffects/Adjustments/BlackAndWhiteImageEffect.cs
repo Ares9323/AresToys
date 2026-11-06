@@ -2,7 +2,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/BlackAndWhiteImageEffect.cs. Hard
+/// <summary>Effect inspired by ShareX. Hard
 /// threshold (no mid-greys) — different from <see cref="GrayscaleImageEffect"/> which
 /// produces continuous tones.</summary>
 public sealed class BlackAndWhiteImageEffect : AdjustmentImageEffectBase

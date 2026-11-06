@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/LevelsImageEffect.cs. Photoshop-style
+/// <summary>Effect inspired by ShareX. Photoshop-style
 /// levels: input black/white set the range that gets stretched, gamma curves the midtones,
 /// output black/white compress the result back into a sub-range.</summary>
 public sealed class LevelsImageEffect : AdjustmentImageEffectBase

@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Drawings;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawBackground.cs. Fills
+/// <summary>Effect inspired by ShareX. Fills
 /// the canvas with a solid <see cref="Color"/> or, when <see cref="UseGradient"/> is set,
 /// with the linear <see cref="Gradient"/>, then paints the source image on top — typically
 /// preceded by a <c>Canvas</c> step that has expanded the canvas with transparent margins so

@@ -5,7 +5,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Drawings;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawTextEx.cs. Watermark
+/// <summary>Effect inspired by ShareX. Watermark
 /// text with optional outline + drop-shadow, anchored at one of nine canvas positions. The
 /// <see cref="Font"/> property accepts the legacy ShareX format <c>"Family, Size[unit][, style]"</c>
 /// (e.g. <c>"Arial, 36pt"</c>, <c>"Calibri, 18pt, style=Bold"</c>) which we parse on apply.

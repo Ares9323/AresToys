@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/AutoContrastImageEffect.cs. Builds a
+/// <summary>Effect inspired by ShareX. Builds a
 /// per-channel histogram, drops <see cref="ClipPercent"/>% of pixels from each end (so a few
 /// bright/dark outliers don't lock the levels), then linearly stretches the rest to 0..255.
 /// Two passes over the buffer (histogram + remap), still cheap at preview sizes.</summary>

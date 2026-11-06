@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ReplaceColorImageEffect.cs. Replaces
+/// <summary>Effect inspired by ShareX. Replaces
 /// pixels matching <see cref="TargetColor"/> within <see cref="Tolerance"/> by
 /// <see cref="ReplaceColor"/>.</summary>
 public sealed class ReplaceColorImageEffect : AdjustmentImageEffectBase

@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Manipulations;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEditor Manipulations/RotateImageEffect.cs.
+/// <summary>Effect inspired by ShareX.
 /// Custom-angle rotation. Orthogonal multiples of 90° take a fast path that swaps width/height
 /// without subpixel sampling; arbitrary angles either expand the canvas (AutoResize) or clip
 /// to the original bounds.</summary>

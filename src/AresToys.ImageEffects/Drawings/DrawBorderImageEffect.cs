@@ -12,7 +12,7 @@ public enum BorderType { Outside, Inside }
 /// ShareX <c>.sxie</c> files round-trip without a translation map.</summary>
 public enum DashStyle { Solid, Dash, Dot, DashDot, DashDotDot }
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawBorder.cs. Solid or
+/// <summary>Effect inspired by ShareX. Solid or
 /// gradient border around (or inside) the source rectangle, with optional dashed stroke.</summary>
 public sealed class DrawBorderImageEffect : DrawingImageEffectBase
 {

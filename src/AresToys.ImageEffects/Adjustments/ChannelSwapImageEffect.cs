@@ -4,7 +4,7 @@ namespace AresToys.ImageEffects.Adjustments;
 
 public enum ChannelSwapMode { RedGreen, RedBlue, GreenBlue, RotateRGB, RotateBGR }
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ChannelSwapImageEffect.cs.</summary>
+/// <summary>Effect inspired by ShareX.</summary>
 public sealed class ChannelSwapImageEffect : AdjustmentImageEffectBase
 {
     public override string Id => "channel_swap";

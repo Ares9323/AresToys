@@ -2,7 +2,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ColorMatrixImageEffect.cs. 4×5 colour
+/// <summary>Effect inspired by ShareX. 4×5 colour
 /// matrix; identity on the diagonal by default. The 20 properties round-trip cleanly with
 /// .sxie presets that wire e.g. <c>"Rg": 0.2</c>.</summary>
 public sealed class ColorMatrixImageEffect : AdjustmentImageEffectBase

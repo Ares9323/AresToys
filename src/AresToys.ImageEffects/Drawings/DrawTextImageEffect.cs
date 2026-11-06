@@ -5,7 +5,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Drawings;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawText.cs. Text watermark
+/// <summary>Effect inspired by ShareX. Text watermark
 /// with optional rounded background box, border, and drop-shadow — distinct from
 /// <see cref="DrawTextExImageEffect"/> which is text-only with outline + per-glyph shadow.
 /// Used by the Windows*/ActivateWindows/DiscordSpoiler/TwitchLive presets which paint a

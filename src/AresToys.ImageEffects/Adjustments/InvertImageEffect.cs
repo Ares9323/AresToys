@@ -2,7 +2,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/InvertImageEffect.cs.</summary>
+/// <summary>Effect inspired by ShareX.</summary>
 public sealed class InvertImageEffect : AdjustmentImageEffectBase
 {
     public override string Id => "invert";

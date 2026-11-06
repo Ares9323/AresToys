@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ClarityImageEffect.cs. Two-pass
+/// <summary>Effect inspired by ShareX. Two-pass
 /// unsharp-mask variant: blur the source, subtract from original to get the high-frequency
 /// detail, then add it back weighted by a midtone Gaussian mask. Emphasises midtone contrast
 /// without crushing shadows / highlights.</summary>

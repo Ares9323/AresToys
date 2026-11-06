@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/VibranceImageEffect.cs. Boosts low-
+/// <summary>Effect inspired by ShareX. Boosts low-
 /// saturation pixels more than already-saturated ones (so blue skies pop without making
 /// already-vivid reds explode). Different from plain Saturation, which scales every pixel
 /// uniformly.</summary>

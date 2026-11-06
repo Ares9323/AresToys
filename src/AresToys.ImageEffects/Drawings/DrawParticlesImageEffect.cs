@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Drawings;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawParticles.cs. Scatters
+/// <summary>Effect inspired by ShareX. Scatters
 /// random images from <see cref="ImageFolder"/> across the source bitmap, with optional size
 /// jitter, angle jitter, opacity jitter, and a "no overlap" mode that retries placement up to
 /// 1000 times before bailing on a particle. Used by Discord-style confetti / snow / hair /

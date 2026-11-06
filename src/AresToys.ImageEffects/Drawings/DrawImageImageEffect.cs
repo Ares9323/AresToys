@@ -44,7 +44,7 @@ public enum ImageRotateFlipType
     Rotate90FlipY = 7,
 }
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawImage.cs. Composites
+/// <summary>Effect inspired by ShareX. Composites
 /// an external image onto the source bitmap (logo / watermark / border artwork). Supports
 /// SizeMode (DontResize / AbsoluteSize / PercentageOfWatermark / PercentageOfCanvas), Tile
 /// fill, Opacity, and CompositingMode (SourceOver alpha blend or SourceCopy overwrite).

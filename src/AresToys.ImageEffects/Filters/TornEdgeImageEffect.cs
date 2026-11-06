@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Filters;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEditor Filters/TornEdgeImageEffect.cs.
+/// <summary>Effect inspired by ShareX.
 /// Walks each enabled side at <see cref="Range"/> intervals, jittering each point by up to
 /// <see cref="Depth"/> pixels to build a closed polygon, then clips the source to that
 /// polygon. <see cref="Curved"/> swaps straight segments for cubic-Bezier ones for a softer,

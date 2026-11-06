@@ -2,8 +2,8 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Shared helpers for colour-matrix / colour-table adjustments. Ported from ShareX
-/// (GPL v3) — see ShareX.ImageEditor/Core/ImageEffects/Adjustments/AdjustmentImageEffectBase.cs.</summary>
+/// <summary>Shared helpers for colour-matrix / colour-table adjustments.
+/// Inspired by ShareX's adjustment effects.</summary>
 public abstract class AdjustmentImageEffectBase : ImageEffect
 {
     public sealed override ImageEffectCategory Category => ImageEffectCategory.Adjustments;
@@ -30,7 +30,7 @@ public abstract class AdjustmentImageEffectBase : ImageEffect
     /// <summary>Per-pixel transform fallback for effects that don't have a clean
     /// SKColorFilter expression (gamma, levels, threshold). Iterates the BGRA byte buffer
     /// in-place when the source is 8-bit BGRA — far faster than going through SKBitmap.Pixels
-    /// which allocates a managed SKColor[] copy. Ported from ShareX (GPL v3).</summary>
+    /// which allocates a managed SKColor[] copy.</summary>
     protected static unsafe SKBitmap ApplyPixelOperation(SKBitmap source, Func<SKColor, SKColor> operation)
     {
         ArgumentNullException.ThrowIfNull(source);

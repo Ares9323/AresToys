@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ColorizeImageEffect.cs. Desaturates
+/// <summary>Effect inspired by ShareX. Desaturates
 /// the source then tints toward <see cref="Color"/>; <see cref="Strength"/> blends with the
 /// original.</summary>
 public sealed class ColorizeImageEffect : AdjustmentImageEffectBase

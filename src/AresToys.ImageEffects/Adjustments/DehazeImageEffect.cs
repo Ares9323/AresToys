@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/DehazeImageEffect.cs. Dark-channel
+/// <summary>Effect inspired by ShareX. Dark-channel
 /// prior dehazing: estimate atmospheric light from the brightest 0.1% of pixels, then
 /// recover the scene by inverting the haze model <c>I = J·t + A·(1-t)</c>. Negative amount
 /// runs the model in reverse to *add* haze.</summary>

@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ExposureImageEffect.cs. Multiplies
+/// <summary>Effect inspired by ShareX. Multiplies
 /// every channel by 2^amount: +1 stop ≈ doubles brightness, −1 halves. Heavy clipping at the
 /// extremes is expected (exposure is a destructive op on 8-bit RGB).</summary>
 public sealed class ExposureImageEffect : AdjustmentImageEffectBase

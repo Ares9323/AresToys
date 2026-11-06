@@ -13,7 +13,7 @@ public enum CanvasMarginMode
     PercentageOfCanvas,
 }
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Manipulations/Canvas.cs. Adds
+/// <summary>Effect inspired by ShareX. Adds
 /// padding around the source image, filled with <see cref="Color"/>. Negative paddings
 /// crop the image instead. <see cref="MarginMode"/> picks pixel vs percentage interpretation.
 /// Used by templates like <c>BackgroundGradient.sxie</c> to leave room for a drop shadow

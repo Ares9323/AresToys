@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Manipulations;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Manipulations/AutoCrop.cs. Detects
+/// <summary>Effect inspired by ShareX. Detects
 /// the bounding box of non-transparent pixels and crops the bitmap to it, with optional
 /// padding around the result. Used by templates like GoldBorder where the user wants the
 /// transparent margin trimmed before further effects fire.</summary>

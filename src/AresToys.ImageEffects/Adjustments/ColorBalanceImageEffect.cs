@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ColorBalanceImageEffect.cs. 9 sliders
+/// <summary>Effect inspired by ShareX. 9 sliders
 /// — three pairs (cyan-red / magenta-green / yellow-blue) per tonal range
 /// (shadows / midtones / highlights). Each pixel's contribution is luminance-weighted so
 /// "Shadows: Cyan-Red +50" only tints dark areas.</summary>

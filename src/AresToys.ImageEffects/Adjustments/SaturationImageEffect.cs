@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/SaturationImageEffect.cs.</summary>
+/// <summary>Effect inspired by ShareX.</summary>
 public sealed class SaturationImageEffect : AdjustmentImageEffectBase
 {
     public override string Id => "saturation";

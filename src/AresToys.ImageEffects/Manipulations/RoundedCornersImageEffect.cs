@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Manipulations;
 
-/// <summary>Ported from ShareX (GPL v3) — Manipulations/RoundedCornersImageEffect.cs.
+/// <summary>Effect inspired by ShareX.
 /// Clips the bitmap to a rounded rectangle of the given corner radius. CornerRadius=0 is a
 /// no-op that returns a defensive copy.</summary>
 public sealed class RoundedCornersImageEffect : ManipulationImageEffectBase

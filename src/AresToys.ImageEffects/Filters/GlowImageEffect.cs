@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Filters;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEditor Filters/GlowImageEffect.cs. Outer-glow
+/// <summary>Effect inspired by ShareX. Outer-glow
 /// pass: blur the source's alpha mask, tint it with <see cref="Color"/>, draw it underneath
 /// the original. Looks like a halo around the visible pixels — works on irregular alpha
 /// masks (e.g. text, rounded corners) just like the analogous Shadow filter.</summary>

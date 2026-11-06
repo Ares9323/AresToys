@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Manipulations;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEditor/Filters/ShadowImageEffect.cs. Drops a
+/// <summary>Effect inspired by ShareX. Drops a
 /// blurred copy of the alpha mask underneath the source bitmap, tinted with
 /// <see cref="Color"/> and faded by <see cref="Opacity"/>. <see cref="AutoResize"/> grows
 /// the canvas so the shadow isn't clipped against the original bounds — important for the

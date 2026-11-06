@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ContrastImageEffect.cs.</summary>
+/// <summary>Effect inspired by ShareX.</summary>
 public sealed class ContrastImageEffect : AdjustmentImageEffectBase
 {
     public override string Id => "contrast";

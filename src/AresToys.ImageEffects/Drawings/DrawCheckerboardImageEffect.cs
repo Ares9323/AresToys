@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Drawings;
 
-/// <summary>Ported from ShareX (GPL v3) — ImageEffectsLib/Drawings/DrawCheckerboard.cs. Fills
+/// <summary>Effect inspired by ShareX. Fills
 /// the source bitmap with a two-colour checker pattern (sized in pixels per square).
 /// Used as a transparency-style backdrop in presets like Windows98 / ShareXBorderRounded2.</summary>
 public sealed class DrawCheckerboardImageEffect : DrawingImageEffectBase

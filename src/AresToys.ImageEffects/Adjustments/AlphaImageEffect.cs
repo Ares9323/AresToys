@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/AlphaImageEffect.cs.</summary>
+/// <summary>Effect inspired by ShareX.</summary>
 public sealed class AlphaImageEffect : AdjustmentImageEffectBase
 {
     public override string Id => "alpha";

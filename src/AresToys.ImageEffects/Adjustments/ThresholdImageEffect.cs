@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ThresholdImageEffect.cs. Pixels above
+/// <summary>Effect inspired by ShareX. Pixels above
 /// the cutoff become white, below become black — produces a binary image. Useful for OCR
 /// preprocessing and stylised silhouettes.</summary>
 public sealed class ThresholdImageEffect : AdjustmentImageEffectBase

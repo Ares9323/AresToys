@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace AresToys.ImageEffects.Adjustments;
 
-/// <summary>Ported from ShareX (GPL v3) — Adjustments/ShadowsHighlightsImageEffect.cs.
+/// <summary>Effect inspired by ShareX.
 /// Positive Shadows brightens dark areas; positive Highlights darkens bright areas. Per-pixel
 /// luminance-weighted so the adjustment fades at the opposite end of the tonal range.</summary>
 public sealed class ShadowsHighlightsImageEffect : AdjustmentImageEffectBase
