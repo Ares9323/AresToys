@@ -3,6 +3,55 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.2.0] — 2026-11-06
+
+### Licence
+- AresToys is now under the PolyForm Noncommercial 1.0.0 licence: free for
+  any noncommercial use. The code is written from scratch; ShareX, CopyQ and
+  the other projects in the README are listed as inspiration.
+
+### Peek
+- File preview in Explorer with a configurable shortcut, Open in programs per
+  extension and a Peek section in Settings.
+- Text, code, Markdown and HTML previews (highlighting, Markdown rendering),
+  on the desktop and in Wormholes too.
+- Windows preview handlers (AresExplorerTools formats, PDF, Office) through a
+  low integrity helper, videos, Show as per extension, a resizable window that
+  reopens at its last size, previous and next chevrons.
+- Space works on every file in Explorer and retargets at once while Peek is
+  open; zoom modes (Auto, Fit, Fill, Width, Height, Lock), Ctrl+wheel zoom
+  around the cursor, pan with either button.
+- SVG files are shown as an image when no AresExplorerTools preview handler
+  is installed.
+- R (customisable in Settings > Peek) opens the current image in the editor.
+
+### Editor
+- Effects are true layers in creation order: each effect works on what is
+  beneath it, export included.
+- Undo, Redo, Save as, Copy, Cancel and zoom in the title bar; vertical
+  toolbar; one properties panel with a current style per tool and a Recent
+  list; the window reopens at its closing size.
+- Line and Arrow are told apart by their caps; Curved tip style.
+- Transparent rectangles and ellipses are grabbed only near the outline, with
+  a hit tolerance constant on screen at any zoom.
+- An image opened from a file asks on Save whether to overwrite it in its own
+  format or save a copy "name (edited)"; the editor opens fitted when the image
+  is larger than its view (Fit button, Ctrl+0, Ctrl+1 for actual size); Save as
+  starts in the file's folder.
+
+### Clipboard
+- Ctrl+C no longer lags the PC: the hooks run on their own thread and the copy
+  is read and saved off the UI thread.
+
+### Storage
+- Deleted history items are removed from the database for good 24 hours after
+  their delete, with their orphan files, and the file gives the space back.
+  The first start compacts the database once.
+
+### New+
+- Ctrl+Shift+N and Ctrl+D act on the active Explorer tab and work when
+  AresToys is elevated; Ctrl+D duplicate (experimental).
+
 ## [0.1.41] — 2026-11-02
 
 ### Running as administrator
