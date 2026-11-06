@@ -98,6 +98,35 @@ internal static class PeekWebContent
         return new PeekWebPage(sb.ToString(), info);
     }
 
+    /// <summary>The page for a <see cref="PeekPreviewKind.Svg"/> file: the drawing in an <c>img</c> (so scripts inside
+    /// it never run), read from <see cref="FileHost"/>, fitted and centred on the page background.</summary>
+    public static PeekWebPage BuildSvg(string path, PeekPageTheme theme)
+    {
+        var sb = new StringBuilder(1024);
+        sb.Append("<!DOCTYPE html><html><head><meta charset=\"utf-8\">");
+        sb.Append("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src https://")
+          .Append(FileHost).Append("; style-src 'unsafe-inline'\">");
+        sb.Append("<style>:root{--bg:").Append(theme.Background).Append(";color-scheme:").Append(theme.Dark ? "dark" : "light")
+          .Append("}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}")
+          .Append("body{display:flex;align-items:center;justify-content:center}")
+          .Append("img{max-width:100%;max-height:100%;object-fit:contain}</style></head><body>");
+        sb.Append("<img src=\"https://").Append(FileHost).Append('/').Append(Uri.EscapeDataString(Path.GetFileName(path)))
+          .Append("?v=").Append(DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture)).Append("\" alt=\"\">");
+        sb.Append("</body></html>");
+        string info;
+        try
+        {
+            info = "SVG  ·  " + FormatBytes(new FileInfo(path).Length);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The file vanished or is unreadable: the footer omits the size.
+            info = "SVG";
+        }
+
+        return new PeekWebPage(sb.ToString(), info);
+    }
+
     /// <summary>The footer text of a video before its metadata is known: the extension and the size.</summary>
     public static string DescribeVideo(string path)
     {

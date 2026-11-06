@@ -599,6 +599,7 @@ public partial class PeekWindow : FluentWindow
         PeekPreviewKind.Code => PeekPreview.AutoLanguageFor(path).DisplayName,
         PeekPreviewKind.Markdown => "Markdown",
         PeekPreviewKind.Html => "HTML",
+        PeekPreviewKind.Svg => "SVG",
         PeekPreviewKind.Image => AresToys.App.Resources.Strings.Peek_ShowAsImage,
         PeekPreviewKind.Shell => AresToys.App.Resources.Strings.Peek_ShowAsShell,
         _ => AresToys.App.Resources.Strings.Peek_ShowAsNone,
@@ -916,7 +917,7 @@ public partial class PeekWindow : FluentWindow
         }
 
         _targetPixelWidth = WorkAreaOf(new WindowInteropHelper(this).Handle, MonitorDefaultToNearest).Width;
-        var isWeb = kind is PeekPreviewKind.Html or PeekPreviewKind.Markdown or PeekPreviewKind.Code or PeekPreviewKind.Video;
+        var isWeb = kind is PeekPreviewKind.Html or PeekPreviewKind.Markdown or PeekPreviewKind.Code or PeekPreviewKind.Video or PeekPreviewKind.Svg;
         PreviewWeb.Visibility = isWeb ? Visibility.Visible : Visibility.Collapsed;
         PreviewShell.Visibility = kind == PeekPreviewKind.Shell ? Visibility.Visible : Visibility.Collapsed;
         ReturnFocusToWindow();
@@ -984,9 +985,12 @@ public partial class PeekWindow : FluentWindow
             var theme = CurrentPageTheme();
             try
             {
-                page = await Task.Run(() => kind == PeekPreviewKind.Video
-                    ? PeekWebContent.BuildVideo(path, theme, version)
-                    : PeekWebContent.Build(path, kind, theme, ct), ct);
+                page = await Task.Run(() => kind switch
+                {
+                    PeekPreviewKind.Video => PeekWebContent.BuildVideo(path, theme, version),
+                    PeekPreviewKind.Svg => PeekWebContent.BuildSvg(path, theme),
+                    _ => PeekWebContent.Build(path, kind, theme, ct),
+                }, ct);
             }
             catch (OperationCanceledException)
             {
@@ -1032,7 +1036,7 @@ public partial class PeekWindow : FluentWindow
         }
 
         // An HTML file runs no scripts. Our own pages for Markdown and code need theirs (highlight.js).
-        core.Settings.IsScriptEnabled = !isHtml;
+        core.Settings.IsScriptEnabled = !isHtml && kind != PeekPreviewKind.Svg;
         PreviewWeb.DefaultBackgroundColor = isHtml ? System.Drawing.Color.White : ToDrawingColor(CurrentBackground());
         _navigationAllowed = true;
         if (page is null)

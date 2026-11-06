@@ -23,6 +23,9 @@ internal enum PeekPreviewKind
     /// <summary>A video file, played with controls by the web view (<see cref="PeekWebContent.BuildVideo"/>).</summary>
     Video,
 
+    /// <summary>An SVG file no preview handler is registered for, shown as a picture by the web view (<see cref="PeekWebContent.BuildSvg"/>).</summary>
+    Svg,
+
     /// <summary>A preview handler registered in Windows hosts the file (<see cref="PeekShellPreview"/>).</summary>
     Shell,
 
@@ -59,6 +62,8 @@ internal static class PeekPreview
 
     /// <summary>What text a file without a recognised extension (or none) is shown as, when it is shown at all.</summary>
     private static readonly PeekLanguage PlainText = new("plaintext", "Text");
+
+    private const string SvgExtension = ".svg";
 
     private const string PreviewHandlerKeyPath = @"shellex\{8895b1c6-b41f-4c1c-a562-0d564250836f}";
 
@@ -107,6 +112,7 @@ internal static class PeekPreview
         // Path.GetExtension(".gitignore") is ".gitignore" already; a file with no dot at all (LICENSE, Makefile) is text.
         if (extension.Length == 0) return PeekPreviewKind.Code;
         if (PreviewHandlerFor(path) is not null) return PeekPreviewKind.Shell;
+        if (SvgExtension.Equals(extension, StringComparison.OrdinalIgnoreCase)) return PeekPreviewKind.Svg;
         return LooksLikeText(path) ? PeekPreviewKind.Code : PeekPreviewKind.None;
     }
 
