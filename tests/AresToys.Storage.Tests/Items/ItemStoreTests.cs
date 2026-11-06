@@ -155,7 +155,7 @@ public class ItemStoreTests
     }
 
     [Fact]
-    public async Task HardDeleteOlderThan_RemovesOnlySoftDeletedNonPinnedItemsBeforeCutoff()
+    public async Task PurgeAsync_ZeroGrace_RemovesOnlySoftDeletedNonPinnedItemsBeforeCutoff()
     {
         await using var fx = await new TempDatabaseFixture().InitializeAsync();
         var store = CreateStore(fx);
@@ -168,7 +168,14 @@ public class ItemStoreTests
 
         var alive = await store.AddAsync(TextItem("alive"), CancellationToken.None);
 
-        var deletedCount = await store.HardDeleteOlderThanAsync(DateTimeOffset.UtcNow.AddSeconds(1), CancellationToken.None);
+        await Task.Delay(20);
+        var options = new AresToys.Storage.Options.StorageOptions();
+        options.Rotation.SoftDeleteGracePeriod = TimeSpan.Zero;
+        var rotation = new AresToys.Storage.Rotation.CategoryRotationService(
+            fx.Database,
+            new AresToys.Storage.Blobs.FileSystemBlobStore(fx.Paths),
+            Microsoft.Extensions.Options.Options.Create(options));
+        var deletedCount = await rotation.PurgeAsync(CancellationToken.None);
 
         Assert.Equal(1, deletedCount);
         Assert.NotNull(await store.GetByIdAsync(pinnedAndSoftDeleted, CancellationToken.None));

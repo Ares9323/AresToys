@@ -1,5 +1,8 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
+using AresToys.Storage.Blobs;
 using AresToys.Storage.Database;
+using AresToys.Storage.Options;
 
 namespace AresToys.Storage.Rotation;
 
@@ -17,17 +20,48 @@ namespace AresToys.Storage.Rotation;
 ///   <item><see cref="RunAsync"/> — full sweep. Called by the periodic background timer + on
 ///         popup-open for instant feedback when the user opens the clipboard window.</item>
 /// </list>
-/// Soft-deletes only — the existing global <see cref="RotationService"/> still runs the
-/// hard-delete + orphan-blob cleanup, so this stays narrowly focused on "trim the visible
-/// category list".
+/// <see cref="PurgeAsync"/> is the only hard delete: rows soft-deleted longer ago than
+/// <c>SoftDeleteGracePeriod</c> are removed for good, orphan blobs are swept and the freed
+/// pages are returned to the file.
 /// </summary>
 public sealed class CategoryRotationService
 {
     private readonly IAresToysDatabase _database;
+    private readonly IBlobStore _blobs;
+    private readonly StorageOptions _options;
 
-    public CategoryRotationService(IAresToysDatabase database)
+    public CategoryRotationService(IAresToysDatabase database, IBlobStore blobs, IOptions<StorageOptions> options)
     {
         _database = database;
+        _blobs = blobs;
+        _options = options.Value;
+    }
+
+    /// <summary>Hard-deletes the rows soft-deleted more than <c>SoftDeleteGracePeriod</c> ago
+    /// (pinned excluded), then removes the blob files no row references (outside the lease) and
+    /// gives the freed pages back with an incremental vacuum. Returns the rows deleted.</summary>
+    public async Task<int> PurgeAsync(CancellationToken cancellationToken)
+    {
+        var cutoffMs = DateTimeOffset.UtcNow.Subtract(_options.Rotation.SoftDeleteGracePeriod).ToUnixTimeMilliseconds();
+        int hardDeleted;
+        HashSet<string> alive;
+        await using (var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var conn = lease.Connection;
+            hardDeleted = await HardDeleteAsync(conn, cutoffMs, cancellationToken).ConfigureAwait(false);
+            alive = await ReadAliveBlobRefsAsync(conn, cancellationToken).ConfigureAwait(false);
+            if (hardDeleted > 0)
+            {
+                await using var vacuum = conn.CreateCommand();
+                vacuum.CommandText = "PRAGMA incremental_vacuum;";
+                await vacuum.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        // The blob folder sweep is file I/O and does not need the connection, so the lease is
+        // already released: the clipboard pipeline is not held up while files are deleted.
+        await DeleteOrphanBlobsAsync(alive, cancellationToken).ConfigureAwait(false);
+        return hardDeleted;
     }
 
     /// <summary>Walk every category + apply both caps. Returns the total number of rows soft-
@@ -113,5 +147,45 @@ public sealed class CategoryRotationService
         cmd.Parameters.AddWithValue("$cat", category);
         cmd.Parameters.AddWithValue("$cutoff", cutoffMs);
         return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    private static async Task<int> HardDeleteAsync(SqliteConnection conn, long cutoffMs, CancellationToken ct)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM items
+            WHERE deleted_at IS NOT NULL
+              AND deleted_at < $cutoff
+              AND pinned = 0;
+            """;
+        cmd.Parameters.AddWithValue("$cutoff", cutoffMs);
+        return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    private static async Task<HashSet<string>> ReadAliveBlobRefsAsync(SqliteConnection conn, CancellationToken ct)
+    {
+        var alive = new HashSet<string>(StringComparer.Ordinal);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT blob_ref FROM items WHERE blob_ref IS NOT NULL;";
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            alive.Add(reader.GetString(0));
+        }
+        return alive;
+    }
+
+    private async Task<int> DeleteOrphanBlobsAsync(HashSet<string> alive, CancellationToken ct)
+    {
+        var removed = 0;
+        await foreach (var blobRef in _blobs.EnumerateAllAsync(ct).ConfigureAwait(false))
+        {
+            if (alive.Contains(blobRef)) continue;
+            if (await _blobs.DeleteAsync(blobRef, ct).ConfigureAwait(false))
+            {
+                removed++;
+            }
+        }
+        return removed;
     }
 }

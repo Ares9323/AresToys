@@ -234,7 +234,14 @@ public class TagStoreTests
         Assert.Equal(2, await CountJoinRowsAsync(fx.Database.GetOpenConnection()));
         Assert.Equal(1, (await tags.GetAsync(tag.Id, CancellationToken.None))!.ItemCount);
 
-        await items.HardDeleteOlderThanAsync(DateTimeOffset.UtcNow.AddMinutes(1), CancellationToken.None);
+        await Task.Delay(20);
+        var options = new AresToys.Storage.Options.StorageOptions();
+        options.Rotation.SoftDeleteGracePeriod = TimeSpan.Zero;
+        var rotation = new AresToys.Storage.Rotation.CategoryRotationService(
+            fx.Database,
+            new AresToys.Storage.Blobs.FileSystemBlobStore(fx.Paths),
+            Microsoft.Extensions.Options.Options.Create(options));
+        await rotation.PurgeAsync(CancellationToken.None);
 
         Assert.Null(await items.GetByIdAsync(id, CancellationToken.None));
         Assert.Equal(1, await CountJoinRowsAsync(fx.Database.GetOpenConnection()));

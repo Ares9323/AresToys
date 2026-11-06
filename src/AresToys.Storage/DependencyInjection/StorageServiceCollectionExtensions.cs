@@ -32,6 +32,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<IMigration, Migration004AddItemTrigger>();
         services.AddSingleton<IMigration, Migration005AddTags>();
         services.AddSingleton<IMigration, Migration006AddDedupIndex>();
+        services.AddSingleton<IMigration, Migration007PurgeDeletedAndVacuum>();
         services.AddSingleton<MigrationRunner>(sp =>
             new MigrationRunner(sp.GetServices<IMigration>()));
         services.AddSingleton<IAresToysDatabase, AresToysDatabase>();
@@ -45,7 +46,6 @@ public static class StorageServiceCollectionExtensions
 
         services.AddSingleton<ISettingsStore, SqliteSettingsStore>();
 
-        services.AddSingleton<IRotationService, RotationService>();
         services.AddSingleton<CategoryRotationService>();
 
         services.AddSingleton<IImageEffectPresetStore, SqliteImageEffectPresetStore>();

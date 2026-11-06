@@ -16,7 +16,6 @@ public interface IItemStore
     Task<bool> SetUploadedUrlAsync(long id, string uploaderId, string url, CancellationToken cancellationToken);
     Task<bool> SoftDeleteAsync(long id, CancellationToken cancellationToken);
     Task<bool> RestoreAsync(long id, CancellationToken cancellationToken);
-    Task<int> HardDeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken);
     /// <summary>Replace the payload of an existing item, optionally flipping its
     /// <see cref="ItemKind"/> at the same time. <paramref name="newKind"/> = null leaves the
     /// kind as-is (typical external-editor save-back where bytes change but the format doesn't).

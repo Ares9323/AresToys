@@ -30,7 +30,7 @@ public class StorageSmokeTests
             var items = sp.GetRequiredService<IItemStore>();
             var blobs = sp.GetRequiredService<IBlobStore>();
             var settings = sp.GetRequiredService<ISettingsStore>();
-            var rotation = sp.GetRequiredService<IRotationService>();
+            var rotation = sp.GetRequiredService<CategoryRotationService>();
 
             // 1. Insert an item with a small inline payload
             var smallId = await items.AddAsync(
@@ -75,10 +75,15 @@ public class StorageSmokeTests
             Assert.Equal("deadbeef", await settings.GetAsync("uploader.imgur.client_id", CancellationToken.None));
 
             // 6. Rotation: cap to 1, expect at least one item soft-deleted
-            var result = await rotation.RunAsync(
-                new RotationPolicy(MaxItems: 1, MaxAge: TimeSpan.FromDays(365), SoftDeleteGracePeriod: TimeSpan.FromHours(24)),
-                CancellationToken.None);
-            Assert.True(result.SoftDeleted >= 1);
+            await using (var lease = await db.AcquireAsync(CancellationToken.None))
+            {
+                await using var cap = lease.Connection.CreateCommand();
+                cap.CommandText = "UPDATE categories SET max_items = 1 WHERE name = 'Clipboard';";
+                await cap.ExecuteNonQueryAsync();
+            }
+            Assert.True(await rotation.RunAsync(CancellationToken.None) >= 1);
+            // Soft-deleted rows are inside the default grace period, so the purge keeps them.
+            Assert.Equal(0, await rotation.PurgeAsync(CancellationToken.None));
         }
         finally
         {

@@ -50,11 +50,12 @@ public sealed class CategoryRotationScheduler : BackgroundService
             try
             {
                 var deleted = await _rotation.RunAsync(stoppingToken).ConfigureAwait(false);
+                deleted += await _rotation.PurgeAsync(stoppingToken).ConfigureAwait(false);
                 if (deleted > 0)
                 {
-                    _logger.LogDebug("CategoryRotationScheduler: soft-deleted {Count} items across all categories", deleted);
+                    _logger.LogDebug("CategoryRotationScheduler: deleted {Count} items (soft or purged)", deleted);
                     // Negative id signals "I touched many rows" — popup VMs ignore the id and
-                    // refresh wholesale (matches how the global RotationService notifies).
+                    // refresh wholesale (matches how the other bulk deletes notify).
                     if (_items is ItemStore concrete)
                         concrete.RaiseItemsChanged(new ItemsChangedEventArgs(ItemsChangeKind.Deleted, -1));
                 }

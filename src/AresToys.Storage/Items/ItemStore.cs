@@ -362,21 +362,6 @@ public sealed class ItemStore : IItemStore
         return rows;
     }
 
-    public async Task<int> HardDeleteOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken)
-    {
-        await using var lease = await _database.AcquireAsync(cancellationToken).ConfigureAwait(false);
-        var conn = lease.Connection;
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            DELETE FROM items
-            WHERE deleted_at IS NOT NULL
-              AND deleted_at < $cutoff
-              AND pinned = 0;
-            """;
-        cmd.Parameters.AddWithValue("$cutoff", cutoff.ToUnixTimeMilliseconds());
-        return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
     public async Task<bool> UpdatePayloadAsync(long id, ReadOnlyMemory<byte> newPayload, long newPayloadSize, ItemKind? newKind, CancellationToken cancellationToken)
     {
         // Resolve the kind the row will have AFTER this update so we can refresh the columns the
