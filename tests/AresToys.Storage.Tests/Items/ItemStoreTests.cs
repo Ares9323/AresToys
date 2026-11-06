@@ -155,7 +155,7 @@ public class ItemStoreTests
     }
 
     [Fact]
-    public async Task PurgeAsync_ZeroGrace_RemovesOnlySoftDeletedNonPinnedItemsBeforeCutoff()
+    public async Task PurgeAsync_ZeroGrace_RemovesEverySoftDeletedItemBeforeCutoff_PinnedIncluded()
     {
         await using var fx = await new TempDatabaseFixture().InitializeAsync();
         var store = CreateStore(fx);
@@ -177,8 +177,8 @@ public class ItemStoreTests
             Microsoft.Extensions.Options.Options.Create(options));
         var deletedCount = await rotation.PurgeAsync(CancellationToken.None);
 
-        Assert.Equal(1, deletedCount);
-        Assert.NotNull(await store.GetByIdAsync(pinnedAndSoftDeleted, CancellationToken.None));
+        Assert.Equal(2, deletedCount);
+        Assert.Null(await store.GetByIdAsync(pinnedAndSoftDeleted, CancellationToken.None));
         Assert.Null(await store.GetByIdAsync(ordinary, CancellationToken.None));
         Assert.NotNull(await store.GetByIdAsync(alive, CancellationToken.None));
     }

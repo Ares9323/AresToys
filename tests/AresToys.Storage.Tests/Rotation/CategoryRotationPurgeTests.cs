@@ -75,20 +75,22 @@ public class CategoryRotationPurgeTests
     }
 
     [Fact]
-    public async Task PurgeAsync_NeverDeletesPinnedOrLiveRows()
+    public async Task PurgeAsync_DeletesPinnedDeletedRows_KeepsLiveOnes()
     {
         await using var fx = await new TempDatabaseFixture().InitializeAsync();
         var (items, _, rotation) = Build(fx);
 
-        var pinned = await items.AddAsync(TextItem("pinned", DateTimeOffset.UtcNow, pinned: true), CancellationToken.None);
-        await items.SoftDeleteAsync(pinned, CancellationToken.None);
-        await SetDeletedAtAsync(fx, pinned, DateTimeOffset.UtcNow.AddDays(-30));
+        var pinnedDeleted = await items.AddAsync(TextItem("pinned deleted", DateTimeOffset.UtcNow, pinned: true), CancellationToken.None);
+        await items.SoftDeleteAsync(pinnedDeleted, CancellationToken.None);
+        await SetDeletedAtAsync(fx, pinnedDeleted, DateTimeOffset.UtcNow.AddDays(-30));
+        var pinnedLive = await items.AddAsync(TextItem("pinned live", DateTimeOffset.UtcNow.AddDays(-100), pinned: true), CancellationToken.None);
         var live = await items.AddAsync(TextItem("live", DateTimeOffset.UtcNow.AddDays(-100)), CancellationToken.None);
 
         var deleted = await rotation.PurgeAsync(CancellationToken.None);
 
-        Assert.Equal(0, deleted);
-        Assert.NotNull(await items.GetByIdAsync(pinned, CancellationToken.None));
+        Assert.Equal(1, deleted);
+        Assert.Null(await items.GetByIdAsync(pinnedDeleted, CancellationToken.None));
+        Assert.NotNull(await items.GetByIdAsync(pinnedLive, CancellationToken.None));
         Assert.NotNull(await items.GetByIdAsync(live, CancellationToken.None));
     }
 

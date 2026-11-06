@@ -38,7 +38,8 @@ public sealed class CategoryRotationService
     }
 
     /// <summary>Hard-deletes the rows soft-deleted more than <c>SoftDeleteGracePeriod</c> ago
-    /// (pinned excluded), then removes the blob files no row references (outside the lease) and
+    /// (a deleted row goes even if it was pinned: the pin only protects live rows from the
+    /// rotation caps), then removes the blob files no row references (outside the lease) and
     /// gives the freed pages back with an incremental vacuum. Returns the rows deleted.</summary>
     public async Task<int> PurgeAsync(CancellationToken cancellationToken)
     {
@@ -53,7 +54,9 @@ public sealed class CategoryRotationService
             if (hardDeleted > 0)
             {
                 await using var vacuum = conn.CreateCommand();
-                vacuum.CommandText = "PRAGMA incremental_vacuum;";
+                // TRUNCATE: the WAL file is reused but never shrinks on its own, so after the
+                // vacuum it is emptied back to zero bytes instead of keeping its peak size.
+                vacuum.CommandText = "PRAGMA incremental_vacuum; PRAGMA wal_checkpoint(TRUNCATE);";
                 await vacuum.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
         }
@@ -155,8 +158,7 @@ public sealed class CategoryRotationService
         cmd.CommandText = """
             DELETE FROM items
             WHERE deleted_at IS NOT NULL
-              AND deleted_at < $cutoff
-              AND pinned = 0;
+              AND deleted_at < $cutoff;
             """;
         cmd.Parameters.AddWithValue("$cutoff", cutoffMs);
         return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
