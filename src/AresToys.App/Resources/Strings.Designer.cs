@@ -2319,6 +2319,96 @@ namespace AresToys.App.Resources {
             }
         }
 
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fit.
+        /// </summary>
+        public static string Editor_ZoomFit {
+            get {
+                return ResourceManager.GetString("Editor_ZoomFit", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fit to window (Ctrl+0).
+        /// </summary>
+        public static string Editor_TooltipZoomFit {
+            get {
+                return ResourceManager.GetString("Editor_TooltipZoomFit", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save changes.
+        /// </summary>
+        public static string Editor_SaveChoiceTitle {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoiceTitle", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save changes to {0}?.
+        /// </summary>
+        public static string Editor_SaveChoicePrompt {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoicePrompt", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} cannot be written back in its own format, so only a copy can be saved..
+        /// </summary>
+        public static string Editor_SaveChoiceCopyOnly {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoiceCopyOnly", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Overwrite.
+        /// </summary>
+        public static string Editor_SaveChoiceOverwrite {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoiceOverwrite", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save as copy.
+        /// </summary>
+        public static string Editor_SaveChoiceCopy {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoiceCopy", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        public static string Editor_SaveChoiceCancel {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoiceCancel", resourceCulture);
+            }
+        }
+
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not write {0}. The file may be read only or in use..
+        /// </summary>
+        public static string Editor_SaveChoiceFailed {
+            get {
+                return ResourceManager.GetString("Editor_SaveChoiceFailed", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Current zoom.
         /// </summary>
@@ -5892,6 +5982,24 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Open in editor.
+        /// </summary>
+        public static string Peek_EditKey {
+            get {
+                return ResourceManager.GetString("Peek_EditKey", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to While Peek is open: opens the image in the AresToys editor, where you can crop, annotate and more..
+        /// </summary>
+        public static string Peek_EditKeyHint {
+            get {
+                return ResourceManager.GetString("Peek_EditKeyHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Change.
         /// </summary>
         public static string Peek_Change {
@@ -5919,7 +6027,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to The two keys must differ..
+        ///   Looks up a localized string similar to Each Peek key must be different..
         /// </summary>
         public static string Peek_ErrorKeysSame {
             get {

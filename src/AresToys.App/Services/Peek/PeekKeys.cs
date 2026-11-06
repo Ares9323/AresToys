@@ -6,14 +6,16 @@ using AresToys.Storage.Settings;
 
 namespace AresToys.App.Services.Peek;
 
-/// <summary>The two configurable Peek keys: <see cref="Toggle"/> opens Peek in an Explorer file list (main app) and
+/// <summary>The configurable Peek keys: <see cref="Toggle"/> opens Peek in an Explorer file list (main app) and
 /// closes it again (Peek window), <see cref="OpenAssigned"/> opens the current file in the program assigned to its
-/// extension while Peek is open. <see cref="HotkeyBinding.Modifiers"/> holds <see cref="HotkeyModifiers"/> bits;
-/// a binding may be a bare key (no modifiers).</summary>
-public sealed record PeekKeys(HotkeyBinding Toggle, HotkeyBinding OpenAssigned)
+/// extension while Peek is open, <see cref="Edit"/> opens the current image in the AresToys editor.
+/// <see cref="HotkeyBinding.Modifiers"/> holds <see cref="HotkeyModifiers"/> bits; a binding may be a bare key (no
+/// modifiers).</summary>
+public sealed record PeekKeys(HotkeyBinding Toggle, HotkeyBinding OpenAssigned, HotkeyBinding Edit)
 {
     private const uint VkSpace = 0x20;
     private const uint VkE = 0x45;
+    private const uint VkR = 0x52;
 
     /// <summary>The default toggle, Ctrl+Space.</summary>
     public static HotkeyBinding DefaultToggle { get; } = new((int)HotkeyModifiers.Control, VkSpace);
@@ -21,7 +23,10 @@ public sealed record PeekKeys(HotkeyBinding Toggle, HotkeyBinding OpenAssigned)
     /// <summary>The default open key, E.</summary>
     public static HotkeyBinding DefaultOpenAssigned { get; } = new((int)HotkeyModifiers.None, VkE);
 
-    public static PeekKeys Default { get; } = new(DefaultToggle, DefaultOpenAssigned);
+    /// <summary>The default editor key, R.</summary>
+    public static HotkeyBinding DefaultEdit { get; } = new((int)HotkeyModifiers.None, VkR);
+
+    public static PeekKeys Default { get; } = new(DefaultToggle, DefaultOpenAssigned, DefaultEdit);
 
     /// <summary>True when a key event with these modifiers and this virtual key is <paramref name="binding"/>.
     /// Both sides compare only the four modifier bits.</summary>
@@ -33,13 +38,14 @@ public sealed record PeekKeys(HotkeyBinding Toggle, HotkeyBinding OpenAssigned)
 }
 
 /// <summary>Reads and writes the Peek keys in the settings store (keys <see cref="ToggleKey"/> and
-/// <see cref="OpenKey"/>) as text such as <c>Ctrl + Space</c> or <c>E</c>, the format of
+/// <see cref="OpenKey"/>, <see cref="EditKey"/>) as text such as <c>Ctrl + Space</c> or <c>E</c>, the format of
 /// <see cref="HotkeyDisplay"/> and <see cref="KeyComboParser"/>. Nothing is cached: the satellite reads the keys at
 /// each Peek open, the main app applies them through <see cref="Changed"/>.</summary>
 public sealed class PeekKeysStore(ISettingsStore settings, ILogger<PeekKeysStore>? logger = null)
 {
     public const string ToggleKey = "peek.hotkey";
     public const string OpenKey = "peek.open_key";
+    public const string EditKey = "peek.edit_key";
 
     /// <summary>Raised by <see cref="SaveAsync"/> with the saved keys, on the caller's thread. Only the main app
     /// listens (<see cref="PeekHotkey"/> re-binds).</summary>
@@ -50,7 +56,8 @@ public sealed class PeekKeysStore(ISettingsStore settings, ILogger<PeekKeysStore
     {
         var toggle = await ReadAsync(ToggleKey, PeekKeys.DefaultToggle, ct).ConfigureAwait(false);
         var open = await ReadAsync(OpenKey, PeekKeys.DefaultOpenAssigned, ct).ConfigureAwait(false);
-        return new PeekKeys(toggle, open);
+        var edit = await ReadAsync(EditKey, PeekKeys.DefaultEdit, ct).ConfigureAwait(false);
+        return new PeekKeys(toggle, open, edit);
     }
 
     public async Task SaveAsync(PeekKeys keys, CancellationToken ct = default)
@@ -58,6 +65,7 @@ public sealed class PeekKeysStore(ISettingsStore settings, ILogger<PeekKeysStore
         ArgumentNullException.ThrowIfNull(keys);
         await settings.SetAsync(ToggleKey, Format(keys.Toggle), sensitive: false, ct).ConfigureAwait(false);
         await settings.SetAsync(OpenKey, Format(keys.OpenAssigned), sensitive: false, ct).ConfigureAwait(false);
+        await settings.SetAsync(EditKey, Format(keys.Edit), sensitive: false, ct).ConfigureAwait(false);
         Changed?.Invoke(keys);
     }
 

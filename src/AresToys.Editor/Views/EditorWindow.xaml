@@ -201,6 +201,10 @@
                                    FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </ui:Button>
+                    <ui:Button x:Name="ZoomFitButton" Content="Fit"
+                               Height="26" Padding="10,0" Margin="0,0,4,0"
+                               Click="OnZoomFitClicked"
+                               ToolTip="Fit to window (Ctrl+0)" />
                     <ui:Button x:Name="ZoomResetButton" Content="1:1"
                                Height="26" Padding="10,0" Margin="0"
                                Click="OnZoomResetClicked"

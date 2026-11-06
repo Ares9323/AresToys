@@ -281,6 +281,16 @@ public partial class EditorWindow : FluentWindow
     /// attached produces the real bytes.</summary>
     public byte[]? SavedPng { get; private set; }
 
+    /// <summary>Asked before a Save (the Save button, Enter, or Yes on the close prompt) takes effect, with the exported
+    /// PNG (null when the export failed): false keeps the editor open with the edits as they are. The host uses it to ask
+    /// "overwrite or save a copy" and to write the file while the window is still there, so Cancel or a failed write
+    /// costs nothing.</summary>
+    public Func<byte[]?, bool>? SaveGuard { get; set; }
+
+    /// <summary>The file the image was opened from, when there is one: "Save as" then starts in its folder with its name
+    /// and format instead of a timestamped PNG.</summary>
+    public string? SourcePath { get; set; }
+
     /// <summary>Cross-assembly handoff for the Effects tool. The host (AresToys.App.EditorLauncher)
     /// wires this once at startup with a function that opens its <c>ImageEffectsWindow</c>
     /// preloaded with the editor's source bytes; on Apply, the function returns the rendered
@@ -507,6 +517,8 @@ public partial class EditorWindow : FluentWindow
         if (_labels.TryGetValue("TooltipZoomOut", out var tZoomOut)) ZoomOutButton.ToolTip = tZoomOut;
         if (_labels.TryGetValue("TooltipZoomIn", out var tZoomIn)) ZoomInButton.ToolTip = tZoomIn;
         if (_labels.TryGetValue("TooltipZoomReset", out var tZoomReset)) ZoomResetButton.ToolTip = tZoomReset;
+        if (_labels.TryGetValue("TooltipZoomFit", out var tZoomFit)) ZoomFitButton.ToolTip = tZoomFit;
+        if (_labels.TryGetValue("ZoomFit", out var zoomFit)) ZoomFitButton.Content = zoomFit;
         if (_labels.TryGetValue("TooltipZoomLevel", out var tZoomLevel)) ZoomLabelBox.ToolTip = tZoomLevel;
 
         // Re-run RefreshPropertyPanel so dynamic strings (panel title, effect labels) pick up
@@ -539,7 +551,18 @@ public partial class EditorWindow : FluentWindow
             }
             if (result == System.Windows.MessageBoxResult.Yes)
             {
+                // The canvas is still attached while Closing runs, so the export is real (without it the host
+                // finds no bytes and treats the Yes as a cancel).
+                byte[]? exported = null;
+                try { exported = ExportCanvasPng(); }
+                catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or System.Runtime.InteropServices.COMException) { exported = null; }
+                if (SaveGuard is not null && !SaveGuard(exported))
+                {
+                    e.Cancel = true;
+                    return;
+                }
                 Saved = true;
+                SavedPng = exported;
                 _vm.MarkSaved();
             }
             // No → fall through and close without saving.
@@ -919,13 +942,17 @@ public partial class EditorWindow : FluentWindow
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
     {
+        // Export first (before Close, see below) so the host can write the file from the guard while the editor is open.
+        byte[]? exported = null;
+        try { exported = ExportCanvasPng(); }
+        catch { /* defensive: degraded path = no bytes, caller treats as cancel */ }
+        if (SaveGuard is not null && !SaveGuard(exported)) return;
         Saved = true;
         // Capture the canvas BEFORE Close — RenderTargetBitmap on a closed window's visual tree
         // produces a blank bitmap (window detached from its PresentationSource), which surfaced
         // as "Region capture → editor save → empty image on clipboard". With the bytes cached
         // here, the EditorLauncher's Closed handler just reads SavedPng off the window.
-        try { SavedPng = ExportCanvasPng(); }
-        catch { /* defensive: degraded path = no bytes, caller treats as cancel */ }
+        SavedPng = exported;
         _vm.MarkSaved(); // belt-and-braces: the Closing handler also bypasses the prompt when Saved=true
         Close();
     }
@@ -945,6 +972,18 @@ public partial class EditorWindow : FluentWindow
             FileName = $"arestoys-{DateTime.Now:yyyyMMdd-HHmmss}.png",
             AddExtension = true,
         };
+        if (!string.IsNullOrEmpty(SourcePath))
+        {
+            dialog.InitialDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(SourcePath));
+            dialog.FileName = System.IO.Path.GetFileName(SourcePath);
+            dialog.FilterIndex = System.IO.Path.GetExtension(SourcePath).ToUpperInvariant() switch
+            {
+                ".JPG" or ".JPEG" => 2,
+                ".BMP" => 3,
+                ".GIF" => 4,
+                _ => 1,
+            };
+        }
         if (dialog.ShowDialog(this) != true) return;
 
         // FilterIndex is 1-based, mirrors the Filter ordering above.
@@ -1003,7 +1042,30 @@ public partial class EditorWindow : FluentWindow
 
     private void OnZoomInClicked(object sender, RoutedEventArgs e) => SetZoom(_zoom * 1.25);
     private void OnZoomOutClicked(object sender, RoutedEventArgs e) => SetZoom(_zoom / 1.25);
-    private void OnZoomResetClicked(object sender, RoutedEventArgs e) => SetZoom(1.0);
+    private void OnZoomResetClicked(object sender, RoutedEventArgs e) => SetZoom(ActualSizeZoom());
+    private void OnZoomFitClicked(object sender, RoutedEventArgs e) => SetZoom(FitZoom());
+
+    /// <summary>The zoom at which one image pixel covers one device pixel: 1 / the window's DPI scale (zoom is in DIPs).</summary>
+    private double ActualSizeZoom()
+    {
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        return dpi.DpiScaleX > 0 ? 1.0 / dpi.DpiScaleX : 1.0;
+    }
+
+    /// <summary>The zoom at which the whole image sits inside the canvas viewport (never above actual size, so a small image
+    /// is not blown up). Lowers the minimum zoom when the image is so large that 0.1 would not be enough.</summary>
+    private double FitZoom()
+    {
+        var actual = ActualSizeZoom();
+        var imageW = CanvasHost.ActualWidth;
+        var imageH = CanvasHost.ActualHeight;
+        var viewW = CanvasScrollViewer.ViewportWidth;
+        var viewH = CanvasScrollViewer.ViewportHeight;
+        if (imageW <= 0 || imageH <= 0 || viewW <= 0 || viewH <= 0) return actual;
+        var fit = Math.Min(Math.Min(viewW / imageW, viewH / imageH), actual);
+        if (fit < _minZoom) _minZoom = fit;
+        return fit;
+    }
 
     /// <summary>Bring the just-selected tool into view inside the toolbar ScrollViewer. Called
     /// after every tool switch (mouse click OR keyboard shortcut like R / A / T / …) so the
@@ -1312,9 +1374,9 @@ public partial class EditorWindow : FluentWindow
         // VisualTreeHelper.GetDpi works post-Show (HwndSource exists by the time the layout
         // pass triggers this). DpiScaleX == DpiScaleY in 99% of monitors; we use X as the
         // canonical scalar — the canvas can't render with anisotropic zoom anyway.
-        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
-        var initialZoom = dpi.DpiScaleX > 0 ? 1.0 / dpi.DpiScaleX : 1.0;
-        SetZoom(initialZoom);
+        // Actual size (one image pixel per device pixel), unless the image is larger than the viewport at that size:
+        // then the whole image shows (the editor may have reopened at a remembered size smaller than the image).
+        SetZoom(FitZoom());
         _initialFitDone = true;
     }
 
@@ -1537,6 +1599,8 @@ public partial class EditorWindow : FluentWindow
         }
 
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        if (ctrl && (e.Key == Key.D0 || e.Key == Key.NumPad0)) { SetZoom(FitZoom()); e.Handled = true; return; }
+        if (ctrl && (e.Key == Key.D1 || e.Key == Key.NumPad1)) { SetZoom(ActualSizeZoom()); e.Handled = true; return; }
         if (ctrl && e.Key == Key.Z) { _vm.UndoCommand.Execute(null); e.Handled = true; return; }
         if (ctrl && e.Key == Key.Y) { _vm.RedoCommand.Execute(null); e.Handled = true; return; }
         if (ctrl && e.Key == Key.V) { PasteFromClipboard(); e.Handled = true; return; }

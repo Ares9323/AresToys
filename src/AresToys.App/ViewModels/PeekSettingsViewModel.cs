@@ -44,13 +44,16 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         ShowKeys();
     }
 
-    // ---- the two keys ----
+    // ---- the keys ----
 
     /// <summary>The shortcut that opens and closes Peek, as text (<c>Ctrl + Space</c>).</summary>
     [ObservableProperty] private string _toggleText = string.Empty;
 
     /// <summary>The key that opens the file in its assigned program while Peek is open.</summary>
     [ObservableProperty] private string _openKeyText = string.Empty;
+
+    /// <summary>The key that opens an image in the editor while Peek is open.</summary>
+    [ObservableProperty] private string _editKeyText = string.Empty;
 
     /// <summary>Why the last key was refused; empty when there is nothing to say.</summary>
     [ObservableProperty] private string _keyErrorText = string.Empty;
@@ -59,6 +62,7 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
     {
         ToggleText = PeekKeysStore.Format(_keys.Toggle);
         OpenKeyText = PeekKeysStore.Format(_keys.OpenAssigned);
+        EditKeyText = PeekKeysStore.Format(_keys.Edit);
     }
 
     // ---- file types (the "Show as" picks) ----
@@ -193,14 +197,19 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task ChangeToggleAsync() => ChangeKeyAsync(toggle: true);
+    private Task ChangeToggleAsync() => ChangeKeyAsync(PeekKey.Toggle);
 
     [RelayCommand]
-    private Task ChangeOpenKeyAsync() => ChangeKeyAsync(toggle: false);
+    private Task ChangeOpenKeyAsync() => ChangeKeyAsync(PeekKey.OpenAssigned);
+
+    [RelayCommand]
+    private Task ChangeEditKeyAsync() => ChangeKeyAsync(PeekKey.Edit);
+
+    private enum PeekKey { Toggle, OpenAssigned, Edit }
 
     /// <summary>Opens the capture window of the Hotkeys editor, checks the key and saves it at once. Reset and Clear
     /// both give the default key; Cancel changes nothing.</summary>
-    private async Task ChangeKeyAsync(bool toggle)
+    private async Task ChangeKeyAsync(PeekKey which)
     {
         var dialog = new Views.HotkeyCaptureWindow(canReset: true);
         if (System.Windows.Application.Current?.MainWindow is { } owner && owner.IsVisible)
@@ -209,14 +218,24 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
 
         HotkeyBinding binding;
         if (dialog.ResetRequested || dialog.ClearRequested)
-            binding = toggle ? PeekKeys.DefaultToggle : PeekKeys.DefaultOpenAssigned;
+            binding = which switch
+            {
+                PeekKey.Toggle => PeekKeys.DefaultToggle,
+                PeekKey.OpenAssigned => PeekKeys.DefaultOpenAssigned,
+                _ => PeekKeys.DefaultEdit,
+            };
         else if (dialog.CapturedVirtualKey == 0)
             return;
         else
             binding = new HotkeyBinding((int)dialog.CapturedModifiers, dialog.CapturedVirtualKey);
 
-        var other = toggle ? _keys.OpenAssigned : _keys.Toggle;
-        var refusal = Refusal(binding, other);
+        var others = which switch
+        {
+            PeekKey.Toggle => new[] { _keys.OpenAssigned, _keys.Edit },
+            PeekKey.OpenAssigned => new[] { _keys.Toggle, _keys.Edit },
+            _ => new[] { _keys.Toggle, _keys.OpenAssigned },
+        };
+        var refusal = Refusal(binding, others);
         if (refusal is not null)
         {
             KeyErrorText = refusal;
@@ -224,7 +243,12 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         }
 
         KeyErrorText = string.Empty;
-        var next = toggle ? _keys with { Toggle = binding } : _keys with { OpenAssigned = binding };
+        var next = which switch
+        {
+            PeekKey.Toggle => _keys with { Toggle = binding },
+            PeekKey.OpenAssigned => _keys with { OpenAssigned = binding },
+            _ => _keys with { Edit = binding },
+        };
         try
         {
             await _keysStore.SaveAsync(next, CancellationToken.None).ConfigureAwait(true);
@@ -239,13 +263,13 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
     }
 
     /// <summary>The message for a key Peek cannot use, or null. The navigation keys and the mouse buttons are refused
-    /// whatever the modifiers; the two keys must differ.</summary>
-    internal static string? Refusal(HotkeyBinding binding, HotkeyBinding other)
+    /// whatever the modifiers; the Peek keys must all differ.</summary>
+    internal static string? Refusal(HotkeyBinding binding, IEnumerable<HotkeyBinding> others)
     {
         var vk = binding.VirtualKey;
         if (vk is 0x1B or 0x0D or >= 0x23 and <= 0x28) return Strings.Peek_ErrorKeyNavigation;
         if (HotkeyDisplay.IsMouseButton(vk)) return Strings.Peek_ErrorKeyMouse;
-        if (PeekKeys.Matches(other, (HotkeyModifiers)binding.Modifiers, vk)) return Strings.Peek_ErrorKeysSame;
+        if (others.Any(other => PeekKeys.Matches(other, (HotkeyModifiers)binding.Modifiers, vk))) return Strings.Peek_ErrorKeysSame;
         return null;
     }
 

@@ -684,10 +684,12 @@
   <data name="Peek_ShortcutHint" xml:space="preserve"><value>Opens and closes Peek in an Explorer file list. A single key such as Space works too.</value></data>
   <data name="Peek_OpenKey" xml:space="preserve"><value>Open in assigned app</value></data>
   <data name="Peek_OpenKeyHint" xml:space="preserve"><value>While Peek is open: opens the file in the program assigned to its extension, or in the default app.</value></data>
+  <data name="Peek_EditKey" xml:space="preserve"><value>Open in editor</value></data>
+  <data name="Peek_EditKeyHint" xml:space="preserve"><value>While Peek is open: opens the image in the AresToys editor, where you can crop, annotate and more.</value></data>
   <data name="Peek_Change" xml:space="preserve"><value>Change</value></data>
   <data name="Peek_ErrorKeyNavigation" xml:space="preserve"><value>This key is used to move inside Peek.</value></data>
   <data name="Peek_ErrorKeyMouse" xml:space="preserve"><value>A mouse button cannot be used here.</value></data>
-  <data name="Peek_ErrorKeysSame" xml:space="preserve"><value>The two keys must differ.</value></data>
+  <data name="Peek_ErrorKeysSame" xml:space="preserve"><value>Each Peek key must be different.</value></data>
   <data name="Peek_ProgramsTitle" xml:space="preserve"><value>Open in programs</value></data>
   <data name="Peek_ProgramsHint" xml:space="preserve"><value>The programs Peek can open a file with. Enter opens the file with the Windows default app; the assigned-app key opens it with the program assigned to its extension.</value></data>
   <data name="Peek_AssociationsTitle" xml:space="preserve"><value>Associations</value></data>
@@ -1300,6 +1302,15 @@ Its items will be moved to 'Clipboard'. Pinned items keep their pin.</value></da
   <data name="Editor_TooltipZoomOut" xml:space="preserve"><value>Zoom out</value></data>
   <data name="Editor_TooltipZoomIn" xml:space="preserve"><value>Zoom in</value></data>
   <data name="Editor_TooltipZoomReset" xml:space="preserve"><value>Actual size (1:1)</value></data>
+  <data name="Editor_ZoomFit" xml:space="preserve"><value>Fit</value></data>
+  <data name="Editor_TooltipZoomFit" xml:space="preserve"><value>Fit to window (Ctrl+0)</value></data>
+  <data name="Editor_SaveChoiceTitle" xml:space="preserve"><value>Save changes</value></data>
+  <data name="Editor_SaveChoicePrompt" xml:space="preserve"><value>Save changes to {0}?</value></data>
+  <data name="Editor_SaveChoiceCopyOnly" xml:space="preserve"><value>{0} cannot be written back in its own format, so only a copy can be saved.</value></data>
+  <data name="Editor_SaveChoiceOverwrite" xml:space="preserve"><value>Overwrite</value></data>
+  <data name="Editor_SaveChoiceCopy" xml:space="preserve"><value>Save as copy</value></data>
+  <data name="Editor_SaveChoiceCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Editor_SaveChoiceFailed" xml:space="preserve"><value>Could not write {0}. The file may be read only or in use.</value></data>
   <data name="Editor_TooltipZoomLevel" xml:space="preserve"><value>Current zoom</value></data>
   <!-- Tool palette tooltips. The leading shortcut letter (V/R/E/L/A/F/T/N/I/B/X/O/K/C) is part
        of the localised string so translators can keep or drop the hint as needed. -->

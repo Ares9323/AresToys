@@ -116,6 +116,84 @@ internal static class PeekImageSave
         }
     }
 
+    /// <summary>JPEG quality used when the editor overwrites a JPEG.</summary>
+    private const int OverwriteJpegQuality = 95;
+
+    /// <summary>Whether <see cref="Overwrite"/> can write the file at <paramref name="path"/> in its own format (the same
+    /// set <see cref="CanSave"/> accepts).</summary>
+    public static bool CanOverwrite(string path) => Probe(path) != Format.None;
+
+    /// <summary>Replaces the image at <paramref name="path"/> with <paramref name="png"/>, encoded in the format the file
+    /// already has (PNG, JPEG at quality 95, BMP, TIFF, GIF single frame), through the same temp file and
+    /// <c>File.Replace</c> as <see cref="Save"/>; keeps the creation time and tells Explorer. This is the editor's Overwrite.
+    /// False when the file is not a format <see cref="CanOverwrite"/> accepts or could not be written (it is then
+    /// untouched).</summary>
+    public static bool Overwrite(string path, byte[] png)
+    {
+        lock (WriteLock)
+        {
+            string? temp = null;
+            try
+            {
+                try
+                {
+                    var format = Probe(path);
+                    var folder = Path.GetDirectoryName(Path.GetFullPath(path));
+                    if (format == Format.None || folder is null)
+                    {
+                        return false;
+                    }
+
+                    BitmapSource pixels;
+                    using (var input = new MemoryStream(png))
+                    {
+                        pixels = BitmapDecoder.Create(input, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+                    }
+
+                    if (format == Format.Jpeg)
+                    {
+                        pixels = new FormatConvertedBitmap(pixels, PixelFormats.Bgr24, null, 0);
+                    }
+
+                    BitmapEncoder encoder = format switch
+                    {
+                        Format.Jpeg => new JpegBitmapEncoder { QualityLevel = OverwriteJpegQuality },
+                        Format.Png => new PngBitmapEncoder(),
+                        Format.Bmp => new BmpBitmapEncoder(),
+                        Format.Tiff => new TiffBitmapEncoder(),
+                        _ => new GifBitmapEncoder(),
+                    };
+                    encoder.Frames.Add(BitmapFrame.Create(pixels));
+
+                    var created = File.GetCreationTimeUtc(path);
+                    temp = Path.Combine(folder, Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".peek-tmp");
+                    using (var output = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        encoder.Save(output);
+                    }
+
+                    File.Replace(temp, path, null, ignoreMetadataErrors: true);
+                    temp = null;
+                    File.SetCreationTimeUtc(path, created);
+                    SHChangeNotify(ShcneUpdateItem, ShcnfPathW | ShcnfFlushNoWait, path, IntPtr.Zero);
+                    return true;
+                }
+                finally
+                {
+                    if (temp is not null)
+                    {
+                        File.Delete(temp);
+                    }
+                }
+            }
+            catch (Exception ex) when (IsExpected(ex))
+            {
+                // Read only, locked, no rights, undecodable bytes: the original is still in place.
+                return false;
+            }
+        }
+    }
+
     private static bool IsExpected(Exception ex) => ex is NotSupportedException or FileFormatException or InvalidOperationException
         or IOException or UnauthorizedAccessException or COMException or Win32Exception or ArgumentException;
 

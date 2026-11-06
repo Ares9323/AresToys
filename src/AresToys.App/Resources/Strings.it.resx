@@ -671,10 +671,12 @@
   <data name="Peek_ShortcutHint" xml:space="preserve"><value>Apre e chiude Peek in un elenco di file di Esplora risorse. Funziona anche un tasto singolo, come Spazio.</value></data>
   <data name="Peek_OpenKey" xml:space="preserve"><value>Apri nel programma assegnato</value></data>
   <data name="Peek_OpenKeyHint" xml:space="preserve"><value>Con Peek aperto: apre il file nel programma assegnato alla sua estensione, oppure nell'app predefinita.</value></data>
+  <data name="Peek_EditKey" xml:space="preserve"><value>Apri nell'editor</value></data>
+  <data name="Peek_EditKeyHint" xml:space="preserve"><value>Con Peek aperto: apre l'immagine nell'editor di AresToys, dove puoi ritagliare, annotare e altro.</value></data>
   <data name="Peek_Change" xml:space="preserve"><value>Cambia</value></data>
   <data name="Peek_ErrorKeyNavigation" xml:space="preserve"><value>Questo tasto serve per muoversi in Peek.</value></data>
   <data name="Peek_ErrorKeyMouse" xml:space="preserve"><value>Qui non si può usare un pulsante del mouse.</value></data>
-  <data name="Peek_ErrorKeysSame" xml:space="preserve"><value>I due tasti devono essere diversi.</value></data>
+  <data name="Peek_ErrorKeysSame" xml:space="preserve"><value>I tasti di Peek devono essere tutti diversi.</value></data>
   <data name="Peek_ProgramsTitle" xml:space="preserve"><value>Programmi per Apri con</value></data>
   <data name="Peek_ProgramsHint" xml:space="preserve"><value>I programmi con cui Peek può aprire un file. Invio apre il file con l'app predefinita di Windows; il tasto per il programma assegnato lo apre con il programma assegnato alla sua estensione.</value></data>
   <data name="Peek_AssociationsTitle" xml:space="preserve"><value>Associazioni</value></data>
@@ -1236,6 +1238,15 @@ I suoi elementi verranno spostati in 'Clipboard'. Gli elementi spillati restano 
   <data name="Editor_TooltipZoomOut" xml:space="preserve"><value>Riduci</value></data>
   <data name="Editor_TooltipZoomIn" xml:space="preserve"><value>Ingrandisci</value></data>
   <data name="Editor_TooltipZoomReset" xml:space="preserve"><value>Dimensione reale (1:1)</value></data>
+  <data name="Editor_ZoomFit" xml:space="preserve"><value>Adatta</value></data>
+  <data name="Editor_TooltipZoomFit" xml:space="preserve"><value>Adatta alla finestra (Ctrl+0)</value></data>
+  <data name="Editor_SaveChoiceTitle" xml:space="preserve"><value>Salva le modifiche</value></data>
+  <data name="Editor_SaveChoicePrompt" xml:space="preserve"><value>Salvare le modifiche a {0}?</value></data>
+  <data name="Editor_SaveChoiceCopyOnly" xml:space="preserve"><value>{0} non può essere riscritto nel suo formato, quindi si può salvare solo una copia.</value></data>
+  <data name="Editor_SaveChoiceOverwrite" xml:space="preserve"><value>Sovrascrivi</value></data>
+  <data name="Editor_SaveChoiceCopy" xml:space="preserve"><value>Salva come copia</value></data>
+  <data name="Editor_SaveChoiceCancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="Editor_SaveChoiceFailed" xml:space="preserve"><value>Impossibile scrivere {0}. Il file potrebbe essere di sola lettura o in uso.</value></data>
   <data name="Editor_TooltipZoomLevel" xml:space="preserve"><value>Zoom attuale</value></data>
   <data name="Editor_Tool_Select" xml:space="preserve"><value>Seleziona (V)</value></data>
   <data name="Editor_Tool_Rectangle" xml:space="preserve"><value>Rettangolo (R)</value></data>

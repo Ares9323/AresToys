@@ -59,6 +59,23 @@
                                    Content="{Markup:Loc Peek_Change}"
                                    Command="{Binding Peek.ChangeOpenKeyCommand}" />
                     </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="{Markup:Loc Peek_EditKey}" FontWeight="SemiBold" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
+                                       Text="{Markup:Loc Peek_EditKeyHint}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,12,0"
+                                   Text="{Binding Peek.EditKeyText}" />
+                        <ui:Button Grid.Column="2" Padding="14,4" VerticalAlignment="Center"
+                                   Content="{Markup:Loc Peek_Change}"
+                                   Command="{Binding Peek.ChangeEditKeyCommand}" />
+                    </Grid>
                     <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
                                Text="{Binding Peek.KeyErrorText}" />
 

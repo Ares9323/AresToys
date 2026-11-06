@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
@@ -25,6 +26,17 @@ public sealed class PeekSatelliteModule : ISatelliteModule
 {
     public const string ShowRequest = "peek.show";
     public const string HideRequest = "peek.hide";
+
+    /// <summary>Sent to the main app, which owns the editor: {path} of the image to open in it.</summary>
+    public const string EditRequest = "peek.edit";
+
+    private const uint AsfwAny = unchecked((uint)-1);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(uint processId);
+
+    private SatelliteChannel? _channel;
 
     private Dispatcher? _dispatcher;
     private ILogger? _logger;
@@ -58,6 +70,7 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         _keysStore = services.GetService<PeekKeysStore>();
         _windowStore = services.GetService<PeekWindowStore>();
         _showAsStore = services.GetService<PeekShowAsStore>();
+        _channel = channel;
         channel.Handle(ShowRequest, OnShowAsync);
         channel.Handle(HideRequest, OnHideAsync);
         Current = this;
@@ -224,6 +237,7 @@ public sealed class PeekSatelliteModule : ISatelliteModule
         var window = new PeekWindow();
         window.OpenRequested += OnOpenRequested;
         window.OpenAssignedRequested += OnOpenAssignedRequested;
+        window.EditRequested += OnEditRequested;
         window.OpenInRequested += OnOpenInRequested;
         window.BoundsRemembered += OnBoundsRemembered;
         window.ShowAsRequested += OnShowAsRequested;
@@ -298,6 +312,39 @@ public sealed class PeekSatelliteModule : ISatelliteModule
 
         PeekOpenWithLauncher.Launch(program, path, _logger);
         _window?.Close();
+    }
+
+    /// <summary>The editor key (R by default): asks the main app, which owns the editor, to open the image in it, and
+    /// closes the preview. The satellite gives the foreground right away first so the editor window comes to the front.
+    /// The request is not awaited: the main app answers as soon as it has queued the editor.</summary>
+    private void OnEditRequested(string path)
+    {
+        try { AllowSetForegroundWindow(AsfwAny); }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            _logger?.LogDebug(ex, "Peek module: AllowSetForegroundWindow unavailable");
+        }
+
+        _ = SendEditAsync(path);
+        _window?.Close();
+    }
+
+    private async Task SendEditAsync(string path)
+    {
+        try
+        {
+            var answer = _channel is null
+                ? null
+                : await _channel.RequestAsync(EditRequest, SatelliteProtocol.ToElement(new { path })).ConfigureAwait(false);
+            if (answer is not { Ok: true })
+            {
+                _logger?.LogWarning("Peek module: the main app did not open the editor ({Reason})", answer?.Error ?? "no answer");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Peek module: asking the main app to open the editor failed");
+        }
     }
 
     /// <summary>A program chosen in the "Open in" menu (null = system default): launches it and hides the window.</summary>

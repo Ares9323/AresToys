@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AresToys.App.Native;
 using AresToys.App.Services.Satellite;
@@ -20,14 +22,46 @@ public sealed class PeekService
 
     private readonly SatelliteService _satellite;
     private readonly ILogger<PeekService> _logger;
+    private readonly IServiceProvider _services;
     // One request (show or hide) in flight at a time: a press while one runs is dropped, so a second press never
     // reads the selection the first is still showing and closes it.
     private int _inFlight;
 
-    public PeekService(SatelliteService satellite, ILogger<PeekService> logger)
+    /// <param name="services">Resolves <see cref="EditorLauncher"/> when the satellite asks for the editor, instead of
+    /// taking it as a constructor dependency, like <c>LauncherHostBridge</c> does for the workflow runner.</param>
+    public PeekService(SatelliteService satellite, IServiceProvider services, ILogger<PeekService> logger)
     {
         _satellite = satellite;
+        _services = services;
         _logger = logger;
+        // The handler is registered when the satellite connects (before its channel reads, so no request can arrive
+        // first); a satellite that connected before this service existed has none yet.
+        _satellite.Server.Connected += OnConnected;
+        if (_satellite.Server.Current is { } existing) OnConnected(existing);
+    }
+
+    private void OnConnected(SatelliteChannel channel) => channel.Handle(PeekSatelliteModule.EditRequest, OnEditAsync);
+
+    // The editor key in the Peek window: opens the image in the AresToys editor on the UI thread. Answers at once, the
+    // editor stays open until the user is done and must not hold the channel's request.
+    private Task<JsonElement?> OnEditAsync(JsonElement? data)
+    {
+        var path = data is { ValueKind: JsonValueKind.Object } d && d.TryGetProperty("path", out var value)
+                   && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        if (string.IsNullOrWhiteSpace(path)) return Task.FromResult<JsonElement?>(null);
+
+        Application.Current.Dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                await _services.GetRequiredService<EditorLauncher>().EditPathAsync(path, CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Peek: opening {Path} in the editor failed", path);
+            }
+        });
+        return Task.FromResult<JsonElement?>(null);
     }
 
     // Gives the foreground right of this process to the satellite, which then puts the preview window in front. Runs

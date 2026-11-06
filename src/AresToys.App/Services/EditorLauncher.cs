@@ -440,6 +440,24 @@ public sealed class EditorLauncher
     /// the tool the editor was last left on ("last used" semantics).</summary>
     public async Task<byte[]?> EditAsync(byte[] sourcePngBytes, bool fullscreen, string? defaultTool, CancellationToken cancellationToken)
     {
+        var png = await EditPngAsync(sourcePngBytes, fullscreen, defaultTool, sourcePath: null, saveGuard: null, cancellationToken).ConfigureAwait(false);
+        if (png is null) return null;
+        // EditAsync feeds the pipeline (upload / save-to-file / etc.), so the bytes need to
+        // match the globally-chosen format the same way capture does — otherwise a JPEG user
+        // would see PNGs come out of "Open editor before upload" while every other capture
+        // path produces JPEGs.
+        var edited = await EncodeForGlobalFormatAsync(png, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("EditorLauncher.EditAsync: returning {Bytes} edited bytes", edited.Length);
+        return edited;
+    }
+
+    /// <summary>The editor flow itself: opens the window, waits for it to close and returns the edited image as PNG (null when
+    /// cancelled). <paramref name="saveGuard"/> runs on the UI thread before a Save takes effect, with the exported PNG;
+    /// returning false keeps the editor open. <paramref name="sourcePath"/> is the file the image came from, if any
+    /// (the editor's "Save as" starts there).</summary>
+    private async Task<byte[]?> EditPngAsync(byte[] sourcePngBytes, bool fullscreen, string? defaultTool,
+        string? sourcePath, Func<EditorWindow, byte[]?, bool>? saveGuard, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(sourcePngBytes);
         if (sourcePngBytes.Length == 0) return null;
 
@@ -492,6 +510,8 @@ public sealed class EditorLauncher
             vm.AltClickFallback = altFallback;
             vm.ResetStepCounter();
             window.ApplyLocalization(BuildEditorLabels());
+            if (saveGuard is not null) window.SaveGuard = png => saveGuard(window, png);
+            window.SourcePath = sourcePath;
             window.Owner = System.Windows.Application.Current.MainWindow;
             if (fullscreen)
             {
@@ -549,13 +569,8 @@ public sealed class EditorLauncher
         _logger.LogInformation("EditorLauncher.EditAsync: persisted tool={Tool} on close", closedTool);
 
         if (!wasSaved || exportedPng is null) return null;
-        // EditAsync feeds the pipeline (upload / save-to-file / etc.), so the bytes need to
-        // match the globally-chosen format the same way capture does — otherwise a JPEG user
-        // would see PNGs come out of "Open editor before upload" while every other capture
-        // path produces JPEGs.
-        var edited = await EncodeForGlobalFormatAsync(exportedPng, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("EditorLauncher.EditAsync: returning {Bytes} edited bytes ({W}×{H})", edited.Length, exportW, exportH);
-        return edited;
+        _logger.LogInformation("EditorLauncher.EditAsync: returning {Bytes} edited PNG bytes ({W}×{H})", exportedPng.Length, exportW, exportH);
+        return exportedPng;
     }
 
     /// <summary>Open the editor on the file at <paramref name="path"/>, and on a successful save
@@ -577,15 +592,29 @@ public sealed class EditorLauncher
             return;
         }
         var sourceBytes = await System.IO.File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-        var edited = await EditAsync(sourceBytes, cancellationToken).ConfigureAwait(false);
-        if (edited is null) return; // user cancelled — file + history untouched
+        var canOverwrite = AresToys.App.Services.Peek.PeekImageSave.CanOverwrite(path);
 
-        await System.IO.File.WriteAllBytesAsync(path, edited, cancellationToken).ConfigureAwait(false);
+        // Asked while the editor is still open (Save, Enter, or Yes on the close prompt): Cancel keeps the edits, and a
+        // failed write keeps them too, with the editor open to try again. The file is written from here, before the
+        // window closes.
+        string? savedPath = null;
+        bool Guard(EditorWindow window, byte[]? png)
+        {
+            if (png is null) return true; // nothing exported: the normal flow treats it as a cancel
+            var choice = AskSaveChoice(window, path, canOverwrite);
+            if (choice == SaveChoice.Cancel) return false;
+            var target = choice == SaveChoice.Overwrite ? path : NextCopyPath(path, canOverwrite);
+            if (WriteImage(path, target, png, canOverwrite)) { savedPath = target; return true; }
+            System.Windows.MessageBox.Show(window,
+                LocStatic("Editor_SaveChoiceFailed").Replace("{0}", System.IO.Path.GetFileName(target), StringComparison.Ordinal),
+                LocStatic("Editor_SaveChoiceTitle"), System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            return false;
+        }
 
-        // Commit a fresh history row pointing at the just-overwritten file so the user can recall
-        // the edit from the Win+V popup later. BlobRef stays the same path the toast was about;
-        // SearchText falls back to the filename so search inside AresToys finds it. Source =
-        // Manual because the edit was a user gesture, not a workflow step.
+        var edited = await EditPngAsync(sourceBytes, fullscreen: false, defaultTool: null, path, Guard, cancellationToken).ConfigureAwait(false);
+        if (edited is null || savedPath is null) return; // user cancelled: file + history untouched
+        path = savedPath;
+
         var fileName = System.IO.Path.GetFileName(path);
         var newItem = new NewItem(
             Kind: AresToys.Core.Domain.ItemKind.Image,
@@ -608,6 +637,101 @@ public sealed class EditorLauncher
             listener?.SuppressNext();
             ClipboardImagePublisher.SetPng(edited);
         });
+    }
+
+    private enum SaveChoice { Overwrite, Copy, Cancel }
+
+    /// <summary>"Save changes to NAME?" with Overwrite (default), Save as copy and Cancel. Overwrite is left out when the
+    /// file's format cannot be written back by <see cref="Peek.PeekImageSave"/>.</summary>
+    private static SaveChoice AskSaveChoice(System.Windows.Window owner, string path, bool canOverwrite)
+    {
+        var name = System.IO.Path.GetFileName(path);
+        var result = SaveChoice.Cancel;
+        var dialog = new System.Windows.Window
+        {
+            Title = LocStatic("Editor_SaveChoiceTitle"),
+            Owner = owner,
+            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+            SizeToContent = System.Windows.SizeToContent.WidthAndHeight,
+            ResizeMode = System.Windows.ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            MaxWidth = 460,
+            MinWidth = 0,
+            MinHeight = 0,
+        };
+        DarkTitleBar.Apply(dialog);
+        dialog.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "Surface2Brush");
+
+        var text = LocStatic("Editor_SaveChoicePrompt").Replace("{0}", name, StringComparison.Ordinal);
+        if (!canOverwrite)
+            text += "\n" + LocStatic("Editor_SaveChoiceCopyOnly").Replace("{0}", name, StringComparison.Ordinal);
+        var message = new TextBlock { Text = text, TextWrapping = System.Windows.TextWrapping.Wrap, Margin = new System.Windows.Thickness(0, 0, 0, 16) };
+        message.SetResourceReference(TextBlock.ForegroundProperty, "AccentForegroundBrush");
+
+        Button MakeButton(string label, SaveChoice choice, bool isDefault, bool isCancel)
+        {
+            var button = new Button
+            {
+                Content = label,
+                MinWidth = 96,
+                Margin = new System.Windows.Thickness(8, 0, 0, 0),
+                Padding = new System.Windows.Thickness(14, 5, 14, 5),
+                IsDefault = isDefault,
+                IsCancel = isCancel,
+            };
+            button.Click += (_, _) => { result = choice; dialog.DialogResult = choice != SaveChoice.Cancel; };
+            return button;
+        }
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+        if (canOverwrite) buttons.Children.Add(MakeButton(LocStatic("Editor_SaveChoiceOverwrite"), SaveChoice.Overwrite, isDefault: true, isCancel: false));
+        buttons.Children.Add(MakeButton(LocStatic("Editor_SaveChoiceCopy"), SaveChoice.Copy, isDefault: !canOverwrite, isCancel: false));
+        buttons.Children.Add(MakeButton(LocStatic("Editor_SaveChoiceCancel"), SaveChoice.Cancel, isDefault: false, isCancel: true));
+
+        var root = new StackPanel { Margin = new System.Windows.Thickness(20) };
+        root.Children.Add(message);
+        root.Children.Add(buttons);
+        dialog.Content = root;
+        dialog.ShowDialog();
+        return result;
+    }
+
+    /// <summary>"name (edited).ext" next to the original, then "(edited 2)" and so on while the name is taken. A format the
+    /// writer cannot reproduce is saved as PNG, so the extension becomes .png.</summary>
+    private static string NextCopyPath(string path, bool sameFormat)
+    {
+        var folder = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path)) ?? string.Empty;
+        var stem = System.IO.Path.GetFileNameWithoutExtension(path);
+        var extension = sameFormat ? System.IO.Path.GetExtension(path) : ".png";
+        var candidate = System.IO.Path.Combine(folder, $"{stem} (edited){extension}");
+        for (var n = 2; System.IO.File.Exists(candidate); n++)
+            candidate = System.IO.Path.Combine(folder, $"{stem} (edited {n}){extension}");
+        return candidate;
+    }
+
+    /// <summary>Writes the edited PNG to <paramref name="target"/>: in place through <see cref="Peek.PeekImageSave"/> (the one
+    /// writer, in the file's own format, safe replace) when it is the original, else as a copy of the original made first so
+    /// the format and extension match, then written the same way; a format with no writer gets the PNG bytes as they are.</summary>
+    private static bool WriteImage(string original, string target, byte[] png, bool canOverwrite)
+    {
+        if (!canOverwrite)
+        {
+            try { System.IO.File.WriteAllBytes(target, png); return true; }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { return false; }
+        }
+        var isCopy = !string.Equals(original, target, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            if (isCopy) System.IO.File.Copy(original, target, overwrite: false);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { return false; }
+        if (AresToys.App.Services.Peek.PeekImageSave.Overwrite(target, png)) return true;
+        if (isCopy)
+        {
+            try { System.IO.File.Delete(target); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { /* the half made copy stays: nothing more to do */ }
+        }
+        return false;
     }
 
     /// <summary>Re-encode the editor's PNG export into the user's globally-configured image
@@ -711,6 +835,8 @@ public sealed class EditorLauncher
             ["TooltipZoomOut"]          = Loc("Editor_TooltipZoomOut"),
             ["TooltipZoomIn"]           = Loc("Editor_TooltipZoomIn"),
             ["TooltipZoomReset"]        = Loc("Editor_TooltipZoomReset"),
+            ["TooltipZoomFit"]          = Loc("Editor_TooltipZoomFit"),
+            ["ZoomFit"]                 = Loc("Editor_ZoomFit"),
             ["TooltipZoomLevel"]        = Loc("Editor_TooltipZoomLevel"),
             ["Undo"]                    = Loc("Editor_Undo"),
             ["Redo"]                    = Loc("Editor_Redo"),

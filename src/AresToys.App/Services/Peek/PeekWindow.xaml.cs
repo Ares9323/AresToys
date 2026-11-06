@@ -619,6 +619,10 @@ public partial class PeekWindow : FluentWindow
     /// (open with the program assigned to the extension, else the default app).</summary>
     public event Action<string>? OpenAssignedRequested;
 
+    /// <summary>Raised with the current file path when the editor key (<see cref="PeekKeys.Edit"/>) is pressed on an
+    /// image shown as an image. A pending turn is written first, so the editor reads the turned file.</summary>
+    public event Action<string>? EditRequested;
+
     /// <summary>The configurable keys; the module sets them before each <see cref="Show"/>, so a change saved in
     /// Settings applies to the next Peek.</summary>
     public PeekKeys Keys { get; set; } = PeekKeys.Default;
@@ -771,7 +775,7 @@ public partial class PeekWindow : FluentWindow
         e.Handled = true;
     }
 
-    /// <summary>The open key: asks to open the file in its assigned program. The toggle shortcut is not handled here:
+    /// <summary>The open key asks to open the file in its assigned program, the editor key to open an image in the editor. The toggle shortcut is not handled here:
     /// the main app's global binding owns it (see PeekHotkey), also when the focus is in a native child. The settings
     /// refuse the navigation keys, so this never shadows the cases above. Auto-repeat is ignored. True when the key
     /// was the open key.</summary>
@@ -784,6 +788,17 @@ public partial class PeekWindow : FluentWindow
             if (!isRepeat && CurrentPath is { } path)
             {
                 OpenAssignedRequested?.Invoke(path);
+            }
+
+            return true;
+        }
+
+        if (PeekKeys.Matches(Keys.Edit, modifiers, vk))
+        {
+            if (!isRepeat && CurrentPath is { } editPath && PeekPreview.For(editPath) == PeekPreviewKind.Image)
+            {
+                FlushSave(blocking: true);
+                EditRequested?.Invoke(editPath);
             }
 
             return true;
