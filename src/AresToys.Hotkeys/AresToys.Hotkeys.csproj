@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>AresToys.Hotkeys</RootNamespace>
+    <AssemblyName>AresToys.Hotkeys</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AresToys.Hotkeys.Tests" />
+  </ItemGroup>
+</Project>
