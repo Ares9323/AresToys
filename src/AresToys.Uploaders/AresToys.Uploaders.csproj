@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AresToys.Uploaders</RootNamespace>
+    <AssemblyName>AresToys.Uploaders</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      Library of built-in IUploader implementations bundled with the host (mirrors how ShareX
+      ships hundreds of compiled destinations). One class per service. Stateless services live
+      here as plain classes; ones that need an API key / token implement IConfigurableUploader
+      and read settings via IPluginConfigStoreFactory. .sxcu files in the user's custom-uploaders
+      folder cover the long tail.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <ProjectReference Include="..\AresToys.PluginContracts\AresToys.PluginContracts.csproj" />
+  </ItemGroup>
+  <!--
+    Secrets.cs (committed) holds empty placeholder OAuth client credentials so anyone can
+    build the project. Maintainers create Secrets.Local.cs (gitignored) with the same class
+    and constants but real values; when that file is present we exclude the placeholder from
+    the compile so the real one wins. Default conditions on Compile items are evaluated at
+    project-evaluation time, which is exactly what we need.
+  -->
+  <ItemGroup Condition="Exists('Secrets.Local.cs')">
+    <Compile Remove="Secrets.cs" />
+  </ItemGroup>
+</Project>

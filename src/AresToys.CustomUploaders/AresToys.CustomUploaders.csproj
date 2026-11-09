@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AresToys.CustomUploaders</RootNamespace>
+    <AssemblyName>AresToys.CustomUploaders</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      Host-side library that loads ShareX-compatible .sxcu files at startup and exposes each
+      one as an IUploader. Lives under src/ (not plugins/) because it's part of the app:
+      external single-destination plugins keep their own DLLs; this is the generic engine that
+      handles the long tail of HTTP-based services via declarative JSON.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <ProjectReference Include="..\AresToys.PluginContracts\AresToys.PluginContracts.csproj" />
+  </ItemGroup>
+</Project>
