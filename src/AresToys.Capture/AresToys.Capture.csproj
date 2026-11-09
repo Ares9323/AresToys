@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>AresToys.Capture</RootNamespace>
+    <AssemblyName>AresToys.Capture</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
+    <ProjectReference Include="..\AresToys.Shared\AresToys.Shared.csproj" />
+  </ItemGroup>
+</Project>
