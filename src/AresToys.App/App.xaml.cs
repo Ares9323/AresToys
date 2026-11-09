@@ -1,0 +1,1775 @@
+using System.IO;
+using System.Net.Http;
+using System.Windows;
+using System.Windows.Interop;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using AresToys.App.Native;
+using AresToys.App.Services;
+using AresToys.App.Services.Launcher;
+using AresToys.App.Services.PipelineTasks;
+using AresToys.App.Services.Satellite;
+using AresToys.App.ViewModels;
+using AresToys.App.Views;
+using AresToys.Capture.DependencyInjection;
+using AresToys.Clipboard;
+using AresToys.Clipboard.DependencyInjection;
+using AresToys.Core.Pipeline;
+using AresToys.Editor.DependencyInjection;
+using AresToys.Hotkeys;
+using AresToys.Pipeline.DependencyInjection;
+using AresToys.Pipeline.Profiles;
+using AresToys.Plugins.DependencyInjection;
+using AresToys.Storage.Database;
+using AresToys.Storage.DependencyInjection;
+
+namespace AresToys.App;
+
+// CA1001 doesn't apply: WPF Application is not IDisposable but has OnExit which we use for cleanup.
+#pragma warning disable CA1001
+public partial class App : Application
+#pragma warning restore CA1001
+{
+    private IHost? _host;
+    private KeyboardHook? _keyboardHook;
+
+    public IServiceProvider Services => _host?.Services
+        ?? throw new InvalidOperationException("Host not initialized.");
+
+    protected override async void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // First thing after base startup, so even bootstrap failures leave a crash log.
+        AresToys.App.Services.Logging.CrashReporter.Install(this);
+        // The satellite (--satellite) is the non elevated companion process the main app starts. It must not
+        // truncate the main app's startup trace (Begin overwrites the file), so it only appends marks.
+        var isSatellite = SatelliteArgs.TryParse(e.Args, out var satelliteArgs);
+        if (!isSatellite) AresToys.App.Services.Logging.StartupTrace.Begin(Dispatcher);
+        AresToys.App.Services.Logging.StartupTrace.Mark(isSatellite ? "satellite: OnStartup begins" : "OnStartup begins");
+        // Before any window exists, in the main and the satellite process alike (the satellite branch below returns early).
+        AresToys.App.Services.Rendering.VideoMemoryReleaser.Install();
+
+        // "Always run as administrator" self-relaunch check. Must come before SingleInstanceGuard
+        // and any heavy bootstrap: if the user opted into elevated autostart and the OS gave us a
+        // non-elevated token (e.g. they double-clicked the Start menu shortcut, which doesn't go
+        // through the elevated Task Scheduler entry), we re-launch ourselves through ShellExecute
+        // with Verb=runas and drop the current process so the user only sees the elevated
+        // instance. The --restarted-elevated arg prevents an infinite bounce on UAC denial.
+        // RestartedUnelevatedArg is the one-shot bypass from the tray "Restart normally" entry:
+        // when the user explicitly asked for an unelevated session we honour that for this run
+        // even if RunElevated is still ON in the registry. They didn't toggle the preference, so
+        // a subsequent normal launch (Start menu, autostart task) will re-elevate as expected.
+        // The satellite is non elevated on purpose, so it never takes part in this bounce.
+        if (!isSatellite
+            && !e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedElevatedArg, StringComparison.OrdinalIgnoreCase))
+            && !e.Args.Any(a => string.Equals(a, AresToys.App.Services.ElevationService.RestartedUnelevatedArg, StringComparison.OrdinalIgnoreCase))
+            && AresToys.App.Services.ElevationService.ReadRunElevatedFromRegistry()
+            && !new AresToys.App.Services.ElevationService().IsProcessElevated)
+        {
+            if (AresToys.App.Services.ElevationService.RestartElevated())
+            {
+                Shutdown();
+                return;
+            }
+            // UAC declined: fall through and start non-elevated. The user can re-trigger the
+            // elevation explicitly via the "Restart as administrator" button in Settings.
+        }
+
+        // Wire app-wide TextBox numeric-nudge handlers once. EventManager class-level hooks
+        // beat the implicit-Style route (which broke WPF-UI ui:TextBox rendering) — every
+        // TextBox / ui:TextBox in the app picks up the wheel + arrow ±1 (±5 with Shift)
+        // behaviour without touching individual XAML or stylesheets.
+        AresToys.App.Behaviors.NumericInput.RegisterClassHandlers();
+
+        // A window with no Icon gets a taskbar button with the wrong icon (the Explorer Tools one on
+        // this machine). Give every window the AresToys icon unless its XAML already chose one.
+        var appIcon = System.Windows.Media.Imaging.BitmapFrame.Create(
+            new Uri("pack://application:,,,/Assets/icon.ico", UriKind.Absolute));
+        appIcon.Freeze();
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((s, _) => { if (s is Window { Icon: null } w) w.Icon = appIcon; }));
+
+        // Pull the .sxcu / .sxie file path out of argv if present (Explorer file association
+        // invokes us with the path as argv[0] / argv[1] depending on how shell picked it). We
+        // only act on this once we know we're the primary; secondary instances forward it
+        // through the pipe.
+        var sxcuPath = e.Args.FirstOrDefault(a =>
+            !string.IsNullOrEmpty(a) && a.EndsWith(".sxcu", StringComparison.OrdinalIgnoreCase));
+        var sxiePath = e.Args.FirstOrDefault(a =>
+            !string.IsNullOrEmpty(a) && a.EndsWith(".sxie", StringComparison.OrdinalIgnoreCase));
+
+        // --upload <path>: Explorer context-menu entry uses this. We don't validate the file
+        // exists here (the upload pipeline will surface its own error); we just thread the path
+        // through to the primary instance or handle it ourselves below.
+        string? uploadPath = null;
+        for (var i = 0; i < e.Args.Length - 1; i++)
+        {
+            if (string.Equals(e.Args[i], "--upload", StringComparison.OrdinalIgnoreCase))
+            {
+                uploadPath = e.Args[i + 1];
+                break;
+            }
+        }
+
+        // --create-wormhole <folder>: folder right-click verb. Same forward-or-handle dance as
+        // --upload; the primary spawns a wormhole record with the folder as source + the folder
+        // name as title, no dialog.
+        string? createWormholePath = null;
+        for (var i = 0; i < e.Args.Length - 1; i++)
+        {
+            if (string.Equals(e.Args[i], "--create-wormhole", StringComparison.OrdinalIgnoreCase))
+            {
+                createWormholePath = e.Args[i + 1];
+                break;
+            }
+        }
+
+        // --new-wormhole-dialog: background-area right-click verb (empty space in a folder /
+        // desktop). Opens NewWormholeDialog so the user picks a folder; the folder being
+        // viewed at click time is rarely what they want to mirror (e.g. desktop background →
+        // shouldn't auto-create a Desktop-mirroring wormhole).
+        var newWormholeDialogRequested = e.Args.Any(a =>
+            string.Equals(a, "--new-wormhole-dialog", StringComparison.OrdinalIgnoreCase));
+
+        // --resize <workflowId|custom> <path>: Explorer image resize verbs. Explorer starts one
+        // process per selected file, so the primary collects the files that arrive close together
+        // (ResizeRequestBatcher) and runs the workflow once on all of them.
+        string? resizeWorkflowId = null;
+        string? resizePath = null;
+        for (var i = 0; i < e.Args.Length - 2; i++)
+        {
+            if (string.Equals(e.Args[i], "--resize", StringComparison.OrdinalIgnoreCase))
+            {
+                resizeWorkflowId = e.Args[i + 1];
+                resizePath = e.Args[i + 2];
+                break;
+            }
+        }
+        var resizeRequested = !string.IsNullOrWhiteSpace(resizeWorkflowId) && !string.IsNullOrWhiteSpace(resizePath);
+
+        var guard = new SingleInstanceGuard(e.Args);
+        if (!guard.IsPrimary)
+        {
+            // Priority: upload (most specific) → sxcu → sxie → bare relaunch. Each prefix routes
+            // the payload to the matching handler in the primary's AnotherInstanceStarted listener.
+            string msg;
+            var connectTimeoutMs = 1000;
+            if (uploadPath is not null)
+                msg = SingleInstanceGuard.UploadPrefix + Path.GetFullPath(uploadPath);
+            else if (resizeRequested)
+            {
+                msg = SingleInstanceGuard.ResizePrefix + resizeWorkflowId!.Trim() + "\t" + Path.GetFullPath(resizePath!);
+                // One process per selected file: a primary still starting up must not lose any.
+                connectTimeoutMs = 15000;
+            }
+            else if (createWormholePath is not null)
+                msg = SingleInstanceGuard.CreateWormholePrefix + Path.GetFullPath(createWormholePath);
+            else if (newWormholeDialogRequested)
+                msg = SingleInstanceGuard.NewWormholeDialogMessage;
+            else if (sxcuPath is not null)
+                msg = SingleInstanceGuard.SxcuPrefix + Path.GetFullPath(sxcuPath);
+            else if (sxiePath is not null)
+                msg = SingleInstanceGuard.SxiePrefix + Path.GetFullPath(sxiePath);
+            else
+                msg = SingleInstanceGuard.ShowMessage;
+            try { await guard.NotifyExistingInstanceAsync(msg, connectTimeoutMs, CancellationToken.None); }
+            catch { /* primary may have died */ }
+            guard.Dispose();
+            Shutdown();
+            return;
+        }
+
+        if (isSatellite)
+        {
+            // The satellite guard owns no mutex and no pipe. From here on the reduced path runs and the main path
+            // below (full container, update check, tray, main window, workflows, hooks) is never reached.
+            guard.Dispose();
+            await RunSatelliteAsync(satelliteArgs!);
+            return;
+        }
+
+        // Single shared sink — both the InMemoryLoggerProvider (registered with the host's
+        // logging builder below) and the DebugViewModel (registered in DI) refer to the same
+        // instance, so log entries flow ILogger → DebugLogService.Entries → Debug tab UI.
+        var debugLog = new AresToys.App.Services.Logging.DebugLogService();
+
+        _host = Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => ConfigureAppLogging(logging, debugLog))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(debugLog);
+                services.AddSingleton(guard);
+
+                services.AddAresToysStorage();
+                AddSharedUiServices(services);
+                services.AddAresToysClipboard();
+                services.AddAresToysCapture();
+                services.AddAresToysPipeline();
+                // Wrap the profile store so every workflow write raises ProfilesChanged; the
+                // Explorer resize submenu (ResizerContextMenuSync) rebuilds itself from that.
+                services.AddSingleton<NotifyingPipelineProfileStore>(sp =>
+                    new NotifyingPipelineProfileStore(ActivatorUtilities.CreateInstance<SqlitePipelineProfileStore>(sp)));
+                services.AddSingleton<IPipelineProfileStore>(sp => sp.GetRequiredService<NotifyingPipelineProfileStore>());
+                services.AddSingleton<ResizerContextMenuSync>();
+                services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusFolderShortcut>();
+                services.AddSingleton<AresToys.App.Services.NewPlus.ExplorerDuplicateShortcut>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekService>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekHotkey>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekOpenWithStore>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekKeysStore>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekWindowStore>();
+                services.AddSingleton<AresToys.App.Services.Peek.PeekShowAsStore>();
+                services.AddSingleton<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>();
+                services.AddAresToysPlugins();
+                services.AddAresToysEditor();
+
+                // Uploader registration mirrors ShareX: popular services ship as compiled
+                // IUploader implementations in AresToys.Uploaders (with config UI for keys when
+                // needed), and the long tail is covered by user-supplied ShareX-compatible .sxcu
+                // files under %LOCALAPPDATA%\AresToys\custom-uploaders\.
+                services.AddSingleton<AresToys.PluginContracts.IPluginConfigStoreFactory>(sp =>
+                    new AresToys.App.Services.Plugins.HostPluginConfigStoreFactory(
+                        sp.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>()));
+
+                // Single OAuth flow service shared by every OAuth-capable uploader. Its HttpClient
+                // only ever talks to provider token endpoints — short-lived, no streaming — so a
+                // process-wide instance is fine (no socket exhaustion concerns at this volume).
+                services.AddSingleton<AresToys.Uploaders.OAuth.OAuthFlowService>(sp =>
+                    new AresToys.Uploaders.OAuth.OAuthFlowService(
+                        new HttpClient { Timeout = TimeSpan.FromSeconds(30) },
+                        sp.GetService<ILogger<AresToys.Uploaders.OAuth.OAuthFlowService>>()));
+
+                // Bundled uploaders. One HttpClient per instance (5-min timeout, same shape as the
+                // .sxcu engine) — keeps the registration trivial without an IHttpClientFactory.
+                static HttpClient NewUploaderHttp() => new() { Timeout = TimeSpan.FromMinutes(5) };
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Catbox.CatboxUploader(NewUploaderHttp(),
+                        sp.GetService<ILogger<AresToys.Uploaders.Catbox.CatboxUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.UguuSe.UguuSeUploader(NewUploaderHttp(),
+                        sp.GetService<ILogger<AresToys.Uploaders.UguuSe.UguuSeUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.PasteRs.PasteRsUploader(NewUploaderHttp(),
+                        sp.GetService<ILogger<AresToys.Uploaders.PasteRs.PasteRsUploader>>()));
+
+                // Shared folder uploader — no HTTP client, just file I/O. Per-uploader config
+                // store carries the target folder + optional URL prefix from Settings UI.
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.SharedFolder.SharedFolderUploader(
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("shared-folder"),
+                        sp.GetService<ILogger<AresToys.Uploaders.SharedFolder.SharedFolderUploader>>()));
+
+                // URL shorteners — anonymous, no setup. Same operator (Memset) runs both is.gd
+                // and v.gd; we ship both so the user has a fallback when one rate-limits.
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.IsGd.IsGdUploader(NewUploaderHttp(),
+                        sp.GetService<ILogger<AresToys.Uploaders.IsGd.IsGdUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Vgd.VgdUploader(NewUploaderHttp(),
+                        sp.GetService<ILogger<AresToys.Uploaders.Vgd.VgdUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Bitly.BitlyUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("bitly"),
+                        sp.GetService<ILogger<AresToys.Uploaders.Bitly.BitlyUploader>>()));
+
+                // Keyed bundled uploaders. Each gets a per-id IPluginConfigStore so credentials
+                // (Imgur Client ID, ImgBB / Pastebin API keys, Gist PAT) live under the
+                // plugin.{id}.{key} namespace in ISettingsStore — sensitive values are DPAPI-
+                // encrypted by the underlying store. Settings UI walks IConfigurableUploader to
+                // render the form.
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Imgur.ImgurUploader(NewUploaderHttp(),
+                        sp.GetService<ILogger<AresToys.Uploaders.Imgur.ImgurUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.ImgBB.ImgBBUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("imgbb"),
+                        sp.GetService<ILogger<AresToys.Uploaders.ImgBB.ImgBBUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Pastebin.PastebinUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("pastebin"),
+                        sp.GetService<ILogger<AresToys.Uploaders.Pastebin.PastebinUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Gist.GistUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("gist"),
+                        sp.GetService<ILogger<AresToys.Uploaders.Gist.GistUploader>>()));
+
+                // OAuth-bundled uploaders. Each gets the shared OAuthFlowService for the sign-in
+                // dance + its own per-id IPluginConfigStore for tokens and per-account preferences.
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.OneDrive.OneDriveUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("onedrive"),
+                        sp.GetRequiredService<AresToys.Uploaders.OAuth.OAuthFlowService>(),
+                        sp.GetService<ILogger<AresToys.Uploaders.OneDrive.OneDriveUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.GoogleDrive.GoogleDriveUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("googledrive"),
+                        sp.GetRequiredService<AresToys.Uploaders.OAuth.OAuthFlowService>(),
+                        sp.GetService<ILogger<AresToys.Uploaders.GoogleDrive.GoogleDriveUploader>>()));
+                services.AddSingleton<AresToys.PluginContracts.IUploader>(sp =>
+                    new AresToys.Uploaders.Dropbox.DropboxUploader(NewUploaderHttp(),
+                        sp.GetRequiredService<AresToys.PluginContracts.IPluginConfigStoreFactory>().Create("dropbox"),
+                        sp.GetRequiredService<AresToys.Uploaders.OAuth.OAuthFlowService>(),
+                        sp.GetService<ILogger<AresToys.Uploaders.Dropbox.DropboxUploader>>()));
+
+                // Long-tail .sxcu loader. EnsureDefaults() copies any bundled .sxcu defaults the
+                // first time they're seen — currently empty since all our defaults are bundled
+                // uploaders, but kept for future additions.
+                AresToys.App.Services.Plugins.CustomUploaderSeeding.EnsureDefaults();
+                AresToys.CustomUploaders.CustomUploaderRegistry.RegisterFromFolder(
+                    AresToys.CustomUploaders.CustomUploaderRegistry.DefaultFolder,
+                    services,
+                    onError: (file, ex) => System.Diagnostics.Debug.WriteLine($"[CustomUploaders] failed to load {file}: {ex.Message}"));
+
+                services.AddSingleton<AresToys.App.Services.Plugins.PluginRegistry>(sp =>
+                    new AresToys.App.Services.Plugins.PluginRegistry(
+                        sp.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>(),
+                        sp.GetServices<AresToys.PluginContracts.IUploader>()));
+                services.AddSingleton<AresToys.Plugins.IUploaderResolver>(sp =>
+                    sp.GetRequiredService<AresToys.App.Services.Plugins.PluginRegistry>());
+
+                // App-side pipeline tasks (registered as IPipelineTask alongside Pipeline's baked tasks).
+                // Unified "Add * to AresToys clipboard" family (replaces the old Copy* / SaveQr*
+                // tasks): each writes to the AresToys history and optionally pushes to the
+                // Windows clipboard via the `alsoCopyToWindows` toggle.
+                services.AddSingleton<IPipelineTask, AddFileToClipboardTask>();
+                services.AddSingleton<IPipelineTask, AddImageToClipboardTask>();
+                services.AddSingleton<IPipelineTask, AddTextToClipboardTask>();
+                services.AddSingleton<IPipelineTask, TextToQrPngTask>();
+                services.AddSingleton<IPipelineTask, TextToQrSvgTask>();
+                services.AddSingleton<IPipelineTask, ApplyImageEffectsPresetTask>();
+                services.AddSingleton<IPipelineTask, ResizeImageTask>();
+                services.AddSingleton<IPipelineTask, ConvertImageTask>();
+                // Concrete singleton too: the Explorer "Custom" quick dialog calls RunBatchAsync on it.
+                services.AddSingleton<ResizeImageFilesTask>();
+                services.AddSingleton<IPipelineTask>(sp => sp.GetRequiredService<ResizeImageFilesTask>());
+                services.AddSingleton<IPipelineTask, UploadClipboardTextTask>();
+                services.AddSingleton<AresToys.App.Services.Notifications.ToastBuilderService>();
+                services.AddSingleton<AresToys.Core.Pipeline.IPipelineNotifier>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.Notifications.ToastBuilderService>());
+                services.AddSingleton<IPipelineTask, TraceToSvgTask>();
+                services.AddSingleton<IPipelineTask, SaveSvgTask>();
+                services.AddSingleton<IPipelineTask, RemoveBackgroundTask>();
+                services.AddSingleton<IPipelineTask, OpenEditorBeforeUploadTask>();
+                services.AddSingleton<IPipelineTask, ToggleIncognitoTask>();
+                services.AddSingleton<AresToys.App.Services.Dictation.DictationService>();
+                services.AddSingleton<IPipelineTask, DictateTask>();
+                services.AddSingleton<AresToys.App.Services.AlwaysOnTop.AlwaysOnTopService>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneLayoutStore>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneMonitors>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneWindowTracker>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneKeyboardSnapper>();
+                services.AddSingleton<AresToys.App.Services.Zones.ZoneDragService>();
+                services.AddSingleton<AresToys.App.Services.Zones.WindowSnappingService>();
+                services.AddSingleton<IPipelineTask, OpenWindowSnappingEditorTask>();
+                services.AddSingleton<IPipelineTask, ToggleWindowSnappingTask>();
+                services.AddSingleton<IPipelineTask, SetSnapLayoutTask>();
+                services.AddSingleton<IPipelineTask, PeekTask>();
+                services.AddSingleton<IPipelineTask, NextWindowInZoneTask>();
+                services.AddSingleton<IPipelineTask, PreviousWindowInZoneTask>();
+                services.AddSingleton<IPipelineTask, AlwaysOnTopTask>();
+                services.AddSingleton<IPipelineTask, ColorSamplerTask>();
+                services.AddSingleton<IPipelineTask, ColorPickerTask>();
+                services.AddSingleton<IPipelineTask, ConvertColorTask>();
+                // Legacy CopyColorAs* — kept registered for backward compat with profiles that
+                // were authored before 0.1.17 collapsed them into ConvertColor + AddText. Removed
+                // from the workflow editor's "+ Add step" picker (no catalog entry) but the
+                // runtime classes still resolve so an old saved step keeps producing clipboard
+                // text instead of hard-failing on a missing TaskId.
+                services.AddSingleton<IPipelineTask, CopyColorAsHexTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsRgbTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsRgbaTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsHsbTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsCmykTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsDecimalTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsLinearTask>();
+                services.AddSingleton<IPipelineTask, CopyColorAsBgraTask>();
+                // Periodic per-category retention sweep (30s tick) — see CategoryRotationScheduler.
+                // The MaxItems cap is enforced inline on add inside ItemStore; this scheduler is
+                // the time-based safety net for AutoCleanupAfter (minutes).
+                services.AddHostedService<CategoryRotationScheduler>();
+
+                services.AddSingleton<IPipelineTask, CaptureRegionTask>();
+                services.AddSingleton<IPipelineTask, WormholeBatchOpTask>();
+                services.AddSingleton<IPipelineTask, WormholeCreateTask>();
+                services.AddSingleton<IPipelineTask, WormholeRestorePresetTask>();
+                services.AddSingleton<IPipelineTask, CaptureActiveWindowTask>();
+                services.AddSingleton<IPipelineTask, CaptureActiveMonitorTask>();
+                services.AddSingleton<IPipelineTask, CaptureWebpageTask>();
+                services.AddSingleton<IPipelineTask, CaptureSelectedExplorerFileTask>();
+                services.AddSingleton<IPipelineTask, QrReadTask>();
+                services.AddSingleton<QrReaderService>();
+                services.AddSingleton<WebpageCaptureService>();
+                services.AddSingleton<IPipelineTask, RecordScreenTask>();
+                services.AddSingleton<IPipelineTask, SaveVideoFileTask>();
+                services.AddSingleton<IPipelineTask, OpenScreenshotFolderTask>();
+                services.AddSingleton<IPipelineTask, PasteHistoryItemTask>();
+                services.AddSingleton<IPipelineTask, PressKeyTask>();
+                services.AddSingleton<IPipelineTask, RepeatTask>();
+                services.AddSingleton<IPipelineTask, EndRepeatTask>();
+                services.AddSingleton<AresToys.Core.Pipeline.ICancelHotkeyRegistry,
+                                      Services.Pipeline.CancelHotkeyRegistry>();
+                services.AddSingleton<IPipelineTask, DelayTask>();
+                services.AddSingleton<IPipelineTask, OpenUrlTask>();
+                services.AddSingleton<IPipelineTask, ShowInExplorerTask>();
+                services.AddSingleton<IPipelineTask, SaveAsTask>();
+                services.AddSingleton<AresToys.App.Services.Qr.QrCodeService>();
+                services.AddSingleton<IPipelineTask, QrCodeTask>();
+                services.AddSingleton<IPipelineTask, PinToScreenTask>();
+                services.AddSingleton<IPipelineTask, LaunchAppTask>();
+                services.AddSingleton<IPipelineTask, OpenFileTask>();
+                services.AddSingleton<IPipelineTask, RunCommandTask>();
+                services.AddSingleton<IPipelineTask, OpenLauncherMenuTask>();
+                services.AddSingleton<IPipelineTask, OpenLauncherDragModeTask>();
+                services.AddSingleton<IPipelineTask, OpenClipboardWindowTask>();
+                services.AddSingleton<IPipelineTask, OpenSettingsTask>();
+                // Headless launcher firing (no overlay) + Nth-clipboard-entry paste — both
+                // surface a toast on empty target so a missed binding doesn't fail silently.
+                services.AddSingleton<AresToys.App.Services.Launcher.LauncherActionService>();
+                services.AddSingleton<IPipelineTask, LauncherTriggerKeyTask>();
+                services.AddSingleton<IPipelineTask, PasteClipboardEntryTask>();
+                // Singleton + Hide (not Close) for snappy reopen on the global shortcut —
+                // same lifetime pattern the launcher uses.
+                services.AddSingleton<AresToys.App.Views.ClipboardWindow>();
+                services.AddSingleton<LauncherStore>();
+                // The Launcher window lives in the non elevated satellite; the main app only keeps this
+                // bridge to it, plus the broadcaster that tells the satellite about theme and language changes.
+                services.AddSingleton<AresToys.App.Services.Launcher.LauncherHostBridge>();
+                services.AddSingleton<AresToys.App.Services.Launcher.AppStateBroadcaster>();
+
+                services.AddSingleton<IncognitoModeService>();
+                services.AddSingleton<ClipboardIngestionService>();
+                services.AddSingleton<TargetWindowTracker>();
+                services.AddSingleton<AutoPaster>();
+                services.AddSingleton<AresToys.Pipeline.Tasks.IItemClipboardPublisher, WpfItemClipboardPublisher>();
+                services.AddSingleton<CaptureCoordinator>();
+                services.AddSingleton<ManualUploadService>();
+                services.AddSingleton<AresToys.App.Services.Notifications.ToastLifetimeService>();
+                services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
+                services.AddSingleton<AresToys.Core.Imaging.IImageEncoder, WpfImageEncoder>();
+                services.AddSingleton<CaptureImageOutputService>();
+                services.AddSingleton<WebView2AvailabilityService>();
+                services.AddSingleton<ExternalTextEditorService>();
+                // Velopack-backed self-update. Disabled at runtime (IsAvailable=false) when the
+                // app isn't running from a Velopack-managed install — no harm, just shows the
+                // "Check for updates" button as disabled in Settings.
+                services.AddSingleton<AresToys.Updater.UpdaterService>();
+                services.AddSingleton<AutostartService>();
+                services.AddSingleton<ElevationService>();
+                services.AddSingleton<PinToScreenLauncher>();
+                services.AddSingleton<AresToys.App.Services.Pins.PinStore>();
+                services.AddSingleton<AresToys.App.Services.Pins.PinPersistenceService>();
+                services.AddSingleton<EditorLauncher>();
+                services.AddSingleton<ScreenColorPickerService>();
+                services.AddSingleton<ColorWheelLauncher>();
+                services.AddSingleton<PickColorServer>();
+                services.AddSingleton<Services.Recording.FfmpegLocator>();
+                services.AddSingleton<Services.Recording.FfmpegDownloader>();
+                services.AddSingleton<Services.Recording.ScreenRecordingService>();
+                services.AddSingleton<Services.Recording.RecordingCoordinator>();
+                services.AddSingleton<Services.Recording.VideoThumbnailService>();
+                services.AddSingleton<Services.Recording.VideoTrimService>();
+                services.AddSingleton<AresToys.Editor.Persistence.ColorRecentsStore>();
+                services.AddSingleton<AresToys.Editor.Persistence.ToolStyleStore>();
+                services.AddSingleton<AresToys.AI.IImageTracer, AresToys.AI.VectorCraftImageTracer>();
+                services.AddSingleton<TracePresetStore>();
+                // Background removal: U2NetP ONNX model. Singleton because the ONNX session
+                // costs ~150 ms to spin up + holds ~5 MB of model data + DirectML resources;
+                // amortising it across the process lifetime keeps the first-use latency on
+                // subsequent calls in the inference-only band (~100-500 ms).
+                services.AddSingleton<AresToys.AI.IBackgroundRemover, AresToys.AI.U2NetBackgroundRemover>();
+
+                // Singleton so SettingsViewModel + ClipboardWindow share the same instance —
+                // toggling "Show snippet under label" in App Settings must push into the same
+                // VM whose Rows the visible clipboard window is bound to. Disposal: the VM
+                // subscribes only to other singletons (item / category stores), so the missed
+                // Dispose at process shutdown is a no-op rather than a leak.
+                services.AddSingleton<PopupWindowViewModel>();
+
+                services.AddSingleton<AresToys.App.Services.Hotkeys.HotkeyConfigService>();
+                services.AddSingleton<WorkflowRunner>();
+                services.AddSingleton<AresToys.App.Services.ImageResize.ResizeRequestBatcher>();
+                services.AddSingleton<AresToys.App.Services.ImageResize.ResizePresetSaver>();
+
+                // Key Sequences module — see docs/superpowers/specs/2026-05-16-key-sequences-design.md
+                // The KeyboardHook is also pulled from DI (was a private field; promoted so the
+                // tracker can reuse the same instance the legacy hotkey registration uses).
+                services.AddSingleton<AresToys.Hotkeys.KeyboardHook>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.KeySequenceModuleSettings>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceMatcher>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.ClipboardSequenceProvider>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.WorkflowSequenceProvider>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.ISequenceBindingProvider>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.KeySequences.ClipboardSequenceProvider>());
+                services.AddSingleton<AresToys.App.Services.KeySequences.ISequenceBindingProvider>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.KeySequences.WorkflowSequenceProvider>());
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceBindingStore>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceOverlayHost>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.ISequenceOverlay>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.KeySequences.SequenceOverlayHost>());
+                services.AddSingleton<AresToys.App.Services.KeySequences.SequenceDispatcher>();
+                services.AddSingleton<AresToys.App.Services.KeySequences.KeySequenceTracker>();
+                services.AddSingleton<UploadersViewModel>();
+                services.AddSingleton<HotkeysViewModel>();
+                services.AddSingleton<WorkflowActionProvider>();
+                services.AddSingleton<WorkflowEditorViewModel>();
+                services.AddSingleton<WorkflowsViewModel>();
+                services.AddSingleton<CaptureDefaultsViewModel>();
+                services.AddSingleton<SettingsBackupService>();
+                services.AddSingleton<ThemeViewModel>();
+                services.AddSingleton<CategoriesViewModel>();
+                services.AddSingleton<DebugViewModel>();
+                services.AddSingleton<WormholesViewModel>();
+                services.AddSingleton<AlwaysOnTopViewModel>();
+                services.AddSingleton<DictationViewModel>();
+                services.AddSingleton<WindowSnappingViewModel>();
+                services.AddSingleton<NewPlusViewModel>();
+                services.AddSingleton<PeekSettingsViewModel>();
+                services.AddSingleton<SettingsViewModel>();
+                services.AddSingleton<MainWindow>();
+                services.AddSingleton<TrayIconService>();
+                // Holds the runtime-resolved enabled state for the optional feature modules
+                // (Clipboard, Launcher, Wormholes). Populated below from the persisted settings
+                // keys *after* the host is built, before any eager init runs.
+                services.AddSingleton<ModuleSettings>();
+
+                // Owns the pipe server and the non elevated satellite process (Wormholes and Launcher
+                // will live there). Apply() at the end of OnStartup starts it for the enabled modules.
+                services.AddSingleton<SatelliteService>();
+
+                // Wormholes live in the non elevated satellite (store, windows, defaults, favicons). The main
+                // app only holds this proxy, which talks to them over the satellite channel.
+                services.AddSingleton<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>();
+                services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeWindowManager>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>());
+                services.AddSingleton<AresToys.App.Services.Wormholes.IWormholeRowSource>(
+                    sp => sp.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>());
+            })
+            .Build();
+
+        AresToys.App.Services.Logging.StartupTrace.Mark("services configured");
+        await _host.StartAsync();
+        AresToys.App.Services.Logging.StartupTrace.Mark("host started");
+
+        var db = _host.Services.GetRequiredService<IAresToysDatabase>();
+        await db.InitializeAsync(CancellationToken.None);
+        AresToys.App.Services.Logging.StartupTrace.Mark("database ready");
+
+        // Hydrate module-enabled flags from the settings store. Done once here so every gate
+        // point downstream (eager pre-warm, ClipboardIngestionService start, hotkey loop, tray
+        // menu builder) reads a stable snapshot of "is this module on for this process". Toggling
+        // in the Settings UI persists to the same keys but requires restart to take effect —
+        // tearing down a live ingestion thread or hotkey hook mid-process isn't worth the
+        // complexity for a feature most users will set once.
+        var settingsStore = _host.Services.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+        var modules = _host.Services.GetRequiredService<ModuleSettings>();
+        var clipboardModuleRaw = await settingsStore.GetAsync(ModuleSettings.ClipboardKey, CancellationToken.None).ConfigureAwait(true);
+        var launcherModuleRaw  = await settingsStore.GetAsync(ModuleSettings.LauncherKey,  CancellationToken.None).ConfigureAwait(true);
+        var wormholesModuleRaw = await settingsStore.GetAsync(ModuleSettings.WormholesKey, CancellationToken.None).ConfigureAwait(true);
+        var keySequencesModuleRaw = await settingsStore.GetAsync(ModuleSettings.KeySequencesKey, CancellationToken.None).ConfigureAwait(true);
+        // Clipboard + Launcher default ON when unset (preserves historical behaviour for existing
+        // installs). Wormholes + KeySequences default OFF — features still maturing, opt-in only.
+        modules.ClipboardEnabled = !string.Equals(clipboardModuleRaw, "false", StringComparison.OrdinalIgnoreCase);
+        modules.LauncherEnabled  = !string.Equals(launcherModuleRaw,  "false", StringComparison.OrdinalIgnoreCase);
+        modules.WormholesEnabled =  string.Equals(wormholesModuleRaw, "true",  StringComparison.OrdinalIgnoreCase);
+        modules.KeySequencesEnabled = string.Equals(keySequencesModuleRaw, "true", StringComparison.OrdinalIgnoreCase);
+
+        // Wormholes run in the satellite, which SatelliteService.Apply() starts at the end of startup. The proxy is
+        // created here so it is subscribed before the satellite connects; it fills its caches when the satellite
+        // sends wormholes.ready. Register the Explorer right-click "Create Wormhole" verb (idempotent, HKCU, no
+        // admin) once the satellite reports the wormholes are working.
+        var wormholeProxy = _host.Services.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>();
+        if (modules.WormholesEnabled)
+        {
+            _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, async () =>
+            {
+                try
+                {
+                    if (!await wormholeProxy.WaitReadyAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(true))
+                    {
+                        _host!.Services.GetService<ILogger<App>>()?.LogWarning("Wormholes: the satellite was not ready in time, shell verb not registered this run");
+                        return;
+                    }
+                    try { AresToys.App.Services.Wormholes.WormholeShellRegistration.Register(); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"WormholeShellRegistration.Register failed: {ex}"); }
+                }
+                catch (Exception ex)
+                {
+                    _host!.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Wormholes init failed");
+                }
+            });
+        }
+
+        // Toast lifetimes (how long the popup shows, how long the Notification Center keeps it).
+        // Loaded before anything can raise a toast so the very first notification of the session
+        // already honours the user's choice.
+        await _host.Services.GetRequiredService<AresToys.App.Services.Notifications.ToastLifetimeService>()
+            .LoadAsync(CancellationToken.None);
+
+        // "Recent colors" plumbing. The store is the single writer; every surface that shows the
+        // palette reads ColorSwatchButton.CurrentRecents. Wiring Changed → CurrentRecents once
+        // here means an eyedropper sample, a picker OK or a Theme-tab pick all refresh the grid
+        // in every open picker, instead of each host having to remember to re-push the snapshot.
+        var colorRecents = _host.Services.GetRequiredService<AresToys.Editor.Persistence.ColorRecentsStore>();
+        colorRecents.Changed += (_, list) =>
+        {
+            if (Dispatcher.CheckAccess()) AresToys.Editor.Views.ColorSwatchButton.CurrentRecents = list;
+            else Dispatcher.BeginInvoke(() => AresToys.Editor.Views.ColorSwatchButton.CurrentRecents = list);
+        };
+        AresToys.Editor.Views.ColorSwatchButton.CurrentRecents =
+            await colorRecents.LoadAsync(CancellationToken.None);
+
+        // Apply the user's theme BEFORE any window resolves: ThemeService writes to App.Resources
+        // and to WPF-UI's accent manager, both of which are read at control-template instantiation
+        // time. Loading after MainWindow would cause a one-frame flash of the default blue accent.
+        // Then the persisted UI language (same helper, same order, shared with the satellite path).
+        await ApplyThemeAndLocalizationAsync(_host.Services, tracePrefix: "");
+
+        // Seed default pipeline profiles (idempotent — leaves user customizations).
+        var seeder = _host.Services.GetRequiredService<PipelineProfileSeeder>();
+        await seeder.SeedAsync(CancellationToken.None);
+        AresToys.App.Services.Logging.StartupTrace.Mark("defaults seeded");
+
+        // Bring the Explorer "Image Resizer" submenu in line with the seeded and user workflows.
+        // Fire and forget: SyncAsync logs its own failures and never throws, startup never waits.
+        _ = _host.Services.GetRequiredService<ResizerContextMenuSync>().SyncAsync();
+
+        // Same for the New+ submenu (a no-op that removes its keys while New+ is off).
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>().ApplyAsync();
+
+        // Window snapping is opt in: this loads the layouts and starts the drag hooks only when the
+        // user turned it on. InitializeAsync logs its own failures and never throws.
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Zones.WindowSnappingService>()
+            .InitializeAsync(CancellationToken.None);
+
+        // Register the dynamic-options provider for the WorkflowActionCatalog ComboBox source
+        // keyed by "image_effect_presets". The lookup is sync because the catalog is consumed
+        // on the UI thread when each step row materialises; .GetAwaiter().GetResult() is safe
+        // here — IImageEffectPresetStore.ListAsync uses the singleton SqliteConnection (no
+        // SyncContext capture), so no deadlock risk.
+        var presetStore = _host.Services.GetRequiredService<AresToys.Storage.ImageEffects.IImageEffectPresetStore>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["image_effect_presets"] = () =>
+        {
+            try
+            {
+                var presets = presetStore.ListAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+                return presets.Select(p => p.Name).ToList();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        };
+
+        // Wormhole-presets dropdown for the "Switch wormhole preset" step. Lists the saved
+        // layout preset names; the field stays editable so a name can be typed even if the
+        // preset doesn't exist yet (the task no-ops until it does). Sync lookup is safe — the
+        // JSON store's ListPresetNamesAsync runs off the file system with no SyncContext capture.
+        // The names come from the proxy cache (no request to the satellite on the UI thread).
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["wormhole_presets"] = () => wormholeProxy.CachedPresetNames.ToList();
+
+        // Set snapping layout: layout names (built-in first, then user) and the monitor choices. Provider
+        // values are what the step stores, so the layout list holds names and the monitors hold "cursor",
+        // "primary" and the editor tile numbers.
+        var snapStore = _host.Services.GetRequiredService<AresToys.App.Services.Zones.ZoneLayoutStore>();
+        var snapMonitors = _host.Services.GetRequiredService<AresToys.App.Services.Zones.ZoneMonitors>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["snap_layouts"] = () =>
+            snapStore.Layouts.Select(l => l.Name).ToList();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["snap_monitors"] = () =>
+        {
+            var list = new List<string> { "cursor", "primary" };
+            list.AddRange(Enumerable.Range(1, snapMonitors.Real().Count)
+                .Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            return list;
+        };
+
+        // Image-format dropdown for SaveToFile's "format" override. Empty entry = "use the
+        // bag's current extension" (default — typically the global capture format set in
+        // Settings → Capture). Explicit format = re-encode through IImageEncoder before write.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["image_formats"] = () =>
+            new[] { string.Empty, "PNG", "JPEG", "BMP", "GIF" };
+
+        // Dropdowns for Resize image / Convert image. Raw values are the config keys read by
+        // ImageResizeOptions.FromConfig and ImageEncodeOptions.FromConfig; labels come from the
+        // EnumValue_<raw> resx keys via LocalizeOptionsAsEnum.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_modes"] = () =>
+            new[] { "fit", "fill", "stretch" };
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_units"] = () =>
+            new[] { "px", "percent", "inch", "cm" };
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_formats"] = () =>
+            new[] { "keep", "png", "jpg", "webp", "bmp", "tiff", "gif" };
+
+        // Collision policy for Resize image files; the raw values are read by
+        // ImageFileWriter.ParsePolicy, labels come from the EnumValue_<raw> resx keys.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["resize_collisions"] = () =>
+            new[] { "uniquify", "overwrite", "skip" };
+
+        // Video-format dropdown for SaveVideoFile's "format". mp4 is the fast path (the
+        // recorder always produces mp4, so picking mp4 is a verbatim file write); gif / webm /
+        // mov route through ffmpeg for a transcode + container swap.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["video_formats"] = () =>
+            new[] { "mp4", "gif", "webm", "mov" };
+
+        // Colour-format dropdown for ConvertColor's "format". 4 hex variants (with/without #,
+        // with/without alpha) are exposed as discrete options instead of conditional bool
+        // params — keeps the editor row simple and avoids the "hide/show param" complexity
+        // that a single Hex entry + alpha/hash toggles would need.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["color_formats"] = () =>
+            new[]
+            {
+                "hex", "hex-hash", "hex-alpha", "hex-hash-alpha",
+                "rgb", "rgba", "hsb", "cmyk", "decimal", "linear", "bgra",
+            };
+
+        // Window-state dropdown for Launch app's "windowMode". Raw values are LauncherWindowMode
+        // names so the task can Enum.TryParse them, and so a workflow step and a launcher cell
+        // describe "start this minimized" the same way. Labels come from the EnumValue_<name>
+        // resx keys via LocalizeOptionsAsEnum.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["window_modes"] = () =>
+            Enum.GetNames<AresToys.App.Services.Launcher.LauncherWindowMode>();
+
+        // Settings-tab dropdown for OpenSettings's "tab" parameter. Raw values match the
+        // SettingsTab enum lowercased so OpenSettingsTask can Enum.TryParse them straight into
+        // SettingsViewModel.SelectedTab. Display labels live in Services.SettingsTabLabels and
+        // mirror the sidebar entries the user already recognises.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["settings_tabs"] = () =>
+            new[] { "settings", "hotkeys", "uploaders", "capture", "categories", "wormholes", "peek", "theme", "debug", "about" };
+
+        // Trace-preset dropdown for Trace to SVG's "preset" config. Concatenates the stock
+        // presets (TracePresets.Stock — verbatim Illustrator Image Trace defaults) with any
+        // user-saved custom presets from the standalone trace window. Lookup at task runtime
+        // is case-insensitive against the same two sources, so a saved preset name resolves
+        // identically to its stock counterpart if names collide (custom wins on rebuild order).
+        var tracePresetStore = _host.Services.GetRequiredService<AresToys.App.Services.TracePresetStore>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["trace_presets"] = () =>
+        {
+            var names = new List<string>(AresToys.AI.TracePresets.Stock.Count + 8);
+            foreach (var p in AresToys.AI.TracePresets.Stock) names.Add(p.Name);
+            try
+            {
+                var custom = tracePresetStore.GetAllAsync(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+                foreach (var p in custom) names.Add(p.Name);
+            }
+            catch { /* settings-store hiccup → just stock list */ }
+            return names;
+        };
+
+        // Default-tool dropdown for "Open editor". Empty entry = "use last-used" (whatever the
+        // user last left selected in EditorDefaultsStore); explicit value preselects that tool
+        // on open. List = the EditorTool enum minus the Select pointer (not a drawing tool —
+        // confusingly close to the empty "use last" entry) and Image (one-shot file picker).
+        // Launcher tab + key dropdowns for the Trigger-launcher-key workflow task. Tabs are
+        // the 10 numeric user tabs ("1".."9","0") — the F-strip isn't a "tab", function keys
+        // live in their own namespace and the runtime ignores the tab field when the key is
+        // F1..F10. Keys: F-row + the 30 QWERTY/punctuation cells from LauncherKeyboardLayout.
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["launcher_tabs"] = () =>
+            AresToys.App.Services.Launcher.LauncherKeyboardLayout.TabKeys.ToArray();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["launcher_keys"] = () =>
+        {
+            var list = new List<string>(AresToys.App.Services.Launcher.LauncherKeyboardLayout.FunctionKeys.Count + 30);
+            list.AddRange(AresToys.App.Services.Launcher.LauncherKeyboardLayout.FunctionKeys);
+            list.AddRange(AresToys.App.Services.Launcher.LauncherKeyboardLayout.AllTabKeyChars());
+            return list;
+        };
+
+        // Clipboard categories — fed from the live category store so renames / additions show
+        // up the next time the user opens the Workflow editor without app restart. The list is
+        // re-evaluated at the moment the row materialises (see OptionsProviders contract).
+        var categoriesStore = _host.Services.GetRequiredService<AresToys.Storage.Items.ICategoryStore>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["clipboard_categories"] = () =>
+        {
+            try
+            {
+                var cats = categoriesStore.ListAsync(CancellationToken.None).GetAwaiter().GetResult();
+                // Empty string at the top = "all categories" — paste from the global "All"
+                // view, matching the popup's All tab semantics.
+                var list = new List<string> { string.Empty };
+                foreach (var c in cats) list.Add(c.Name);
+                return list;
+            }
+            catch
+            {
+                return new[] { string.Empty };
+            }
+        };
+
+        // Uploader / shortener dropdowns for the consolidated Upload + Shorten URL workflow
+        // descriptors. Lists are re-evaluated each time the workflow editor materialises a
+        // step, so enabling / disabling plugins in Settings reflects immediately. Empty string
+        // is the first entry of each list — the UploadTask auto-picks a destination from the
+        // bag's file extension when the user leaves the field on empty.
+        var pluginRegistry = _host.Services.GetRequiredService<AresToys.App.Services.Plugins.PluginRegistry>();
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["uploader_ids"] = () =>
+        {
+            var list = new List<string> { string.Empty };
+            list.AddRange(pluginRegistry.AllUploaders
+                .Where(u => (u.Capabilities & ~AresToys.PluginContracts.UploaderCapabilities.Url) != 0)
+                .Select(u => u.Id)
+                .OrderBy(id => id, StringComparer.Ordinal));
+            return list;
+        };
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["shortener_ids"] = () =>
+        {
+            var list = new List<string> { string.Empty };
+            list.AddRange(pluginRegistry.AllUploaders
+                .Where(u => (u.Capabilities & AresToys.PluginContracts.UploaderCapabilities.Url) == AresToys.PluginContracts.UploaderCapabilities.Url)
+                .Select(u => u.Id)
+                .OrderBy(id => id, StringComparer.Ordinal));
+            return list;
+        };
+
+        AresToys.App.ViewModels.WorkflowActionCatalog.OptionsProviders["editor_tools"] = () =>
+            new[]
+            {
+                string.Empty,
+                nameof(AresToys.Editor.Tools.EditorTool.Crop),
+                nameof(AresToys.Editor.Tools.EditorTool.Rectangle),
+                nameof(AresToys.Editor.Tools.EditorTool.Ellipse),
+                nameof(AresToys.Editor.Tools.EditorTool.Line),
+                nameof(AresToys.Editor.Tools.EditorTool.Arrow),
+                nameof(AresToys.Editor.Tools.EditorTool.Freehand),
+                nameof(AresToys.Editor.Tools.EditorTool.Text),
+                nameof(AresToys.Editor.Tools.EditorTool.StepCounter),
+                nameof(AresToys.Editor.Tools.EditorTool.Blur),
+                nameof(AresToys.Editor.Tools.EditorTool.Pixelate),
+                nameof(AresToys.Editor.Tools.EditorTool.Spotlight),
+                nameof(AresToys.Editor.Tools.EditorTool.SmartEraser),
+            };
+
+        var incognito = _host.Services.GetRequiredService<IncognitoModeService>();
+        await incognito.LoadAsync(CancellationToken.None);
+        var notifier = _host.Services.GetRequiredService<IToastNotifier>();
+        incognito.StateChanged += (_, _) =>
+            notifier.Show("Incognito mode", incognito.IsActive ? "ON — clipboard items won't be captured" : "OFF — capture resumed");
+
+        var tray = _host.Services.GetRequiredService<TrayIconService>();
+        var window = _host.Services.GetRequiredService<MainWindow>();
+        tray.Attach(window);
+
+        // Self-update: subscribe to UpdateAvailable for the toast, then fire one silent check on
+        // startup IF the user hasn't opted out via Settings → "Look for updates at startup".
+        // Click on the toast launches the same flow as the Settings button — a simple confirm
+        // dialog that can either install + restart now or defer until next launch.
+        // Routed through IToastNotifier (= WindowsToastNotifier) so the prompt lands in the
+        // Windows Notification Center alongside every other app notification (capture, color
+        // picked, recording status, etc.) and persists past dismissal — the previous tray
+        // balloon disappeared after a few seconds and was easy to miss.
+        //
+        // "Automatically install updates when available" (default OFF) short-circuits the toast
+        // path: when ON and an update lands, we download + apply + restart immediately. The
+        // toast still fires for users who haven't opted in.
+        var updater = _host.Services.GetRequiredService<AresToys.Updater.UpdaterService>();
+        var settingsStoreForUpdate = _host.Services.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+        var rawCheckUpdates = await settingsStoreForUpdate.GetAsync("app.updates.check_at_startup", CancellationToken.None).ConfigureAwait(true);
+        var checkUpdatesAtStartup = !string.Equals(rawCheckUpdates, "false", StringComparison.OrdinalIgnoreCase);
+        var rawAutoInstall = await settingsStoreForUpdate.GetAsync("app.updates.auto_install", CancellationToken.None).ConfigureAwait(true);
+        var autoInstall = string.Equals(rawAutoInstall, "true", StringComparison.OrdinalIgnoreCase);
+        var updaterLogger = _host.Services.GetService<ILogger<App>>();
+        updater.UpdateAvailable += (_, args) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (autoInstall)
+                {
+                    // User chose unattended updates — download + apply + restart with no prompt.
+                    // Wrapped in a Task with try/catch because the previous fire-and-forget
+                    // (`_ = updater.DownloadAndRestartAsync(...)`) silently swallowed every
+                    // failure: offline, GitHub rate-limit, Velopack staging-folder ACL, all
+                    // resulted in "no toast, no install, no log". Now any download/apply
+                    // failure falls back to the regular toast so the user can at least retry
+                    // manually instead of staring at nothing happening.
+                    //
+                    // Heads-up toast fires BEFORE the download starts so the user sees a
+                    // persistent Action-Center entry explaining what just happened — without
+                    // it the app would silently quit + relaunch and a casual user wouldn't
+                    // know AresToys hadn't crashed. The toast stays in the notification
+                    // history after the auto-update completes, so even if it lands during a
+                    // distraction the user can scroll back and see the version transition.
+                    notifier.Show(
+                        "AresToys updating",
+                        $"Auto-updating to version {args.Version}. AresToys will restart in a moment.");
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await updater.DownloadAndRestartAsync(args.Info, ConfirmCloseLockersAsync, CancellationToken.None).ConfigureAwait(false);
+                            // ApplyUpdatesAndRestart exits the process before this line — if we
+                            // do reach it, something completed without restarting (rare; usually
+                            // an internal Velopack early-out).
+                        }
+                        catch (Exception ex)
+                        {
+                            updaterLogger?.LogWarning(ex, "Auto-install failed; falling back to toast prompt");
+                            Dispatcher.Invoke(() =>
+                            {
+                                notifier.Show(
+                                    "AresToys update available",
+                                    $"Version {args.Version} is ready (auto-install failed — click to retry).",
+                                    onClick: () => _ = PromptInstallUpdateAsync(updater, args.Info));
+                            });
+                        }
+                    });
+                    return;
+                }
+                notifier.Show(
+                    "AresToys update available",
+                    $"Version {args.Version} is ready. Click to install.",
+                    onClick: () => _ = PromptInstallUpdateAsync(updater, args.Info));
+            });
+        };
+        if (checkUpdatesAtStartup)
+        {
+            // Fire-and-forget — silent check, errors logged inside the service.
+            _ = Task.Run(() => updater.CheckSilentlyAsync(CancellationToken.None));
+        }
+
+        guard.AnotherInstanceStarted += (_, message) =>
+        {
+            // Explorer resize verbs run silently: no main window flash, so they skip the
+            // activation below and only feed the batcher.
+            if (message.StartsWith(SingleInstanceGuard.ResizePrefix, StringComparison.Ordinal))
+            {
+                QueueResizeRequest(message[SingleInstanceGuard.ResizePrefix.Length..]);
+                return;
+            }
+            // AresToys.exe --pick-color from another app: only the picker shows, never the main window.
+            if (message.StartsWith(SingleInstanceGuard.PickColorPrefix, StringComparison.Ordinal))
+            {
+                var payload = message[SingleInstanceGuard.PickColorPrefix.Length..];
+                _ = _host!.Services.GetRequiredService<PickColorServer>().HandleAsync(payload);
+                return;
+            }
+            Dispatcher.Invoke(() =>
+            {
+                // Always bring the main window forward — both for plain re-launches and for
+                // .sxcu opens, since the import dialog is owned by the main window.
+                if (!window.IsVisible) window.Show();
+                if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+                window.Activate();
+
+                if (message.StartsWith(SingleInstanceGuard.SxcuPrefix, StringComparison.Ordinal))
+                {
+                    var path = message[SingleInstanceGuard.SxcuPrefix.Length..];
+                    HandleSxcuOpen(path, window);
+                }
+                else if (message.StartsWith(SingleInstanceGuard.SxiePrefix, StringComparison.Ordinal))
+                {
+                    var path = message[SingleInstanceGuard.SxiePrefix.Length..];
+                    HandleSxieOpen(path, window);
+                }
+                else if (message.StartsWith(SingleInstanceGuard.UploadPrefix, StringComparison.Ordinal))
+                {
+                    var path = message[SingleInstanceGuard.UploadPrefix.Length..];
+                    HandleUploadOpen(path);
+                }
+                else if (message.StartsWith(SingleInstanceGuard.CreateWormholePrefix, StringComparison.Ordinal))
+                {
+                    var path = message[SingleInstanceGuard.CreateWormholePrefix.Length..];
+                    HandleCreateWormhole(path);
+                }
+                else if (string.Equals(message, SingleInstanceGuard.NewWormholeDialogMessage, StringComparison.Ordinal))
+                {
+                    HandleNewWormholeDialog();
+                }
+            });
+        };
+
+        // If the primary process itself was launched WITH a .sxcu path (first-ever invocation
+        // happens to be the file-association handler), surface the import dialog after the main
+        // window is up so the dialog has an Owner to centre on.
+        if (sxcuPath is not null)
+        {
+            // Fire-and-forget: dispatched at Loaded priority so it runs after the main window
+            // is rendered and can serve as the dialog's Owner. We don't need the operation handle.
+            _ = Dispatcher.BeginInvoke(new Action(() => HandleSxcuOpen(Path.GetFullPath(sxcuPath), window)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        // Same cold-start handling for .sxie — opens the image-effects window with the imported
+        // preset, mirroring how ShareX itself handles a double-click on a .sxie file.
+        if (sxiePath is not null)
+        {
+            _ = Dispatcher.BeginInvoke(new Action(() => HandleSxieOpen(Path.GetFullPath(sxiePath), window)),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        // Same idea for --upload: cold-start from the Explorer context-menu — the user clicked
+        // "Upload with AresToys" and AresToys wasn't running yet. Process the file then sit in the
+        // tray; popping the Settings window unsolicited would feel wrong for a one-shot upload.
+        if (uploadPath is not null)
+        {
+            _ = Dispatcher.BeginInvoke(new Action(() => HandleUploadOpen(Path.GetFullPath(uploadPath))),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        // Cold-start from the folder context-menu — "Create Wormhole" was clicked while AresToys
+        // wasn't running. Defer the spawn to Loaded priority so the wormhole manager has
+        // finished its own initialization (which itself is queued at Loaded priority above).
+        if (createWormholePath is not null)
+        {
+            _ = Dispatcher.BeginInvoke(new Action(() => HandleCreateWormhole(Path.GetFullPath(createWormholePath))),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        if (newWormholeDialogRequested)
+        {
+            _ = Dispatcher.BeginInvoke(new Action(() => HandleNewWormholeDialog()),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        // Subscribe before the cold-start request below feeds the batcher, so a "Custom" batch
+        // that fires right after startup is not lost.
+        SubscribeResizeQuickDialog();
+        // Cold-start from an Explorer resize verb: feed the same batcher the pipe messages use,
+        // so files from sibling processes that arrive while we start up join this batch.
+        if (resizeRequested)
+        {
+            _ = Dispatcher.BeginInvoke(
+                new Action(() => QueueResizeRequest(resizeWorkflowId + "\t" + Path.GetFullPath(resizePath!))),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        guard.StartListening();
+
+        // Cold-start from the context menu is silent: tray-only, no Settings popup. Sxcu / sxie
+        // still want the main window because their import dialogs need an Owner.
+        var startSilent = (uploadPath is not null || createWormholePath is not null || newWormholeDialogRequested || resizeRequested)
+                          && sxcuPath is null && sxiePath is null;
+        // User-controlled "Start minimized" (Settings → Settings tab): same effect as
+        // --upload's silent start — tray-only on launch, the user pops the window via the
+        // tray icon. Sxcu / sxie cold-starts override because their import dialogs need a
+        // visible Owner. Read directly here (not via a VM) since OnStartup runs before the
+        // Settings VM is materialised.
+        if (!startSilent && sxcuPath is null && sxiePath is null)
+        {
+            AresToys.App.Services.Logging.StartupTrace.Mark("before main window decision");
+            var settingsStoreEarly = _host.Services.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+            var startMinRaw = await settingsStoreEarly.GetAsync("app.start_minimized", CancellationToken.None).ConfigureAwait(true);
+            if (string.Equals(startMinRaw, "true", StringComparison.OrdinalIgnoreCase)) startSilent = true;
+        }
+        if (!startSilent) window.Show();
+        window.Closing += (sender, args) =>
+        {
+            args.Cancel = true;
+            ((Window)sender!).Hide();
+        };
+
+        // Pre-warm the clipboard singleton so the first hotkey press doesn't pay the
+        // construction cost (XAML parse + InitializeComponent + first SQLite read) on the user's
+        // critical path. Resolving the service triggers the ctor; PrepareAsync runs in the
+        // background to populate the row list. By the time the user hits Win+V, Show() paints
+        // with content already there — no grey flash. The Launcher pre-warms itself inside the
+        // satellite process.
+        //
+        // Gated by the per-module flag: if the user has disabled Clipboard in Settings → Modules,
+        // the pre-warm (and its associated SQLite reads + icon cache spin-up via SHGetFileInfo)
+        // is skipped entirely. The DI registration stays in place so any direct
+        // .GetRequiredService<…>() call still resolves a window — graceful degradation
+        // for opening the disabled module through an unexpected code path.
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, async () =>
+        {
+            var services = _host!.Services;
+            if (modules.ClipboardEnabled)
+            {
+                try
+                {
+                    var clipboard = services.GetRequiredService<AresToys.App.Views.ClipboardWindow>();
+                    await clipboard.PrepareAsync();
+                }
+                catch (Exception ex)
+                {
+                    services.GetService<ILogger<App>>()?.LogDebug(ex, "Clipboard pre-warm failed; first open will load lazily");
+                }
+            }
+        });
+
+        // Pinned images / videos open at the last exit come back where they were (Settings →
+        // "Restore pinned images at startup"). Idle priority so the main window and the tray are
+        // up first; the pins show without activation, so focus stays where the user has it.
+        _ = Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, async () =>
+        {
+            try
+            {
+                await _host!.Services.GetRequiredService<PinToScreenLauncher>()
+                    .RestorePinnedAsync(CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _host!.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Restoring pinned windows failed");
+            }
+        });
+
+        var helper = new WindowInteropHelper(window);
+        helper.EnsureHandle();
+        var source = HwndSource.FromHwnd(helper.Handle)!;
+        source.AddHook(WndProc);
+
+        var hotkeyConfig = _host.Services.GetRequiredService<AresToys.App.Services.Hotkeys.HotkeyConfigService>();
+        var hotkeyLogger = _host.Services.GetRequiredService<ILogger<App>>();
+
+        // Single low-level keyboard hook for ALL global hotkeys (popup, region capture, color picker,
+        // recording, ...). Hook-based registration wins against any foreground app's keyboard
+        // shortcut and even against OS-reserved combos like Win+Shift+S — same approach PowerToys
+        // KeyboardManager uses. In-app shortcuts (popup Ctrl+P / Enter / Ctrl+1-9, editor bindings)
+        // stay focus-local via the WPF Window's KeyDown handlers — those don't pass through here.
+        _keyboardHook = _host.Services.GetRequiredService<KeyboardHook>();
+
+        // Every hotkey now invokes a workflow (pipeline profile) by id. The 1:1 mapping between
+        // hotkey id and workflow id is intentional: HotkeyConfigService's Catalog is built from
+        // profiles, so the ids are workflow ids. WorkflowRunner loads the profile and runs its steps.
+        var workflowRunner = _host.Services.GetRequiredService<WorkflowRunner>();
+        Action MakeCallback(string workflowId)
+            => () => Dispatcher.InvokeAsync(() => _ = workflowRunner.RunAsync(workflowId, CancellationToken.None));
+
+        async Task RegisterCatalogAsync(string id)
+        {
+            // Skip hotkey registration for hotkeys that belong to a disabled module — turning
+            // the module off means the global keyboard hook never even sees the binding, so
+            // the user can reclaim the shortcut for another app or workflow without conflict.
+            if (IsHotkeyForDisabledModule(id, modules))
+            {
+                hotkeyLogger.LogInformation("Hotkey {Id} skipped — module disabled", id);
+                return;
+            }
+            var def = await hotkeyConfig.GetEffectiveAsync(id, CancellationToken.None);
+            if (def.VirtualKey == 0)
+            {
+                hotkeyLogger.LogInformation("Hotkey {Id} unbound — skipping registration", id);
+                return;
+            }
+            _keyboardHook.Register(id, def.Modifiers, def.VirtualKey, MakeCallback(id), suppress: true);
+            hotkeyLogger.LogInformation("Hotkey {Id} bound to {Combo}",
+                id, AresToys.App.Services.Hotkeys.HotkeyDisplay.Format(def.Modifiers, def.VirtualKey));
+        }
+
+        var catalog = await hotkeyConfig.GetCatalogAsync(CancellationToken.None);
+        foreach (var entry in catalog)
+            await RegisterCatalogAsync(entry.Id);
+
+        // Settings UI raises Changed when the user rebinds, clears, or resets → keep the hook in
+        // sync. VK 0 means the user cleared the binding, so unregister and don't re-register.
+        // Hotkeys for disabled modules stay unregistered even on rebind — the module flag is the
+        // hard gate; the binding edit persists but doesn't take effect until the module is
+        // re-enabled + the app restarted.
+        hotkeyConfig.Changed += (_, def) =>
+        {
+            _keyboardHook.Unregister(def.Id);
+            if (def.VirtualKey == 0)
+            {
+                hotkeyLogger.LogInformation("Hotkey {Id} cleared", def.Id);
+                return;
+            }
+            if (IsHotkeyForDisabledModule(def.Id, modules))
+            {
+                hotkeyLogger.LogInformation("Hotkey {Id} rebind ignored — module disabled", def.Id);
+                return;
+            }
+            _keyboardHook.Register(def.Id, def.Modifiers, def.VirtualKey, MakeCallback(def.Id), suppress: true);
+            // Special keys whose KEYDOWN is consumed by Windows before reaching the LL hook —
+            // we use their KEYUP as trigger (see KeyboardHook HookProc). When the rebind itself
+            // came from the user pressing this key inside HotkeyCaptureWindow, its KEYUP races
+            // straight into the freshly-registered binding and fires the workflow once. Swallow
+            // that single residual keyup so the trigger only counts the user's NEXT press.
+            const uint VK_SNAPSHOT = 0x2C;
+            const uint VK_PAUSE    = 0x13;
+            if (def.VirtualKey is VK_SNAPSHOT or VK_PAUSE)
+                _keyboardHook.SuppressNextKeyUp(def.VirtualKey);
+            hotkeyLogger.LogInformation("Hotkey {Id} re-bound to {Combo}",
+                def.Id, AresToys.App.Services.Hotkeys.HotkeyDisplay.Format(def.Modifiers, def.VirtualKey));
+        };
+
+        // Bootstrap KeySequences module before the hook is installed — the tracker registers a
+        // stream listener which the hook will then start invoking. Loading the runtime settings,
+        // hydrating the workflow-triggers provider, and building the initial matcher index are
+        // all idempotent / cheap when the module is off (the listener simply isn't registered).
+        if (modules.KeySequencesEnabled)
+        {
+            try
+            {
+                var ksSettings = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.KeySequenceModuleSettings>();
+                await ksSettings.LoadAsync(CancellationToken.None);
+                var workflowProvider = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.WorkflowSequenceProvider>();
+                await workflowProvider.LoadAsync(CancellationToken.None);
+                var bindingStore = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.SequenceBindingStore>();
+                bindingStore.Rebuild();
+                var tracker = _host.Services.GetRequiredService<AresToys.App.Services.KeySequences.KeySequenceTracker>();
+                tracker.ApplyEnabledState();
+                hotkeyLogger.LogInformation("KeySequences module bootstrapped — tracker listening on stream events.");
+            }
+            catch (Exception ex)
+            {
+                hotkeyLogger.LogError(ex, "KeySequences module bootstrap failed — module disabled for this session.");
+            }
+        }
+
+        try { _keyboardHook.Install(); hotkeyLogger.LogInformation("Low-level keyboard hook installed for global hotkeys."); }
+        catch (Exception ex) { hotkeyLogger.LogWarning(ex, "Failed to install keyboard hook"); }
+
+        // The clipboard ingestion service hooks the Win32 clipboard chain and watches for every
+        // copy event in the system — this is the single biggest "always-on" cost of the
+        // clipboard module. Gated on the module flag: turning Clipboard off in Settings means
+        // zero clipboard interception, zero SQLite writes on copy, zero "on-clipboard" workflow
+        // executions. The hotkey for Win+V is also skipped further up, so the user truly stops
+        // paying for the module.
+        if (modules.ClipboardEnabled)
+        {
+            var ingestion = _host.Services.GetRequiredService<ClipboardIngestionService>();
+            ingestion.Start(helper.Handle);
+        }
+
+        // Last step of the main path: start the non elevated satellite for the enabled modules. The bridge and the
+        // broadcaster are created first: the bridge registers its request handlers when the satellite connects and
+        // the broadcaster forwards theme and language changes. Apply() reads the settings and launches the process
+        // on the thread pool, so the UI thread is never held up.
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Launcher.LauncherHostBridge>();
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Launcher.AppStateBroadcaster>();
+        // Peek registers its Ctrl+Space binding and subscribes to SatelliteService.ModulesApplied, so it must exist
+        // before the first Apply(): that pass turns the shortcut on when the Peek module is enabled.
+        _ = _host.Services.GetRequiredService<AresToys.App.Services.Peek.PeekHotkey>();
+        _host.Services.GetRequiredService<SatelliteService>().Apply();
+        AresToys.App.Services.Logging.StartupTrace.Mark("satellite service applied");
+    }
+
+    private SatelliteHost? _satellite;
+
+    /// <summary>Logging shared by the main and the satellite container. The in-app Debug tab only exists in the
+    /// main app, so the satellite passes no <paramref name="debugLog"/>.</summary>
+    private static void ConfigureAppLogging(ILoggingBuilder logging, AresToys.App.Services.Logging.DebugLogService? debugLog)
+    {
+        logging.ClearProviders();
+        // Minimum Debug across the board so the in-app Debug tab is actually useful —
+        // by default Host.CreateDefaultBuilder filters at Information for app categories
+        // and Warning for Microsoft.* / System.*, which would hide most LogDebug calls.
+        logging.SetMinimumLevel(LogLevel.Debug);
+        logging.AddConsole();
+        if (debugLog is not null)
+            logging.AddProvider(new AresToys.App.Services.Logging.InMemoryLoggerProvider(debugLog));
+    }
+
+    /// <summary>The services both containers need before any window exists: the icon cache, the theme and the
+    /// UI language. The settings store comes from <c>AddAresToysStorage</c>, which both containers call.</summary>
+    private static void AddSharedUiServices(IServiceCollection services)
+    {
+        services.AddSingleton<IconService>();
+        services.AddSingleton<ThemeService>();
+        services.AddSingleton<LocalizationService>();
+    }
+
+    /// <summary>Applies the user's theme BEFORE any window resolves: ThemeService writes to App.Resources
+    /// and to WPF-UI's accent manager, both of which are read at control-template instantiation
+    /// time. Loading after MainWindow would cause a one-frame flash of the default blue accent.
+    /// Then pulls the persisted UI language and applies it to the current thread + app default before
+    /// any window resolves — Strings.ResourceManager reads CurrentUICulture, so loading after
+    /// MainWindow would render the first frame in English even if the user picked Italian.
+    /// Attach FIRST: LocalizedStrings.Attach wires the singleton that every {Markup:Loc Key=…}
+    /// binding shares; LoadAsync below now raises CultureChanged on initial load too, so any
+    /// surface that happens to materialise its bindings between InitializeComponent and the
+    /// dispatched ApplyToThread call gets a free refresh once the persisted culture is live.</summary>
+    private static async Task ApplyThemeAndLocalizationAsync(IServiceProvider services, string tracePrefix)
+    {
+        var theme = services.GetRequiredService<ThemeService>();
+        await theme.LoadAsync(CancellationToken.None);
+        AresToys.App.Services.Logging.StartupTrace.Mark(tracePrefix + "theme loaded");
+
+        var localization = services.GetRequiredService<LocalizationService>();
+        AresToys.App.Markup.LocalizedStrings.Instance.Attach(localization);
+        await localization.LoadAsync(CancellationToken.None);
+    }
+
+    /// <summary>The reduced start of <c>--satellite</c>: a small container (settings store, theme, localization, icon
+    /// cache and the satellite modules), no main window, tray, hotkeys, update check or clipboard. The process
+    /// follows the main app: if it cannot connect to it, it exits at once.</summary>
+    private async Task RunSatelliteAsync(SatelliteArgs args)
+    {
+        try
+        {
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureLogging(logging => ConfigureAppLogging(logging, debugLog: null))
+                .ConfigureServices(services =>
+                {
+                    services.AddAresToysStorage();
+                    AddSharedUiServices(services);
+                    SatelliteHost.AddModules(services);
+                })
+                .Build();
+            AresToys.App.Services.Logging.StartupTrace.Mark("satellite: services configured");
+            await _host.StartAsync();
+
+            // Same database file as the main app (the main already ran the migrations).
+            await _host.Services.GetRequiredService<IAresToysDatabase>().InitializeAsync(CancellationToken.None);
+            AresToys.App.Services.Logging.StartupTrace.Mark("satellite: database ready");
+
+            await ApplyThemeAndLocalizationAsync(_host.Services, tracePrefix: "satellite: ");
+
+            _satellite = new SatelliteHost(args, _host.Services, this);
+            if (!await _satellite.RunAsync())
+            {
+                Shutdown();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            // No window to show it in: the crash log folder and the trace are the only places.
+            AresToys.App.Services.Logging.StartupTrace.Mark("satellite: start failed " + ex.GetType().Name + ": " + ex.Message);
+            _host?.Services.GetService<ILogger<App>>()?.LogError(ex, "Satellite start failed");
+            Shutdown();
+        }
+    }
+
+
+    /// <summary>Show the import-confirmation dialog for a .sxcu file the user double-clicked
+    /// (or that came in via Explorer file association). On confirm we copy the file into the
+    /// custom-uploaders folder and tell the user to restart — adding an uploader at runtime
+    /// would mean re-rebuilding the DI graph, which isn't worth the complexity for a one-time
+    /// import flow.</summary>
+    private void HandleSxcuOpen(string path, Window owner)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                MessageBox.Show(owner, $"File not found:\n{path}", "AresToys",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var json = File.ReadAllText(path);
+            var config = AresToys.CustomUploaders.CustomUploaderConfigLoader.Parse(json);
+            if (config is null || !AresToys.CustomUploaders.CustomUploaderConfigLoader.IsValid(config))
+            {
+                MessageBox.Show(owner,
+                    $"This file isn't a valid .sxcu — it's missing the required Name or RequestURL fields.\n\n{path}",
+                    "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var dlg = new AresToys.App.Views.SxcuImportDialog(path, config) { Owner = owner };
+            if (dlg.ShowDialog() == true && dlg.InstalledPath is not null)
+            {
+                MessageBox.Show(owner,
+                    $"Installed to:\n{dlg.InstalledPath}\n\nRestart AresToys to load the new uploader.",
+                    "AresToys", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(owner, $"Couldn't open .sxcu file:\n{ex.Message}",
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Direct import of a .sxie image-effects preset (Explorer file association).
+    /// Mirrors ShareX's behaviour — no confirmation dialog, just open the image-effects window
+    /// with the imported preset selected. If an editor window is already open, we reuse it
+    /// (importing into its existing VM + bringing it forward) instead of stacking N windows.</summary>
+    private async void HandleSxieOpen(string path, Window owner)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                MessageBox.Show(owner, $"File not found:\n{path}", "AresToys",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Reuse an open editor if there is one — Application.Windows includes any
+            // ImageEffectsWindow opened from Settings or from a previous .sxie association.
+            var existing = Application.Current.Windows
+                .OfType<AresToys.App.Views.ImageEffectsWindow>()
+                .FirstOrDefault();
+            if (existing is not null)
+            {
+                if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+                existing.Activate();
+                await existing.ImportSxieAsync(path).ConfigureAwait(true);
+                return;
+            }
+
+            // No editor open yet — spin one up with the same DI wiring as the
+            // "Open image effects editor…" button in Settings (SQLite preset store + persisted
+            // window placement).
+            var presetStore = _host!.Services.GetRequiredService<AresToys.Storage.ImageEffects.IImageEffectPresetStore>();
+            var settingsStore = _host.Services.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+            var vm = new AresToys.App.ViewModels.ImageEffects.ImageEffectsViewModel(
+                AresToys.ImageEffects.ImageEffectRegistry.Default, presetStore);
+            var window = new AresToys.App.Views.ImageEffectsWindow(vm, settingsStore) { Owner = owner };
+            window.Show();
+            await vm.ImportSxieFileAsync(path).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(owner, $"Couldn't open .sxie file:\n{ex.Message}",
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Route a file path from the Explorer "Upload with AresToys" verb through the
+    /// pipeline profile chosen by the user in Settings (default <c>manual-upload</c>). Lets the
+    /// context-menu entry trigger any user-visible workflow — e.g. "save to local folder", "upload
+    /// to Imgur and copy link", or a custom-built profile. Fire-and-forget; the workflow's own
+    /// toast/clipboard steps handle user feedback.</summary>
+    private void HandleUploadOpen(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                MessageBox.Show($"File not found:\n{path}", "AresToys",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var manual = _host?.Services.GetService(typeof(ManualUploadService)) as ManualUploadService;
+            if (manual is null)
+            {
+                MessageBox.Show("AresToys isn't fully initialised yet — try again in a moment.",
+                    "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var settings = _host?.Services.GetService(typeof(AresToys.Storage.Settings.ISettingsStore)) as AresToys.Storage.Settings.ISettingsStore;
+            _ = Task.Run(async () =>
+            {
+                // Resolve the profile id off the UI thread (settings reads hit SQLite). Empty / null
+                // → default profile, same fallback ManualUploadService applies for unknown ids.
+                var profileId = settings is null
+                    ? AresToys.Pipeline.Profiles.DefaultPipelineProfiles.ManualUploadId
+                    : (await settings.GetAsync(ExplorerContextMenuWorkflowKey, CancellationToken.None).ConfigureAwait(false))
+                        is { Length: > 0 } stored
+                            ? stored
+                            : AresToys.Pipeline.Profiles.DefaultPipelineProfiles.ManualUploadId;
+                await manual.UploadFileToProfileAsync(path, profileId, CancellationToken.None).ConfigureAwait(false);
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Couldn't start upload:\n{ex.Message}",
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Spawn a wormhole pointing at <paramref name="folderPath"/>. Called from the
+    /// Explorer "Create Wormhole" folder right-click verb (cold-start via <c>--create-wormhole</c>
+    /// CLI or warm-forward via <see cref="SingleInstanceGuard.CreateWormholePrefix"/> on the
+    /// IPC pipe). Title defaults to the folder name; no dialog — the user already expressed
+    /// intent by clicking the menu entry. Wormholes module is auto-enabled if it was off.</summary>
+    private void HandleCreateWormhole(string folderPath)
+    {
+        try
+        {
+            if (!Directory.Exists(folderPath))
+            {
+                MessageBox.Show($"Folder not found:\n{folderPath}", "AresToys",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var proxy = _host?.Services.GetService(typeof(AresToys.App.Services.Wormholes.WormholeWindowManagerProxy))
+                as AresToys.App.Services.Wormholes.WormholeWindowManagerProxy;
+            if (proxy is null)
+            {
+                MessageBox.Show("AresToys isn't fully initialised yet — try again in a moment.",
+                    "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var title = Path.GetFileName(folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(title)) title = "Wormhole";
+            // The satellite may be just starting (or the module off): enable it, wait for it, then create.
+            _ = CreateAfterAsync(EnsureWormholesRunningAsync(proxy), proxy, title, folderPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Couldn't create wormhole:\n{ex.Message}",
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Hand one Explorer resize request to <see cref="AresToys.App.Services.ImageResize.ResizeRequestBatcher"/>.
+    /// <paramref name="payload"/> is the workflow id, a TAB, then the absolute file path (the
+    /// pipe message minus its prefix). A malformed payload is logged and ignored.</summary>
+    private void QueueResizeRequest(string payload)
+    {
+        var tab = payload.IndexOf('\t');
+        if (tab <= 0 || tab == payload.Length - 1)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogWarning("Ignoring malformed resize request");
+            return;
+        }
+        _host?.Services.GetRequiredService<AresToys.App.Services.ImageResize.ResizeRequestBatcher>()
+            .Add(payload[..tab], payload[(tab + 1)..]);
+    }
+
+    private const string ResizeQuickLastKey = "resizer.quick.last";
+    private bool _resizeQuickBusy;
+    private AresToys.App.Views.ResizeQuickDialog? _resizeQuickDialog;
+
+    /// <summary>Route the Explorer "Custom" resize batch to the quick dialog. The batcher raises
+    /// the event on a pool thread, so the work is marshalled to the Dispatcher. The dialog is
+    /// non-modal and single: a second request while one is open or opening just activates it.
+    /// On Resize the files go through <see cref="ResizeImageFilesTask.RunBatchAsync"/>, the same
+    /// loop the "Resize image files" task runs.</summary>
+    private void SubscribeResizeQuickDialog()
+    {
+        var batcher = _host!.Services.GetRequiredService<AresToys.App.Services.ImageResize.ResizeRequestBatcher>();
+        batcher.CustomRequested += files =>
+            Dispatcher.BeginInvoke(new Action(async () => await ShowResizeQuickDialogAsync(files)));
+    }
+
+    private async Task ShowResizeQuickDialogAsync(IReadOnlyList<string> files)
+    {
+        if (_resizeQuickBusy)
+        {
+            _resizeQuickDialog?.Activate();
+            return;
+        }
+        _resizeQuickBusy = true;
+        var sp = _host!.Services;
+        var logger = sp.GetService<ILogger<App>>();
+        try
+        {
+            var profiles = await sp.GetRequiredService<IPipelineProfileStore>().ListAsync(CancellationToken.None);
+            var presets = new List<AresToys.App.Views.ResizePresetItem>();
+            foreach (var profile in profiles)
+            {
+                if (DefaultPipelineProfiles.CategoryOf(profile) != DefaultPipelineProfiles.ResizerCategory) continue;
+                var step = profile.Steps.FirstOrDefault(
+                    s => s.TaskId == DefaultPipelineProfiles.ResizeImageFilesTaskId);
+                if (step?.Config is not System.Text.Json.Nodes.JsonObject config) continue;
+                presets.Add(new AresToys.App.Views.ResizePresetItem(
+                    WorkflowDisplayNameLocalizer.Localize(profile.Id, profile.DisplayName), config));
+            }
+
+            var settings = sp.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+            System.Text.Json.Nodes.JsonObject? last = null;
+            try
+            {
+                var json = await settings.GetAsync(ResizeQuickLastKey, CancellationToken.None);
+                if (!string.IsNullOrWhiteSpace(json))
+                    last = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                logger?.LogWarning(ex, "Ignoring unreadable stored quick resize values");
+            }
+
+            var saver = sp.GetRequiredService<AresToys.App.Services.ImageResize.ResizePresetSaver>();
+            var dialog = new AresToys.App.Views.ResizeQuickDialog(
+                files, presets, last ?? new System.Text.Json.Nodes.JsonObject(),
+                async (name, config) => (await saver.SaveAsync(name, config)).Name);
+            _resizeQuickDialog = dialog;
+            dialog.Closed += (_, _) =>
+            {
+                _resizeQuickDialog = null;
+                _resizeQuickBusy = false;
+                if (dialog.ResultConfig is { } config) StartQuickResize(files, config);
+            };
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            _resizeQuickBusy = false;
+            _resizeQuickDialog = null;
+            logger?.LogError(ex, "Could not open the quick resize dialog");
+        }
+    }
+
+    private void StartQuickResize(IReadOnlyList<string> files, System.Text.Json.Nodes.JsonObject config)
+    {
+        var sp = _host!.Services;
+        var logger = sp.GetService<ILogger<App>>();
+        var task = sp.GetRequiredService<ResizeImageFilesTask>();
+        var settings = sp.GetRequiredService<AresToys.Storage.Settings.ISettingsStore>();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await settings.SetAsync(ResizeQuickLastKey, config.ToJsonString(), sensitive: false, CancellationToken.None);
+                await task.RunBatchAsync(files, config, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Quick resize failed");
+            }
+        });
+    }
+
+    /// <summary>Turns the Wormholes module on when it is off (persisted, so the next cold start keeps it), makes sure
+    /// the satellite runs for the enabled modules and waits until it reports the wormholes ready. Starts at once and
+    /// never throws: the task result is false when the satellite was not ready in time.</summary>
+    private async Task<bool> EnsureWormholesRunningAsync(AresToys.App.Services.Wormholes.WormholeWindowManagerProxy proxy)
+    {
+        try
+        {
+            var modules = _host?.Services.GetService(typeof(ModuleSettings)) as ModuleSettings;
+            if (modules is not null && !modules.WormholesEnabled)
+            {
+                modules.WormholesEnabled = true;
+                if (_host?.Services.GetService(typeof(AresToys.Storage.Settings.ISettingsStore)) is AresToys.Storage.Settings.ISettingsStore settingsStore)
+                    await settingsStore.SetAsync(ModuleSettings.WormholesKey, "true", sensitive: false, CancellationToken.None).ConfigureAwait(false);
+            }
+            // Apply reads the settings written above; it restarts the satellite when the module set changed and
+            // does nothing when it already runs for the right set.
+            _host?.Services.GetService<SatelliteService>()?.Apply();
+            return await proxy.WaitReadyAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Wormholes: starting the satellite failed");
+            return false;
+        }
+    }
+
+    private async Task CreateAfterAsync(Task<bool> ensure, AresToys.App.Services.Wormholes.WormholeWindowManagerProxy proxy, string title, string folder)
+    {
+        try
+        {
+            await ensure.ConfigureAwait(false);
+            await proxy.CreateAsync(title, folder, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogWarning(ex, "Couldn't create the wormhole for {Folder}", folder);
+        }
+    }
+
+    /// <summary>Open <see cref="AresToys.App.Views.NewWormholeDialog"/> so the user picks a
+    /// source folder, then spawn the wormhole. Triggered by the Background variant of the
+    /// shell verb — right-click on empty area, where the current folder is rarely what the
+    /// user wants to mirror. Pairs with <see cref="HandleCreateWormhole"/> for the auto-create
+    /// case (Item variant — right-click on a folder icon).</summary>
+    private void HandleNewWormholeDialog()
+    {
+        try
+        {
+            var proxy = _host?.Services.GetService(typeof(AresToys.App.Services.Wormholes.WormholeWindowManagerProxy))
+                as AresToys.App.Services.Wormholes.WormholeWindowManagerProxy;
+            if (proxy is null)
+            {
+                MessageBox.Show("AresToys isn't fully initialised yet — try again in a moment.",
+                    "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            // Auto-enable Wormholes module if off — the user clicked the menu so they want it on. The satellite
+            // starts while the dialog is open; the wait for it happens after the choice.
+            var ensure = EnsureWormholesRunningAsync(proxy);
+
+            var dlg = new AresToys.App.Views.NewWormholeDialog();
+            if (dlg.ShowDialog() != true || dlg.Result is null) return;
+            var choice = dlg.Result;
+            _ = CreateAfterAsync(ensure, proxy, choice.Title, choice.SourceFolder);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Couldn't open the New Wormhole dialog:\n{ex.Message}",
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Settings key carrying the pipeline profile id triggered by the Explorer
+    /// "Upload with AresToys" verb. Empty / unset → <c>manual-upload</c>. Kept here so the App
+    /// handler and the Settings UI stay in sync.</summary>
+    public const string ExplorerContextMenuWorkflowKey = "explorer.context_menu.workflow";
+
+    /// <summary>True when the hotkey id belongs to a feature module currently disabled in
+    /// <see cref="ModuleSettings"/>. Used by the hotkey registration loop to skip a binding
+    /// outright (the global keyboard hook never sees the combo, leaving the shortcut free for
+    /// the user's other apps). Mapping is intentionally explicit + small — every module owns at
+    /// most a couple of workflow ids and a static table keeps the gating predictable.</summary>
+    private static bool IsHotkeyForDisabledModule(string hotkeyId, ModuleSettings modules)
+    {
+        // Clipboard module owns the Win+V popup. The "on-clipboard" automatic workflow is not a
+        // hotkey (fired by ClipboardIngestionService events), so gating Ingestion above covers it.
+        // Incognito is a clipboard-capture suppression toggle — also pointless without ingestion.
+        if (!modules.ClipboardEnabled &&
+            (hotkeyId == AresToys.Pipeline.Profiles.DefaultPipelineProfiles.ShowPopupId
+             || hotkeyId == AresToys.Pipeline.Profiles.DefaultPipelineProfiles.ToggleIncognitoId))
+            return true;
+        // Launcher module owns the open-launcher workflow.
+        if (!modules.LauncherEnabled && hotkeyId == AresToys.Pipeline.Profiles.DefaultPipelineProfiles.OpenLauncherId)
+            return true;
+        // Wormholes hotkeys (new-wormhole, hide-all) will join this table when the feature
+        // ships; until then there's nothing for them to gate.
+        return false;
+    }
+
+    /// <summary>Show a confirm dialog for an available update. OK → download + apply + restart.
+    /// Cancel → leave it for the next launch (Velopack will offer it again on the next silent
+    /// check). Used by both the toast click and the Settings → "Check for updates" button.</summary>
+    internal static async Task PromptInstallUpdateAsync(AresToys.Updater.UpdaterService updater, Velopack.UpdateInfo info)
+    {
+        var version = info.TargetFullRelease.Version.ToString();
+        var choice = MessageBox.Show(
+            $"AresToys {version} is available.\n\nDownload and restart now?",
+            "Update AresToys",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Information,
+            MessageBoxResult.OK);
+        if (choice != MessageBoxResult.OK) return;
+        try { await updater.DownloadAndRestartAsync(info, ConfirmCloseLockersAsync, CancellationToken.None).ConfigureAwait(true); }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Update failed:\n{ex.Message}", "AresToys",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Callback passed to <see cref="AresToys.Updater.UpdaterService.DownloadAndRestartAsync"/>:
+    /// when processes are locking the install folder, list them and let the user choose to close them
+    /// and continue, or cancel (deferring the update). Runs on the UI thread — MessageBox requires it.</summary>
+    private static Task<bool> ConfirmCloseLockersAsync(IReadOnlyList<AresToys.Updater.LockingProcess> lockers)
+    {
+        var app = Current;
+        if (app is null) return Task.FromResult(false);
+        var result = app.Dispatcher.Invoke(() =>
+        {
+            var list = string.Join("\n", lockers.Select(l => $"  • {l.AppName} ({l.ProcessName}, PID {l.Pid})"));
+            return MessageBox.Show(
+                $"These programs are keeping AresToys files open and must be closed to finish the update:\n\n{list}\n\nClose them and continue?",
+                "Update blocked",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning,
+                MessageBoxResult.OK);
+        });
+        return Task.FromResult(result == MessageBoxResult.OK);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        // WM_HOTKEY no longer needed (all hotkeys go through the low-level keyboard hook). Only the
+        // clipboard-update message is still routed through here for the Win32ClipboardListener.
+        if (msg == AppNativeMethods.WmClipboardUpdate)
+        {
+            var listener = Services.GetService<IClipboardListener>();
+            handled = listener?.OnWindowMessage(msg) ?? false;
+            return IntPtr.Zero;
+        }
+        return IntPtr.Zero;
+    }
+
+    /// <summary>True once <see cref="OnExit(ExitEventArgs)"/> has fired. Singleton windows
+    /// (ClipboardWindow / LauncherWindow) intercept their Closing event to Hide instead of
+    /// Close so the next hotkey press can re-Show them; during shutdown we need them to
+    /// actually close, so they read this flag to skip the cancel-and-hide path.</summary>
+    public static bool IsShuttingDown { get; private set; }
+
+    protected override async void OnExit(ExitEventArgs e)
+    {
+        IsShuttingDown = true;
+        // The built-in "New" is hidden only while AresToys runs (Windows' own Ctrl+Shift+N comes back with it).
+        if (_satellite is null && AresToys.App.Services.NewPlus.NewPlusContextMenuRegistration.HiddenByThisProcess)
+            AresToys.App.Services.NewPlus.NewPlusContextMenuRegistration.RestoreBuiltInNewOnExit();
+        _keyboardHook?.Dispose();
+        // Satellite process: stops its modules and closes the channel. Main process: stops the satellite.
+        _satellite?.Dispose();
+        _host?.Services.GetService<AresToys.App.Services.Launcher.AppStateBroadcaster>()?.Dispose();
+        _host?.Services.GetService<AresToys.App.Services.Launcher.LauncherHostBridge>()?.Dispose();
+        _host?.Services.GetService<SatelliteService>()?.Dispose();
+        if (_host is not null)
+        {
+            _host.Services.GetService<ClipboardIngestionService>()?.Dispose();
+            _host.Services.GetService<IClipboardListener>()?.Dispose();
+            _host.Services.GetService<TrayIconService>()?.Dispose();
+            // Main process: the proxy only unsubscribes; the satellite closes its wormhole windows itself when the
+            // channel ends. (Absent from the satellite container, where its host stops the module.)
+            _host.Services.GetService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>()?.Dispose();
+            _host.Services.GetService<SingleInstanceGuard>()?.Dispose();
+            _host.Services.GetService<ExternalTextEditorService>()?.Dispose();
+            await _host.StopAsync(TimeSpan.FromSeconds(2));
+            _host.Dispose();
+        }
+        base.OnExit(e);
+    }
+
+}

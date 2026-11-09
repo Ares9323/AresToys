@@ -1,0 +1,460 @@
+<Window x:Class="AresToys.App.Views.WormholeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="CanResize"
+        AllowDrop="True"
+        Width="320" Height="240"
+        MinWidth="220" MinHeight="80"
+        Title="Wormhole">
+    <!-- Outer border: rounded corners + theme accent. Background is intentionally Transparent
+         so the opacity-faded backdrop Borders inside it can render without dragging the
+         opacity onto child content (icons stay fully opaque while the surface dims). -->
+    <Border x:Name="OuterFrame"
+            CornerRadius="6"
+            Background="Transparent"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
+            BorderThickness="1"
+            MouseDown="OnContentAreaMouseDown"
+            DragEnter="OnDragEnter"
+            DragOver="OnDragOver"
+            Drop="OnDrop">
+        <Border.Effect>
+            <!-- Opacity is set in code at ApplyAppearance time — the 0.45 here is just the
+                 design-time baseline so the editor preview looks right. ApplyAppearance multiplies
+                 it by the user's "Border opacity" setting. -->
+            <DropShadowEffect x:Name="OuterShadow" Color="Black" BlurRadius="12" ShadowDepth="0" Opacity="0.45" />
+        </Border.Effect>
+
+        <Grid>
+            <!-- Body backdrop — Surface1 fill behind the entire interior. ApplyAppearance()
+                 fades this layer; content above stays opaque. IsHitTestVisible=False so
+                 click-through reaches the foreground content / OuterFrame handlers. -->
+            <Border x:Name="BodyBackdrop"
+                    Background="{DynamicResource Surface1Brush}"
+                    CornerRadius="6"
+                    IsHitTestVisible="False" />
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Header backdrop. Same opacity as BodyBackdrop but uses Surface2 for the
+                     header strip. CornerRadius=6,6,0,0 so the top corners follow the outer
+                     ring. Click-through to the header content overlay below. -->
+                <Border x:Name="HeaderBackdrop"
+                        Grid.Row="0"
+                        Height="32"
+                        Background="{DynamicResource Surface2Brush}"
+                        CornerRadius="6,6,0,0"
+                        IsHitTestVisible="False" />
+
+            <!-- Header chrome. Layout: [chevron] [title] [search] [lock] [hamburger].
+                 Background=Transparent now — the visual fill lives on HeaderBackdrop above.
+                 x:Name so ApplyHeaderChrome() can fade the whole strip's content out when the
+                 "hide header" default is on (the Border itself keeps its size and its
+                 MouseDown handler, so the strip stays draggable while invisible). -->
+            <Border x:Name="HeaderChrome"
+                    Grid.Row="0" Height="32"
+                    Background="Transparent"
+                    MouseDown="OnHeaderMouseDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- 0=chevron, 1=title (stretches), 2=search-slot (icon collapsed →
+                             ~28 px; textbox expanded → ~160 px), 3=lock, 4=hamburger -->
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="SearchSlotColumn" Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Chevron: toggle roll-up. Glyph swapped at runtime in ApplyRollState. -->
+                    <Button x:Name="ChevronButton"
+                            Grid.Column="0"
+                            Width="28" Height="28"
+                            Margin="2,2,0,2"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnChevronClicked"
+                            ToolTip="{Markup:Loc Wormhole_RollUpUnrollTooltip}">
+                        <TextBlock x:Name="ChevronGlyph"
+                                   FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+
+                    <!-- Title: TextBlock (visible by default) and TextBox (visible during inline
+                         rename). Both bound to Title; visibility toggled in code-behind. -->
+                    <TextBlock x:Name="TitleText"
+                               Grid.Column="1"
+                               Text="{Binding Title}"
+                               Foreground="{DynamicResource AccentForegroundBrush}"
+                               FontSize="13" FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="6,0,8,0"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBox x:Name="TitleEditor"
+                             Grid.Column="1"
+                             Visibility="Collapsed"
+                             VerticalAlignment="Center"
+                             Margin="6,0,8,0"
+                             FontSize="13" FontWeight="SemiBold"
+                             KeyDown="OnTitleEditorKeyDown"
+                             LostFocus="OnTitleEditorLostFocus" />
+
+                    <!-- Tab strip: replaces the title when this window hosts a group. The active
+                         tab is filled and lit, the others are quiet text — the same reading order
+                         as the reference. Each tab drags out of the header to become its own
+                         wormhole again. -->
+                    <!-- UniformGrid, not a StackPanel: the tabs share the header's width evenly
+                         instead of huddling at the left edge, which is what the strip is for. -->
+                    <!-- UniformGrid, not a StackPanel: the tabs share the header's width evenly
+                         instead of huddling at the left edge. Stretched in both directions and
+                         with no margins, so each tab's colour fills its slice of the strip edge to
+                         edge rather than floating as a pill inside it. -->
+                    <!-- Margins left and right are the grab area: without them the strip covers the
+                         whole header and every press lands on a tab, so there'd be nowhere to take
+                         hold of the window itself — dragging it to move, or onto another wormhole
+                         to merge, would instead pull a tab out of the group. -->
+                    <ItemsControl x:Name="TabStrip"
+                                  Grid.Column="1"
+                                  Visibility="Collapsed"
+                                  Margin="16,0,16,0"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Stretch"
+                                  VerticalAlignment="Stretch">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                <Setter Property="VerticalAlignment" Value="Stretch" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Background}"
+                                        Padding="8,0"
+                                        Margin="0"
+                                        Cursor="Hand"
+                                        Tag="{Binding Id}"
+                                        ToolTip="{Binding Title}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        MouseEnter="OnTabMouseEnter"
+                                        MouseLeftButtonDown="OnTabMouseDown"
+                                        MouseMove="OnTabMouseMove"
+                                        MouseLeftButtonUp="OnTabMouseUp">
+                                    <TextBlock Text="{Binding Title}"
+                                               Foreground="{Binding Foreground}"
+                                               FontSize="12"
+                                               FontWeight="{Binding Weight}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Search slot: a Grid that hosts both the icon-mode Button and the
+                         active TextBox in the same cell, toggling Visibility. When the user
+                         clicks the magnifying-glass the icon collapses and a TextBox expands
+                         to ~160 px (handled in code-behind by re-sizing SearchSlotColumn).
+                         Esc / blur-with-empty-text snaps back to icon-mode; a non-empty filter
+                         keeps the textbox visible so the user sees the active filter and can
+                         clear it. -->
+                    <Grid Grid.Column="2" x:Name="SearchSlot" Margin="0,2">
+                        <Button x:Name="SearchIconButton"
+                                Width="28" Height="28"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="OnSearchIconClicked"
+                                ToolTip="Filter items in this wormhole">
+                            <!-- FontAwesome Free Solid "magnifying-glass" glyph ( in the
+                                 codepoint, also reachable via the canonical name in FA 7+). The
+                                 IconFont resource is defined at App.xaml so the same font drops
+                                 in regardless of which window we're inside. -->
+                            <TextBlock Text="&#xf002;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource AccentForegroundBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Button>
+                        <TextBox x:Name="SearchBox"
+                                 Visibility="Collapsed"
+                                 VerticalAlignment="Center"
+                                 Margin="0,2,4,2"
+                                 Padding="6,2"
+                                 FontSize="11"
+                                 Background="{DynamicResource Surface3Brush}"
+                                 Foreground="{DynamicResource AccentForegroundBrush}"
+                                 BorderThickness="0"
+                                 TextChanged="OnSearchTextChanged"
+                                 KeyDown="OnSearchKeyDown"
+                                 LostFocus="OnSearchLostFocus" />
+                    </Grid>
+
+                    <Button x:Name="LockButton"
+                            Grid.Column="3"
+                            Width="28" Height="28"
+                            Margin="0,2"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnLockClicked"
+                            ToolTip="Lock / unlock">
+                        <TextBlock x:Name="LockGlyph"
+                                   FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+
+                    <Button x:Name="HamburgerButton"
+                            Grid.Column="4"
+                            Width="28" Height="28"
+                            Margin="0,2,4,2"
+                            Padding="0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Click="OnHamburgerClicked"
+                            ToolTip="Menu">
+                        <TextBlock FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Run Text="&#xE700;" />
+                        </TextBlock>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Content area: WrapPanel of items, scrollable on overflow. Empty state shows a
+                 hint about dropping files. The placeholder is hidden in code-behind whenever
+                 there's at least one item, and reappears when the last one is removed. -->
+            <Border x:Name="ContentArea" Grid.Row="1" Padding="6">
+                <Grid x:Name="ContentGrid">
+                    <!-- ListBox instead of ItemsControl: gives us selection (single + Ctrl/Shift
+                         multi-select like Explorer) AND keyboard navigation for free. We strip
+                         the default chrome (border, padding) from ListBoxItem so the tile spacing
+                         matches Portals/Fences density rather than the WPF default which adds
+                         ~2-3 px of padding per side. Selection highlight + hover use the user's
+                         AccentBackgroundBrush so the look tracks the theme. -->
+                    <ListBox x:Name="ItemsHost"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             SelectionMode="Extended"
+                             PreviewKeyDown="OnItemsHostPreviewKeyDown"
+                             SelectionChanged="OnItemsHostSelectionChanged"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             HorizontalContentAlignment="Stretch">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <!-- Margin bound to the per-item TileMargin so LineSpacingPx
+                                     can pull the next row up (negative bottom) or push it down
+                                     (positive). Works because ListBoxItem DataContext is the
+                                     WormholeItemViewModel and ItemContainerStyle setters bind
+                                     against that data context. -->
+                                <Setter Property="Margin" Value="{Binding TileMargin}" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Focusable" Value="True" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <!-- Tile size comes from the bound WormholeItemViewModel
+                                                 (TileWidth / TileHeight) — the user's Ctrl+Wheel
+                                                 zoom mutates record.IconSizePx and we rebuild the
+                                                 items, so each new VM hands us fresh dimensions.
+                                                 CornerRadius=4 gives the selection halo a soft edge;
+                                                 triggers below swap Background on hover/selection. -->
+                                            <Border x:Name="TileBorder"
+                                                    Margin="1"
+                                                    CornerRadius="4"
+                                                    Background="Transparent"
+                                                    SnapsToDevicePixels="True">
+                                                <ContentPresenter HorizontalAlignment="Stretch"
+                                                                  VerticalAlignment="Stretch" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <!-- Hover: translucent accent so unselected tiles
+                                                     glow softly on mouse-over (matches Explorer's
+                                                     hover treatment in icon view). -->
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="TileBorder" Property="Background" Value="{DynamicResource AccentBackgroundLightBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="TileBorder" Property="Background" Value="{DynamicResource AccentBackgroundBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <!-- Per-item tile content: icon on top + label below. Mouse
+                                     handlers stay on the inner Border (not the ListBoxItem) so
+                                     ListBox selection + double-click-to-open + right-click-menu
+                                     all coexist without one swallowing the other. Tile size +
+                                     icon size are driven by the VM so Ctrl+Wheel zoom propagates
+                                     by rebuilding the items collection with new VM instances. -->
+                                <!-- Cursor follows the "open with one click" setting: a hand only
+                                     when a single click opens the tile, otherwise the plain arrow
+                                     (see WormholeWindow.ItemCursor). -->
+                                <Border Background="Transparent"
+                                        Cursor="{Binding ItemCursor, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        Width="{Binding TileWidth}"
+                                        Height="{Binding TileHeight}"
+                                        Opacity="{Binding IsCutMarked, Converter={StaticResource BoolToOpacity}}"
+                                        AllowDrop="True"
+                                        DragEnter="OnItemDragEnter"
+                                        DragOver="OnItemDragOver"
+                                        Drop="OnItemDrop"
+                                        MouseLeftButtonDown="OnItemMouseDown"
+                                        MouseRightButtonUp="OnItemRightButtonUp"
+                                        PreviewMouseLeftButtonDown="OnItemPreviewMouseLeftButtonDown"
+                                        PreviewMouseLeftButtonUp="OnItemPreviewMouseLeftButtonUp"
+                                        PreviewMouseMove="OnItemPreviewMouseMove">
+                                    <!-- Grid (not StackPanel) for the icon+label split: row 0 sizes
+                                         to icon content, row 1 takes the remainder. The TextBlock
+                                         carries BOTH Width AND MaxWidth bound to TileWidth — Width
+                                         forces the measure pass to use that constraint for the
+                                         wrap calculation, MaxWidth backstops it if anything
+                                         further up tries to shrink-wrap. Belt and suspenders
+                                         because the simpler StackPanel + Width approach hasn't
+                                         been wrapping in practice on the user's setup. -->
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Image Grid.Row="0"
+                                               Source="{Binding Icon}"
+                                               Width="{Binding IconSizePx}"
+                                               Height="{Binding IconSizePx}"
+                                               HorizontalAlignment="Center"
+                                               Margin="{Binding IconMargin}"
+                                               RenderOptions.BitmapScalingMode="HighQuality" />
+                                        <TextBlock Grid.Row="1"
+                                                   Text="{Binding DisplayNameWrappable}"
+                                                   Width="{Binding TileWidth}"
+                                                   MaxWidth="{Binding TileWidth}"
+                                                   MaxHeight="{Binding LabelAreaHeight}"
+                                                   Visibility="{Binding IsRenaming, Converter={StaticResource InverseBoolToVisibility}}"
+                                                   Foreground="{DynamicResource AccentForegroundBrush}"
+                                                   FontSize="{Binding LabelFontSizePx}"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Top"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,2,0,2" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock x:Name="EmptyStateHint"
+                               Text="No items yet — drop files here."
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                               FontSize="11"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               TextWrapping="Wrap" TextAlignment="Center" />
+
+                    <!-- Source-missing error state: shown by RefreshPortalItems when the
+                         configured SourcePath doesn't resolve on disk (drive ejected, folder
+                         deleted, network share down). The "Pick a new folder…" button reuses
+                         OnChangeFolder so the user can repoint the wormhole without going
+                         through the hamburger menu. -->
+                    <!-- Inline item rename overlay. Sibling of ItemsHost so it can be absolutely
+                         positioned over the selected tile's label via Margin (computed in
+                         code-behind from the ListBoxItem's TransformToVisual). Hidden by default;
+                         F2 on a selected item populates Text with the raw filename and shows it.
+                         Enter commits via File.Move / Directory.Move (FileSystemWatcher then
+                         refreshes the wormhole); Esc / focus-loss-with-empty closes without
+                         renaming; focus-loss-with-text commits. -->
+                    <TextBox x:Name="ItemRenameEditor"
+                             Visibility="Collapsed"
+                             HorizontalAlignment="Left"
+                             VerticalAlignment="Top"
+                             FontSize="11"
+                             Padding="2,1"
+                             Background="{DynamicResource Surface2Brush}"
+                             Foreground="{DynamicResource AccentForegroundBrush}"
+                             BorderBrush="{DynamicResource AccentBackgroundBrush}"
+                             BorderThickness="1"
+                             TextWrapping="NoWrap"
+                             AcceptsReturn="False"
+                             KeyDown="OnItemRenameEditorKeyDown"
+                             LostKeyboardFocus="OnItemRenameEditorLostKeyboardFocus"
+                             TextChanged="OnItemRenameEditorTextChanged" />
+
+                    <StackPanel x:Name="SourceMissingPanel"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Margin="16" Visibility="Collapsed">
+                        <TextBlock Text="⚠ Source folder unavailable"
+                                   Foreground="{DynamicResource AccentDeleteBrush}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   TextAlignment="Center" Margin="0,0,0,4" />
+                        <TextBlock x:Name="SourceMissingPath"
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                   FontSize="11"
+                                   TextAlignment="Center" TextWrapping="Wrap"
+                                   MaxWidth="240"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,12" />
+                        <!-- Name-based suggestion. Shown only when the manager couldn't identify
+                             the folder for certain (that case is repaired silently) but the
+                             sibling wormholes point at a parent that contains a folder with this
+                             one's name. Confirmation is the user's, since a name match is a
+                             guess, not proof. -->
+                        <StackPanel x:Name="SourceSuggestionPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <TextBlock Text="Looks like it moved here:"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       FontSize="11" TextAlignment="Center" />
+                            <TextBlock x:Name="SourceSuggestionPath"
+                                       Foreground="{DynamicResource AccentForegroundBrush}"
+                                       FontSize="11" TextAlignment="Center" TextWrapping="Wrap"
+                                       MaxWidth="240" TextTrimming="CharacterEllipsis"
+                                       Margin="0,2,0,6" />
+                            <Button Content="Relink here"
+                                    Click="OnAcceptSourceSuggestionClicked"
+                                    Padding="12,4"
+                                    HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <Button Content="Pick a new folder…"
+                                Click="OnRelinkSourceClicked"
+                                Padding="12,4"
+                                HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

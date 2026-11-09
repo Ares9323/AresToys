@@ -1,0 +1,3319 @@
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using AresToys.App.Services.Launcher;
+using AresToys.App.Services.Wormholes;
+
+namespace AresToys.App.Views;
+
+public partial class WormholeWindow : Window
+{
+    // Segoe Fluent Icons code points pinned via ConvertFromUtf32 so the source stays pure
+    // ASCII (some tooling round-trips strip or re-encode private-use glyphs inline).
+    private static readonly string ChevronUpGlyph   = char.ConvertFromUtf32(0xE70E);
+    private static readonly string ChevronDownGlyph = char.ConvertFromUtf32(0xE70D);
+    private static readonly string LockClosedGlyph  = char.ConvertFromUtf32(0xE72E);
+    private static readonly string LockOpenGlyph    = char.ConvertFromUtf32(0xE785);
+    // (Per-kind glyph removed when the Shortcuts/Portal distinction was unified into a single
+    // "folder mirror" type — every wormhole is the same kind now, the chrome doesn't need to
+    // disambiguate.)
+
+    /// <summary>Hard cap on Portal items rendered per wormhole. Mirrors the spec §6.4 default.
+    /// Beyond this we emit a one-shot toast-style banner and truncate — large folders block
+    /// the dispatcher today (no virtualisation in MVP).</summary>
+    private const int PortalItemCap = 500;
+
+    private readonly WormholeRecord _record;
+
+    /// <summary>The tab currently on show. Same object as <see cref="_record"/> for an ungrouped
+    /// wormhole; in a tab group the window belongs to the parent — geometry, collapsed / hidden /
+    /// topmost / locked all live there — while the folder being listed, the accent colour, the icon
+    /// zoom and the title come from whichever tab is active. That split is the whole trick: the
+    /// window is one wormhole's, the contents are another's.</summary>
+    private WormholeRecord _active;
+
+    /// <summary>Header height in DIPs, matching the fixed Height on both header Borders in the
+    /// XAML. Doubles as the distance a tab has to be dragged vertically to count as "pulled out
+    /// of the strip".</summary>
+    private const double HeaderStripHeight = 32;
+
+    /// <summary>Anchor + id of a tab being dragged out of the header, set on mouse-down and
+    /// consumed once the pointer has travelled clear of the strip.</summary>
+    private System.Windows.Point? _tabDragStart;
+    private Guid? _tabDragId;
+    private readonly Action _onPersist;
+    private readonly IconService _icons;
+    private readonly string _wormholesRoot;
+    /// <summary>Shared defaults — icon size + opacity — read on every <see cref="EffectiveIconSize"/>
+    /// + <see cref="ApplyAppearance"/> call. Null when the manager didn't wire one (older tests
+    /// / direct construction); in that case we fall through to <see cref="DesktopIconSize"/>
+    /// for icon size and the legacy 0.95 hardcoded opacity.</summary>
+    private readonly Services.Wormholes.WormholeDefaultsService? _defaults;
+    /// <summary>Manager used to fan-out "I just got a selection — clear yours" events to sibling
+    /// wormholes. Null only on direct test construction; in normal app flow this is wired by
+    /// <see cref="Services.Wormholes.WormholeWindowManager"/> at spawn time.</summary>
+    private readonly Services.Wormholes.IWormholeWindowHost? _manager;
+    /// <summary>Resolves real site favicons for <c>.url</c> web-link tiles. Null on direct test
+    /// construction or when the Wormholes module wires the window without it; in normal app flow
+    /// it's injected by <see cref="Services.Wormholes.WormholeWindowManager"/>.</summary>
+    private readonly Services.Wormholes.Favicons.FaviconService? _favicons;
+    /// <summary>Colour picker for the per-wormhole accent override. Optional: a window built
+    /// without it simply doesn't offer the menu entry.</summary>
+    private readonly Services.ColorWheelLauncher? _colors;
+    private readonly ObservableCollection<WormholeItemViewModel> _items = new();
+    private bool _isClosingFromManager;
+    private bool _portalItemCapReached;
+
+    /// <summary>Paths currently in the "cut" state — tile shown at 50 % opacity. Tracked
+    /// separately from the VM list because the VMs are recreated on every refresh tick (so
+    /// the IsCutMarked flag would lose its setting on the next FileSystemWatcher pulse);
+    /// after each rebuild we re-apply the flag from this set. Cleared when the clipboard
+    /// stops carrying our cut payload (WM_CLIPBOARDUPDATE detects the takeover).</summary>
+    private readonly HashSet<string> _cutPaths = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>HWND of this window — cached at SourceInitialized so the Closed handler can
+    /// unregister the clipboard listener without re-resolving the HwndSource.</summary>
+    private IntPtr _clipboardOwnerHwnd;
+
+    /// <summary>Live filter applied on top of <see cref="_items"/> via the default CollectionView.
+    /// Empty / whitespace → no filter (every item passes). Refreshed on debounce-tick after the
+    /// user finishes typing in <c>SearchBox</c>. Match is a case-insensitive substring against
+    /// <see cref="WormholeItemViewModel.DisplayName"/>.</summary>
+    private string _searchFilter = string.Empty;
+
+    /// <summary>Debounce timer for the search box: a TextChanged tick resets this timer, and on
+    /// fire (after Interval ms of quiet) we refresh the CollectionView. Keeps re-filter cost
+    /// off the typing path so even a folder with thousands of items doesn't lag the box.</summary>
+    private readonly DispatcherTimer _searchDebounce;
+
+    /// <summary>Delays hiding the hover-revealed header (see the MouseLeave wiring) so a stray
+    /// leave event produced by the reveal's own resize doesn't make the strip flicker.</summary>
+    /// <summary>Debounce before re-collapsing a peeked-open wormhole, see the ctor.</summary>
+    private readonly DispatcherTimer _peekCollapseDebounce;
+
+    /// <summary>True while a collapsed wormhole is being held open by the pointer. Visual only:
+    /// the record stays rolled, so nothing about this is persisted.</summary>
+    private bool _peekExpanded;
+
+    /// <summary>Drag-out gesture state. Captured on PreviewMouseLeftButtonDown over a tile,
+    /// promoted to a real <c>DoDragDrop</c> on PreviewMouseMove once the OS drag threshold is
+    /// exceeded. Without this the ListBox's Extended-selection rubber-band swallows the gesture
+    /// and the user sees no file-cursor preview / no drop target acceptance outside the window.</summary>
+    private Point? _itemDragStart;
+    private WormholeItemViewModel? _itemDragSourceVm;
+    /// <summary>ClickCount of the press currently armed on a tile. Read by the one-click-open path
+    /// on release so only the first click of a double click opens the item.</summary>
+    private int _itemPressClickCount;
+
+    /// <summary>Global gate that pauses geometry persistence on EVERY live wormhole. Set by
+    /// <see cref="Services.Wormholes.WormholeWindowManager"/> around a display-settings change
+    /// (resolution swap, monitor hot-plug, RDP connect/disconnect): when the virtual screen
+    /// shrinks, Windows automatically yanks off-screen top-level windows back onto the visible
+    /// area, firing <c>LocationChanged</c> on each — which would otherwise persist those rescue
+    /// coordinates into whichever monitor-setup positions file is currently active, corrupting
+    /// the layout of the setup we're about to switch AWAY from. While this is true the persist
+    /// handlers below early-return; once the display burst settles the manager switches the
+    /// active setup file (loading or cloning positions for the new monitor configuration) and
+    /// pushes those geometries onto the windows, then clears the flag. Shared by all windows
+    /// (one desktop, one display-change event) so a static flag is the natural fit.</summary>
+    internal static volatile bool SuppressGeometryPersist;
+
+    public WormholeWindow(
+        WormholeRecord record,
+        Action onPersist,
+        IconService icons,
+        string wormholesRoot,
+        Services.Wormholes.WormholeDefaultsService? defaults = null,
+        Services.Wormholes.IWormholeWindowHost? manager = null,
+        Services.Wormholes.Favicons.FaviconService? favicons = null,
+        Services.ColorWheelLauncher? colors = null)
+    {
+        _record = record;
+        _active = record;
+        _onPersist = onPersist;
+        _icons = icons;
+        _wormholesRoot = wormholesRoot;
+        _defaults = defaults;
+        _manager = manager;
+        _favicons = favicons;
+        _colors = colors;
+        InitializeComponent();
+        DataContext = record;
+        ItemsHost.ItemsSource = _items;
+        // The Peek key may have been changed in Settings (main process): read it again when the list gets the focus.
+        ItemsHost.GotKeyboardFocus += (_, e) =>
+        {
+            if (e.OldFocus is DependencyObject old && ItemsHost.IsAncestorOf(old)) return;
+            _ = Services.Peek.PeekSatelliteModule.Current?.RefreshConfigAsync();
+        };
+        TabStrip.ItemsSource = _tabs;
+
+        // Wire the default CollectionView's predicate so SearchBox filters the visible tiles
+        // without rebuilding the ObservableCollection. WPF's GetDefaultView returns the same
+        // view ItemsHost is already iterating, so calling Refresh() after a filter change is
+        // all that's needed for the WrapPanel to redraw.
+        var view = CollectionViewSource.GetDefaultView(_items);
+        if (view is not null) view.Filter = MatchesSearchFilter;
+
+        // 250 ms is the sweet spot for incremental search: short enough that the result feels
+        // live, long enough to skip the refilter on every keystroke for fast typists.
+        _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _searchDebounce.Tick += OnSearchDebounceTick;
+
+        Left = record.Geometry.X;
+        Top = record.Geometry.Y;
+        Width = record.Geometry.Width;
+        Height = record.Geometry.Height;
+
+        ApplyLockState();
+        ApplyRollState();
+        ApplyTopmostState();
+        ApplyAppearance();
+
+        RefreshPortalItems();
+        EmptyStateHint.Text = "Folder is empty — drop files here to add them.";
+        UpdateEmptyStateVisibility();
+
+        // Wire the geometry-persist handlers on Loaded so WPF's initial reposition during the
+        // very first Show() — which can clamp our requested Left/Top to the nearest visible
+        // monitor's work area on PerMonitorV2 / multi-monitor setups — doesn't fire a persist
+        // mid-boot. That synchronous SaveAsync from a startup-time LocationChanged caused
+        // "Collection was modified" inside WormholeWindowManager.InitializeAsync's foreach
+        // (the records list it was iterating was the same instance SaveAsync mutates).
+        // After Loaded the position is settled, and any later LocationChanged is user-driven.
+        Loaded += OnLoadedHookGeometryPersist;
+        Closing += (_, _) =>
+        {
+            if (_isClosingFromManager) return;
+            _onPersist();
+        };
+        // Expand-on-hover for collapsed wormholes: the pointer arriving anywhere on the rolled-up
+        // strip opens it, leaving the whole (now taller) window rolls it back up.
+        //
+        // Expanding is immediate; re-collapsing waits out a short debounce. Expanding resizes the
+        // window under the pointer, and a resize can produce a stray MouseLeave/MouseEnter pair —
+        // acting on those straight away would make the wormhole flicker, or oscillate at the edge
+        // where the expansion happens to land under the cursor.
+        _peekCollapseDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        _peekCollapseDebounce.Tick += (_, _) =>
+        {
+            _peekCollapseDebounce!.Stop();
+            if (IsMouseOver) return;   // pointer came back in the meantime — stay expanded
+            ApplyCollapsedHoverPeek(pointerInside: false);
+        };
+        MouseEnter += (_, _) => { _peekCollapseDebounce.Stop(); ApplyCollapsedHoverPeek(pointerInside: true); };
+        MouseLeave += (_, _) => { _peekCollapseDebounce.Stop(); _peekCollapseDebounce.Start(); };
+        Closed += (_, _) => _peekCollapseDebounce?.Stop();
+
+        // Ctrl+MouseWheel zooms tile size like Explorer's icon view. Tunneling handler on the
+        // window so it fires regardless of whether the cursor is over the ListBox or the empty
+        // state — and we can mark e.Handled = true before the ListBox sees it (which would
+        // otherwise scroll the content while we're trying to zoom).
+        PreviewMouseWheel += OnPreviewMouseWheelZoom;
+
+        // Safety net for inline rename: if the user clicks outside the wormhole window entirely
+        // (another app, the desktop) the rename TextBox's LostKeyboardFocus does fire in most
+        // cases, but on some focus-handoff paths (e.g. activating a window of a different
+        // process) it can be skipped. Deactivated is the lowest-common-denominator signal that
+        // the user has moved on, so we commit-or-cancel here as a fallback.
+        Deactivated += (_, _) =>
+        {
+            if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
+
+            // The search box needs the same net, for the same reason: OnSearchLostFocus rides on
+            // LostFocus, which is a LOGICAL focus event, and WPF deliberately keeps logical focus
+            // inside a window that gets deactivated so it can restore it when the window comes
+            // back. Clicking another app or the desktop therefore never collapsed an empty search
+            // box to its icon, and the wormhole was left with a 160 px hole in its header.
+            // Non-empty text is left alone here exactly as LostFocus leaves it: it's the only
+            // visible trace that a filter is active.
+            if (SearchBox.Visibility == Visibility.Visible && string.IsNullOrEmpty(SearchBox.Text))
+                CloseSearchBox();
+        };
+
+        // Issue #13: the wormhole losing activation (clicking another app, the desktop, or a
+        // sibling wormhole) is the other half of "deselect on click outside". A click on another
+        // wormhole's tile never routes through THIS window's OnContentAreaMouseDown at all, so
+        // that handler alone can't catch it. ClearItemSelection() is the same no-broadcast path
+        // the manager already uses when a sibling steals the selection.
+        Deactivated += (_, _) => ClearItemSelection();
+
+        // Post-launch backtrack: when the user clicks an icon to launch an app while the
+        // auto-disable-on-launch setting is ON, we set _pendingPostLaunchBacktrack and the
+        // batch SetAllTopmostAsync(false) sends every wormhole behind. The launched app takes
+        // foreground; when it eventually closes, Windows transfers foreground back to this
+        // wormhole (it was the foreground when the click happened). Without intervention the
+        // wormhole would sit on top of the non-topmost z-order — visually back on top. The
+        // Activated handler consumes the flag and re-issues SendToBack so the wormhole stays
+        // submerged until the user explicitly hits the Topmost toggle hotkey again.
+        Activated += OnActivatedPostLaunch;
+        // Re-apply a topmost that Windows refused while we were in the background. When a wormhole
+        // launches a console app (a .bat opening cmd/conhost), that app owns the foreground and
+        // Win32 silently drops SetWindowPos(HWND_TOPMOST) on our now-background window — the flag
+        // never lands (WS_EX_TOPMOST stays clear) even though WPF thinks Topmost=true. The moment
+        // the launched app closes we get Activated with the foreground back, and re-issuing the
+        // topmost insert then succeeds. See ApplyTopmostState / OnActivatedReapplyTopmost.
+        Activated += OnActivatedReapplyTopmost;
+
+        // Edge-resize via WM_NCHITTEST. WindowStyle=None + AllowsTransparency=True kills WPF's
+        // native resize border; we synthesise hit-zones manually so the cursor switches to the
+        // correct resize arrow within 8 px of any edge and Windows drives the actual resize.
+        SourceInitialized += (_, _) =>
+        {
+            var helper = new System.Windows.Interop.WindowInteropHelper(this);
+            var src = System.Windows.Interop.HwndSource.FromHwnd(helper.Handle);
+            src?.AddHook(WindowProcResizeHook);
+            // Desktop-widget behaviour (survives "Show desktop") + drag/resize snapping. The
+            // latter lives on WM_WINDOWPOSCHANGING, the only place that can steer the Win32
+            // move-size loop that DragMove() and the edge-resize run in.
+            src?.AddHook(WindowProcDesktopBehaviour);
+            // Join the desktop's z-order group so Show desktop reveals the wormhole instead of
+            // burying it. Done here, before the first Show, so there's never a frame where a
+            // wormhole is a plain top-level window.
+            RefreshDesktopOwnership();
+            // Register for clipboard change notifications so we can clear the "cut" tint on
+            // selected items when the clipboard's content stops being ours (the user pressed
+            // Ctrl+X then copied/cut something else, or some other process took over). The
+            // hook stays installed for the window's lifetime; Closed unregisters.
+            _clipboardOwnerHwnd = helper.Handle;
+            _ = AddClipboardFormatListener(_clipboardOwnerHwnd);
+            src?.AddHook(WindowProcClipboardHook);
+        };
+        Closed += (_, _) =>
+        {
+            if (_clipboardOwnerHwnd != IntPtr.Zero)
+                _ = RemoveClipboardFormatListener(_clipboardOwnerHwnd);
+        };
+    }
+
+    // WM_NCHITTEST handler. Constants from winuser.h: HTCLIENT=1, HTLEFT=10, HTRIGHT=11,
+    // HTTOP=12, HTTOPLEFT=13, HTTOPRIGHT=14, HTBOTTOM=15, HTBOTTOMLEFT=16, HTBOTTOMRIGHT=17.
+    // Returning any HT*EDGE/HT*CORNER tells DefWindowProc to begin a resize loop using the
+    // appropriate cursor — no further code needed on our side. Skipped when the wormhole is
+    // locked (must not resize) or rolled (only the header strip is visible; resize would
+    // expose a torn layout).
+    //
+    // We also intercept WM_NCLBUTTONDBLCLK on those same edge codes: Windows' default is to
+    // maximise vertically on HTTOP/HTBOTTOM dblclick (and horizontally on HTLEFT/HTRIGHT).
+    // For a wormhole that's the wrong gesture — the user is usually trying to dblclick the
+    // header to roll up but accidentally clipping the 8 px resize edge. Swallowing the
+    // message keeps the vertical-maximise out of the way without disabling resize-drag.
+    private IntPtr WindowProcResizeHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_NCHITTEST = 0x0084;
+        const int WM_NCLBUTTONDBLCLK = 0x00A3;
+
+        if (msg == WM_NCLBUTTONDBLCLK)
+        {
+            int ht = wParam.ToInt32();
+            // Any edge or corner dblclick → swallow. HTCAPTION (=2) double-click is the
+            // normal restore/maximise gesture and isn't returned by our hit test, so it
+            // wouldn't land here anyway; this matches every HT code we DO return from below.
+            if (ht is 10 or 11 or 12 or 13 or 14 or 15 or 16 or 17)
+            {
+                handled = true;
+                return IntPtr.Zero;
+            }
+            return IntPtr.Zero;
+        }
+
+        if (msg != WM_NCHITTEST) return IntPtr.Zero;
+        if (_record.IsLocked || _record.IsRolled) return IntPtr.Zero;
+
+        // lParam packs screen X in the low word and screen Y in the high word. Sign-extension
+        // matters on multi-monitor setups where the secondary monitor sits at negative coords.
+        int xScreen = unchecked((short)(lParam.ToInt64() & 0xFFFF));
+        int yScreen = unchecked((short)((lParam.ToInt64() >> 16) & 0xFFFF));
+        var pos = PointFromScreen(new Point(xScreen, yScreen));
+
+        const double edge = 8;
+        bool left   = pos.X >= 0 && pos.X < edge;
+        bool right  = pos.X <= ActualWidth  && pos.X > ActualWidth  - edge;
+        bool top    = pos.Y >= 0 && pos.Y < edge;
+        bool bottom = pos.Y <= ActualHeight && pos.Y > ActualHeight - edge;
+
+        int hit = (top, bottom, left, right) switch
+        {
+            (true,  _,    true,  _   ) => 13, // HTTOPLEFT
+            (true,  _,    _,    true ) => 14, // HTTOPRIGHT
+            (_,     true, true,  _   ) => 16, // HTBOTTOMLEFT
+            (_,     true, _,    true ) => 17, // HTBOTTOMRIGHT
+            (true,  _,    _,    _    ) => 12, // HTTOP
+            (_,     true, _,    _    ) => 15, // HTBOTTOM
+            (_,     _,    true, _    ) => 10, // HTLEFT
+            (_,     _,    _,    true ) => 11, // HTRIGHT
+            _ => 0,
+        };
+        if (hit == 0) return IntPtr.Zero;   // not on an edge — let WPF handle normally
+        handled = true;
+        return new IntPtr(hit);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Desktop-widget behaviour + snapping (WM_SYSCOMMAND / WM_WINDOWPOSCHANGING)
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE — i.e. while the user is
+    /// dragging or resizing this wormhole. Snapping only applies inside that window so a
+    /// programmatic move (preset restore, reconcile, off-screen rescue) lands exactly where it
+    /// was told to.</summary>
+    private bool _inMoveSizeLoop;
+
+    /// <summary>Rect the current move/size loop started from, in physical pixels. Diffing the
+    /// proposed rect against it tells us which edges the gesture is dragging.</summary>
+    private Services.Wormholes.SnapRect _moveSizeStartRect;
+
+    private bool KeepVisibleOnShowDesktop() => _defaults?.KeepVisibleOnShowDesktop ?? true;
+
+    /// <summary>Attach the wormhole to (or detach it from) the desktop's z-order group, per the
+    /// "Keep wormholes visible on Show desktop" setting. See <see cref="DesktopOwnership"/> for
+    /// why ownership — not message interception, not reparenting — is what actually works.</summary>
+    internal void RefreshDesktopOwnership()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        if (KeepVisibleOnShowDesktop()) DesktopOwnership.Attach(hwnd);
+        else DesktopOwnership.Detach(hwnd);
+    }
+
+    /// <summary>Handles the Win32 messages behind desktop-widget behaviour and drag/resize
+    /// snapping: <c>WM_ENTERSIZEMOVE</c>/<c>WM_EXITSIZEMOVE</c> bracket a user gesture,
+    /// <c>WM_WINDOWPOSCHANGING</c> is the choke point every geometry change flows through, and
+    /// <c>TaskbarCreated</c> tells us Explorer restarted and the desktop ownership has to be
+    /// re-established against the new Progman.</summary>
+    private IntPtr WindowProcDesktopBehaviour(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_ENTERSIZEMOVE    = 0x0231;
+        const int WM_EXITSIZEMOVE     = 0x0232;
+        const int WM_WINDOWPOSCHANGING = 0x0046;
+
+        if (msg != 0 && (uint)msg == DesktopOwnership.TaskbarCreatedMessage)
+        {
+            // Explorer just came back: the Progman we were owned by is gone. Re-own against the
+            // new one, on a dispatcher hop so the shell has finished creating its windows.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RefreshDesktopOwnership));
+            return IntPtr.Zero;
+        }
+
+        switch (msg)
+        {
+            case WM_ENTERSIZEMOVE:
+                _inMoveSizeLoop = true;
+                if (GetWindowRect(hwnd, out var startRect))
+                    _moveSizeStartRect = new Services.Wormholes.SnapRect(startRect.Left, startRect.Top, startRect.Right, startRect.Bottom);
+                return IntPtr.Zero;
+
+            case WM_EXITSIZEMOVE:
+                _inMoveSizeLoop = false;
+                TryMergeOntoDropTarget();
+                return IntPtr.Zero;
+
+            case WM_WINDOWPOSCHANGING:
+                HandleWindowPosChanging(hwnd, lParam);
+                return IntPtr.Zero;
+        }
+        return IntPtr.Zero;
+    }
+
+    private void HandleWindowPosChanging(IntPtr hwnd, IntPtr lParam)
+    {
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOSIZE = 0x0001;
+
+        var pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+        var mutated = false;
+
+        // Snapping: only while the user is actually dragging, and only when the message carries
+        // a real geometry change.
+        if (_inMoveSizeLoop && ((pos.flags & SWP_NOMOVE) == 0 || (pos.flags & SWP_NOSIZE) == 0))
+        {
+            // Same moment, same question: is the pointer over another wormhole's header? If so,
+            // light it up so the merge is announced before the button comes up.
+            UpdateMergeHighlightWhileDragging();
+
+            var options = SnapOptionsFromDefaults();
+            if (options.AnyEnabled && !_record.IsLocked)
+            {
+                var proposed = Services.Wormholes.SnapRect.FromSize(pos.x, pos.y, pos.cx, pos.cy);
+                var edges = Services.Wormholes.WormholeSnapEngine.DetectEdges(_moveSizeStartRect, proposed);
+                var snapped = Services.Wormholes.WormholeSnapEngine.Snap(
+                    proposed, edges, NeighbourRects(hwnd), MonitorWorkArea(hwnd), options,
+                    minWidth: DipToPixels(MinWidth, hwnd), minHeight: DipToPixels(MinHeight, hwnd));
+                if (snapped != proposed)
+                {
+                    pos.x = snapped.Left;
+                    pos.y = snapped.Top;
+                    pos.cx = snapped.Width;
+                    pos.cy = snapped.Height;
+                    mutated = true;
+                }
+            }
+        }
+
+        if (mutated) Marshal.StructureToPtr(pos, lParam, fDeleteOld: false);
+    }
+
+    private Services.Wormholes.SnapOptions SnapOptionsFromDefaults()
+    {
+        var d = _defaults;
+        if (d is null) return new Services.Wormholes.SnapOptions();
+        return new Services.Wormholes.SnapOptions(
+            ToGrid: d.SnapToGrid,
+            GridSizePx: d.SnapGridSizePx,
+            ToWormholes: d.SnapToWormholes,
+            ToScreenEdges: d.SnapToScreenEdges,
+            GapPx: d.SnapGapPx);
+    }
+
+    /// <summary>Screen rects of every OTHER visible wormhole, in physical pixels. Empty when the
+    /// manager isn't wired (direct test construction) or neighbour snapping is off.</summary>
+    private IReadOnlyList<Services.Wormholes.SnapRect> NeighbourRects(IntPtr self)
+    {
+        if (_manager is null || _defaults?.SnapToWormholes != true) return [];
+        var rects = new List<Services.Wormholes.SnapRect>();
+        foreach (var handle in _manager.LiveWindowHandles())
+        {
+            if (handle == self || handle == IntPtr.Zero) continue;
+            if (!GetWindowRect(handle, out var r)) continue;
+            rects.Add(new Services.Wormholes.SnapRect(r.Left, r.Top, r.Right, r.Bottom));
+        }
+        return rects;
+    }
+
+    /// <summary>Work area (taskbar excluded) of the monitor this wormhole is mostly on, in
+    /// physical pixels. Falls back to the primary monitor's full rect if the query fails.</summary>
+    private static Services.Wormholes.SnapRect MonitorWorkArea(IntPtr hwnd)
+    {
+        const uint MONITOR_DEFAULTTONEAREST = 2;
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor != IntPtr.Zero)
+        {
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (GetMonitorInfo(monitor, ref info))
+                return new Services.Wormholes.SnapRect(info.rcWork.Left, info.rcWork.Top, info.rcWork.Right, info.rcWork.Bottom);
+        }
+        return new Services.Wormholes.SnapRect(
+            0, 0,
+            (int)SystemParameters.PrimaryScreenWidth,
+            (int)SystemParameters.PrimaryScreenHeight);
+    }
+
+    /// <summary>Convert a WPF device-independent length to physical pixels for this window's
+    /// monitor. Used to hand the snap engine the window's minimum size in the same units it
+    /// works in.</summary>
+    private static int DipToPixels(double dip, IntPtr hwnd)
+    {
+        if (double.IsNaN(dip) || dip <= 0) return 1;
+        var dpi = GetDpiForWindow(hwnd);
+        if (dpi == 0) dpi = 96;
+        return (int)Math.Round(dip * dpi / 96.0);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPOS
+    {
+        public IntPtr hwnd;
+        public IntPtr hwndInsertAfter;
+        public int x;
+        public int y;
+        public int cx;
+        public int cy;
+        public uint flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NATIVERECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public NATIVERECT rcMonitor;
+        public NATIVERECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NATIVERECT lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    /// <summary>Effective tile icon size for this wormhole. Fallback chain:
+    /// per-wormhole override (<see cref="WormholeRecord.IconSizePx"/> &gt; 0) →
+    /// app-wide default (<see cref="Services.Wormholes.WormholeDefaultsService.DefaultIconSizePx"/> &gt; 0) →
+    /// user's Windows desktop icon size (<see cref="DesktopIconSize"/>). The middle layer is
+    /// what the Settings → Wormholes "Default icon size" slider drives.</summary>
+    private int EffectiveIconSize()
+    {
+        if (_active.IconSizePx > 0) return _active.IconSizePx;
+        if (_defaults is { DefaultIconSizePx: > 0 } d) return d.DefaultIconSizePx;
+        return DesktopIconSize.Get();
+    }
+
+    /// <summary>Tile padding read from the app-wide default. No per-wormhole override slot yet
+    /// (one knob is plenty until proven otherwise) — every wormhole uses the same density set
+    /// in Settings → Wormholes.</summary>
+    private int EffectiveTilePadding() => _defaults?.DefaultTilePaddingPx ?? 4;
+
+    /// <summary>App-wide line spacing (extra px between consecutive tile rows). No per-wormhole
+    /// override — same rationale as <see cref="EffectiveTilePadding"/>.</summary>
+    private int EffectiveLineSpacing() => _defaults?.DefaultLineSpacingPx ?? -4;
+
+    /// <summary>App-wide label font size for the text under each icon. Falls back to 11 px
+    /// (matches the previous hard-coded XAML default).</summary>
+    private int EffectiveLabelFontSize() => _defaults?.DefaultLabelFontSizePx ?? 12;
+
+    /// <summary>App-wide max label lines. Falls back to 2 (matches the previous wrap behaviour).</summary>
+    private int EffectiveLabelMaxLines() => _defaults?.DefaultLabelMaxLines ?? 2;
+
+    /// <summary>Effective opacity: per-wormhole override wins, else the app-wide default
+    /// (<see cref="Services.Wormholes.WormholeDefaultsService.DefaultOpacity"/>). Final fallback
+    /// is the legacy 0.95 that the XAML used to hardcode — preserves visuals if the manager
+    /// somehow didn't wire a defaults service.</summary>
+    private double EffectiveOpacity()
+    {
+        if (_active.Appearance.OpacityOverride is { } v) return v;
+        return _defaults?.DefaultOpacity ?? 0.70;
+    }
+
+    /// <summary>Effective border opacity: app-wide default only for now (no per-wormhole
+    /// override slot — kept consistent with the existing knob layout). Falls back to 1.0
+    /// (legacy: fully opaque ring + shadow).</summary>
+    private double EffectiveBorderOpacity() => _defaults?.DefaultBorderOpacity ?? 1.0;
+
+    /// <summary>Apply opacity to the two backdrop layers — body + header — leaving the
+    /// content overlay (icon tiles, labels, chrome buttons) at full opacity. Setting Opacity
+    /// on the root <c>OuterFrame</c> would cascade to every descendant including the icons,
+    /// which the user explicitly didn't want ("opacity solo allo sfondo e all'header").
+    ///
+    /// Border opacity is applied separately: we clone the theme's <c>OuterBorderBrush</c> into
+    /// a per-window <c>SolidColorBrush</c> with the user's chosen alpha so the ring fades
+    /// independently from the body. The drop shadow's effect opacity is multiplied by the same
+    /// factor (baseline 0.45 × border) so the shadow disappears together with the ring rather
+    /// than telegraphing the window's outline when the ring is invisible.</summary>
+    private void ApplyAppearance()
+    {
+        var op = EffectiveOpacity();
+        BodyBackdrop.Opacity = op;
+        ApplyItemCursor();
+
+        var borderOp = EffectiveBorderOpacity();
+        // A per-wormhole accent override recolours the whole window, not just the ring: the ring
+        // alone is a 1 px line, which reads as "nothing happened" when you've just picked a colour.
+        // The two backdrops take a darkened version so tiles and labels stay legible on top of it —
+        // a fully saturated body would drown them. Without an override everything follows the theme
+        // exactly as before. Brushes are per-window: mutating the shared theme brush would recolour
+        // every wormhole at once, and anything else bound to that resource.
+        var custom = WormholeAccent.TryParse(_active.Appearance.AccentOverride);
+
+        // A recoloured wormhole rings itself in the header's shade, not the raw accent, so the
+        // frame belongs to the window instead of outshining it. No override: the theme, as before.
+        var ringColour = custom is { } accentColour
+                     ? WormholeAccent.Shade(accentColour, WormholeAccent.RingShade)
+                     : (Application.Current?.Resources["OuterBorderBrush"] as System.Windows.Media.SolidColorBrush)?.Color;
+        if (ringColour is { } ring)
+        {
+            OuterFrame.BorderBrush = new System.Windows.Media.SolidColorBrush(ring) { Opacity = borderOp };
+        }
+
+        ApplyBackdrop(BodyBackdrop, custom, "Surface1Brush", WormholeAccent.BodyShade);
+        ApplyBackdrop(HeaderBackdrop, custom, "Surface2Brush", WormholeAccent.HeaderShade);
+        RefreshTabs();
+        if (OuterShadow is not null) OuterShadow.Opacity = 0.45 * borderOp;
+    }
+
+    /// <summary>Paint one backdrop: the accent darkened by <paramref name="shade"/> when the
+    /// wormhole carries a colour override, otherwise the themed brush named
+    /// <paramref name="themeKey"/>. Opacity is left alone — it's the user's separate setting.</summary>
+    private static void ApplyBackdrop(System.Windows.Controls.Border target,
+        System.Windows.Media.Color? custom, string themeKey, double shade)
+    {
+        if (custom is { } colour)
+        {
+            target.Background = new System.Windows.Media.SolidColorBrush(WormholeAccent.Shade(colour, shade));
+            return;
+        }
+        if (Application.Current?.Resources[themeKey] is System.Windows.Media.Brush themed)
+        {
+            target.Background = themed;
+        }
+    }
+
+    /// <summary>Show a colour on this wormhole without committing it, for the picker's live
+    /// preview. Nothing is persisted; <see cref="ApplyAppearance"/> puts the real state back when
+    /// the user cancels.</summary>
+    internal void PreviewAccent(System.Windows.Media.Color colour)
+    {
+        OuterFrame.BorderBrush = new System.Windows.Media.SolidColorBrush(
+            WormholeAccent.Shade(colour, WormholeAccent.RingShade)) { Opacity = EffectiveBorderOpacity() };
+        ApplyBackdrop(BodyBackdrop, colour, "Surface1Brush", WormholeAccent.BodyShade);
+        ApplyBackdrop(HeaderBackdrop, colour, "Surface2Brush", WormholeAccent.HeaderShade);
+        RefreshTabs(previewForActive: colour);
+    }
+
+    /// <summary>Cheap path: only the opacity changed (Settings slider drag). Skips
+    /// RebuildItems so the slider stays fluid even with many wormholes open.</summary>
+    internal void RefreshOpacity() => ApplyAppearance();
+
+    /// <summary>The window's Top as the record knows it. Kept as a named property (rather than
+    /// callers touching Top directly) because geometry persistence and restore all funnel through
+    /// it: when the hover behaviour used to grow the window upwards to reveal a hidden header, this
+    /// is what stopped every reveal from saving the wormhole 32 px higher than it lived. Expanding
+    /// a collapsed wormhole on hover grows it DOWNWARDS and never writes the record, so today the
+    /// two are the same value.</summary>
+    internal double LogicalTop
+    {
+        get => Top;
+        set => Top = value;
+    }
+
+    /// <summary>The window's Height as the record knows it. See <see cref="LogicalTop"/>.</summary>
+    internal double LogicalHeight
+    {
+        get => Height;
+        set => Height = value;
+    }
+
+    /// <summary>Expand or re-collapse a rolled-up wormhole as the pointer arrives and leaves, when
+    /// the "expand collapsed wormholes on hover" default is on. The expansion is a PEEK: it changes
+    /// what the window shows, never <see cref="WormholeRecord.IsRolled"/>. That matters twice over
+    /// — the wormhole is still collapsed after a restart, and the SizeChanged handler skips saving
+    /// height while the record says rolled, so a peek can't overwrite the saved size.</summary>
+    private void ApplyCollapsedHoverPeek(bool pointerInside)
+    {
+        var enabled = _defaults?.ExpandCollapsedOnHover == true;
+        var wanted = enabled && pointerInside && _record.IsRolled;
+        if (wanted == _peekExpanded) return;
+        _peekExpanded = wanted;
+        ApplyRollState();
+    }
+
+    /// <summary>Re-apply the expand-on-hover default. Called by the manager when the user flips the
+    /// toggle in Settings → Wormholes; a wormhole left peeked open when the option is switched off
+    /// rolls back up here rather than staying expanded until the next mouse move.</summary>
+    internal void RefreshCollapsedHover() => ApplyCollapsedHoverPeek(IsMouseOver);
+
+    /// <summary>Cursor shown over the item tiles, bound from the DataTemplate. A hand only when a
+    /// single click actually opens: pointing a hand at something that needs a double click promises
+    /// a click will do something, and it doesn't. A DependencyProperty rather than a field on the
+    /// item view-models, so flipping the setting is a property write instead of an item rebuild
+    /// (which would re-extract every icon).</summary>
+    public static readonly DependencyProperty ItemCursorProperty =
+        DependencyProperty.Register(nameof(ItemCursor), typeof(Cursor), typeof(WormholeWindow),
+            new PropertyMetadata(Cursors.Arrow));
+
+    public Cursor ItemCursor
+    {
+        get => (Cursor)GetValue(ItemCursorProperty);
+        set => SetValue(ItemCursorProperty, value);
+    }
+
+    private void ApplyItemCursor() =>
+        ItemCursor = _defaults?.OpenWithOneClick == true ? Cursors.Hand : Cursors.Arrow;
+
+    /// <summary>Re-apply the one-click-open default: only the tile cursor depends on it up front,
+    /// the click handlers read the flag as the click arrives.</summary>
+    internal void RefreshItemCursor() => ApplyItemCursor();
+
+    /// <summary>Expensive path: the icon size changed → every item VM has to be
+    /// re-constructed so it asks <see cref="IconService.GetIconAtSize"/> for the new
+    /// resolution. Use sparingly (typically once per NumberBox commit, not on every drag
+    /// tick).</summary>
+    internal void RefreshIconSize() => RebuildItems();
+
+    private void OnPreviewMouseWheelZoom(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control) return;
+        // Step: 8 px per wheel tick. Enough granularity to land on Windows' standard preset
+        // sizes (32 / 48 / 64 / 96) within 1–4 ticks while still feeling smooth.
+        const int step = 8;
+        const int min = 24;
+        const int max = 256;
+        var current = EffectiveIconSize();
+        var next = e.Delta > 0 ? current + step : current - step;
+        next = Math.Clamp(next, min, max);
+        if (next == current) { e.Handled = true; return; }
+        _active.IconSizePx = next;
+        _onPersist();
+        RebuildItems();
+        e.Handled = true; // prevent ListBox from scrolling while the user is zooming
+    }
+
+    internal void CloseFromManager()
+    {
+        _isClosingFromManager = true;
+        Close();
+    }
+
+    /// <summary>Pick a sensible owner for MessageBox / sub-dialogs spawned from the wormhole.
+    /// We never use <c>this</c> because the wormhole is parented to <c>WorkerW</c> (desktop
+    /// layer) — a dialog inheriting that parenting falls behind every other app the moment it
+    /// shows. <c>Application.MainWindow</c> (the AresToys settings window) is normally hidden
+    /// but its handle is created, which is enough to give MessageBox a real top-level owner;
+    /// when it's null we let MessageBox position itself at screen centre, no owner.</summary>
+    private static Window? OwnerForDialogs()
+    {
+        var main = Application.Current?.MainWindow;
+        if (main is null) return null;
+        var helper = new System.Windows.Interop.WindowInteropHelper(main);
+        return helper.Handle != IntPtr.Zero ? main : null;
+    }
+
+    /// <summary>Re-apply title / lock / roll state from the underlying record. Called by
+    /// <see cref="AresToys.App.Services.Wormholes.WormholeWindowManager.ReconcileAsync"/> when the
+    /// record was mutated from outside the chrome (typically the Wormholes Settings tab toggling
+    /// Lock or renaming). <c>WormholeRecord</c> isn't INPC, so we force the DataContext re-bind
+    /// in the same way <see cref="CommitInlineRename"/> does.</summary>
+    public void RefreshFromRecord()
+    {
+        DataContext = null;
+        DataContext = _record;
+        ApplyLockState();
+        ApplyRollState();
+        ApplyTopmostState();
+    }
+
+    /// <summary>Re-enumerate the watched folder and rebuild the item tiles. Called by the
+    /// manager after the global icon-size / tile-padding defaults change so the live window
+    /// adopts the new dimensions without restart.</summary>
+    internal void RebuildItems()
+    {
+        RefreshPortalItems();
+        UpdateEmptyStateVisibility();
+    }
+
+    /// <summary>One-shot Loaded handler that subscribes the geometry-persist hooks AFTER the
+    /// initial Show + reposition has settled. Self-unsubscribes so a re-Loaded event (rare for
+    /// a top-level window but possible) doesn't double-subscribe and double-persist every drag.</summary>
+    private void OnLoadedHookGeometryPersist(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedHookGeometryPersist;
+        // Re-apply opacity AFTER the window has been added to the visual tree and the first
+        // render pass has settled. AllowsTransparency=True + the DropShadowEffect on OuterFrame
+        // can produce a "low-opacity-looking" initial paint until the first activation/composition
+        // tick — observed as: wormhole opens visually more transparent than the configured 95 %,
+        // becomes properly opaque the moment the user clicks anywhere on it. Doing this on
+        // ContentRendered (after the first frame is shown) forces WPF to repaint the backdrops
+        // with the right alpha BEFORE the user has to click to wake it up.
+        Dispatcher.BeginInvoke(new Action(ApplyAppearance), System.Windows.Threading.DispatcherPriority.Render);
+        // Both handlers persist the LOGICAL geometry (see LogicalTop / LogicalHeight) and skip
+        // the write when nothing actually moved. That's what makes the hover header reveal free:
+        // growing the window by the strip height changes Top/Height but not the logical values,
+        // so no save — and no RecordChanged storm into the Settings grid — is triggered.
+        LocationChanged += (_, _) =>
+        {
+            if (_isClosingFromManager || SuppressGeometryPersist) return;
+            var x = Left;
+            var y = LogicalTop;
+            if (Math.Abs(_record.Geometry.X - x) < 0.5 && Math.Abs(_record.Geometry.Y - y) < 0.5) return;
+            _record.Geometry.X = x;
+            _record.Geometry.Y = y;
+            _onPersist();
+        };
+        SizeChanged += (_, args) =>
+        {
+            if (_isClosingFromManager || SuppressGeometryPersist) return;
+            if (!args.HeightChanged && !args.WidthChanged) return;
+            var w = Width;
+            var h = LogicalHeight;
+            var heightMatters = !_record.IsRolled;
+            if (Math.Abs(_record.Geometry.Width - w) < 0.5
+                && (!heightMatters || Math.Abs(_record.Geometry.Height - h) < 0.5)) return;
+            _record.Geometry.Width = w;
+            if (heightMatters)
+            {
+                _record.Geometry.Height = h;
+                _record.Geometry.UnrolledHeight = h;
+            }
+            _onPersist();
+        };
+    }
+
+    public event EventHandler<Guid>? DeleteRequested;
+
+    /// <summary>Which wormhole's contents this window is currently showing. Equal to the window's
+    /// own record unless it's hosting a tab group.</summary>
+    internal WormholeRecord ActiveRecord => _active;
+
+    /// <summary>One entry of the tab strip. Carries its own brushes rather than relying on a style
+    /// trigger, because "which tab is active" is group state the manager owns, not something the
+    /// visual tree can work out on its own.
+    ///
+    /// Mutable and observable on purpose: the strip is refreshed on every appearance change, and
+    /// while the colour picker is open that's many times a second. Replacing the collection's
+    /// contents each time would make WPF rebuild every tab's visual, which reads as the whole
+    /// strip flickering even though only one tab's colour is moving.</summary>
+    private sealed class TabViewModel : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _title = string.Empty;
+        private Brush _background = Brushes.Transparent;
+        private Brush _foreground = Brushes.White;
+        private FontWeight _weight = FontWeights.Normal;
+
+        public TabViewModel(Guid id) { Id = id; }
+
+        public Guid Id { get; }
+
+        public string Title { get => _title; set => Set(ref _title, value); }
+        public Brush Background { get => _background; set => Set(ref _background, value); }
+        public Brush Foreground { get => _foreground; set => Set(ref _foreground, value); }
+        public FontWeight Weight { get => _weight; set => Set(ref _weight, value); }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        private void Set<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value)) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+        }
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<TabViewModel> _tabs = [];
+
+    /// <summary>Rebuild the tab strip from the group this window hosts. A window that isn't hosting
+    /// a group shows its title as before — one tab is not a tab strip, it's a wormhole.</summary>
+    /// <param name="previewForActive">Colour to show on the active tab instead of the one stored
+    /// on its record. Used while the colour picker is open, so the strip previews the change with
+    /// the rest of the window rather than lagging a step behind it.</param>
+    internal void RefreshTabs(Color? previewForActive = null)
+    {
+        var records = _manager?.TabsFor(_record.Id) ?? [];
+
+        if (records.Count < 2)
+        {
+            _tabs.Clear();
+            TabStrip.Visibility = Visibility.Collapsed;
+            TitleText.Visibility = TitleEditor.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            return;
+        }
+
+        // Rebuild the collection only when the membership itself changed (a tab merged in, pulled
+        // out, deleted). For a plain restyle the entries are updated in place, so WPF re-renders
+        // the one brush that moved instead of every tab.
+        var sameStrip = _tabs.Count == records.Count;
+        if (sameStrip)
+        {
+            for (var i = 0; i < records.Count; i++)
+            {
+                if (_tabs[i].Id == records[i].Id) continue;
+                sameStrip = false;
+                break;
+            }
+        }
+        if (!sameStrip)
+        {
+            _tabs.Clear();
+            foreach (var rec in records) _tabs.Add(new TabViewModel(rec.Id));
+        }
+
+        // Each tab wears its OWN wormhole's colour, selected or not: the strip then reads as the
+        // wormholes it stands for, and the tab you're on matches the header it opens into. Which
+        // one is active is carried by the weight alone — highlighting it with the theme accent
+        // would paint every group the same colour and bury the one piece of information the
+        // colours are there to give.
+        var fg = Application.Current?.Resources["AccentForegroundBrush"] as Brush ?? Brushes.White;
+        var themed = Application.Current?.Resources["Surface2Brush"] as Brush ?? Brushes.Transparent;
+
+        for (var i = 0; i < records.Count; i++)
+        {
+            var rec = records[i];
+            var isActive = rec.Id == _active.Id;
+            var custom = isActive && previewForActive is { } preview
+                ? preview
+                : WormholeAccent.TryParse(rec.Appearance.AccentOverride);
+
+            var tab = _tabs[i];
+            tab.Title = string.IsNullOrWhiteSpace(rec.Title) ? "Wormhole" : rec.Title;
+            tab.Background = custom is { } colour
+                ? new SolidColorBrush(WormholeAccent.Shade(colour, WormholeAccent.HeaderShade))
+                : themed;
+            tab.Foreground = fg;
+            tab.Weight = isActive ? FontWeights.Bold : FontWeights.Normal;
+        }
+
+        TabStrip.Visibility = Visibility.Visible;
+        TitleText.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>True when a screen point (physical pixels) is over this window's header strip.
+    /// Asked of every other wormhole when a drag ends, to decide whether the user meant to drop
+    /// one wormhole onto another's header and merge them. Physical pixels rather than DIPs because
+    /// that's what the cursor and the window rect speak, and mixed-DPI setups make converting in
+    /// the caller a source of quiet errors.</summary>
+    internal bool HeaderHitTest(int screenX, int screenY)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return false;
+        if (!GetWindowRect(hwnd, out var rect)) return false;
+        if (screenX < rect.Left || screenX > rect.Right) return false;
+        var headerBottom = rect.Top + DipToPixels(HeaderStripHeight, hwnd);
+        return screenY >= rect.Top && screenY <= headerBottom;
+    }
+
+    /// <summary>End of a window drag: if it finished with the pointer over another wormhole's
+    /// header, fold this one into that one as a tab. Dropping anywhere else is just a move, which
+    /// is what it has always been.</summary>
+    private void TryMergeOntoDropTarget()
+    {
+        if (_manager is null) return;
+        _manager.ClearMergeHighlight();
+        if (!GetCursorPos(out var cursor)) return;
+
+        var target = _manager.FindHeaderTargetAt(cursor.X, cursor.Y, this);
+        if (target is not { } targetId) return;
+        _ = _manager.MergeAsync(_record.Id, targetId, CancellationToken.None);
+    }
+
+    /// <summary>While dragging, light up the header this wormhole would merge into if dropped now.
+    /// Merging is a destructive-looking gesture — two windows become one — so it has to announce
+    /// itself before the mouse button comes up, not after.</summary>
+    private void UpdateMergeHighlightWhileDragging()
+    {
+        if (_manager is null || !_inMoveSizeLoop) return;
+        if (!GetCursorPos(out var cursor)) return;
+        _manager.HighlightMergeTarget(_manager.FindHeaderTargetAt(cursor.X, cursor.Y, this));
+    }
+
+    /// <summary>Show or clear the "drop here to add a tab" cue on this window's header.</summary>
+    internal void ShowMergeTargetHint(bool on)
+    {
+        if (_mergeHintShown == on) return;
+        _mergeHintShown = on;
+        if (on)
+        {
+            var accent = Application.Current?.Resources["AccentBackgroundBrush"] as Brush;
+            HeaderBackdrop.Background = accent ?? Brushes.SteelBlue;
+        }
+        else
+        {
+            ApplyAppearance();   // back to the theme, or to this wormhole's accent override
+        }
+    }
+
+    private bool _mergeHintShown;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    /// <summary>With "expand collapsed wormholes on hover" on, resting the pointer on a tab of a
+    /// collapsed group counts as clicking it (issue #24): the peek then opens onto the tab you're
+    /// pointing at instead of whichever one was last clicked. Only while collapsed, since an open
+    /// group has no peek to steer, and never with the button down, so a tab being dragged out
+    /// doesn't switch the group under it. The strip updates its tabs in place on a switch, so the
+    /// tab under the pointer isn't rebuilt and can't re-fire this handler.</summary>
+    private void OnTabMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not Guid id) return;
+        if (_manager is null || id == _active.Id) return;
+        if (_defaults?.ExpandCollapsedOnHover != true || !_record.IsRolled) return;
+        if (e.LeftButton == MouseButtonState.Pressed || _tabDragId is not null || _inMoveSizeLoop) return;
+        _manager.ShowTabOnHover(id);
+    }
+
+    private void OnTabMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not Guid id) return;
+        _tabDragStart = e.GetPosition(this);
+        _tabDragId = id;
+
+        // The header's handler normally does this; we're about to stop the event reaching it.
+        _manager?.NotifyWormholeFocused(this);
+
+        // Stop here. The header's own MouseDown handler starts DragMove(), which enters a modal
+        // move-size loop that swallows the move and up events — so without this the tab's click
+        // never completes and its drag-out never begins; you just drag the window by its tab.
+        e.Handled = true;
+
+        // Capture, or the pointer leaving this small Border ends the gesture — and leaving the
+        // Border is exactly what detaching a tab is.
+        fe.CaptureMouse();
+    }
+
+    /// <summary>A tab dragged clear of the header leaves the group and becomes its own wormhole
+    /// again, at the geometry it had before it was folded in.</summary>
+    private void OnTabMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_tabDragStart is null || _tabDragId is not { } id) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { ReleaseTabDrag(sender); return; }
+
+        var pos = e.GetPosition(this);
+        // Vertical distance only: dragging sideways along the strip is how you reach another tab,
+        // so only pulling clear of the strip counts as taking the tab out.
+        if (Math.Abs(pos.Y - _tabDragStart.Value.Y) < HeaderStripHeight) return;
+
+        ReleaseTabDrag(sender);
+        if (_manager is not null) _ = _manager.DetachAsync(id, CancellationToken.None);
+    }
+
+    private void OnTabMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        var id = _tabDragId;
+        ReleaseTabDrag(sender);
+        e.Handled = true;
+        if (id is not { } tabId || _manager is null) return;
+        if (tabId == _active.Id) return;   // already showing
+        _ = _manager.SetActiveTabAsync(tabId, CancellationToken.None);
+    }
+
+    private void ReleaseTabDrag(object sender)
+    {
+        _tabDragStart = null;
+        _tabDragId = null;
+        if (sender is FrameworkElement fe && fe.IsMouseCaptured) fe.ReleaseMouseCapture();
+    }
+
+    /// <summary>Show a different tab: swap in its folder, colour, zoom and title. Only the contents
+    /// change — the window keeps the parent's position, size and collapsed/hidden/topmost state, so
+    /// switching tabs never moves or resizes anything.</summary>
+    internal void SetActiveRecord(WormholeRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        if (ReferenceEquals(_active, record)) return;
+        _active = record;
+        // The header title binds through DataContext, so it has to follow the active tab too.
+        DataContext = record;
+        RefreshPortalItems();
+        ApplyAppearance();
+        RefreshTabs();
+    }
+
+    /// <summary>Re-enumerate the source folder and rebuild <see cref="_items"/>. Called from
+    /// the manager's <c>FolderWatcher.Changed</c> handler (debounced 300 ms) and from the
+    /// hamburger "Refresh" entry.</summary>
+    /// <summary>For a <c>.url</c> web link, asynchronously resolve its real site favicon (download
+    /// + stamp <c>IconFile=</c> into the <c>.url</c>) and swap the tile icon when it lands. The
+    /// placeholder is the shell icon already set by the VM ctor. No-op unless the favicon service
+    /// is wired and the toggle is on; non-<c>.url</c> paths are skipped. <c>async void</c> by
+    /// necessity (fire-and-forget UI update); all faults are swallowed so a refresh tick never
+    /// throws over a cosmetic icon.</summary>
+    private async void MaybeResolveFavicon(WormholeItemViewModel vm, string path)
+    {
+        if (_favicons is null) return;
+        if (_defaults?.WebLinkFaviconsEnabled != true) return;
+        if (!path.EndsWith(".url", StringComparison.OrdinalIgnoreCase)) return;
+        try
+        {
+            var changed = await _favicons.EnsureFaviconAsync(path, CancellationToken.None).ConfigureAwait(true);
+            if (!changed) return;
+            // The .url now carries IconFile= (or a cached .ico exists): drop the stale cached
+            // bitmap and re-resolve so IconService reads the favicon. ConfigureAwait(true) keeps
+            // us on the UI thread for the ObservableProperty assignment.
+            _icons.Invalidate(path);
+            var bmp = _icons.GetIconAtSize(path, EffectiveIconSize());
+            if (bmp is not null) vm.Icon = bmp;
+        }
+        catch
+        {
+            // Best-effort cosmetic — never disrupt the wormhole over a favicon.
+        }
+    }
+
+    public void RefreshPortalItems()
+    {
+        var portal = _active.Portal;
+        if (portal is null) return;
+
+        _items.Clear();
+        _portalItemCapReached = false;
+        try
+        {
+            if (!Directory.Exists(portal.SourcePath))
+            {
+                // Source went away (drive ejected, folder deleted, manual rename): swap to
+                // the dedicated error panel which shows the missing path + a "Pick a new
+                // folder…" button so the user can repoint without going through the chrome
+                // hamburger. EmptyStateHint stays hidden — keeping both visible would
+                // crowd the small wormhole real estate.
+                ShowSourceMissingState(portal.SourcePath);
+                return;
+            }
+            // Path resolves again — back to the normal empty / populated states.
+            SourceMissingPanel.Visibility = Visibility.Collapsed;
+            EmptyStateHint.Text = "Folder is empty — drop files here to add them.";
+
+            // Source enumeration: folders + files (or just files if the user disabled subdir
+            // listing). The sort mode (Name / Modified / Type) chosen via the hamburger menu
+            // is applied in SortPortalEntries; folders are always grouped first regardless.
+            IEnumerable<string> entries = portal.IncludeSubdirectoriesAsItems
+                ? Directory.EnumerateDirectories(portal.SourcePath).Concat(Directory.EnumerateFiles(portal.SourcePath))
+                : Directory.EnumerateFiles(portal.SourcePath);
+
+            // Drop the OS's own bookkeeping files (desktop.ini, Thumbs.db, …) unless the user asked
+            // to see them. Filtered before the sort and before the item cap, so they can't push a
+            // real file past PortalItemCap either.
+            entries = WormholeServiceFileFilter.ExcludeIf(entries, _defaults?.HideServiceFiles ?? true);
+
+            var ordered = SortPortalEntries(entries, portal.SortMode).ToList();
+            foreach (var path in ordered)
+            {
+                if (_items.Count >= PortalItemCap)
+                {
+                    _portalItemCapReached = true;
+                    break;
+                }
+                var vm = new WormholeItemViewModel(
+                    path, _icons,
+                    EffectiveIconSize(), EffectiveTilePadding(), EffectiveLineSpacing(),
+                    EffectiveLabelFontSize(), EffectiveLabelMaxLines(),
+                    _defaults?.HideFileExtensions ?? false);
+                _items.Add(vm);
+                MaybeResolveFavicon(vm, path);
+            }
+            // Re-apply the "cut" tint on the freshly-built VMs — the previous instances were
+            // dropped along with their IsCutMarked flag, but the path set is still live as
+            // long as the clipboard carries it.
+            ReapplyCutMarks();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            EmptyStateHint.Text = "Access denied to source folder.";
+        }
+        catch (Exception)
+        {
+            // Defensive: rare IO failures shouldn't crash the wormhole. The next debounce tick
+            // will retry.
+            EmptyStateHint.Text = "Couldn't read source folder.";
+        }
+
+        UpdateEmptyStateVisibility();
+        if (_portalItemCapReached)
+        {
+            // The cap is rare enough that a MessageBox would feel heavy on every refresh; we
+            // surface it via the empty-state slot so it stays visible but unobtrusive even
+            // while items render around it.
+            EmptyStateHint.Text = $"Folder has more than {PortalItemCap} entries — only the first {PortalItemCap} are shown.";
+            EmptyStateHint.Visibility = Visibility.Visible;
+        }
+
+        // If a rename just landed via FileSystemWatcher, the freshly-rebuilt _items now
+        // contains the renamed file under its new path — restore selection on it so arrow-key
+        // navigation resumes on the same tile the user just renamed.
+        ConsumePendingSelectionAfterRefresh();
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Header gestures
+    // -----------------------------------------------------------------------------------------
+
+    private void OnHeaderMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _manager?.NotifyWormholeFocused(this);
+        // Middle-click anywhere on the header → open the source folder in Explorer. Available
+        // even when the wormhole is locked (read-only gesture, doesn't move/resize the window)
+        // and ignores click count so a quick Browser-style middle-click works on the first try.
+        if (e.ChangedButton == MouseButton.Middle && e.ButtonState == MouseButtonState.Pressed)
+        {
+            OpenSourceFolder();
+            e.Handled = true;
+            return;
+        }
+        if (_record.IsLocked) return;
+        if (e.ClickCount == 2) { ToggleRoll(); return; }
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            try { DragMove(); }
+            catch (InvalidOperationException) { }
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Header search box
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>Click on the magnifying-glass icon → expand the inline search field over the
+    /// same header slot. Width of the search column is bumped from Auto (28 px button) to a
+    /// fixed pixel so the title column still gets the remaining stretch space and doesn't
+    /// crunch the wormhole title.</summary>
+    private void OnSearchIconClicked(object sender, RoutedEventArgs e)
+    {
+        OpenSearchBox(takeFocus: true);
+    }
+
+    private void OpenSearchBox(bool takeFocus)
+    {
+        SearchIconButton.Visibility = Visibility.Collapsed;
+        SearchBox.Visibility = Visibility.Visible;
+        // Pin the column to a comfortable width so the textbox actually has somewhere to go;
+        // Auto would collapse to the textbox's MinWidth (~24 px) and feel cramped.
+        SearchSlotColumn.Width = new GridLength(160);
+        if (takeFocus)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+        }
+    }
+
+    /// <summary>Collapse the search field back into the icon button. Clears the filter as well
+    /// so the wormhole returns to showing every item; if the user wanted to keep the filter
+    /// active they would leave the textbox visible (LostFocus with non-empty text doesn't
+    /// trigger this path).</summary>
+    private void CloseSearchBox()
+    {
+        SearchBox.Text = string.Empty;
+        _searchFilter = string.Empty;
+        _searchDebounce.Stop();
+        ApplySearchFilter();
+        SearchBox.Visibility = Visibility.Collapsed;
+        SearchIconButton.Visibility = Visibility.Visible;
+        SearchSlotColumn.Width = GridLength.Auto;
+    }
+
+    private void OnSearchTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        // Restart the debounce timer on every keystroke — only when the user stops typing for
+        // the full interval do we actually re-filter. Stop+Start is the canonical "reset"
+        // pattern for DispatcherTimer.
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
+
+    private void OnSearchDebounceTick(object? sender, EventArgs e)
+    {
+        _searchDebounce.Stop();
+        _searchFilter = SearchBox.Text?.Trim() ?? string.Empty;
+        ApplySearchFilter();
+    }
+
+    private void OnSearchKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            CloseSearchBox();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            // Commit the current text immediately (skip the debounce) and drop keyboard focus
+            // so a subsequent Esc / click anywhere goes to the canvas / header. Don't collapse
+            // the textbox — the user may want to refine the filter further.
+            _searchDebounce.Stop();
+            _searchFilter = SearchBox.Text?.Trim() ?? string.Empty;
+            ApplySearchFilter();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnSearchLostFocus(object sender, RoutedEventArgs e)
+    {
+        // Lost focus + empty text → snap back to icon mode. Non-empty text leaves the textbox
+        // visible so the user can see (and edit / clear) the active filter without re-opening
+        // the search box.
+        if (string.IsNullOrEmpty(SearchBox.Text)) CloseSearchBox();
+    }
+
+    private void ApplySearchFilter()
+    {
+        var view = CollectionViewSource.GetDefaultView(_items);
+        view?.Refresh();
+    }
+
+    /// <summary>Predicate plugged into the default CollectionView. Empty filter passes
+    /// everything (the typical case). Otherwise: case-insensitive substring match against
+    /// DisplayName so a user typing "rep" sees "Report.docx", "ReplaceMe.txt", "rep-notes",
+    /// etc.</summary>
+    private bool MatchesSearchFilter(object item)
+    {
+        if (string.IsNullOrEmpty(_searchFilter)) return true;
+        return item is WormholeItemViewModel vm
+            && vm.DisplayName.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Launch Explorer on the wormhole's source folder. Mirrors the Wormhole row's
+    /// OpenFolder command in the settings tab — duplicated rather than reaching across to the
+    /// VM because this window has its own _record snapshot and there's no row VM bound to it.
+    /// Silent no-op when the path is empty (broken/unlinked wormhole) or Explorer launch fails;
+    /// the user already sees the folder-missing chrome in that case.</summary>
+    private void OpenSourceFolder()
+    {
+        var folder = _active.Portal?.SourcePath;
+        if (string.IsNullOrWhiteSpace(folder)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            MaybeAutoDisableTopmost();
+        }
+        catch
+        {
+            // Explorer failed (folder missing / drive offline / ACL); the visible error chrome
+            // on the wormhole already advertises the broken state, no need to nag with a dialog.
+        }
+    }
+
+    /// <summary>Honour the "Auto-disable Topmost on launch" setting: when ON and we just
+    /// successfully launched something out of the wormhole, fire a batch SetAllTopmostAsync(false)
+    /// so every wormhole drops behind the just-launched app. Read fresh from the defaults service
+    /// on each call (no caching) — the setting is rare-toggle and the manager already shortcuts
+    /// when no record actually needs to change. Fire-and-forget: persisting the IsTopmost=false
+    /// flag is best-effort; a transient store failure shouldn't kill the launch gesture.
+    ///
+    /// We also arm <see cref="_pendingPostLaunchBacktrack"/>: when the launched app eventually
+    /// closes and Windows hands foreground back to this wormhole (the previous foreground), the
+    /// Activated handler below sees the flag and re-issues SendToBack — otherwise the wormhole
+    /// pops to the top of the non-topmost z-order on focus return and the user perceives it as
+    /// "back on top" even though IsTopmost is still false. One-shot: consumed on the first
+    /// Activated after the launch.</summary>
+    private void MaybeAutoDisableTopmost()
+    {
+        if (_defaults?.AutoDisableTopmostOnLaunch != true) return;
+        if (_manager is null) return;
+        // No-op when this wormhole isn't currently topmost: the user is in "normal" mode
+        // (no fullscreen app to compete with) so the post-launch backtrack would just bury
+        // a normal window the user expects to come back when the launched app closes.
+        if (!Topmost) return;
+        _pendingPostLaunchBacktrack = true;
+        _ = _manager.SetAllTopmostAsync(false, CancellationToken.None);
+    }
+
+    /// <summary>One-shot flag honoured by the next <see cref="OnActivatedPostLaunch"/> tick.
+    /// Set by <see cref="MaybeAutoDisableTopmost"/>; cleared on consumption (or when the user
+    /// re-enables Topmost via the toggle hotkey, which makes the post-launch backtrack moot).</summary>
+    private bool _pendingPostLaunchBacktrack;
+
+    /// <summary>Fired when this wormhole regains foreground after the auto-disable-on-launch
+    /// flow. Without this, closing the launched app makes Windows transfer foreground back to
+    /// the wormhole that started it (which was the foreground at click-time), and the wormhole
+    /// pops above every other non-topmost window — the user reads it as "topmost re-enabled".
+    /// We push it back to HWND_BOTTOM exactly once so it stays out of the way until the user
+    /// explicitly re-toggles Topmost via the hotkey. If the user already re-enabled Topmost
+    /// (record.IsTopmost==true) before this fires, do nothing — the BringToFront from the
+    /// transition handler is the correct outcome.</summary>
+    private void OnActivatedPostLaunch(object? sender, EventArgs e)
+    {
+        if (!_pendingPostLaunchBacktrack) return;
+        // Stay armed across MULTIPLE activations. A launched app hands the foreground back more
+        // than once: a console flashes on launch (Windows briefly returns focus here), then hands
+        // it back again when it finally closes. A one-shot flag got consumed by that first flash,
+        // so the wormhole popped back to the foreground on the real close. We only disarm when the
+        // user explicitly brings the wormholes topmost again (ApplyTopmostState clears the flag on
+        // the IsTopmost=true transition). Until then, every time this non-topmost wormhole is handed
+        // the foreground by a launched app, tuck it straight back down.
+        if (_record.IsTopmost) { _pendingPostLaunchBacktrack = false; return; }
+        SendToBack();
+    }
+
+    private void OnContentAreaMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _manager?.NotifyWormholeFocused(this);
+
+        // Issue #13: a tile's "Selected" overlay used to stick forever. Clicking another tile
+        // moved it, but there was no gesture that cleared it. This handler sits on OuterFrame, so
+        // it sees every mouse-down in the window (header strip + empty content area alike) once it
+        // bubbles past whatever handled it first. If the click didn't land on an item tile or an
+        // interactive control (button/textbox: those have their own click semantics and clicking
+        // them isn't "clicking outside the wormhole's items"), treat it as a background click and
+        // drop the selection, matching Explorer's "click empty space to deselect".
+        if (e.ChangedButton == MouseButton.Left && !IsClickOnItemOrControl(e.OriginalSource as DependencyObject))
+            ItemsHost.UnselectAll();
+
+        if (_record.IsLocked) return;
+        if (e.ChangedButton != MouseButton.Left) return;
+        if (e.OriginalSource is System.Windows.Controls.Button) return;
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            try { DragMove(); }
+            catch (InvalidOperationException) { }
+        }
+    }
+
+    /// <summary>Walks up from the click's OriginalSource looking for a ListBoxItem (a tile) or a
+    /// button/textbox (header controls: chevron, search, lock, hamburger, title editor). Stops at
+    /// the window root. Used by <see cref="OnContentAreaMouseDown"/> to tell a genuine background
+    /// click apart from one that's about to be handled by a tile or a chrome control.</summary>
+    private bool IsClickOnItemOrControl(DependencyObject? source)
+    {
+        for (var d = source; d is not null && !ReferenceEquals(d, this); d = GetVisualOrLogicalParent(d))
+        {
+            if (d is System.Windows.Controls.ListBoxItem) return true;
+            if (d is System.Windows.Controls.Primitives.ButtonBase) return true;
+            if (d is System.Windows.Controls.TextBox) return true;
+        }
+        return false;
+    }
+
+    private static DependencyObject? GetVisualOrLogicalParent(DependencyObject d) =>
+        d is Visual or System.Windows.Media.Media3D.Visual3D
+            ? VisualTreeHelper.GetParent(d) ?? LogicalTreeHelper.GetParent(d)
+            : LogicalTreeHelper.GetParent(d);
+
+    private void OnChevronClicked(object sender, RoutedEventArgs e) => ToggleRoll();
+
+    private void OnLockClicked(object sender, RoutedEventArgs e)
+    {
+        _record.IsLocked = !_record.IsLocked;
+        ApplyLockState();
+        _onPersist();
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Hamburger menu
+    // -----------------------------------------------------------------------------------------
+
+    private void OnHamburgerClicked(object sender, RoutedEventArgs e)
+    {
+        var menu = new System.Windows.Controls.ContextMenu();
+
+        var openFolder = new System.Windows.Controls.MenuItem { Header = "Open folder" };
+        openFolder.Click += (_, _) => OpenAssociatedFolder();
+        menu.Items.Add(openFolder);
+
+        var refresh = new System.Windows.Controls.MenuItem { Header = "Refresh" };
+        refresh.Click += (_, _) => RefreshPortalItems();
+        menu.Items.Add(refresh);
+
+        var changeFolder = new System.Windows.Controls.MenuItem { Header = "Change folder…" };
+        changeFolder.Click += (_, _) => OnChangeFolder();
+        menu.Items.Add(changeFolder);
+
+        // Sort by submenu. The chosen mode persists on the per-record Portal config and the
+        // items list rebuilds immediately.
+        var sortBy = new System.Windows.Controls.MenuItem { Header = "Sort by" };
+        var sortModes = new[] { "Name", "Modified", "Type" };
+        var currentSort = GetCurrentSortMode();
+        foreach (var mode in sortModes)
+        {
+            var captured = mode;
+            var item = new System.Windows.Controls.MenuItem
+            {
+                Header = mode,
+                IsCheckable = true,
+                IsChecked = string.Equals(currentSort, captured, StringComparison.OrdinalIgnoreCase),
+                StaysOpenOnClick = false,
+            };
+            item.Click += (_, _) => SetSortMode(captured);
+            sortBy.Items.Add(item);
+        }
+        menu.Items.Add(sortBy);
+
+        // Reset zoom: visible only when this wormhole carries a per-record override
+        // (Ctrl+Wheel was used at some point). Clearing it falls back through the chain
+        // to the app-wide default + DesktopIconSize, which the user can read off the
+        // Settings → Wormholes panel.
+        if (_active.IconSizePx > 0)
+        {
+            var resetZoom = new System.Windows.Controls.MenuItem { Header = "Reset zoom to default" };
+            resetZoom.Click += (_, _) =>
+            {
+                _active.IconSizePx = 0;
+                _onPersist();
+                RebuildItems();
+            };
+            menu.Items.Add(resetZoom);
+        }
+
+        menu.Items.Add(new System.Windows.Controls.Separator());
+
+        var rename = new System.Windows.Controls.MenuItem { Header = "Rename" };
+        rename.Click += (_, _) => BeginInlineRename();
+        menu.Items.Add(rename);
+
+        // Per-wormhole accent colour. Only offered when the picker was supplied (it isn't in the
+        // headless paths that construct a window without the colour services).
+        if (_colors is not null)
+        {
+            var accent = new System.Windows.Controls.MenuItem { Header = "Accent colour…" };
+            accent.Click += async (_, _) =>
+            {
+                // Seed the dialog with the colour this wormhole already has, so opening the picker
+                // on a coloured wormhole starts from it rather than from an unrelated recent.
+                var current = WormholeAccent.TryParse(_active.Appearance.AccentOverride);
+                var seed = current is { } c
+                    ? new AresToys.Editor.Model.ShapeColor(c.A, c.R, c.G, c.B)
+                    : null;
+
+                // Live preview: recolour this wormhole on every change inside the dialog. Picking a
+                // colour against a swatch and only seeing the result after OK is guesswork.
+                var picked = await _colors.PickAsync(
+                    onPreview: p => PreviewAccent(System.Windows.Media.Color.FromArgb(p.A, p.R, p.G, p.B)),
+                    initialColour: seed).ConfigureAwait(true);
+
+                if (picked is null)
+                {
+                    ApplyAppearance();   // cancelled — put the previous colour back
+                    return;
+                }
+                _active.Appearance.AccentOverride = WormholeAccent.Format(
+                    System.Windows.Media.Color.FromArgb(picked.A, picked.R, picked.G, picked.B));
+                _onPersist();
+                ApplyAppearance();
+            };
+            menu.Items.Add(accent);
+
+            if (WormholeAccent.TryParse(_active.Appearance.AccentOverride) is not null)
+            {
+                var resetAccent = new System.Windows.Controls.MenuItem { Header = "Reset accent colour" };
+                resetAccent.Click += (_, _) =>
+                {
+                    _active.Appearance.AccentOverride = null;
+                    _onPersist();
+                    ApplyAppearance();
+                };
+                menu.Items.Add(resetAccent);
+            }
+        }
+
+        var hide = new System.Windows.Controls.MenuItem { Header = "Hide this wormhole" };
+        hide.Click += (_, _) =>
+        {
+            _record.IsHidden = true;
+            _onPersist();
+            CloseFromManager();
+        };
+        menu.Items.Add(hide);
+
+        menu.Items.Add(new System.Windows.Controls.Separator());
+
+        var delete = new System.Windows.Controls.MenuItem { Header = "Delete wormhole…" };
+        delete.Click += (_, _) =>
+        {
+            var confirm = MessageBox.Show(OwnerForDialogs(),
+                $"Delete wormhole \"{_active.Title}\"?\n\nThe source folder on disk is NOT touched.",
+                "AresToys",
+                MessageBoxButton.OKCancel, MessageBoxImage.Question,
+                MessageBoxResult.Cancel);
+            if (confirm != MessageBoxResult.OK) return;
+
+            // Second prompt: if the source folder is on disk AND empty, offer to remove it.
+            // Never auto-delete a folder with content — that's the user's data and the first
+            // dialog promised we wouldn't touch it. Empty folders are a common leftover after a
+            // "create wormhole, move stuff elsewhere, delete wormhole" workflow.
+            if (_active.Portal is { SourcePath: { Length: > 0 } src }
+                && Directory.Exists(src) && IsEmptyDirectory(src))
+            {
+                var alsoDelete = MessageBox.Show(OwnerForDialogs(),
+                    $"The source folder is empty:\n\n  {src}\n\nDelete it from disk as well?",
+                    "AresToys", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+                if (alsoDelete == MessageBoxResult.Yes)
+                {
+                    try { Directory.Delete(src); }
+                    catch (Exception ex)
+                    {
+                        // Best-effort: a permission denied / locked-by-AV failure here shouldn't
+                        // block the wormhole record deletion below. Inform the user so they can
+                        // clean up by hand if they care.
+                        MessageBox.Show(OwnerForDialogs(),
+                            "The wormhole was deleted, but the empty folder couldn't be removed:\n" + ex.Message,
+                            "AresToys", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+            }
+            DeleteRequested?.Invoke(this, _record.Id);
+        };
+        menu.Items.Add(delete);
+
+        menu.PlacementTarget = (FrameworkElement)sender;
+        menu.IsOpen = true;
+    }
+
+    private void OpenAssociatedFolder()
+    {
+        var folder = _active.Portal?.SourcePath;
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            MessageBox.Show(OwnerForDialogs(),"No folder is associated with this wormhole.", "AresToys",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            MaybeAutoDisableTopmost();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(OwnerForDialogs(),"Couldn't open the folder:\n" + ex.Message,
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Toggle the wormhole into the "source folder unavailable" state — hides the
+    /// items + empty-state hint, surfaces the dedicated panel with the missing path and a
+    /// re-link button. Called from <see cref="RefreshPortalItems"/> when Directory.Exists
+    /// returns false. The watcher keeps the old path; if the folder reappears (USB plugged
+    /// back in, network share resumes) the next refresh tick clears this state automatically.</summary>
+    private void ShowSourceMissingState(string missingPath)
+    {
+        SourceMissingPath.Text = string.IsNullOrEmpty(missingPath) ? "(no path set)" : missingPath;
+        SourceMissingPanel.Visibility = Visibility.Visible;
+        EmptyStateHint.Visibility = Visibility.Collapsed;
+        // Hide any stale suggestion from a previous failure until the manager comes back with a
+        // fresh one for THIS path.
+        SourceSuggestionPanel.Visibility = Visibility.Collapsed;
+        _suggestedSourcePath = null;
+
+        // Ask the manager to try to find the folder again: by NTFS identity first (a rename or a
+        // move is repaired silently), then by name (offered through the panel below).
+        _manager?.RequestSourceRecovery(_record);
+    }
+
+    /// <summary>Candidate path offered by <see cref="ApplySourceSuggestion"/>, applied when the
+    /// user clicks "relink".</summary>
+    private string? _suggestedSourcePath;
+
+    /// <summary>Show a "looks like it moved here" offer on the source-missing panel. Called by
+    /// the manager when the folder couldn't be identified for certain but a plausible match
+    /// exists — typically the sibling wormholes moved to a new parent and this one should follow.
+    /// Null hides the offer.</summary>
+    internal void ApplySourceSuggestion(string? candidate)
+    {
+        _suggestedSourcePath = candidate;
+        if (string.IsNullOrEmpty(candidate))
+        {
+            SourceSuggestionPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        SourceSuggestionPath.Text = candidate;
+        SourceSuggestionPanel.Visibility = Visibility.Visible;
+    }
+
+    private void OnAcceptSourceSuggestionClicked(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_suggestedSourcePath)) return;
+        _manager?.RelinkSource(_record, _suggestedSourcePath);
+    }
+
+    /// <summary>Re-link button on the source-missing error panel. Reuses the same folder-pick
+    /// flow as the hamburger "Change folder…" entry — keeps a single place where the
+    /// SourcePath mutation + persist + refresh live.</summary>
+    private void OnRelinkSourceClicked(object sender, RoutedEventArgs e) => OnChangeFolder();
+
+    private void OnChangeFolder()
+    {
+        if (_active.Portal is null) return;
+        var dlg = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Pick the new source folder for this wormhole",
+            InitialDirectory = Directory.Exists(_active.Portal.SourcePath)
+                ? _active.Portal.SourcePath
+                : Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        if (_manager is not null)
+        {
+            // The manager owns the full swap: persist, capture the new folder's identity (so a
+            // later rename is recoverable), re-point the watcher at it and refresh. Before this
+            // existed the watcher kept listening to the OLD folder until the next app launch.
+            _manager.RelinkSource(_record, dlg.FolderName);
+            return;
+        }
+        _active.Portal.SourcePath = dlg.FolderName;
+        _onPersist();
+        RefreshPortalItems();
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Inline rename
+    // -----------------------------------------------------------------------------------------
+
+    private void BeginInlineRename()
+    {
+        TitleEditor.Text = _active.Title;
+        TitleEditor.Visibility = Visibility.Visible;
+        TitleText.Visibility = Visibility.Collapsed;
+        TitleEditor.Focus();
+        TitleEditor.SelectAll();
+    }
+
+    private void CommitInlineRename()
+    {
+        var next = (TitleEditor.Text ?? string.Empty).Trim();
+        if (!string.IsNullOrEmpty(next) && next != _active.Title)
+        {
+            _active.Title = next;
+            DataContext = null;
+            DataContext = _record;
+            _onPersist();
+        }
+        EndInlineRename();
+    }
+
+    private void EndInlineRename()
+    {
+        TitleEditor.Visibility = Visibility.Collapsed;
+        TitleText.Visibility = Visibility.Visible;
+    }
+
+    private void OnTitleEditorKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { CommitInlineRename(); e.Handled = true; }
+        else if (e.Key == Key.Escape) { EndInlineRename(); e.Handled = true; }
+    }
+
+    private void OnTitleEditorLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (TitleEditor.Visibility == Visibility.Visible) CommitInlineRename();
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Drop handling — branches on Data vs Portal kind
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>Latched flag tracking whether the in-progress drag is using the right mouse
+    /// button. We sample it on every DragOver tick because at OnDrop time the button is already
+    /// being released and the flag in the final <see cref="DragEventArgs.KeyStates"/> may have
+    /// cleared. Used to switch the drop path from "default move/copy" to the Explorer-style
+    /// "Copy here / Move here / Create shortcut here / Cancel" context menu.</summary>
+    private bool _lastDragWasRightButton;
+
+    private void OnDragEnter(object sender, DragEventArgs e)
+    {
+        _lastDragWasRightButton = (e.KeyStates & DragDropKeyStates.RightMouseButton) != 0;
+        e.Effects = ResolveDropEffect(e);
+        e.Handled = true;
+    }
+
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        _lastDragWasRightButton = (e.KeyStates & DragDropKeyStates.RightMouseButton) != 0;
+        e.Effects = ResolveDropEffect(e);
+        e.Handled = true;
+    }
+
+    private DragDropEffects ResolveDropEffect(DragEventArgs e)
+    {
+        if (_record.IsLocked) return DragDropEffects.None;
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return DragDropEffects.None;
+        // Data wormhole always reads as Copy — the original source file is never touched, only
+        // a .lnk is materialised. Cursor reflects this so the user can't confuse it with a
+        // real file move.
+        // Explorer's standard drag semantics:
+        //   - Ctrl  → force Copy
+        //   - Shift → force Move
+        //   - no modifier → Move if source and dest are on the same volume, Copy otherwise
+        // The cursor previews the action of the first dragged path; per-file decisions in
+        // DropOntoPortal apply the same rule per item, so a mixed-volume batch behaves
+        // correctly even if the cursor only shows one of the two effects.
+        var ctrl  = (e.KeyStates & DragDropKeyStates.ControlKey) == DragDropKeyStates.ControlKey;
+        var shift = (e.KeyStates & DragDropKeyStates.ShiftKey)   == DragDropKeyStates.ShiftKey;
+        if (ctrl)  return DragDropEffects.Copy;
+        if (shift) return DragDropEffects.Move;
+
+        var paths = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+        if (paths is null || paths.Length == 0) return DragDropEffects.Copy;
+        return IsSameVolume(paths[0], _active.Portal?.SourcePath)
+            ? DragDropEffects.Move
+            : DragDropEffects.Copy;
+    }
+
+    /// <summary>True if <paramref name="source"/> and <paramref name="destFolder"/> share the
+    /// same path root — drive letter for local paths, UNC server+share for network paths. Used
+    /// to decide the default Move-vs-Copy behaviour on a Portal drop (Explorer semantics —
+    /// same-volume drag defaults to Move, cross-volume defaults to Copy).</summary>
+    private static bool IsSameVolume(string source, string? destFolder)
+    {
+        if (string.IsNullOrWhiteSpace(destFolder)) return false;
+        try
+        {
+            var srcRoot = System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(source));
+            var dstRoot = System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(destFolder));
+            return !string.IsNullOrEmpty(srcRoot)
+                && string.Equals(srcRoot, dstRoot, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            // Defensive — GetFullPath throws on bad paths (illegal chars, too-long). Fall back
+            // to Copy on uncertainty so we never silently move a file we couldn't reason about.
+            return false;
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Per-item drop routing — when the user drops something on a SPECIFIC tile (not the empty
+    // wormhole area), behaviour switches based on the tile's target:
+    //   - Folder (or .lnk → folder): file goes INSIDE the folder, not into the wormhole's
+    //     source folder. Same gesture Explorer / Portals / Stardock Fences use.
+    //   - Executable / script (or .lnk → executable): file is passed as an argument to that
+    //     program, so dragging an image onto a Photoshop shortcut opens the image in
+    //     Photoshop, dragging a path onto a .bat passes the path as %1, etc.
+    //   - Anything else (text file, doc, image with no associated handler we recognise):
+    //     fall back to the wormhole-level drop (copy into source folder) so the user isn't
+    //     left without a sensible default.
+    // e.Handled = true on the item path stops the event bubbling up to the container's
+    // OnDrop, so the wormhole doesn't double-process the same drop.
+    // -----------------------------------------------------------------------------------------
+
+    private void OnItemDragEnter(object sender, DragEventArgs e)
+    {
+        // Keep the right-button latch fresh even while the cursor is over a tile. The tile
+        // handlers set e.Handled = true, which stops the DragOver from bubbling up to the
+        // container's OnDragOver — so without sampling the button here too, a drop that starts
+        // on a tile and then bubbles to OnDrop (unknown-target fall-through) would read a STALE
+        // _lastDragWasRightButton left over from an earlier right-drag (e.g. one cancelled
+        // outside the window, which never runs OnDrop's reset). That stale true wrongly popped
+        // the "Create shortcut here" menu on a plain left-drag → the "-Shortcut.lnk was created"
+        // report. Re-sampling on every tile drag tick keeps the latch honest.
+        _lastDragWasRightButton = (e.KeyStates & DragDropKeyStates.RightMouseButton) != 0;
+        e.Effects = ResolveItemDropEffect(sender, e);
+        e.Handled = true;
+    }
+
+    private void OnItemDragOver(object sender, DragEventArgs e)
+    {
+        _lastDragWasRightButton = (e.KeyStates & DragDropKeyStates.RightMouseButton) != 0;
+        e.Effects = ResolveItemDropEffect(sender, e);
+        e.Handled = true;
+    }
+
+    /// <summary>Pick the drop effect cursor when hovering a specific tile. Folder targets show
+    /// Move/Copy (same heuristic as the wormhole-level drop); executable targets show Link
+    /// (the closest cursor for "drop = open with this program"). Locked wormholes still allow
+    /// drops on individual items — dropping a file onto Photoshop.lnk inside a locked
+    /// wormhole has no side effect on the wormhole itself, so the lock state is irrelevant.</summary>
+    private DragDropEffects ResolveItemDropEffect(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return DragDropEffects.None;
+        if (sender is not FrameworkElement fe || fe.DataContext is not WormholeItemViewModel vm)
+            return DragDropEffects.None;
+
+        var resolved = ResolveShellTarget(vm.AbsolutePath);
+        if (Directory.Exists(resolved))
+        {
+            // Folder drop — same Move/Copy heuristic as the wormhole-level drop
+            var ctrl  = (e.KeyStates & DragDropKeyStates.ControlKey) == DragDropKeyStates.ControlKey;
+            var shift = (e.KeyStates & DragDropKeyStates.ShiftKey)   == DragDropKeyStates.ShiftKey;
+            if (ctrl) return DragDropEffects.Copy;
+            if (shift) return DragDropEffects.Move;
+            var paths = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+            if (paths is null || paths.Length == 0) return DragDropEffects.Copy;
+            return IsSameVolume(paths[0], resolved) ? DragDropEffects.Move : DragDropEffects.Copy;
+        }
+        if (IsExecutableTarget(resolved))
+        {
+            // "Open with this program" — Link cursor is what Explorer shows when you drag a
+            // file onto an executable. Drop fires the exe with the dropped file as argument.
+            return DragDropEffects.Link;
+        }
+        // Unknown target type — let the wormhole-level handler take over by signalling None
+        // here. The event still bubbles because we don't set Handled in the None branch.
+        return DragDropEffects.None;
+    }
+
+    private void OnItemDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        if (sender is not FrameworkElement fe || fe.DataContext is not WormholeItemViewModel vm) return;
+        var paths = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+        if (paths is null || paths.Length == 0) return;
+
+        var resolved = ResolveShellTarget(vm.AbsolutePath);
+
+        // Folder target → drop the files inside it. SHFileOperation handles the shell prompts
+        // (rename on conflict, progress for big batches) automatically.
+        if (Directory.Exists(resolved))
+        {
+            var ctrl  = (e.KeyStates & DragDropKeyStates.ControlKey) == DragDropKeyStates.ControlKey;
+            var shift = (e.KeyStates & DragDropKeyStates.ShiftKey)   == DragDropKeyStates.ShiftKey;
+            // Per-file Move-vs-Copy mirrors the wormhole-level rule.
+            var move = !ctrl && (shift || IsSameVolume(paths[0], resolved));
+            ShellCopyOrMove(paths, resolved, move);
+            e.Handled = true;
+            return;
+        }
+
+        // Executable / script target → launch it with the dropped file as argument(s).
+        // Multiple files become a space-separated list, each quoted so paths-with-spaces stay
+        // intact. UseShellExecute = true so .lnk resolution / Verb=runas still apply if the
+        // user pinned that on the shortcut itself.
+        if (IsExecutableTarget(resolved))
+        {
+            try
+            {
+                var args = string.Join(' ', paths.Select(p => $"\"{p}\""));
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = vm.AbsolutePath, // launch via the cell's actual path so .lnk
+                                                 // working dir + args + verb get applied;
+                                                 // resolving to the target would strip those.
+                    Arguments = args,
+                    UseShellExecute = true,
+                    WorkingDirectory = Path.GetDirectoryName(resolved) ?? string.Empty,
+                };
+                AresToys.App.Services.UnelevatedLauncher.Start(psi);
+                MaybeAutoDisableTopmost();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(OwnerForDialogs(),
+                    $"Couldn't open with {Path.GetFileName(resolved)}:\n{ex.Message}",
+                    "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        // Unknown target — let the container-level drop take over (copy into the source
+        // folder). NOT marking e.Handled = true lets the event bubble.
+    }
+
+    /// <summary>Recognised executable / script extensions that accept a file path as their
+    /// first argument. Drop-target detection uses this; anything outside the set falls back
+    /// to the wormhole-level drop. Lowercase + leading dot for direct comparison against
+    /// Path.GetExtension output.</summary>
+    private static readonly HashSet<string> ExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".wsf", ".com",
+    };
+
+    private static bool IsExecutableTarget(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        if (Directory.Exists(path)) return false;
+        var ext = Path.GetExtension(path);
+        return !string.IsNullOrEmpty(ext) && ExecutableExtensions.Contains(ext);
+    }
+
+    /// <summary>Walk through a .lnk to get the underlying target path. Returns the input path
+    /// untouched for non-.lnk inputs. .url files (web shortcuts) are NOT resolved — Process.
+    /// Start handles them by launching the browser, no resolution needed. Failures during
+    /// COM resolution fall back to the raw path, which is correct enough for the executable-
+    /// vs-folder branching downstream (a broken .lnk falls through to the "unknown" branch
+    /// and goes via container drop).</summary>
+    private static string ResolveShellTarget(string path)
+        => string.IsNullOrEmpty(path) ? path : Services.ShellShortcut.ResolveTargetPath(path);
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        if (_record.IsLocked) return;
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        var paths = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+        if (paths is null || paths.Length == 0) return;
+        e.Handled = true;
+
+        // Right-button drag → show the Explorer-style choice menu instead of executing the
+        // default move/copy heuristic. Latched in DragOver above because the right button has
+        // already been released by the time OnDrop fires, so reading e.KeyStates here would
+        // give a false negative.
+        if (_lastDragWasRightButton)
+        {
+            ShowRightDragDropMenu(paths);
+            _lastDragWasRightButton = false;
+            return;
+        }
+        _lastDragWasRightButton = false;
+        DropOntoPortal(paths, RightDragChoice.None,
+            ctrl:  (e.KeyStates & DragDropKeyStates.ControlKey) == DragDropKeyStates.ControlKey,
+            shift: (e.KeyStates & DragDropKeyStates.ShiftKey)   == DragDropKeyStates.ShiftKey);
+    }
+
+    /// <summary>Forced choice for a right-button drag-and-drop. None = use the legacy
+    /// Move/Copy heuristic (Ctrl/Shift modifiers + same-volume rule); the other values bypass
+    /// the heuristic and run the requested operation on every source path.</summary>
+    private enum RightDragChoice { None, Copy, Move, Shortcut }
+
+    /// <summary>Build + show the Explorer-style "Copy here / Move here / Create shortcut here /
+    /// Cancel" menu at the current mouse position. Uses a plain WPF ContextMenu — wpf-ui's
+    /// dark theme picks it up automatically, so the chrome matches the rest of AresToys
+    /// without a custom template. Each entry routes back through <see cref="DropOntoPortal"/>
+    /// with the forced choice set.</summary>
+    private void ShowRightDragDropMenu(string[] paths)
+    {
+        var menu = new System.Windows.Controls.ContextMenu
+        {
+            Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint,
+        };
+
+        var copy = new System.Windows.Controls.MenuItem { Header = "Copy here" };
+        copy.Click += (_, _) => DropOntoPortal(paths, RightDragChoice.Copy, ctrl: false, shift: false);
+        menu.Items.Add(copy);
+
+        var move = new System.Windows.Controls.MenuItem { Header = "Move here" };
+        move.Click += (_, _) => DropOntoPortal(paths, RightDragChoice.Move, ctrl: false, shift: false);
+        menu.Items.Add(move);
+
+        var shortcut = new System.Windows.Controls.MenuItem { Header = "Create shortcut here" };
+        shortcut.Click += (_, _) => DropOntoPortal(paths, RightDragChoice.Shortcut, ctrl: false, shift: false);
+        menu.Items.Add(shortcut);
+
+        menu.Items.Add(new System.Windows.Controls.Separator());
+
+        // Cancel = dismiss the menu, do nothing. The menu auto-closes on click anywhere else
+        // (Esc / click-outside), Cancel just gives the user an explicit out to match Explorer.
+        var cancel = new System.Windows.Controls.MenuItem { Header = "Cancel" };
+        menu.Items.Add(cancel);
+
+        menu.IsOpen = true;
+    }
+
+    private void DropOntoPortal(string[] paths, RightDragChoice choice, bool ctrl, bool shift)
+    {
+        if (_active.Portal is null || string.IsNullOrWhiteSpace(_active.Portal.SourcePath)) return;
+        var dest = _active.Portal.SourcePath;
+        if (!Directory.Exists(dest))
+        {
+            MessageBox.Show(OwnerForDialogs(),"The Portal source folder isn't currently available.",
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Per-file Move-vs-Copy decision matches the cursor preview rule in ResolveDropEffect:
+        // Ctrl forces Copy, Shift forces Move, otherwise same-volume drags Move and cross-volume
+        // drags Copy. Evaluated per item so a mixed-volume batch (e.g. user drags 2 files from
+        // C:\ and 1 from D:\ at the same time) gets the right behaviour for each.
+        //
+        // RightDragChoice (when the menu picked an explicit verb) overrides everything: the
+        // user told us exactly what to do, no heuristics.
+        bool ShouldMove(string source) => choice switch
+        {
+            RightDragChoice.Move     => true,
+            RightDragChoice.Copy     => false,
+            RightDragChoice.Shortcut => false, // shortcut path handled separately below
+            _                        => !ctrl && (shift || IsSameVolume(source, dest)),
+        };
+
+        var errors = new List<string>();
+        foreach (var source in paths)
+        {
+            try
+            {
+                // Skip a self-drop (dragging an item from the same source folder back in) —
+                // the operation would either be a same-path Move (NOP) or a Copy that would
+                // create "name (2)" pointlessly. Exception: Shortcut creation on a self-drop
+                // is still valid (creates a .lnk next to the original — same as Explorer).
+                var srcDir = Directory.Exists(source)
+                    ? Path.GetDirectoryName(source.TrimEnd(Path.DirectorySeparatorChar))
+                    : Path.GetDirectoryName(source);
+                if (string.Equals(srcDir, dest, StringComparison.OrdinalIgnoreCase)
+                    && choice != RightDragChoice.Shortcut) continue;
+
+                // Block any drop that would put a folder inside itself or one of its descendants
+                // (recursion-into-self). Catches: dropping the wormhole's own source folder onto
+                // the wormhole (would create C:\Foo\Foo), or dropping any parent folder onto a
+                // Portal whose source is a descendant (would infinite-loop Directory.Move /
+                // CopyDirectoryRecursive). Only relevant when source is a directory — file drops
+                // can't recurse.
+                if (IsDestinationInsideSource(source, dest))
+                {
+                    errors.Add($"{Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar))}: can't drop a folder into itself or one of its subfolders.");
+                    continue;
+                }
+
+                var name = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+                // Shortcut path: write a .lnk next to the source path. Explorer uses
+                // "<name> - Shortcut.lnk" as the default filename when creating shortcuts via
+                // its right-click drag menu; we match that for consistency.
+                if (choice == RightDragChoice.Shortcut)
+                {
+                    var shortcutName = $"{name} - Shortcut.lnk";
+                    var shortcutPath = UniqueTargetPath(Path.Combine(dest, shortcutName));
+                    CreateShellShortcut(source, shortcutPath);
+                    continue;
+                }
+
+                var targetPath = Path.Combine(dest, name);
+                targetPath = UniqueTargetPath(targetPath);
+
+                var move = ShouldMove(source);
+                if (Directory.Exists(source))
+                {
+                    if (move) Directory.Move(source, targetPath);
+                    else CopyDirectoryRecursive(source, targetPath);
+                }
+                else
+                {
+                    if (move) File.Move(source, targetPath, overwrite: false);
+                    else File.Copy(source, targetPath, overwrite: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{Path.GetFileName(source)}: {ex.Message}");
+            }
+        }
+        // No manual refresh — the FolderWatcher will pick the changes up after its 300 ms tick
+        // and the manager calls RefreshPortalItems(). Only show errors here.
+        if (errors.Count > 0)
+            MessageBox.Show(OwnerForDialogs(),"Some items couldn't be moved/copied:\n\n" + string.Join("\n", errors),
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>True if <paramref name="dest"/> is the same path as <paramref name="source"/>
+    /// or a descendant directory of it. Used to block recursive moves / copies that would
+    /// produce <c>C:\Foo\Foo</c> or trigger an infinite copy loop when the user drops a folder
+    /// onto one of its own subtrees. Source-is-file → always false (files can't recurse).</summary>
+    private static bool IsDestinationInsideSource(string source, string dest)
+    {
+        if (!Directory.Exists(source)) return false;
+        try
+        {
+            var sourceFull = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var destFull   = Path.GetFullPath(dest).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(destFull, sourceFull, StringComparison.OrdinalIgnoreCase)
+                || destFull.StartsWith(sourceFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            // Defensive: GetFullPath can throw on illegal characters / too-long paths. Treat as
+            // "not same" (= allow the drop) — File.Move / Directory.Move will surface their own
+            // exception to the per-item error list if it really is a bad path.
+            return false;
+        }
+    }
+
+    private static string UniqueTargetPath(string candidate)
+    {
+        if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+        var dir = Path.GetDirectoryName(candidate)!;
+        var stem = Path.GetFileNameWithoutExtension(candidate);
+        var ext = Path.GetExtension(candidate);
+        for (var n = 2; n < 1000; n++)
+        {
+            var next = Path.Combine(dir, $"{stem} ({n}){ext}");
+            if (!File.Exists(next) && !Directory.Exists(next)) return next;
+        }
+        return Path.Combine(dir, $"{stem}-{Guid.NewGuid():N}{ext}");
+    }
+
+    private static void CopyDirectoryRecursive(string source, string dest)
+    {
+        Directory.CreateDirectory(dest);
+        foreach (var file in Directory.EnumerateFiles(source))
+            File.Copy(file, Path.Combine(dest, Path.GetFileName(file)), overwrite: false);
+        foreach (var sub in Directory.EnumerateDirectories(source))
+            CopyDirectoryRecursive(sub, Path.Combine(dest, Path.GetFileName(sub)));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Sort by — hamburger menu + persistence
+    // -----------------------------------------------------------------------------------------
+
+    private string GetCurrentSortMode() => _active.Portal?.SortMode ?? "Name";
+
+    private void SetSortMode(string mode)
+    {
+        if (string.IsNullOrEmpty(mode) || _active.Portal is null) return;
+        _active.Portal.SortMode = mode;
+        _onPersist();
+        RefreshPortalItems();
+    }
+
+    /// <summary>Order Portal entries: folders first (alphabetical), then files by chosen sort
+    /// mode. Folders-first mirrors Stardock and Explorer conventions — the user expects to see
+    /// directories grouped at the top regardless of the file-side sort.</summary>
+    private static IEnumerable<string> SortPortalEntries(IEnumerable<string> entries, string sortMode)
+    {
+        var materialised = entries as IList<string> ?? entries.ToList();
+        var folders = materialised.Where(Directory.Exists)
+            .OrderBy(p => Path.GetFileName(p.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                     StringComparer.CurrentCultureIgnoreCase);
+        var files = materialised.Where(p => !Directory.Exists(p));
+        files = sortMode switch
+        {
+            "Modified" => files.OrderByDescending(p => SafeLastWriteTime(p)),
+            "Type"     => files.OrderBy(p => Path.GetExtension(p), StringComparer.OrdinalIgnoreCase)
+                                .ThenBy(p => Path.GetFileName(p), StringComparer.CurrentCultureIgnoreCase),
+            _          => files.OrderBy(p => Path.GetFileName(p), StringComparer.CurrentCultureIgnoreCase),
+        };
+        return folders.Concat(files);
+    }
+
+    private static DateTime SafeLastWriteTime(string path)
+    {
+        try { return File.GetLastWriteTime(path); }
+        catch { return DateTime.MinValue; }
+    }
+
+    /// <summary>True if the directory exists and has zero entries (files OR subdirectories).
+    /// EnumerateFileSystemEntries is cheaper than GetFiles+GetDirectories — it streams the first
+    /// entry and we early-out. Any IO failure is treated as "not empty" so the delete-folder
+    /// prompt errs on the side of preserving the folder.</summary>
+    private static bool IsEmptyDirectory(string path)
+    {
+        try { return !Directory.EnumerateFileSystemEntries(path).Any(); }
+        catch { return false; }
+    }
+
+    private void UpdateEmptyStateVisibility()
+    {
+        EmptyStateHint.Visibility = _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnItemMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2) return;
+        // With one-click open on, the first click already opened the item on mouse-up; a second
+        // click landing inside the double-click time would open it twice.
+        if (_defaults?.OpenWithOneClick == true) return;
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not WormholeItemViewModel vm) return;
+        OpenItem(vm);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Drag-out gesture — drag a tile out of the wormhole into Explorer / desktop / another
+    // wormhole. Without this handler the inner ListBox's Extended-selection rubber-band would
+    // swallow the gesture: the user would see selection extend across other tiles instead of
+    // the standard file-cursor preview, and dropping outside the window would land nowhere.
+    //
+    // Preview* variants so we run BEFORE the ListBoxItem's bubbling MouseLeftButtonDown handler
+    // (which is what kicks off marquee selection). We only RECORD the start point on Down —
+    // selection still updates normally because we don't set Handled. PreviewMouseMove promotes
+    // to DoDragDrop once SystemParameters.MinimumHorizontal/VerticalDragDistance is exceeded,
+    // so a quick click without movement still selects/double-clicks normally.
+    //
+    // Payload: DataFormats.FileDrop with absolute paths — this is what makes Windows show the
+    // file-icon preview cursor and lets Explorer / desktop / other wormholes accept the drop.
+    // Multi-select: if the armed item is part of the current selection we drag every selected
+    // path (Explorer multi-drag); otherwise just the armed one. Locked wormholes restrict the
+    // allowed effects to Copy|Link so the source folder can't be mutated by a Move drop.
+    // -----------------------------------------------------------------------------------------
+
+    private void OnItemPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) { _itemDragStart = null; _itemDragSourceVm = null; return; }
+        if (fe.DataContext is not WormholeItemViewModel vm) { _itemDragStart = null; _itemDragSourceVm = null; return; }
+        _itemDragStart = e.GetPosition(this);
+        _itemDragSourceVm = vm;
+        // Remembered for the one-click-open path: a double click sends two press/release pairs, so
+        // the release of the SECOND press must not open the item a second time.
+        _itemPressClickCount = e.ClickCount;
+    }
+
+    private void OnItemPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // Disarm first, whatever happens next.
+        var armed = _itemDragSourceVm;
+        var wasAPress = _itemDragStart is not null;
+        var clickCount = _itemPressClickCount;
+        _itemDragStart = null;
+        _itemDragSourceVm = null;
+        _itemPressClickCount = 0;
+
+        if (_defaults?.OpenWithOneClick != true) return;
+        // Only the first click of a sequence opens. Double-clicking a tile with one-click open on
+        // would otherwise reach here twice and open the item twice.
+        if (clickCount != 1) return;
+        // Open on mouse-UP, not down: the same press arms the drag-out gesture, so opening on the
+        // way down would open a file the moment the user started dragging it out. A press that
+        // turned into a drag has already cleared _itemDragStart in PreviewMouseMove, so reaching
+        // here with it still set is exactly "a click that stayed put".
+        if (!wasAPress || armed is null) return;
+        OpenItem(armed);
+    }
+
+    private void OnItemPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_itemDragStart is null || _itemDragSourceVm is null) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { _itemDragStart = null; _itemDragSourceVm = null; return; }
+        var pos = e.GetPosition(this);
+        var dx = Math.Abs(pos.X - _itemDragStart.Value.X);
+        var dy = Math.Abs(pos.Y - _itemDragStart.Value.Y);
+        if (dx < SystemParameters.MinimumHorizontalDragDistance &&
+            dy < SystemParameters.MinimumVerticalDragDistance) return;
+
+        var armedVm = _itemDragSourceVm;
+        _itemDragStart = null;
+        _itemDragSourceVm = null;
+        if (sender is not FrameworkElement fe) return;
+
+        // Multi-drag if armed item is part of the live selection; otherwise single-item drag.
+        // Mirrors Explorer: clicking an unselected item then dragging drags only that item.
+        string[] paths;
+        if (ItemsHost.SelectedItems.Contains(armedVm))
+        {
+            paths = ItemsHost.SelectedItems
+                .OfType<WormholeItemViewModel>()
+                .Select(v => v.AbsolutePath)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToArray();
+        }
+        else
+        {
+            paths = string.IsNullOrEmpty(armedVm.AbsolutePath)
+                ? Array.Empty<string>()
+                : new[] { armedVm.AbsolutePath };
+        }
+        if (paths.Length == 0) return;
+
+        var data = new DataObject();
+        var sc = new System.Collections.Specialized.StringCollection();
+        foreach (var p in paths) sc.Add(p);
+        data.SetFileDropList(sc);
+
+        // Locked wormhole: forbid Move so the source folder stays intact. Copy / shortcut still
+        // allowed so the user can pull a reference out without mutating the locked contents.
+        var allowed = _record.IsLocked
+            ? DragDropEffects.Copy | DragDropEffects.Link
+            : DragDropEffects.Copy | DragDropEffects.Move | DragDropEffects.Link;
+
+        try
+        {
+            DragDrop.DoDragDrop(fe, data, allowed);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WormholeWindow: drag-out failed: {ex.Message}");
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Per-item context menu — always the Windows shell native menu (same one Explorer shows).
+    // The custom AresToys curated menu (Open / Open file location / Copy path / Move to /
+    // Rename / Delete) was removed in favour of the native one: Explorer's menu already covers
+    // every entry we had AND every third-party verb the user has installed (Open with…, Send
+    // to, 7-Zip, Git GUI, etc.), and an "Open file location" entry inside a window that *is*
+    // showing the folder content is redundant.
+    // -----------------------------------------------------------------------------------------
+
+    private void OnItemRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not WormholeItemViewModel vm) return;
+        var screen = PointToScreen(e.GetPosition(this));
+        AresToys.App.Services.Shell.ShellContextMenu.Show(vm.AbsolutePath, this, screen);
+        e.Handled = true;
+
+        // Show() is documented as blocking until the picked verb's own invocation finishes,
+        // including the modal Properties sheet reachable from the shell menu, which is where
+        // "Change Icon…" lives. Icons are resolved once at WormholeItemViewModel construction and
+        // IconService caches the bitmap per path (see IconService.Invalidate), so a shell-driven
+        // icon change would otherwise sit stale in both the cache and this tile's Icon property
+        // until the app restarts. We don't know which verb (if any) the user picked, so evict +
+        // re-resolve unconditionally: for the common case (Open, Copy, …) this is just a cheap
+        // no-op re-extraction, not a hot path.
+        _icons.Invalidate(vm.AbsolutePath);
+        var refreshedIcon = _icons.GetIconAtSize(vm.AbsolutePath, vm.IconSizePx);
+        if (refreshedIcon is not null) vm.Icon = refreshedIcon;
+    }
+
+    /// <summary>Keyboard shortcuts on the items list: Del / Shift+Del recycle or permanently
+    /// delete the selected files; Ctrl+C / Ctrl+X copy or cut them onto the Windows clipboard
+    /// in Explorer-compatible CF_HDROP format with a "Preferred DropEffect" hint; Ctrl+V pastes
+    /// a previously copied/cut file selection into the wormhole's source folder via SHFile-
+    /// Operation (which surfaces the standard shell prompts for name collisions). Locked
+    /// wormholes refuse the mutating gestures (Cut / Paste / Delete) but still allow Copy.</summary>
+    /// <summary>Track whether the next <see cref="OnItemsHostSelectionChanged"/> fire was caused
+    /// by us programmatically clearing the selection (manager fanning out the "your sibling
+    /// took the selection" signal). Without this guard, every clear would recursively trigger
+    /// another fan-out → infinite loop / stack overflow.</summary>
+    private bool _suppressSelectionBroadcast;
+
+    /// <summary>Public hook used by the manager to clear this wormhole's item selection when a
+    /// sibling wormhole picks up a new selection. UnselectAll fires <see cref="OnItemsHostSelectionChanged"/>
+    /// internally, so we set the suppress flag first to keep the SelectionChanged handler from
+    /// rebroadcasting and bouncing the gesture around the live wormholes.</summary>
+    internal void ClearItemSelection()
+    {
+        if (ItemsHost.SelectedItems.Count == 0) return;
+        _suppressSelectionBroadcast = true;
+        try { ItemsHost.UnselectAll(); }
+        finally { _suppressSelectionBroadcast = false; }
+    }
+
+    /// <summary>Single-wormhole selection model — Explorer-style. Whenever this listbox picks up
+    /// new items (AddedItems &gt; 0), tell the manager to clear every sibling wormhole's selection
+    /// so the user only ever sees one wormhole's tiles highlighted at a time. Programmatic clears
+    /// land here too (AddedItems empty / RemovedItems populated), but they don't broadcast.</summary>
+    private void OnItemsHostSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_suppressSelectionBroadcast) return;
+        if (e.AddedItems.Count == 0) return;
+        _manager?.NotifyItemSelectionTaken(this);
+    }
+
+    private void OnItemsHostPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var ctrl  = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift)   == ModifierKeys.Shift;
+
+        if (TryPeek(e)) return;
+
+        if (e.Key == Key.Delete)
+        {
+            if (_record.IsLocked) return;
+            var paths = SelectedItemPaths();
+            if (paths.Length == 0) return;
+            // Shift+Del = permanent (no recycle bin). FOF_WANTNUKEWARNING surfaces the
+            // standard shell "permanently delete?" prompt. Without Shift, FOF_ALLOWUNDO
+            // sends to the recycle bin silently — same gesture Explorer uses, so muscle
+            // memory works.
+            SendPathsToRecycleBin(paths, permanent: shift);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.C)
+        {
+            var paths = SelectedItemPaths();
+            if (paths.Length == 0) return;
+            SetClipboardFiles(paths, cut: false);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.X)
+        {
+            if (_record.IsLocked) return;
+            var paths = SelectedItemPaths();
+            if (paths.Length == 0) return;
+            SetClipboardFiles(paths, cut: true);
+            MarkPathsAsCut(paths);
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.V)
+        {
+            if (_record.IsLocked) return;
+            PasteFromClipboard();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F2)
+        {
+            if (_record.IsLocked) return;
+            var selected = ItemsHost.SelectedItems.OfType<WormholeItemViewModel>().ToList();
+            if (selected.Count != 1) return;
+            BeginItemRename(selected[0]);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            var selected = ItemsHost.SelectedItems.OfType<WormholeItemViewModel>().ToList();
+            if (selected.Count == 0) return;
+            foreach (var vm in selected) OpenItem(vm);
+            e.Handled = true;
+            return;
+        }
+    }
+
+    /// <summary>The Peek toggle key on the tile list: previews the first selected file, the arrows of the preview then
+    /// walk the files of this wormhole in the order shown (folders and tiles hidden by the search left out). The key
+    /// and the preview are Peek's (<see cref="Services.Peek.PeekSatelliteModule"/>, same process): with the Peek module
+    /// off, while a tile is being renamed or with no file selected the key is not handled. Returns true when taken.</summary>
+    private bool TryPeek(KeyEventArgs e)
+    {
+        if (_renamingItem is not null || Services.Peek.PeekSatelliteModule.Current is not { } peek) return false;
+
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var modifiers = AresToys.Hotkeys.HotkeyModifiers.None;
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Alt;
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Control;
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Shift;
+        if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0) modifiers |= AresToys.Hotkeys.HotkeyModifiers.Win;
+        if (!Services.Peek.PeekKeys.Matches(peek.Keys.Toggle, modifiers, (uint)KeyInterop.VirtualKeyFromKey(key))) return false;
+
+        var selected = ItemsHost.SelectedItems.OfType<WormholeItemViewModel>().ToHashSet();
+        var files = new List<string>();
+        var index = -1;
+        var shown = CollectionViewSource.GetDefaultView(_items).OfType<WormholeItemViewModel>();
+        foreach (var vm in shown)
+        {
+            if (string.IsNullOrEmpty(vm.AbsolutePath) || !File.Exists(vm.AbsolutePath)) continue;
+            if (index < 0 && selected.Contains(vm)) index = files.Count;
+            files.Add(vm.AbsolutePath);
+        }
+        if (index < 0) return false;
+
+        e.Handled = true;
+        if (!e.IsRepeat) ShowPeek(peek, files, index);
+        return true;
+    }
+
+    private async void ShowPeek(Services.Peek.PeekSatelliteModule peek, IReadOnlyList<string> files, int index)
+        => await peek.ShowAsync(files, index, new System.Windows.Interop.WindowInteropHelper(this).Handle);
+
+    // -----------------------------------------------------------------------------------------
+    // Inline rename of a single tile (F2)
+    //
+    // UX mirrors Explorer: F2 on the selected tile pops a TextBox over the label, the basename
+    // is selected (extension untouched, so backspace-then-type behaves like Explorer's "rename
+    // the name part"), Enter commits and Esc cancels. Commit performs File.Move / Directory.Move
+    // on the underlying path; the parent FolderWatcher's debounce picks up the rename and
+    // refreshes the tiles automatically. The overlay TextBox lives in ContentGrid as a sibling
+    // of ItemsHost so we can absolutely position it via Margin without inflating the per-item
+    // DataTemplate (one shared editor used by whichever tile is being renamed).
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>Tile whose label is currently being edited via <see cref="ItemRenameEditor"/>;
+    /// null when no rename is in flight. Captured at BeginItemRename time so Commit knows which
+    /// path to move even if the selection moves on (e.g. user clicks elsewhere → LostFocus
+    /// commits against the original tile, not the new selection).</summary>
+    private WormholeItemViewModel? _renamingItem;
+
+    /// <summary>Cached tile-top-left in ContentGrid coordinates for the in-flight rename, so
+    /// TextChanged can re-centre the (growing) editor around the tile without re-querying the
+    /// ListBoxItem container on every keystroke.</summary>
+    private Point _renameTileTopLeft;
+
+    private void BeginItemRename(WormholeItemViewModel vm)
+    {
+        // Force container realization for items that aren't in view yet — virtualization can
+        // hand us null for off-screen tiles, but ListBox.SelectedItem can't be off-screen in
+        // practice (the user just pressed F2 on a visible selection) so the second attempt
+        // after UpdateLayout is paranoia.
+        var container = ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) as System.Windows.Controls.ListBoxItem;
+        if (container is null)
+        {
+            ItemsHost.UpdateLayout();
+            container = ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) as System.Windows.Controls.ListBoxItem;
+            if (container is null) return;
+        }
+
+        // Position the editor over the label area of the tile. The label sits below the icon
+        // in the tile's Grid (row 1), starting at IconSizePx + iconMargin.Top inside the tile.
+        // TranslatePoint gives us the tile's top-left in ContentGrid coordinates; we add the
+        // label offset to land on the right line.
+        _renameTileTopLeft = container.TranslatePoint(new Point(0, 0), ContentGrid);
+        var labelTopOffset = vm.IconSizePx + vm.IconMargin.Top + vm.IconMargin.Bottom;
+        ItemRenameEditor.Margin = new Thickness(_renameTileTopLeft.X, _renameTileTopLeft.Y + labelTopOffset, 0, 0);
+        // No fixed Width — the editor grows horizontally to fit its content (see UpdateRenameEditorLayout).
+        ItemRenameEditor.ClearValue(FrameworkElement.WidthProperty);
+
+        var fileName = Path.GetFileName(vm.AbsolutePath);
+        ItemRenameEditor.Text = fileName;
+        ItemRenameEditor.Visibility = Visibility.Visible;
+        // Hide the original tile label so the rename overlay isn't drawn on top of it (two
+        // overlapping texts is the bug this branch fixes).
+        vm.IsRenaming = true;
+        _renamingItem = vm;
+        UpdateRenameEditorLayout();
+
+        // Focus + selection must run after layout so the TextBox is fully realized; otherwise
+        // SelectAll/Select silently no-ops on a not-yet-arranged element.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            ItemRenameEditor.Focus();
+            Keyboard.Focus(ItemRenameEditor);
+            // Select the basename only (everything up to the last '.'). For .lnk / .url whose
+            // extensions were stripped from DisplayName we still operate on the real filename
+            // here, so the user sees the .lnk extension exposed during rename — matching
+            // Explorer behaviour with "Hide extensions for known file types" turned off.
+            var name = ItemRenameEditor.Text ?? string.Empty;
+            var ext = Path.GetExtension(name);
+            var baseLen = name.Length - ext.Length;
+            if (baseLen <= 0) baseLen = name.Length;
+            ItemRenameEditor.Select(0, baseLen);
+        }), DispatcherPriority.Loaded);
+    }
+
+    private void CommitItemRename()
+    {
+        var vm = _renamingItem;
+        if (vm is null) { EndItemRename(); return; }
+
+        var newName = (ItemRenameEditor.Text ?? string.Empty).Trim();
+        var oldPath = vm.AbsolutePath;
+        EndItemRename();
+
+        // Default post-rename target is the original path — every non-success branch (empty
+        // name, unchanged, invalid chars, move-failure) restores selection on the same tile.
+        var selectAfter = oldPath;
+
+        try
+        {
+            if (string.IsNullOrEmpty(newName)) return;
+            var oldName = Path.GetFileName(oldPath);
+            if (string.Equals(oldName, newName, StringComparison.Ordinal)) return;
+
+            if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                MessageBox.Show(this,
+                    "The name contains characters that aren't allowed in filenames.",
+                    "Rename", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var dir = Path.GetDirectoryName(oldPath);
+            if (string.IsNullOrEmpty(dir)) return;
+            var newPath = Path.Combine(dir, newName);
+
+            try
+            {
+                if (Directory.Exists(oldPath))
+                    Directory.Move(oldPath, newPath);
+                else
+                    File.Move(oldPath, newPath);
+                // FolderWatcher in the manager will tick a Refresh; no manual refresh needed here.
+                selectAfter = newPath;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    $"Rename failed: {ex.Message}",
+                    "Rename", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        finally
+        {
+            SchedulePostRenameFocus(selectAfter);
+        }
+    }
+
+    private void EndItemRename()
+    {
+        ItemRenameEditor.Visibility = Visibility.Collapsed;
+        if (_renamingItem is not null) _renamingItem.IsRenaming = false;
+        _renamingItem = null;
+    }
+
+    private void OnItemRenameEditorKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { CommitItemRename(); e.Handled = true; }
+        else if (e.Key == Key.Escape)
+        {
+            // Capture the path before EndItemRename clears _renamingItem — Esc cancels the
+            // edit but should leave the same tile selected + focused so arrow-key navigation
+            // resumes from where the user was.
+            var path = _renamingItem?.AbsolutePath;
+            EndItemRename();
+            if (path is not null) SchedulePostRenameFocus(path);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Path of the tile that should be selected + focused after the next
+    /// <see cref="RefreshPortalItems"/> rebuild. Set by <see cref="SchedulePostRenameFocus"/>
+    /// when the target VM isn't in <see cref="_items"/> yet (e.g. just after File.Move — the
+    /// FolderWatcher's 300 ms debounced refresh hasn't fired). Consumed by RefreshPortalItems
+    /// at the end of its rebuild. Auto-clears after a 1500 ms timeout in case the FSW never
+    /// reports (slow network share, dropped events).</summary>
+    private string? _pendingSelectionPath;
+    private DispatcherTimer? _pendingSelectionTimeout;
+
+    /// <summary>Restore selection + keyboard focus on the tile that matches <paramref name="path"/>
+    /// after an inline rename ends. For Esc / no-op / move-failure branches the VM is still in
+    /// _items so TryFocusItemByPath succeeds immediately. For commit-success the VM list won't
+    /// be rebuilt until the FolderWatcher's debounced refresh lands (~300 ms later); we stash
+    /// the target path and RefreshPortalItems re-applies it when it next runs.</summary>
+    private void SchedulePostRenameFocus(string path)
+    {
+        if (TryFocusItemByPath(path)) return;
+
+        _pendingSelectionPath = path;
+        _pendingSelectionTimeout?.Stop();
+        _pendingSelectionTimeout = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+        _pendingSelectionTimeout.Tick += (s, _) =>
+        {
+            ((DispatcherTimer)s!).Stop();
+            _pendingSelectionPath = null;
+        };
+        _pendingSelectionTimeout.Start();
+    }
+
+    /// <summary>If a rename committed but RefreshPortalItems then ran and wiped the freshly-
+    /// applied selection, this re-applies the pending target path so the user gets the renamed
+    /// tile focused for arrow-key navigation. Called from RefreshPortalItems at the end of
+    /// the rebuild.</summary>
+    private void ConsumePendingSelectionAfterRefresh()
+    {
+        if (_pendingSelectionPath is null) return;
+        var path = _pendingSelectionPath;
+        if (TryFocusItemByPath(path))
+        {
+            _pendingSelectionPath = null;
+            _pendingSelectionTimeout?.Stop();
+            _pendingSelectionTimeout = null;
+        }
+    }
+
+    private bool TryFocusItemByPath(string path)
+    {
+        var vm = _items.FirstOrDefault(i =>
+            string.Equals(i.AbsolutePath, path, StringComparison.OrdinalIgnoreCase));
+        if (vm is null) return false;
+
+        ItemsHost.SelectedItem = vm;
+        ItemsHost.UpdateLayout();
+        // ListBoxItem container realisation is virtualised — UpdateLayout forces it for the
+        // selected index. Focusing the container (not just SetCurrentValue on SelectedItem)
+        // is what makes arrow-key navigation resume on the right tile.
+        if (ItemsHost.ItemContainerGenerator.ContainerFromItem(vm) is System.Windows.Controls.ListBoxItem container)
+        {
+            container.Focus();
+            Keyboard.Focus(container);
+            return true;
+        }
+        return false;
+    }
+
+    private void OnItemRenameEditorLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        // LostKeyboardFocus fires reliably whenever keyboard focus leaves the editor — including
+        // clicks elsewhere in the same window AND clicks outside the window entirely. LostFocus
+        // (logical focus) doesn't fire on window deactivation, which left the editor visible
+        // after the user clicked away from the wormhole.
+        if (ItemRenameEditor.Visibility == Visibility.Visible) CommitItemRename();
+    }
+
+    private void OnItemRenameEditorTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (_renamingItem is null) return;
+        UpdateRenameEditorLayout();
+    }
+
+    /// <summary>Measure the rename editor's text and resize the TextBox so it shows the full
+    /// filename without horizontal clipping — Explorer's behaviour. Recentres the box around
+    /// the tile's centre column so the edit feels anchored to the tile, then clamps the final
+    /// rect to the ContentGrid bounds so a very long name doesn't slide off-screen.</summary>
+    private void UpdateRenameEditorLayout()
+    {
+        var vm = _renamingItem;
+        if (vm is null) return;
+
+        // Measure the text at the editor's current font + padding. We re-measure on every
+        // keystroke because TextBox doesn't auto-resize when its Width is unset (it just clips
+        // its content area to the parent's available width).
+        var typeface = new Typeface(ItemRenameEditor.FontFamily, ItemRenameEditor.FontStyle,
+            ItemRenameEditor.FontWeight, ItemRenameEditor.FontStretch);
+        var ft = new FormattedText(ItemRenameEditor.Text ?? string.Empty,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            ItemRenameEditor.FontSize,
+            Brushes.Black,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+        // Padding + border + a couple pixels of caret breathing room. Without the +6 the
+        // trailing characters end up scrolled out of view because the caret can sit at the
+        // very edge of the content rect.
+        const double chrome = 12;
+        double desiredWidth = Math.Max(vm.TileWidth, ft.WidthIncludingTrailingWhitespace + chrome);
+
+        // Clamp horizontally to ContentGrid bounds — don't let the editor slide off-screen
+        // for very long names. Centre around the tile's horizontal centre so the editor grows
+        // outward symmetrically (Explorer-style).
+        double tileCentre = _renameTileTopLeft.X + vm.TileWidth / 2.0;
+        double left = tileCentre - desiredWidth / 2.0;
+        double maxLeft = Math.Max(0, ContentGrid.ActualWidth - desiredWidth);
+        if (left < 0) left = 0;
+        else if (left > maxLeft) left = maxLeft;
+
+        ItemRenameEditor.Width = desiredWidth;
+        var m = ItemRenameEditor.Margin;
+        ItemRenameEditor.Margin = new Thickness(left, m.Top, m.Right, m.Bottom);
+    }
+
+    /// <summary>Snapshot of the selected items' absolute paths, defensively filtered to
+    /// non-empty strings. Multiple call sites (Del / Copy / Cut handlers) — extracted to keep
+    /// each branch a one-liner.</summary>
+    private string[] SelectedItemPaths() => ItemsHost.SelectedItems
+        .OfType<WormholeItemViewModel>()
+        .Select(vm => vm.AbsolutePath)
+        .Where(p => !string.IsNullOrEmpty(p))
+        .ToArray();
+
+    /// <summary>Mark a batch of paths as "in cut state" — their tiles render at 50 % opacity
+    /// (binding driven by <see cref="WormholeItemViewModel.IsCutMarked"/>). Also stamps the
+    /// paths into <see cref="_cutPaths"/> so a refresh-driven VM rebuild can re-apply the
+    /// flag. Clears any previously-marked items first so a new Ctrl+X supersedes the old
+    /// selection — Explorer behaves the same way.</summary>
+    private void MarkPathsAsCut(string[] paths)
+    {
+        // Drop the previous cut set first so a fresh Ctrl+X doesn't leave stale fade-out on
+        // items from the last gesture.
+        foreach (var vm in _items)
+        {
+            if (vm.IsCutMarked) vm.IsCutMarked = false;
+        }
+        _cutPaths.Clear();
+        foreach (var p in paths) _cutPaths.Add(p);
+        foreach (var vm in _items)
+        {
+            if (_cutPaths.Contains(vm.AbsolutePath)) vm.IsCutMarked = true;
+        }
+    }
+
+    /// <summary>Drop the cut state on every tile and forget the cached path set. Called when
+    /// the clipboard no longer carries our paths (paste happened somewhere, or another app
+    /// took over the clipboard).</summary>
+    private void ClearCutState()
+    {
+        if (_cutPaths.Count == 0) return;
+        _cutPaths.Clear();
+        foreach (var vm in _items)
+        {
+            if (vm.IsCutMarked) vm.IsCutMarked = false;
+        }
+    }
+
+    /// <summary>Re-apply <see cref="_cutPaths"/> against the current <see cref="_items"/> set
+    /// after the FileSystemWatcher-driven rebuild. The new VM instances start with IsCutMarked
+    /// = false; we flip them back to true for any path still in the cut set. Called from
+    /// RebuildItems / RefreshPortalItems after the collection has been repopulated.</summary>
+    internal void ReapplyCutMarks()
+    {
+        if (_cutPaths.Count == 0) return;
+        foreach (var vm in _items)
+        {
+            if (_cutPaths.Contains(vm.AbsolutePath) && !vm.IsCutMarked)
+                vm.IsCutMarked = true;
+        }
+    }
+
+    /// <summary>WM_CLIPBOARDUPDATE arrives whenever the clipboard's owner changes. If the new
+    /// payload no longer matches the FileDrop list we wrote (Ctrl+X session is over —
+    /// pasted, replaced, or someone else copied something), clear the cut tint. The check
+    /// reads the live clipboard once and compares against our cached path set; mismatch =
+    /// drop the marks.</summary>
+    private IntPtr WindowProcClipboardHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_CLIPBOARDUPDATE = 0x031D;
+        if (msg != WM_CLIPBOARDUPDATE) return IntPtr.Zero;
+        if (_cutPaths.Count == 0) return IntPtr.Zero;
+        try
+        {
+            if (!System.Windows.Clipboard.ContainsFileDropList())
+            {
+                ClearCutState();
+                return IntPtr.Zero;
+            }
+            var list = System.Windows.Clipboard.GetFileDropList();
+            var live = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in list) if (p is not null) live.Add(p);
+            // Mismatch on count or content → our session is over.
+            if (live.Count != _cutPaths.Count || !live.SetEquals(_cutPaths))
+            {
+                ClearCutState();
+            }
+        }
+        catch
+        {
+            // Clipboard race / locked by another app — be conservative and drop the marks.
+            // Worst case the user sees the cut highlight disappear once; better than a stale
+            // fade that never recovers.
+            ClearCutState();
+        }
+        return IntPtr.Zero;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
+
+    /// <summary>Push a list of filesystem paths onto the Windows clipboard in the standard
+    /// CF_HDROP format Explorer also writes. The <c>Preferred DropEffect</c> shell-clipboard
+    /// format is a 4-byte LE DWORD: <c>2</c> = Move (Cut), <c>5</c> = Copy. Setting it lets
+    /// the user paste into Explorer / any other app that honours the convention; the receiving
+    /// side reads the same bytes to know whether to move or copy. Without it Explorer defaults
+    /// to Copy regardless of how we got the items onto the clipboard.</summary>
+    private static void SetClipboardFiles(string[] paths, bool cut)
+    {
+        var data = new System.Windows.DataObject();
+        var sc = new System.Collections.Specialized.StringCollection();
+        foreach (var p in paths) sc.Add(p);
+        data.SetFileDropList(sc);
+
+        // DROPEFFECT_COPY = 1, DROPEFFECT_MOVE = 2 (Win32 OLE convention; the older Explorer
+        // shell wrote 5 for Copy = COPY|LINK but every modern reader accepts the plain 1).
+        var effect = new byte[] { (byte)(cut ? 2 : 1), 0, 0, 0 };
+        var ms = new MemoryStream(effect);
+        data.SetData("Preferred DropEffect", ms);
+
+        System.Windows.Clipboard.SetDataObject(data, copy: true);
+    }
+
+    /// <summary>Read the clipboard for a CF_HDROP payload + Preferred DropEffect hint, then
+    /// run a shell move-or-copy into the wormhole's source folder. SHFileOperation handles
+    /// the conflict-rename prompt + progress UI automatically, mirroring what Explorer does
+    /// when pasting in a folder. On a successful Cut paste we clear the clipboard to match
+    /// Explorer's behaviour (the cut source disappears from the clipboard after the move).</summary>
+    private void PasteFromClipboard()
+    {
+        if (_active.Portal?.SourcePath is not { } dest) return;
+        if (!Directory.Exists(dest)) return;
+        if (!System.Windows.Clipboard.ContainsFileDropList()) return;
+
+        var fileList = System.Windows.Clipboard.GetFileDropList();
+        if (fileList.Count == 0) return;
+        var paths = new string[fileList.Count];
+        for (var i = 0; i < fileList.Count; i++) paths[i] = fileList[i]!;
+
+        // Sniff the Preferred DropEffect hint to distinguish Cut from Copy. Default to Copy if
+        // the source didn't write the hint (some apps put a CF_HDROP without it).
+        var isCut = false;
+        try
+        {
+            var data = System.Windows.Clipboard.GetDataObject();
+            if (data?.GetData("Preferred DropEffect") is MemoryStream ms)
+            {
+                var bytes = new byte[4];
+                _ = ms.Read(bytes, 0, 4);
+                // DROPEFFECT_MOVE = 2; treat anything else as Copy.
+                isCut = bytes[0] == 2;
+            }
+        }
+        catch { /* clipboard race — ignore, fall back to Copy */ }
+
+        ShellCopyOrMove(paths, dest, move: isCut);
+
+        if (isCut)
+        {
+            // Explorer clears the clipboard after a Cut+Paste so a stray Ctrl+V can't move
+            // the same files twice. Mirror that behaviour.
+            try { System.Windows.Clipboard.Clear(); } catch { }
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // SHFileOperation P/Invoke — used by the keyboard shortcuts (Del / Ctrl+V) to recycle,
+    // permanently delete, copy, and move files with the same shell prompts + progress UI
+    // Explorer surfaces.
+    // -----------------------------------------------------------------------------------------
+
+    // pFrom / pTo are IntPtr (not C# string) because the LPWStr marshaller would truncate the
+    // wide-string at the first embedded NUL — which is exactly the byte SHFileOperation uses
+    // to separate paths in the multi-file list AND to mark the end of the list (double NUL).
+    // String marshalling delivers the kernel a buffer with just the first path's content
+    // followed by a single NUL, after which the shell scans into uninitialised memory looking
+    // for the second NUL terminator → reliable 0xC0000005 access violation. Manual HGlobal
+    // allocation of the full double-NUL-terminated buffer is the documented workaround.
+    //
+    // No `Pack = 1` here: older pinvoke.net snippets carry the attribute over from the 32-bit
+    // era when shellapi.h shipped the struct inside a #pragma pack(1) block, but on x64 the
+    // IntPtr / pointer fields require natural 8-byte alignment — forcing 1-byte packing makes
+    // SHFileOperation read pFrom from a misaligned address and access-violate. The CLR's
+    // default sequential layout naturally aligns each field on its size, which matches the
+    // shellapi.h struct on modern 64-bit builds.
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        public IntPtr pFrom;
+        public IntPtr pTo;
+        public ushort fFlags;
+        public int fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        public IntPtr lpszProgressTitle;
+    }
+    private const uint FO_MOVE   = 0x0001;
+    private const uint FO_COPY   = 0x0002;
+    private const uint FO_DELETE = 0x0003;
+    private const ushort FOF_ALLOWUNDO        = 0x0040;
+    private const ushort FOF_NOCONFIRMATION   = 0x0010;
+    private const ushort FOF_WANTNUKEWARNING  = 0x4000;
+    private const ushort FOF_MULTIDESTFILES   = 0x0001;
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+
+    /// <summary>Write a Windows .lnk shortcut at <paramref name="shortcutPath"/> pointing at
+    /// <paramref name="targetPath"/>. Mirrors what Explorer does when the user picks
+    /// "Create shortcut here" from the right-button drag menu — same icon, same working
+    /// directory (the target's parent). The COM plumbing lives in Services.ShellShortcut,
+    /// shared with the launcher (which reads shortcuts rather than writing them).</summary>
+    private static void CreateShellShortcut(string targetPath, string shortcutPath)
+        => Services.ShellShortcut.Create(targetPath, shortcutPath);
+
+    /// <summary>Allocate an unmanaged double-NUL-terminated UTF-16 path list in the format
+    /// SHFileOperation expects: <c>path1\0path2\0…\0pathN\0\0</c>. Caller MUST free with
+    /// <see cref="System.Runtime.InteropServices.Marshal.FreeHGlobal"/>. Pre-computes the total
+    /// char count so the buffer size is exact (no overallocation).</summary>
+    private static IntPtr AllocDoubleNullTerminatedList(string[] paths)
+    {
+        var totalChars = 1; // final terminating NUL
+        foreach (var p in paths) totalChars += p.Length + 1;
+        var buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(totalChars * sizeof(char));
+        var offset = 0;
+        foreach (var p in paths)
+        {
+            for (var i = 0; i < p.Length; i++)
+            {
+                System.Runtime.InteropServices.Marshal.WriteInt16(buffer, offset, (short)p[i]);
+                offset += sizeof(char);
+            }
+            System.Runtime.InteropServices.Marshal.WriteInt16(buffer, offset, 0); // per-path NUL
+            offset += sizeof(char);
+        }
+        System.Runtime.InteropServices.Marshal.WriteInt16(buffer, offset, 0); // final NUL (the "double null" marker)
+        return buffer;
+    }
+
+    /// <summary>Send one or more paths to the Recycle Bin (or permanently delete when
+    /// <paramref name="permanent"/> is true). Multi-select supported via the double-NUL path
+    /// list format SHFileOperation expects.</summary>
+    private static void SendPathsToRecycleBin(string[] paths, bool permanent)
+    {
+        if (paths.Length == 0) return;
+        var pFrom = AllocDoubleNullTerminatedList(paths);
+        try
+        {
+            var flags = permanent
+                ? (ushort)FOF_WANTNUKEWARNING                       // user gets the shell's permanent-delete prompt
+                : (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION);     // silent recycle, recoverable
+            var op = new SHFILEOPSTRUCT { wFunc = FO_DELETE, pFrom = pFrom, fFlags = flags };
+            // Return is non-zero on shell-side error / user-cancel — irrelevant here, the shell
+            // already surfaced whatever message it wanted to. Discard explicitly to silence the
+            // CA1806 analyzer.
+            _ = SHFileOperation(ref op);
+        }
+        finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(pFrom); }
+    }
+
+    /// <summary>Move-or-copy a batch of paths into a destination directory. The shell's
+    /// own progress + conflict UI takes over from here — no custom AresToys dialog needed,
+    /// the experience matches what the user gets in Explorer.</summary>
+    private static void ShellCopyOrMove(string[] paths, string destFolder, bool move)
+    {
+        if (paths.Length == 0) return;
+        var pFrom = AllocDoubleNullTerminatedList(paths);
+        var pTo   = AllocDoubleNullTerminatedList(new[] { destFolder });
+        try
+        {
+            var op = new SHFILEOPSTRUCT
+            {
+                wFunc = move ? FO_MOVE : FO_COPY,
+                pFrom = pFrom,
+                pTo   = pTo,
+                fFlags = FOF_ALLOWUNDO,
+            };
+            _ = SHFileOperation(ref op);
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(pFrom);
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(pTo);
+        }
+    }
+
+    /// <summary>Launch the item via shell verb — the default verb (Open) for the file type.
+    /// Wired to the double-click handler on each tile; never called from the right-click flow
+    /// anymore (which goes straight to the shell context menu and lets the user pick Open
+    /// themselves).</summary>
+    private void OpenItem(WormholeItemViewModel vm)
+    {
+        try
+        {
+            AresToys.App.Services.UnelevatedLauncher.Start(new ProcessStartInfo { FileName = vm.AbsolutePath, UseShellExecute = true });
+            MaybeAutoDisableTopmost();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(OwnerForDialogs(),"Couldn't open the item:\n" + ex.Message,
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Roll / lock state
+    // -----------------------------------------------------------------------------------------
+
+    private void ToggleRoll()
+    {
+        // Clicking the chevron states an intent, so it wins over (and ends) any hover peek:
+        // expanding a peeked-open wormhole pins it open, rather than toggling the record back to
+        // the state it's already showing.
+        _record.IsRolled = _peekExpanded ? false : !_record.IsRolled;
+        _peekExpanded = false;
+        ApplyRollState();
+        _onPersist();
+    }
+
+    private void ApplyRollState()
+    {
+        // The record says whether the wormhole is collapsed; a hover peek overrides what's SHOWN
+        // without touching it (see ApplyCollapsedHoverPeek).
+        if (_record.IsRolled && !_peekExpanded)
+        {
+            ContentArea.Visibility = Visibility.Collapsed;
+            // Window.MinHeight (80 in the XAML) silently clamps the rolled Height we set
+            // below — without dropping MinHeight first, the rolled wormhole stayed 80 px tall
+            // and showed ~46 px of body backdrop strip under the header. Drop it to 0 while
+            // rolled, restore on unroll.
+            //
+            // Target collapsed size: 32 (header) + 1+1 borders + ~14 strip ≈ 48 px. The thin
+            // strip is intentional — user-requested "circa il 50% dell'header" — to keep the
+            // wormhole feeling like an object that can be unrolled, not just the title bar.
+            MinHeight = 0;
+            Height = 48;
+            ResizeMode = ResizeMode.NoResize;
+            ChevronGlyph.Text = ChevronDownGlyph;
+        }
+        else
+        {
+            ContentArea.Visibility = Visibility.Visible;
+            // Order matters: set Height FIRST while MinHeight is still 0 (from the previous
+            // rolled state). Setting MinHeight=80 first would leave a pending "clamp Height up
+            // to 80" pass that interleaves badly with our explicit Height=UnrolledHeight
+            // assignment — the user reported the wormhole staying ~80 px tall instead of
+            // restoring to the saved height. Once Height matches UnrolledHeight (>= 80) we can
+            // safely raise MinHeight back to 80 without re-clamping.
+            Height = _record.Geometry.UnrolledHeight;
+            MinHeight = 80;
+            ResizeMode = _record.IsLocked ? ResizeMode.NoResize : ResizeMode.CanResize;
+            ChevronGlyph.Text = ChevronUpGlyph;
+        }
+
+    }
+
+    private void ApplyLockState()
+    {
+        LockGlyph.Text = _record.IsLocked ? LockClosedGlyph : LockOpenGlyph;
+        if (!_record.IsRolled)
+            ResizeMode = _record.IsLocked ? ResizeMode.NoResize : ResizeMode.CanResize;
+    }
+
+    /// <summary>Mirror <see cref="WormholeRecord.IsTopmost"/> onto WPF's
+    /// <see cref="Window.Topmost"/>. Driven by the "Toggle all Wormholes (Topmost)" workflow
+    /// (and reload after restart). Both directions of the toggle get an explicit native z-order
+    /// push to keep them symmetric:
+    ///
+    /// - ON  → <see cref="BringToFront"/> issues <c>SetWindowPos(HWND_TOPMOST, SWP_SHOWWINDOW)</c>.
+    ///   WPF's own Topmost setter calls HWND_TOPMOST internally, but in the auto-disable-on-launch
+    ///   scenario the previously-active wormhole had been sent to HWND_BOTTOM while still owning
+    ///   the foreground — Windows leaves that HWND in a state where WPF's bare Topmost=true
+    ///   doesn't lift it back above the foreground app. An explicit SetWindowPos forces the
+    ///   issue and fixes "the wormhole I clicked stays hidden after pressing the toggle".
+    /// - OFF → <see cref="SendToBack"/> issues <c>SetWindowPos(HWND_BOTTOM)</c>. WPF's default
+    ///   HWND_NOTOPMOST only drops the window below other topmost windows, leaving it on top of
+    ///   the non-topmost stack (i.e. still in front of the app the user just brought forward).
+    ///   HWND_BOTTOM tucks every wormhole behind the foreground app symmetrically.
+    ///
+    /// We only fire either call on a real transition (state actually changed), so freshly opened
+    /// wormholes don't get gratuitously bounced on app startup.</summary>
+    private void ApplyTopmostState()
+    {
+        var wasTopmost = Topmost;
+        Topmost = _record.IsTopmost;
+        // An explicit "bring wormholes on top" toggle must cancel any pending post-launch
+        // backtrack: the user asked to see them, so the wormhole they last clicked has to come
+        // back up like all the others. Left armed, a delayed Activated (foreground handed back
+        // when the launched app closes) would race the toggle and re-issue SendToBack on exactly
+        // that wormhole — the "all wormholes show except the one I clicked" report. Clearing the
+        // flag here (before the transition early-out below) closes that race regardless of event
+        // ordering.
+        if (_record.IsTopmost) _pendingPostLaunchBacktrack = false;
+        if (wasTopmost == _record.IsTopmost) return;
+        if (_record.IsTopmost)
+        {
+            BringToFront();
+            // If the topmost insert didn't take (background window while a launched console app
+            // owns the foreground), remember to retry on our next Activated — that fires when the
+            // launched app closes and hands the foreground back, at which point the insert works.
+            _topmostReapplyOnActivate = !IsWin32Topmost();
+        }
+        else
+        {
+            SendToBack();
+            _topmostReapplyOnActivate = false;
+        }
+    }
+
+    /// <summary>One-shot retry flag: set when <see cref="ApplyTopmostState"/> tried to go topmost
+    /// but Win32 refused the flag (we were a background window while a launched app owned the
+    /// foreground). Honoured by <see cref="OnActivatedReapplyTopmost"/> on the next activation.</summary>
+    private bool _topmostReapplyOnActivate;
+
+    /// <summary>True if the OS actually carries WS_EX_TOPMOST on our HWND right now — the real
+    /// z-order state, which can lag WPF's <see cref="Window.Topmost"/> when a background
+    /// SetWindowPos(HWND_TOPMOST) was dropped.</summary>
+    private bool IsWin32Topmost()
+    {
+        const int GWL_EXSTYLE = -20;
+        const int WS_EX_TOPMOST = 0x0008;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        return hwnd != IntPtr.Zero && (GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+    }
+
+    private void OnActivatedReapplyTopmost(object? sender, EventArgs e)
+    {
+        if (!_topmostReapplyOnActivate) return;
+        if (!_record.IsTopmost) { _topmostReapplyOnActivate = false; return; }
+        // We're being activated (typically because the launched app just closed and handed the
+        // foreground back). The topmost insert that failed in the background succeeds now.
+        BringToFront();
+        _topmostReapplyOnActivate = !IsWin32Topmost();
+    }
+
+    private void SendToBack()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        // HWND_BOTTOM = 1. SWP_NOMOVE|SWP_NOSIZE keep position/size untouched; SWP_NOACTIVATE
+        // avoids stealing focus from whatever the user just brought forward (the whole point of
+        // the toggle is to get out of the way without disrupting the foreground app).
+        const uint SWP_NOSIZE = 0x0001;
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOACTIVATE = 0x0010;
+        SetWindowPos(hwnd, new IntPtr(1), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    private void BringToFront()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        // HWND_TOPMOST = -1. Explicit re-issue of the topmost insert that WPF's Topmost setter
+        // already did internally — needed for the wormhole that initiated the launch gesture,
+        // which had been bottomed while still owning the foreground and then refused to lift
+        // back via WPF alone. SWP_SHOWWINDOW guarantees the window is visible (defensive: if
+        // any path along the auto-disable flow left it hidden). SWP_NOACTIVATE preserves the
+        // user's focus on the launched app — we want the wormholes ABOVE it, not stealing its
+        // input.
+        const uint SWP_NOSIZE = 0x0001;
+        const uint SWP_NOMOVE = 0x0002;
+        const uint SWP_NOACTIVATE = 0x0010;
+        const uint SWP_SHOWWINDOW = 0x0040;
+        const uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW;
+        SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, flags);
+        if (IsWin32Topmost()) return; // insert took — done.
+
+        // Foreground lock: this wormhole launched a console app (a .bat → cmd/conhost) and so
+        // "ceded" the foreground to it. Win32 then refuses to let this now-background window
+        // re-insert itself above the new foreground — SetWindowPos(HWND_TOPMOST) silently no-ops,
+        // leaving the wormhole stuck at the bottom (the "only the one that opened the .bat stays
+        // behind everything" report). Every OTHER wormhole lifts fine because it never ceded the
+        // foreground. Attaching our input queue to the foreground thread lifts the restriction for
+        // the duration of the call — the standard SetForegroundWindow-helper trick. Best-effort:
+        // if the foreground belongs to a higher-integrity process AttachThreadInput just returns
+        // false and we leave the window where it is (the Activated retry still fixes it on close).
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero || fg == hwnd) return;
+        var fgThread = GetWindowThreadProcessId(fg, out _);
+        var ourThread = GetCurrentThreadId();
+        if (fgThread == 0 || fgThread == ourThread) return;
+        if (!AttachThreadInput(ourThread, fgThread, true)) return;
+        try { SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, flags); }
+        finally { AttachThreadInput(ourThread, fgThread, false); }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+}

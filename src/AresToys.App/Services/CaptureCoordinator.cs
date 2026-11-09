@@ -1,0 +1,242 @@
+using System.Globalization;
+using System.Windows;
+using Microsoft.Extensions.Logging;
+using AresToys.App.Views;
+using AresToys.Capture;
+using AresToys.Core.Domain;
+using AresToys.Core.Pipeline;
+using AresToys.Pipeline;
+using AresToys.Pipeline.Profiles;
+using AresToys.Storage.Items;
+using AresToys.Storage.Settings;
+
+namespace AresToys.App.Services;
+
+public sealed class CaptureCoordinator
+{
+    private const string DelayKey = "capture.delay_seconds";
+
+    private readonly ICaptureSource _captureSource;
+    private readonly PipelineExecutor _executor;
+    private readonly IPipelineProfileStore _profiles;
+    private readonly ISettingsStore _settings;
+    private readonly IServiceProvider _services;
+    private readonly CaptureImageOutputService _outputEncoder;
+    private readonly IToastNotifier _notifier;
+    private readonly ILogger<CaptureCoordinator> _logger;
+
+    public CaptureCoordinator(
+        ICaptureSource captureSource,
+        PipelineExecutor executor,
+        IPipelineProfileStore profiles,
+        ISettingsStore settings,
+        IServiceProvider services,
+        CaptureImageOutputService outputEncoder,
+        IToastNotifier notifier,
+        ILogger<CaptureCoordinator> logger)
+    {
+        _notifier = notifier;
+        _captureSource = captureSource;
+        _executor = executor;
+        _profiles = profiles;
+        _settings = settings;
+        _services = services;
+        _outputEncoder = outputEncoder;
+        _logger = logger;
+    }
+
+    private static DateTime _lastRegionOverlayOpenAt = DateTime.MinValue;
+    private static readonly TimeSpan RegionOverlayCooldown = TimeSpan.FromMilliseconds(400);
+
+    public async Task CaptureRegionAsync(CancellationToken cancellationToken)
+    {
+        // Cooldown guard mirroring CaptureRegionTask: the OS hotkey hook can deliver the
+        // same keypress twice on a cold app, which used to open a duplicate overlay on top
+        // of the first one. 400 ms absorbs the spurious repeat without blocking deliberate
+        // retaps (no real user fires a second region pick that fast).
+        var now = DateTime.UtcNow;
+        if (now - _lastRegionOverlayOpenAt < RegionOverlayCooldown)
+        {
+            _logger.LogInformation("Capture region: suppressing repeat trigger ({Elapsed} ms since last open)",
+                (int)(now - _lastRegionOverlayOpenAt).TotalMilliseconds);
+            return;
+        }
+        _lastRegionOverlayOpenAt = now;
+        _logger.LogInformation("Capture region: opening overlay");
+        // Take the screen snapshot RIGHT NOW — before any dispatcher hop, before constructing
+        // the overlay window — so transient UI (open dropdowns, hover popups) stays visible
+        // in the captured image. Same pattern ShareX uses (see CaptureRegion.cs:76-95). If we
+        // wait for the overlay to take its own snapshot, the dropdown is gone by the time we
+        // get there because focus has shifted to AresToys in the meantime.
+        // Take the previous capture's "saved" toast off the screen first, or it ends up in this shot.
+        await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
+        var (prefabSnapshot, prefabLeft, prefabTop) = PerMonitorOverlayHost.CaptureVirtualScreen();
+        var (region, prefab) = await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            var overlay = new RegionOverlay(prefabSnapshot, prefabLeft, prefabTop);
+            var picked = overlay.PickRegion();
+            return (picked, overlay.PickedSnapshotBytes);
+        }).Task.ConfigureAwait(false);
+
+        if (region is null)
+        {
+            _logger.LogInformation("Capture region: cancelled");
+            return;
+        }
+
+        _logger.LogInformation("Capture region: picked ({X}, {Y}) {W}×{H} px (prefab snapshot: {Has})",
+            region.X, region.Y, region.Width, region.Height, prefab is not null);
+        await PersistLastRegionAsync(region, cancellationToken).ConfigureAwait(false);
+        // Pass the cropped snapshot bytes from the overlay so we don't BitBlt twice — the
+        // overlay already captured the full virtual screen at open-time, and the bytes here
+        // are that snapshot cropped to the picked region. Skipping the second capture means
+        // transient UI (open dropdowns, hover popups) stays visible exactly as the user saw
+        // it — without the gap between mouse-up and the second BitBlt the dropdown would
+        // close in.
+        await RunPipelineAsync(region, ItemSource.CaptureRegion, cancellationToken, prefab).ConfigureAwait(false);
+    }
+
+    public async Task CaptureFullscreenAsync(CancellationToken cancellationToken)
+    {
+        await ApplyDelayAsync(cancellationToken).ConfigureAwait(false);
+        var (left, top, w, h) = VirtualScreen.GetBounds();
+        if (w <= 0 || h <= 0) { _logger.LogWarning("Fullscreen: virtual screen has no size"); return; }
+        var region = new CaptureRegion(left, top, w, h, "Fullscreen");
+        await RunPipelineAsync(region, ItemSource.CaptureFullscreen, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task CaptureMonitorAsync(MonitorInfo monitor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        await ApplyDelayAsync(cancellationToken).ConfigureAwait(false);
+        var region = new CaptureRegion(monitor.X, monitor.Y, monitor.Width, monitor.Height, $"Monitor {monitor.Name}");
+        await RunPipelineAsync(region, ItemSource.CaptureMonitor, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Run the webpage-capture workflow. Doesn't pre-fill any payload — the workflow's
+    /// first step opens the URL prompt dialog and renders the page in a hidden WebView2.</summary>
+    public async Task CaptureWebpageAsync(CancellationToken cancellationToken)
+    {
+        var profile = await _profiles.GetAsync(DefaultPipelineProfiles.WebpageCaptureId, cancellationToken).ConfigureAwait(false);
+        if (profile is null)
+        {
+            _logger.LogWarning("webpage-capture profile not found; aborting");
+            return;
+        }
+        var ctx = new PipelineContext(_services);
+        await _executor.RunAsync(profile, ctx, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Capture the currently-foreground window as PNG. Reads <c>GetForegroundWindow</c>
+    /// after a short tick (so a tray-menu launch has time to dismiss the popup and let the previous
+    /// window regain focus) plus the user-configured <c>capture.delay_seconds</c>. Skips own-process
+    /// windows so a Settings dialog or the tray menu itself never become the target.</summary>
+    public async Task CaptureActiveWindowAsync(CancellationToken cancellationToken)
+    {
+        // 50ms gives the menu time to close and Windows time to restore the previous foreground;
+        // without it the active window briefly is AresToys itself when launched from the tray.
+        await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken).ConfigureAwait(false);
+        await ApplyDelayAsync(cancellationToken).ConfigureAwait(false);
+
+        var snapshot = WindowEnumeration.GetForegroundWindowSnapshot(excludeProcessId: Environment.ProcessId);
+        if (snapshot is null)
+        {
+            _logger.LogInformation("Active window: no eligible foreground window (own process / minimised / cloaked)");
+            return;
+        }
+
+        _logger.LogInformation("Active window: capturing '{Title}' at ({X}, {Y}) {W}×{H} px",
+            snapshot.Title, snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height);
+        var region = new CaptureRegion(snapshot.X, snapshot.Y, snapshot.Width, snapshot.Height,
+            string.IsNullOrEmpty(snapshot.Title) ? "Active window" : snapshot.Title);
+        await RunPipelineAsync(region, ItemSource.CaptureWindow, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ApplyDelayAsync(CancellationToken cancellationToken)
+    {
+        var raw = await _settings.GetAsync(DelayKey, cancellationToken).ConfigureAwait(false);
+        if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+        {
+            _logger.LogDebug("Capture: waiting {Seconds}s before capture", seconds);
+            await Task.Delay(TimeSpan.FromSeconds(Math.Min(seconds, 30)), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async Task CaptureLastRegionAsync(CancellationToken cancellationToken)
+    {
+        if (await LastCaptureRegion.LoadAsync(_settings, cancellationToken).ConfigureAwait(false) is { } region)
+        {
+            await RunPipelineAsync(region, ItemSource.CaptureRegion, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        _logger.LogInformation("LastRegion: nothing stored yet — falling back to region picker");
+        await CaptureRegionAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RunPipelineAsync(CaptureRegion region, ItemSource source, CancellationToken cancellationToken, byte[]? prefabPng = null)
+    {
+        // Region capture passes prefabPng = the snapshot cropped at mouse-up time; everything
+        // else (fullscreen, monitor, last-region, active-window-via-this-path) BitBlts here.
+        // Wrapping the prefab in CapturedImage keeps the rest of the pipeline ignorant.
+        if (prefabPng is not { Length: > 0 }) await _notifier.HideOnScreenPopupsAsync().ConfigureAwait(false);
+        var captured = prefabPng is { Length: > 0 }
+            ? new CapturedImage(region.Width, region.Height, prefabPng)
+            : await _captureSource.CaptureAsync(region, cancellationToken).ConfigureAwait(false);
+
+        // Map the capture source to its dedicated pipeline profile. Previously every source
+        // (region, fullscreen, monitor, active-window, last-region) ran RegionCaptureId, whose
+        // SaveToFileTask has skipIfNotModified:true — so anything that didn't pass through the
+        // editor's modification path silently produced no file on disk. The dedicated profiles
+        // (ActiveWindowCaptureId / ActiveMonitorCaptureId) save unconditionally. Their first
+        // step (CaptureActiveWindowTask / CaptureActiveMonitorTask) short-circuits when the bag
+        // already carries PayloadBytes, so the pre-encoded bytes from above are reused untouched.
+        var profileId = source switch
+        {
+            ItemSource.CaptureWindow     => DefaultPipelineProfiles.ActiveWindowCaptureId,
+            ItemSource.CaptureMonitor    => DefaultPipelineProfiles.ActiveMonitorCaptureId,
+            ItemSource.CaptureFullscreen => DefaultPipelineProfiles.ActiveMonitorCaptureId,
+            _                            => DefaultPipelineProfiles.RegionCaptureId,
+        };
+        var profile = await _profiles.GetAsync(profileId, cancellationToken).ConfigureAwait(false);
+        if (profile is null)
+        {
+            _logger.LogWarning("Capture profile '{ProfileId}' not found; aborting", profileId);
+            return;
+        }
+
+        // Re-encode the captured PNG into the user's preferred format. The capture pipeline
+        // always produces PNG internally (DXGI / GDI surface → PNG) so we can decode that as
+        // the canonical source; the choice between PNG / JPEG / BMP / GIF is purely an output
+        // concern and lives entirely behind CaptureImageOutputService.
+        var (bytes, ext) = await _outputEncoder.EncodeAsync(captured.PngBytes, cancellationToken).ConfigureAwait(false);
+
+        var ctx = new PipelineContext(_services);
+        ctx.Bag[PipelineBagKeys.PayloadBytes] = bytes;
+        ctx.Bag[PipelineBagKeys.FileExtension] = ext;
+        if (!string.IsNullOrEmpty(region.WindowTitle))
+        {
+            ctx.Bag[PipelineBagKeys.WindowTitle] = region.WindowTitle;
+        }
+        // %appName: the window under a picked region, the foreground app for whole-screen shots.
+        var appName = source == ItemSource.CaptureRegion
+            ? WindowEnumeration.GetProcessNameAt(region.X + region.Width / 2, region.Y + region.Height / 2)
+            : WindowEnumeration.GetForegroundProcessName(Environment.ProcessId);
+        if (appName is not null) ctx.Bag[PipelineBagKeys.AppName] = appName;
+        var searchTextPrefix = string.IsNullOrEmpty(region.WindowTitle) ? source.ToString() : region.WindowTitle;
+        ctx.Bag[PipelineBagKeys.NewItem] = new NewItem(
+            Kind: ItemKind.Image,
+            Source: source,
+            CreatedAt: DateTimeOffset.UtcNow,
+            Payload: bytes,
+            PayloadSize: bytes.LongLength,
+            SearchText: $"{searchTextPrefix} {captured.Width}×{captured.Height}");
+
+        await _executor.RunAsync(profile, ctx, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task PersistLastRegionAsync(CaptureRegion region, CancellationToken cancellationToken)
+    {
+        try { await LastCaptureRegion.SaveAsync(_settings, region, cancellationToken).ConfigureAwait(false); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to persist last-region bounds"); }
+    }
+}

@@ -1,0 +1,38 @@
+<Window x:Class="AresToys.App.Views.PinSourceChooserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        Title="{Markup:Loc PinSourceChooser_Title}"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Foreground="White"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False">
+    <!-- AllowsTransparency=True + Background=Transparent on the Window so the inner Border can
+         render rounded corners + a 1px outer stroke that reads as a real card against the
+         desktop. Same shell as IconPickerDialog / HotkeyCapture / Launcher. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+            CornerRadius="8">
+        <StackPanel Margin="20" Width="320">
+            <TextBlock Text="{Markup:Loc PinSourceChooser_Title}" Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <TextBlock Text="{Markup:Loc PinSourceChooser_Hint}"
+                       Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,16" />
+            <ui:Button x:Name="FromScreenButton" Content="{Markup:Loc PinSourceChooser_FromScreen}"
+                       HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                       ToolTip="{Markup:Loc PinSourceChooser_FromScreenTooltip}" />
+            <ui:Button x:Name="FromClipboardButton" Content="{Markup:Loc PinSourceChooser_FromClipboard}"
+                       HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                       ToolTip="{Markup:Loc PinSourceChooser_FromClipboardTooltip}" />
+            <ui:Button x:Name="FromFileButton" Content="{Markup:Loc PinSourceChooser_FromFile}"
+                       HorizontalAlignment="Stretch" Margin="0,0,0,12"
+                       ToolTip="{Markup:Loc PinSourceChooser_FromFileTooltip}" />
+            <ui:Button x:Name="CancelButton" Content="{Markup:Loc Common_Cancel}" HorizontalAlignment="Right" Width="100" />
+        </StackPanel>
+    </Border>
+</Window>

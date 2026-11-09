@@ -1,0 +1,343 @@
+<ui:FluentWindow x:Class="AresToys.App.Views.TraceWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+                 xmlns:markup="clr-namespace:AresToys.App.Markup"
+                 Title="AresToys - Trace to SVG"
+                 Width="1280" Height="860"
+                 MinWidth="1000" MinHeight="720"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 Background="{DynamicResource Surface1Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+        <Style x:Key="PanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentForegroundDarkBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <!-- Accent-tinted outer frame matches the MainWindow / Editor / ImageEffects treatment so
+         the trace window doesn't read as a generic Win32 dialog. Same Border thickness +
+         CornerRadius as ImageEffectsWindow. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
+            BorderThickness="2" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- TitleBar -->
+                <RowDefinition Height="Auto" />  <!-- Top strip: Preset + View -->
+                <RowDefinition Height="*" />     <!-- Split: source / preview -->
+                <RowDefinition Height="Auto" />  <!-- Mode + Palette toolbar -->
+                <RowDefinition Height="Auto" />  <!-- Parameters dock -->
+                <RowDefinition Height="Auto" />  <!-- Info readout -->
+                <RowDefinition Height="Auto" />  <!-- Footer (Save / Cancel) -->
+            </Grid.RowDefinitions>
+
+            <ui:TitleBar Grid.Row="0" Title="{markup:Loc Trace_WindowTitle}">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="{StaticResource AresToysLogo}" Margin="0,0,-12,0" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+
+            <!-- Top strip: preset + view dropdowns + save/delete-preset buttons. -->
+            <Border Grid.Row="1" Style="{StaticResource PanelStyle}" Margin="12,8,12,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="220" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{markup:Loc Trace_PresetLabel}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox Grid.Column="1" x:Name="PresetCombo"
+                              ItemsSource="{Binding Presets}" DisplayMemberPath="Name"
+                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}" />
+                    <ui:Button Grid.Column="2" Content="{markup:Loc Trace_PresetSave}"
+                               Click="OnPresetSaveClicked" Margin="8,0,0,0" />
+                    <ui:Button Grid.Column="3" Content="{markup:Loc Trace_PresetDelete}"
+                               Click="OnPresetDeleteClicked" Margin="4,0,0,0"
+                               IsEnabled="{Binding SelectedPresetIsCustom}" />
+                    <TextBlock Grid.Column="5" Text="{markup:Loc Trace_ViewLabel}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox Grid.Column="6"
+                              ItemsSource="{Binding ViewModes}" DisplayMemberPath="Label"
+                              SelectedItem="{Binding SelectedViewMode, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+
+            <!-- Source / preview split. Surface3Brush bg matches the editor canvas surface. -->
+            <Grid Grid.Row="2" Margin="12,4,12,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource PanelStyle}"
+                        Background="{DynamicResource Surface3Brush}" Margin="0,0,4,0">
+                    <Image x:Name="SourcePreview" Stretch="Uniform" />
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource PanelStyle}"
+                        Background="{DynamicResource Surface3Brush}" Padding="0" Margin="4,0,0,0">
+                    <wv2:WebView2 x:Name="SvgPreviewWeb" />
+                </Border>
+            </Grid>
+
+            <!-- Mode + Palette toolbar. The custom-palette swatch row sits below it,
+                 visible only when Palette = Custom. Sharing the same Border keeps the
+                 row layout coherent and saves vertical space when not in Custom mode. -->
+            <Border Grid.Row="3" Style="{StaticResource PanelStyle}" Margin="12,4,12,4" Padding="12,8">
+                <StackPanel Orientation="Vertical">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{markup:Loc Trace_ModeLabel}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeColor}"
+                                     IsChecked="{Binding ModeColor, Mode=TwoWay}" Margin="0,0,12,0" />
+                        <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeGrayscale}"
+                                     IsChecked="{Binding ModeGrayscale, Mode=TwoWay}" Margin="0,0,12,0" />
+                        <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeBlackAndWhite}"
+                                     IsChecked="{Binding ModeBlackAndWhite, Mode=TwoWay}" Margin="0,0,12,0" />
+                        <RadioButton GroupName="Mode" Content="{markup:Loc Trace_ModeLogo}"
+                                     ToolTip="{markup:Loc Trace_ModeLogoTip}"
+                                     IsChecked="{Binding ModeLogo, Mode=TwoWay}" Margin="0,0,24,0" />
+
+                        <TextBlock Text="{markup:Loc Trace_PaletteLabel}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   IsEnabled="{Binding PaletteEnabled}" />
+                        <ComboBox Width="180"
+                                  ItemsSource="{Binding Palettes}" DisplayMemberPath="Label"
+                                  SelectedItem="{Binding SelectedPalette, Mode=TwoWay}"
+                                  IsEnabled="{Binding PaletteEnabled}" />
+                        <DockPanel Width="260" LastChildFill="True" Margin="16,0,0,0" VerticalAlignment="Center"
+                                   Visibility="{Binding IsColorDetailVisible, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{markup:Loc Trace_ParamColorDetail}" Width="100" VerticalAlignment="Center" />
+                            <TextBox Text="{Binding ColorDetail}" Width="48" DockPanel.Dock="Right" />
+                            <Slider Value="{Binding ColorDetail}" Minimum="0" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                        </DockPanel>
+                    </StackPanel>
+
+                    <!-- Custom palette swatch row. Visible only in Custom mode. Each swatch
+                         opens the screen colour picker on left-click (re-pick) and removes
+                         itself on right-click. The trailing "+" button adds a new empty
+                         slot, capped at MaxCustomSwatches (16). The label nudges the user
+                         to pick at least 2 before tracing — below that the trace would map
+                         every pixel to a single colour and produce a flat silhouette. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                Visibility="{Binding ShowSwatchRow, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{markup:Loc Trace_PickedColours}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                        <ItemsControl ItemsSource="{Binding CustomPalette}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="28" Height="28" Margin="0,0,6,0"
+                                            CornerRadius="3"
+                                            Background="{Binding Converter={StaticResource ColorToBrush}}"
+                                            BorderBrush="{DynamicResource OuterBorderBrush}"
+                                            BorderThickness="1"
+                                            Cursor="Hand"
+                                            ToolTip="{markup:Loc Trace_PickedColourCellTooltip}"
+                                            MouseLeftButtonDown="OnCustomSwatchLeftClick"
+                                            MouseRightButtonDown="OnCustomSwatchRightClick" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ui:Button Width="28" Height="28" Padding="0" Margin="2,0,0,0"
+                                   Click="OnAddCustomSwatchClicked"
+                                   IsEnabled="{Binding CanAddSwatch}"
+                                   ToolTip="{markup:Loc Trace_PickScreenTooltip}">
+                            <TextBlock Text="+" FontSize="16" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </ui:Button>
+                        <TextBlock Text="(pick at least 2)" Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" FontStyle="Italic"
+                                   Visibility="{Binding ShowSwatchMinimumHint, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Parameters dock — three-column grid. -->
+            <Border Grid.Row="4" Style="{StaticResource PanelStyle}" Margin="12,4,12,4" Padding="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition />
+                        <RowDefinition />
+                        <RowDefinition />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+
+                    <!-- Column 1 — Colors / Threshold (Mode-dependent visibility) -->
+                    <DockPanel Grid.Column="0" Grid.Row="0" LastChildFill="True" Margin="0,0,12,8"
+                               Visibility="{Binding IsColorOrGrayscale, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{markup:Loc Trace_ParamColors}" Width="120" />
+                        <TextBox Text="{Binding ColorCount}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding ColorCount}" Minimum="2" Maximum="64" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="0" Grid.Row="0" LastChildFill="True" Margin="0,0,12,8"
+                               Visibility="{Binding IsBlackAndWhite, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{markup:Loc Trace_ParamThreshold}" Width="120" />
+                        <TextBox Text="{Binding Threshold}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding Threshold}" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+
+                    <DockPanel Grid.Column="0" Grid.Row="1" LastChildFill="True" Margin="0,0,12,8">
+                        <TextBlock Text="{markup:Loc Trace_ParamPaths}" Width="120" />
+                        <TextBox Text="{Binding PathsPercent}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding PathsPercent}" Minimum="0" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+
+                    <DockPanel Grid.Column="0" Grid.Row="2" LastChildFill="True" Margin="0,0,12,8">
+                        <TextBlock Text="{markup:Loc Trace_ParamCorners}" Width="120" />
+                        <TextBox Text="{Binding CornersPercent}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding CornersPercent}" Minimum="0" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+
+                    <DockPanel Grid.Column="0" Grid.Row="3" LastChildFill="True" Margin="0,0,12,0">
+                        <TextBlock Text="{markup:Loc Trace_ParamNoise}" Width="120" />
+                        <TextBox Text="{Binding NoisePx}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding NoisePx}" Minimum="1" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+
+                    <!-- Column 2 — Method + Snap + Shapes + Gradients + Auto-Grouping -->
+                    <StackPanel Grid.Column="1" Grid.Row="0" Orientation="Horizontal" Margin="12,0,12,8">
+                        <TextBlock Text="{markup:Loc Trace_ParamMethod}" Width="120" VerticalAlignment="Center" />
+                        <RadioButton GroupName="Method" Content="{markup:Loc Trace_MethodOverlapping}"
+                                     IsChecked="{Binding MethodIsOverlapping, Mode=TwoWay}" Margin="0,0,12,0" />
+                        <RadioButton GroupName="Method" Content="{markup:Loc Trace_MethodAbutting}"
+                                     IsChecked="{Binding MethodIsAbutting, Mode=TwoWay}" />
+                    </StackPanel>
+                    <CheckBox Grid.Column="1" Grid.Row="1"
+                              Content="{markup:Loc Trace_ParamSnapCurves}"
+                              IsChecked="{Binding SnapCurvesToLines}" Margin="12,0,12,8" />
+                    <CheckBox Grid.Column="1" Grid.Row="2"
+                              Content="{markup:Loc Trace_ParamShapes}"
+                              IsChecked="{Binding Shapes}" Margin="12,0,12,8" />
+                    <CheckBox Grid.Column="1" Grid.Row="3"
+                              Content="{markup:Loc Trace_ParamGradients}"
+                              IsChecked="{Binding Gradients}" Margin="12,0,12,8" />
+                    <CheckBox Grid.Column="1" Grid.Row="4"
+                              Content="{markup:Loc Trace_ParamAutoGrouping}"
+                              IsChecked="{Binding AutoGrouping}" Margin="12,0,12,0" />
+
+                    <!-- Column 3 — Ignore Color row: checkbox + swatch + eyedropper inline.
+                         Same vertical position as the Method row in column 2 so the user can
+                         see at a glance which colour they're ignoring (and re-pick it). -->
+                    <StackPanel Grid.Column="2" Grid.Row="0" Orientation="Horizontal"
+                                Margin="12,0,0,8" VerticalAlignment="Center">
+                        <CheckBox Content="{markup:Loc Trace_ParamIgnoreColor}"
+                                  IsChecked="{Binding IgnoreColorEnabled}"
+                                  VerticalAlignment="Center" />
+                        <Border x:Name="IgnoreSwatch"
+                                Width="28" Height="28" CornerRadius="3" Margin="8,0,0,0"
+                                BorderBrush="{DynamicResource OuterBorderBrush}"
+                                BorderThickness="1"
+                                Background="{StaticResource CheckerBrush}"
+                                Cursor="Hand"
+                                ToolTip="{markup:Loc Trace_ParamPickIgnore}"
+                                IsEnabled="{Binding IgnoreColorEnabled}"
+                                MouseLeftButtonDown="OnIgnoreSwatchMouseDown">
+                            <Rectangle x:Name="IgnoreSwatchFill" RadiusX="2" RadiusY="2" />
+                        </Border>
+                        <!-- Eyedropper button: opens the full-screen ScreenColorPickerOverlay
+                             so the user can sample any pixel on screen (including from the
+                             source preview to the left). Same overlay the tray's color
+                             sampler / image-effects swatches use. -->
+                        <ui:Button Width="28" Height="28" Padding="3" Margin="4,0,0,0"
+                                   Click="OnIgnoreEyedropperClicked"
+                                   IsEnabled="{Binding IgnoreColorEnabled}"
+                                   ToolTip="{markup:Loc Trace_ParamPickFromScreen}">
+                            <Image Source="{StaticResource EyedropperIcon}" />
+                        </ui:Button>
+                    </StackPanel>
+                    <DockPanel Grid.Column="2" Grid.Row="1" LastChildFill="True" Margin="12,0,0,8"
+                               IsEnabled="{Binding IgnoreColorEnabled}">
+                        <TextBlock Text="{markup:Loc Trace_ParamTolerance}" Width="120" />
+                        <TextBox Text="{Binding IgnoreTolerance}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding IgnoreTolerance}" Minimum="0" Maximum="255" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+
+                    <DockPanel Grid.Column="0" Grid.Row="4" LastChildFill="True" Margin="0,0,12,0">
+                        <TextBlock Text="{markup:Loc Trace_ParamPreBlur}" Width="120" />
+                        <TextBox Text="{Binding PreBlurStrength}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding PreBlurStrength}" Minimum="0" Maximum="3" IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight" />
+                    </DockPanel>
+                    <CheckBox Grid.Column="2" Grid.Row="2"
+                              Content="{markup:Loc Trace_ParamFills}"
+                              IsChecked="{Binding Fills}" Margin="12,0,0,8" />
+                    <CheckBox Grid.Column="2" Grid.Row="3"
+                              Content="{markup:Loc Trace_ParamStrokes}"
+                              IsChecked="{Binding Strokes}" Margin="12,0,0,8" />
+                    <DockPanel Grid.Column="2" Grid.Row="4" LastChildFill="True" Margin="12,0,0,0" IsEnabled="{Binding Strokes}">
+                        <TextBlock Text="{markup:Loc Trace_ParamStrokeWidth}" Width="120" />
+                        <TextBox Text="{Binding StrokeWidth}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding StrokeWidth}" Minimum="1" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+                </Grid>
+            </Border>
+
+            <!-- Info readout — anchor / path / colour counts parsed from the rendered SVG. -->
+            <Border Grid.Row="5" Style="{StaticResource PanelStyle}" Margin="12,4,12,4" Padding="12,6">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{markup:Loc Trace_InfoLabel}" Margin="0,0,12,0" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding InfoAnchors}" Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding InfoPaths}" Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding InfoColors}" />
+                </StackPanel>
+            </Border>
+
+            <!-- Footer: left = Realtime preview + (conditional) Manual Trace; right = Cancel
+                 / Save. Splitting the action types visually (preview controls vs window
+                 disposition) reduces the "what does this button do?" confusion users hit
+                 with the older single-strip layout. -->
+            <Border Grid.Row="6" Style="{StaticResource PanelStyle}" Margin="12,4,12,12" Padding="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
+                        <CheckBox Content="{markup:Loc Trace_PreviewToggle}"
+                                  IsChecked="{Binding PreviewEnabled, Mode=TwoWay}"
+                                  VerticalAlignment="Center" Margin="0,0,16,0" />
+                        <!-- Manual Trace button only appears when Realtime Preview is OFF.
+                             With Preview on it'd be a redundant no-op (every param change
+                             auto-re-traces via the 150 ms debounce); hiding entirely is
+                             clearer than the previous "always shown but greyed out" UX. -->
+                        <ui:Button Content="{markup:Loc Trace_TraceNow}"
+                                   Click="OnTraceNowClicked"
+                                   Visibility="{Binding ManualTraceVisible, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- "Close" instead of "Cancel" — saving doesn't close the window
+                             anymore, so this is the explicit "I'm done" button rather than
+                             a destructive cancel. The Save-as button stays primary because
+                             it's the action the user came to perform. -->
+                        <ui:Button Content="{markup:Loc Common_Close}"
+                                   Click="OnCancelClicked" Margin="0,0,8,0" />
+                        <ui:Button x:Name="SaveBtn" Content="{markup:Loc Trace_SaveButton}"
+                                   Appearance="Primary" Click="OnSaveClicked" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

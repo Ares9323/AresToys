@@ -1,0 +1,254 @@
+<ui:FluentWindow x:Class="AresToys.App.Views.GradientEditorWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:AresToys.App.ViewModels.ImageEffects"
+                 xmlns:drawing="clr-namespace:AresToys.ImageEffects.Drawing;assembly=AresToys.ImageEffects"
+                 xmlns:Markup="clr-namespace:AresToys.App.Markup"
+                 Title="{Markup:Loc GradientEditor_TitleFull}"
+                 Width="900" Height="560"
+                 MinWidth="780" MinHeight="480"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 Background="{DynamicResource Surface1Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+        <Style x:Key="PanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentForegroundDarkBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+        <Style x:Key="HeaderText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundDarkBrush}" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        </Style>
+        <!-- Selection style — AccentBackgroundDarkBrush instead of the default light shade,
+             matching the look used in the rest of the image effects UI. -->
+        <Style x:Key="GradientListBoxItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}" CornerRadius="3">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource Surface3Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource AccentBackgroundDarkBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource AccentForegroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Glyph buttons styled like the main editor's toolbar. -->
+        <Style x:Key="GlyphTextBlock" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource IconFont}" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
+            BorderThickness="2" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ui:TitleBar Grid.Row="0" Title="{Markup:Loc GradientEditor_Title}" />
+
+            <Grid Grid.Row="1" Margin="12,8,12,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="*" MinWidth="280" />
+                    <ColumnDefinition Width="220" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Stops panel — the bulk of the editor. Add/remove on top, list in the middle,
+                     bulk ops + per-stop colour picker at the bottom. -->
+                <Border Grid.Column="0" Style="{StaticResource PanelStyle}" Margin="0,0,8,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="{Markup:Loc GradientEditor_Stops}" Style="{StaticResource HeaderText}" />
+                        <!-- Compact toolbar — just add / remove. The destructive op uses Danger
+                             appearance and is gated to ≥2 remaining stops in the VM. -->
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
+                            <ui:Button Margin="0,0,4,0" Command="{Binding AddStopCommand}" ToolTip="{Markup:Loc GradientEditor_TooltipAddStop}">
+                                <TextBlock Text="&#xF067;" Style="{StaticResource GlyphTextBlock}" />
+                            </ui:Button>
+                            <ui:Button Appearance="Danger" Command="{Binding RemoveStopCommand}" ToolTip="{Markup:Loc GradientEditor_TooltipRemoveStop}">
+                                <TextBlock Text="&#xF068;" Style="{StaticResource GlyphTextBlock}" />
+                            </ui:Button>
+                        </StackPanel>
+
+                        <ListBox Grid.Row="2"
+                                 ItemsSource="{Binding Stops}"
+                                 SelectedItem="{Binding SelectedStop, Mode=TwoWay}"
+                                 ItemContainerStyle="{StaticResource GradientListBoxItem}"
+                                 Background="Transparent" BorderThickness="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:GradientStopViewModel}">
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="44" />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- Double-click the swatch to open the colour picker for that stop —
+                                             same affordance as the preset swatches. Cursor=Hand makes the
+                                             interaction discoverable. -->
+                                        <Border Grid.Column="0" Width="20" Height="20" CornerRadius="3"
+                                                BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
+                                                Background="{StaticResource CheckerBrush}"
+                                                Cursor="Hand"
+                                                ToolTip="{Markup:Loc GradientEditor_TooltipChangeColor}"
+                                                MouseLeftButtonDown="OnStopSwatchMouseDown">
+                                            <Rectangle Fill="{Binding ColorBrush}" RadiusX="2" RadiusY="2" />
+                                        </Border>
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                                Value="{Binding Location, Mode=TwoWay}"
+                                                VerticalAlignment="Center" Margin="6,0" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Location, StringFormat={}{0:F0}%}"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Secondary actions — operate on the whole list rather than one stop. -->
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
+                            <ui:Button Content="{Markup:Loc GradientEditor_Distribute}" Margin="0,0,4,0"
+                                       Command="{Binding DistributeEvenlyCommand}"
+                                       ToolTip="{Markup:Loc GradientEditor_TooltipDistribute}" />
+                            <ui:Button Content="{Markup:Loc GradientEditor_Reverse}"
+                                       Command="{Binding ReverseCommand}"
+                                       ToolTip="{Markup:Loc GradientEditor_TooltipReverse}" />
+                        </StackPanel>
+                        <ui:Button Grid.Row="4" Content="{Markup:Loc GradientEditor_PickColor}"
+                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                   Margin="0,6,0,0" Click="OnPickStopColorClicked" />
+                    </Grid>
+                </Border>
+
+                <!-- Preview large + Direction below — direction sits under the preview so the
+                     user sees the orientation change reflect immediately above. -->
+                <Border Grid.Column="1" Style="{StaticResource PanelStyle}" Margin="0,0,8,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{Markup:Loc GradientEditor_Preview}" Style="{StaticResource HeaderText}" />
+                        <Border Grid.Row="1" Background="#202020" CornerRadius="4">
+                            <Grid Margin="6">
+                                <Rectangle Fill="{StaticResource CheckerBrush}" />
+                                <Rectangle Fill="{Binding PreviewBrush}" />
+                            </Grid>
+                        </Border>
+                        <TextBlock Grid.Row="2" Text="{Markup:Loc GradientEditor_Direction}" Style="{StaticResource HeaderText}"
+                                   Margin="0,12,0,6" />
+                        <ComboBox Grid.Row="3"
+                                  SelectedItem="{Binding Direction, Mode=TwoWay}">
+                            <ComboBox.ItemsSource>
+                                <x:Array Type="{x:Type drawing:LinearGradientMode}">
+                                    <x:Static Member="drawing:LinearGradientMode.Horizontal" />
+                                    <x:Static Member="drawing:LinearGradientMode.Vertical" />
+                                    <x:Static Member="drawing:LinearGradientMode.ForwardDiagonal" />
+                                    <x:Static Member="drawing:LinearGradientMode.BackwardDiagonal" />
+                                </x:Array>
+                            </ComboBox.ItemsSource>
+                            <!-- Render the enum value through EnumValueDisplay so each row reads
+                                 in the active culture. SelectedItem stays the raw enum value so
+                                 the binding to GradientInfo.Type round-trips unchanged. -->
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumValueDisplay}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                </Border>
+
+                <!-- Presets as swatches — name appears in the tooltip; double-click loads. -->
+                <Border Grid.Column="2" Style="{StaticResource PanelStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{Markup:Loc GradientEditor_Presets}" Style="{StaticResource HeaderText}" />
+                        <ListBox Grid.Row="1"
+                                 x:Name="PresetsList"
+                                 ItemsSource="{Binding Presets}"
+                                 ItemContainerStyle="{StaticResource GradientListBoxItem}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 MouseDoubleClick="OnPresetDoubleClick">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:GradientPresetItemViewModel}">
+                                    <Border Width="40" Height="40" Margin="2" CornerRadius="4"
+                                            BorderBrush="{DynamicResource InnerBorderBrush}"
+                                            BorderThickness="1"
+                                            ToolTip="{Binding Name}"
+                                            Cursor="Hand">
+                                        <Grid Margin="2">
+                                            <Rectangle Fill="{StaticResource CheckerBrush}" />
+                                            <Rectangle Fill="{Binding Brush}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- OK / Cancel footer — affirmative on the left, Cancel on the right (project-wide
+                 convention; matches the other dialogs in src/AresToys.App/Views/). -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"
+                        Margin="12,0,12,12">
+                <ui:Button Content="{Markup:Loc Common_Ok}" Width="90" Margin="0,0,8,0"
+                           Appearance="Primary" IsDefault="True" Click="OnOkClicked" />
+                <ui:Button Content="{Markup:Loc Common_Cancel}" Width="90"
+                           IsCancel="True" Click="OnCancelClicked" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

@@ -1,0 +1,119 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Bumped from net10.0-windows to net10.0-windows10.0.19041.0 because
+         Microsoft.Toolkit.Uwp.Notifications needs a Windows-versioned TFM (≥17763 for
+         the unpackaged-toast API). 19041 = Windows 10 2004 = a low-friction floor; the
+         underlying ToastNotificationManagerCompat needs that build for its AUMID
+         registration helper to work cleanly on unpackaged installs. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>AresToys.App</RootNamespace>
+    <AssemblyName>AresToys</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <!-- Custom Main in Program.cs so VelopackApp.Build().Run() executes BEFORE WPF starts.
+         Required to handle install / uninstall / update hooks (the squirrel-firstrun / veloapp
+         CLI flags). The App.xaml-generated Main would create the Application object first and
+         the hooks would arrive too late. ApplicationDefinition is overridden to Page below for
+         the same reason. -->
+    <StartupObject>AresToys.App.Program</StartupObject>
+    <!-- Dev/local builds get a clearly-not-a-release version so the Settings → About line
+         doesn't say "1.0.0.0" and pretend to be a real shipped build. The release workflow
+         (and tools/pack-local.ps1) passes -p:Version=<x.y.z> which overrides this. -->
+    <Version>0.2.0</Version>
+    <!-- The base Strings.resx is in English. Telling MSBuild this avoids the runtime cost of
+         scanning for an "en" satellite that doesn't exist (the neutral resx covers it) and
+         lets ResourceManager skip a probe round when CurrentUICulture is en-* — also makes
+         the fallback chain explicit for any culture not satellite-shipped. -->
+    <NeutralLanguage>en</NeutralLanguage>
+    <!-- Whitelist of cultures whose satellite assemblies must ship. Without this, the
+         publish step (single-file / trimmed / Velopack pack) may strip per-culture
+         resources to keep the bundle small, leaving GetString to fall back to the neutral
+         resx → user sees English even with CurrentUICulture=it. Append the new tag here
+         every time a Strings.<culture>.resx is added. -->
+    <SatelliteResourceLanguages>en;it</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AresToys.App.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="H.NotifyIcon.Wpf" />
+    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" />
+    <PackageReference Include="WPF-UI" />
+    <PackageReference Include="QRCoder" />
+    <PackageReference Include="ZXing.Net" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- App.xaml's auto-generated Main would run before our Program.Main; flip its build
+         action from ApplicationDefinition to Page so MSBuild stops emitting the auto-Main. The
+         class still loads as a normal WPF Application via Program.Main → new App().Run(). -->
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\icon.ico" />
+    <Resource Include="Assets\AresToysLogo.png" />
+    <!-- FontAwesome Free Solid (~400KB, OFL/CC-BY-4.0). Used by category icons + the icon
+         picker grid. Monochrome, scales crisply at any DPI, plays nicely with the dark theme
+         (Foreground bound to AccentForeground / Surface text). -->
+    <Resource Include="Assets\Fonts\FontAwesome-Solid.otf" />
+    <!-- highlight.js 11.9.0 (BSD-3, see the LICENSE beside it) and its styles for the Peek web previews. The web view
+         loads them from disk through a virtual host, so they are copied next to the exe, not embedded. -->
+    <Content Include="Services\Peek\Web\**">
+      <Link>Peek\Web\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Default .sxcu files seeded into %LOCALAPPDATA%\AresToys\custom-uploaders\ on first run.
+         CopyToOutputDirectory because we read them from disk at runtime — embedding as
+         AssemblyResource would force NavigationToString plumbing in the seed step. -->
+    <None Include="Assets\CustomUploaders\*.sxcu">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Localization: PublicResXFileCodeGenerator emits a Strings.Designer.cs with public
+         accessors so the Loc markup extension can resolve keys via Strings.ResourceManager.
+         Each Strings.<culture>.resx is auto-discovered as a satellite assembly (.dll lives
+         under <output>\<culture>\AresToys.resources.dll). -->
+    <EmbeddedResource Update="Resources\Strings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <!-- Each per-culture resx is grouped under Strings.resx in the IDE solution view AND
+         confirms the default-include pattern picks them up. .NET SDK does emit a satellite
+         assembly automatically (e.g. <output>/it/AresToys.resources.dll) for any resx file
+         whose name matches the Name.<culture>.resx pattern. Keep one Update per language. -->
+    <EmbeddedResource Update="Resources\Strings.it.resx">
+      <DependentUpon>Strings.resx</DependentUpon>
+    </EmbeddedResource>
+    <Compile Update="Resources\Strings.Designer.cs">
+      <DependentUpon>Strings.resx</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
+    <ProjectReference Include="..\AresToys.Shared\AresToys.Shared.csproj" />
+    <ProjectReference Include="..\AresToys.Storage\AresToys.Storage.csproj" />
+    <ProjectReference Include="..\AresToys.Clipboard\AresToys.Clipboard.csproj" />
+    <ProjectReference Include="..\AresToys.Capture\AresToys.Capture.csproj" />
+    <ProjectReference Include="..\AresToys.Hotkeys\AresToys.Hotkeys.csproj" />
+    <ProjectReference Include="..\AresToys.Pipeline\AresToys.Pipeline.csproj" />
+    <ProjectReference Include="..\AresToys.Editor\AresToys.Editor.csproj" />
+    <ProjectReference Include="..\AresToys.ImageEffects\AresToys.ImageEffects.csproj" />
+    <ProjectReference Include="..\AresToys.AI\AresToys.AI.csproj" />
+    <ProjectReference Include="..\AresToys.PluginContracts\AresToys.PluginContracts.csproj" />
+    <ProjectReference Include="..\AresToys.Plugins\AresToys.Plugins.csproj" />
+    <ProjectReference Include="..\AresToys.CustomUploaders\AresToys.CustomUploaders.csproj" />
+    <ProjectReference Include="..\AresToys.Uploaders\AresToys.Uploaders.csproj" />
+    <ProjectReference Include="..\AresToys.Updater\AresToys.Updater.csproj" />
+  </ItemGroup>
+</Project>

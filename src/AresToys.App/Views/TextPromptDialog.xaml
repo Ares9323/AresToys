@@ -1,0 +1,39 @@
+<ui:FluentWindow x:Class="AresToys.App.Views.TextPromptDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        WindowStartupLocation="CenterOwner"
+        Title="AresToys"
+        Width="420"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowBackdropType="None"
+        ExtendsContentIntoTitleBar="True"
+        Background="{DynamicResource Surface2Brush}"
+        ShowInTaskbar="False">
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="{Binding Title, RelativeSource={RelativeSource AncestorType={x:Type ui:FluentWindow}}}">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/icon.ico" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+        <StackPanel Grid.Row="1" Margin="20">
+            <TextBlock x:Name="LabelText" Foreground="{DynamicResource AccentForegroundBrush}"
+                       FontSize="12" Margin="0,0,0,4" />
+            <TextBox x:Name="InputBox" FontSize="13" Margin="0,0,0,12" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <ui:Button x:Name="OkButton" Content="{Markup:Loc Common_Ok}" Padding="14,4" Margin="0,0,8,0"
+                           Appearance="Primary" IsDefault="True" Click="OnOkClicked" />
+                <ui:Button Content="{Markup:Loc Common_Cancel}" Padding="14,4" IsCancel="True" Click="OnCancelClicked" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+    </Border>
+</ui:FluentWindow>

@@ -1,0 +1,139 @@
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
+using AresToys.App.Services.Launcher;
+using AresToys.Core.Pipeline;
+
+namespace AresToys.App.Services.PipelineTasks;
+
+/// <summary>
+/// Launches an executable / shortcut / batch file. Config keys: <c>path</c> (required, the
+/// target — accepts %ENV% expansion), <c>args</c> (optional command-line), <c>workingDir</c>
+/// (optional, defaults to the path's directory), <c>windowMode</c> (Normal / Maximized /
+/// Minimized / Hidden) and <c>runAsAdmin</c> (elevate through the UAC prompt). Uses
+/// <c>UseShellExecute=true</c> so .exe, .lnk, .bat, .cmd, URL protocols and packaged-app
+/// targets all resolve through the shell. The MaxLaunchpad equivalent — but composable into
+/// any AresToys workflow, and sharing its window-mode / elevation semantics with the launcher.
+/// </summary>
+public sealed class LaunchAppTask : IPipelineTask
+{
+    public const string TaskId = "arestoys.launch-app";
+
+    private readonly IToastNotifier _notifier;
+    private readonly ILogger<LaunchAppTask> _logger;
+
+    public LaunchAppTask(IToastNotifier notifier, ILogger<LaunchAppTask> logger)
+    {
+        _notifier = notifier;
+        _logger = logger;
+    }
+
+    public string Id => TaskId;
+    public string DisplayName => "Launch app";
+    public PipelineTaskKind Kind => PipelineTaskKind.Both;
+
+    public Task ExecuteAsync(PipelineContext context, JsonNode? config, CancellationToken cancellationToken)
+    {
+        // Resolution order: hardcoded config.path > bag.text. Lets a workflow chain "Read
+        // clipboard → Launch app" when the clipboard holds an executable / shortcut path.
+        // args / workingDir stay config-only — using bag.text for those would mix execution
+        // semantics in confusing ways. Hardcoded path always wins.
+        var rawPath = (string?)config?["path"];
+        if (string.IsNullOrWhiteSpace(rawPath)
+            && context.Bag.TryGetValue(PipelineBagKeys.Text, out var rawBag) && rawBag is string fromBag)
+        {
+            rawPath = fromBag;
+        }
+        // A launch that doesn't happen leaves nothing behind on screen (no window, no error
+        // dialog), so without this the step is indistinguishable from one that worked. Opt-out
+        // rather than opt-in: the toast only ever appears when something actually went wrong.
+        var notifyOnError = (bool?)config?["notifyOnError"] ?? true;
+        if (string.IsNullOrWhiteSpace(rawPath))
+        {
+            _logger.LogWarning("LaunchAppTask: no path configured + no bag.text; skipping");
+            if (notifyOnError) _notifier.Show("AresToys", "Launch app: no path configured, and nothing to take from the previous step.");
+            return Task.CompletedTask;
+        }
+        var path = Environment.ExpandEnvironmentVariables(rawPath).Trim();
+        var args = Environment.ExpandEnvironmentVariables((string?)config?["args"] ?? string.Empty);
+        var workingDir = Environment.ExpandEnvironmentVariables((string?)config?["workingDir"] ?? string.Empty);
+        var windowMode = (string?)config?["windowMode"];
+        var runAsAdmin = (bool?)config?["runAsAdmin"] ?? false;
+
+        var psi = BuildStartInfo(path, args, workingDir, windowMode, runAsAdmin);
+        try
+        {
+            var started = AresToys.App.Services.UnelevatedLauncher.Start(psi);
+            _logger.LogInformation("LaunchAppTask: launched {Path} {Args} (admin={Admin}, mode={Mode})",
+                psi.FileName, args, runAsAdmin, windowMode ?? nameof(LauncherWindowMode.Normal));
+            if (IsMinimizeAfterStartup(windowMode))
+                WindowMinimizer.MinimizeWhenReady(started, psi.FileName, _logger);
+        }
+        catch (Exception ex)
+        {
+            // Includes the user cancelling the UAC prompt on an elevated launch (Win32Exception
+            // 1223) — a warning, not a workflow-breaking error.
+            _logger.LogWarning(ex, "LaunchAppTask: failed to launch {Path}", psi.FileName);
+            // The shell's own message is the useful part here ("The directory name is invalid",
+            // "The system cannot find the file specified"), so it goes in verbatim.
+            if (notifyOnError) _notifier.Show("AresToys", $"Launch app failed: {ex.Message}");
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Turn the step's settings into the process to start. Split out from
+    /// <see cref="ExecuteAsync"/> so the mapping is testable without launching anything.
+    /// <paramref name="path"/> is expected to be already env-expanded.</summary>
+    public static ProcessStartInfo BuildStartInfo(
+        string path, string args, string workingDir, string? windowMode, bool runAsAdmin)
+    {
+        // A packaged (MSIX/UWP) app is identified by an AppUserModelID, which ShellExecute only
+        // accepts in its shell:AppsFolder form — same normalisation the launcher applies.
+        var target = PackagedAppPath.Normalize(path);
+
+        if (string.IsNullOrEmpty(workingDir) && !PackagedAppPath.IsShellNamespacePath(target))
+        {
+            // Default the working directory to the target's parent so the launched app finds its
+            // own resources (matches how Explorer would launch it on double-click). A shell
+            // parsing name has no parent directory, hence the guard.
+            try { workingDir = Path.GetDirectoryName(target) ?? string.Empty; }
+            catch { workingDir = string.Empty; }
+        }
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = target,
+            Arguments = args,
+            UseShellExecute = true,   // .lnk / .bat / URL / AppsFolder resolution, and required for runas
+            WorkingDirectory = workingDir,
+            WindowStyle = ParseWindowStyle(windowMode),
+        };
+        // "runas" is what raises the UAC prompt; without it the child inherits our integrity level.
+        if (runAsAdmin) psi.Verb = "runas";
+        return psi;
+    }
+
+    /// <summary>Does this step ask for the after-the-fact minimise? Kept next to the parser so
+    /// the two readings of <c>windowMode</c> stay in step: MinimizeAfterStartup deliberately
+    /// maps to a NORMAL window style, because the whole point is to let the app open the way it
+    /// wants and only then put it down. Unparseable values answer false, same "behave like
+    /// Normal" fallback the style parser applies.</summary>
+    public static bool IsMinimizeAfterStartup(string? windowMode) =>
+        Enum.TryParse<LauncherWindowMode>(windowMode, ignoreCase: true, out var mode)
+        && mode == LauncherWindowMode.MinimizeAfterStartup;
+
+    /// <summary>Parse the step's <c>windowMode</c> string into a window style. Unknown or missing
+    /// values fall back to Normal so an old profile (saved before this option existed) or a
+    /// hand-edited config can't break the step.</summary>
+    private static ProcessWindowStyle ParseWindowStyle(string? windowMode) =>
+        Enum.TryParse<LauncherWindowMode>(windowMode, ignoreCase: true, out var mode)
+            ? mode switch
+            {
+                LauncherWindowMode.Maximized => ProcessWindowStyle.Maximized,
+                LauncherWindowMode.Minimized => ProcessWindowStyle.Minimized,
+                LauncherWindowMode.Hidden => ProcessWindowStyle.Hidden,
+                _ => ProcessWindowStyle.Normal,
+            }
+            : ProcessWindowStyle.Normal;
+}

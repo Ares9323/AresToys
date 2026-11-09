@@ -1,0 +1,200 @@
+<ui:FluentWindow x:Class="AresToys.App.Views.LauncherCellEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        Title="{Markup:Loc LauncherCellEdit_Title}"
+        Width="730"
+        SizeToContent="Height"
+        MinWidth="600"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowBackdropType="None"
+        Background="{DynamicResource Surface2Brush}"
+        Foreground="{DynamicResource AccentForegroundBrush}"
+        ExtendsContentIntoTitleBar="True">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <!-- Same accent-tinted 2px frame + rounded corners as the other app dialogs (MainWindow,
+         GradientEditorWindow, QrGeneratorWindow). FluentWindow's own chrome stays outside. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- 0 titlebar -->
+                <RowDefinition Height="*" />     <!-- 1 body -->
+            </Grid.RowDefinitions>
+
+            <ui:TitleBar Grid.Row="0" Title="{Markup:Loc LauncherCellEdit_Title}">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="{StaticResource AresToysLogo}" Margin="0,0,-12,0" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+
+            <Grid Grid.Row="1" Margin="16,8,16,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />  <!-- 0: header -->
+                    <RowDefinition Height="Auto" />  <!-- 1: label -->
+                    <RowDefinition Height="Auto" />  <!-- 2: path -->
+                    <RowDefinition Height="Auto" />  <!-- 3: icon -->
+                    <RowDefinition Height="Auto" />  <!-- 4: args -->
+                    <RowDefinition Height="Auto" />  <!-- 5: advanced expander -->
+                    <RowDefinition Height="*" />     <!-- 6: spacer -->
+                    <RowDefinition Height="Auto" />  <!-- 7: ok/cancel -->
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="HeaderText" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,0,0,12" />
+
+                <!-- Label -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_Label}"
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                    <ui:TextBox Grid.Column="1" x:Name="LabelBox"
+                                PlaceholderText="{Markup:Loc LauncherCellEdit_LabelPlaceholder}" />
+                </Grid>
+
+                <!-- Path with both pickers (file or folder) -->
+                <Grid Grid.Row="2" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_Path}"
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                    <ui:TextBox Grid.Column="1" x:Name="PathBox"
+                                LostFocus="OnPathBoxLostFocus"
+                                PlaceholderText="{Markup:Loc LauncherCellEdit_PathPlaceholder}" />
+                    <ui:Button Grid.Column="2" Content="📄" Margin="4,0,0,0" Padding="6,2"
+                               Click="OnPickFile" ToolTip="{Markup:Loc LauncherCellEdit_PickFile}" />
+                    <ui:Button Grid.Column="3" Content="📁" Margin="4,0,0,0" Padding="6,2"
+                               Click="OnPickFolder" ToolTip="{Markup:Loc LauncherCellEdit_PickFolder}" />
+                </Grid>
+
+                <!-- Custom icon override + multi-icon container index -->
+                <Grid Grid.Row="3" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_Icon}"
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                    <ui:TextBox Grid.Column="1" x:Name="IconBox"
+                                PlaceholderText="{Markup:Loc LauncherCellEdit_IconPlaceholder}" />
+                    <ui:TextBox Grid.Column="2" x:Name="IconIndexBox"
+                                PlaceholderText="0"
+                                ToolTip="{Markup:Loc LauncherCellEdit_IconIndexTooltip}"
+                                Margin="4,0,0,0" />
+                    <ui:Button Grid.Column="3" Content="📄" Margin="4,0,0,0" Padding="6,2"
+                               Click="OnPickIcon" ToolTip="{Markup:Loc LauncherCellEdit_PickIcon}" />
+                    <ui:Button Grid.Column="4" Content="✕" Margin="4,0,0,0" Padding="6,2"
+                               Click="OnClearIcon" ToolTip="{Markup:Loc LauncherCellEdit_ClearIcon}" />
+                </Grid>
+
+                <!-- Args -->
+                <Grid Grid.Row="4" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_Args}"
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                    <ui:TextBox Grid.Column="1" x:Name="ArgsBox"
+                                PlaceholderText="{Markup:Loc LauncherCellEdit_ArgsPlaceholder}" />
+                </Grid>
+
+                <!-- Advanced options: workflow action + admin elevation + window mode + activate-if-running matchers -->
+                <Expander Grid.Row="5" Header="{Markup:Loc LauncherCellEdit_Advanced}"
+                          Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,4,0,0" IsExpanded="False">
+                    <StackPanel Margin="0,8,0,0">
+                        <!-- Run a workflow instead of launching the path. Same picker shape as the
+                             tray-click workflow ComboBoxes in Settings. -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_Workflow}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                            <ComboBox Grid.Column="1" x:Name="WorkflowBox"
+                                      Loaded="OnWorkflowBoxLoaded"
+                                      ToolTip="{Markup:Loc LauncherCellEdit_WorkflowTooltip}" />
+                            <ui:Button Grid.Column="2" Content="✕" Margin="4,0,0,0" Padding="6,2"
+                                       Click="OnClearWorkflow"
+                                       ToolTip="{Markup:Loc LauncherCellEdit_ClearWorkflow}" />
+                        </Grid>
+
+                        <CheckBox x:Name="RunAsAdminBox" Content="{Markup:Loc LauncherCellEdit_RunAsAdmin}"
+                                  Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,0,8"
+                                  ToolTip="{Markup:Loc LauncherCellEdit_RunAsAdminTooltip}" />
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_WindowMode}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                            <ComboBox Grid.Column="1" x:Name="WindowModeBox"
+                                      ToolTip="{Markup:Loc LauncherCellEdit_WindowModeTooltip}" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_WindowTitle}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                            <ui:TextBox Grid.Column="1" x:Name="WindowTitleBox"
+                                        PlaceholderText="{Markup:Loc LauncherCellEdit_WindowTitlePlaceholder}" />
+                            <ui:Button Grid.Column="2" Content="🔍" Margin="4,0,0,0" Padding="6,2"
+                                       Click="OnPickWindow"
+                                       ToolTip="{Markup:Loc LauncherCellEdit_PickWindow}" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Markup:Loc LauncherCellEdit_ProcessName}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" />
+                            <ui:TextBox Grid.Column="1" x:Name="ProcessNameBox"
+                                        PlaceholderText="{Markup:Loc LauncherCellEdit_ProcessNamePlaceholder}" />
+                        </Grid>
+
+                        <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="10" TextWrapping="Wrap"
+                                   Text="{Markup:Loc LauncherCellEdit_AdvancedHint}" />
+                    </StackPanel>
+                </Expander>
+
+                <!-- OK / Cancel docked at the bottom -->
+                <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <ui:Button Content="{Markup:Loc LauncherCellEdit_Clear}" Width="80" Margin="0,0,8,0" Click="OnClearClicked"
+                               ToolTip="{Markup:Loc LauncherCellEdit_ClearTooltip}" />
+                    <ui:Button x:Name="OkButton" Content="{Markup:Loc LauncherCellEdit_Save}" Width="80" Margin="0,0,8,0"
+                               Appearance="Primary"
+                               IsDefault="True" Click="OnOkClicked" />
+                    <ui:Button Content="{Markup:Loc LauncherCellEdit_Cancel}" Width="80" IsCancel="True" Click="OnCancelClicked" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

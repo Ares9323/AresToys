@@ -1,0 +1,56 @@
+<Window x:Class="AresToys.App.Views.SxcuImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        Title="AresToys — Custom uploader confirmation"
+        Width="480"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource Surface2Brush}"
+        Foreground="White">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{Markup:Loc SxcuImport_Title}"
+                   FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
+
+        <!-- Body: name + category, mirroring ShareX's "Would you like to set X as the active
+             custom uploader for Y?" prompt — slightly rephrased because AresToys's selection model
+             is multi-select-per-category, not single-active. -->
+        <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,8">
+            <Run Text="{Markup:Loc SxcuImport_LeadIn}" />
+            <Run x:Name="NameRun" FontWeight="SemiBold" />
+            <Run Text="as a custom uploader for the" />
+            <Run x:Name="CategoryRun" FontWeight="SemiBold" />
+            <Run Text="category." />
+        </TextBlock>
+
+        <TextBlock Grid.Row="2" TextWrapping="Wrap" FontSize="11"
+                   Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,0,0,4"
+                   Text="{Markup:Loc SxcuImport_Hint}" />
+
+        <TextBlock Grid.Row="3" x:Name="SourcePathRun" TextWrapping="Wrap" FontSize="10"
+                   Foreground="{DynamicResource AccentForegroundDarkBrush}" Margin="0,4,0,16" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <ui:Button Content="Install" Width="110" Margin="0,0,8,0"
+                       IsDefault="True" Click="OnInstallClicked"
+                       Appearance="Primary" />
+            <ui:Button Content="{Markup:Loc Common_Cancel}" Width="90" IsCancel="True" Click="OnCancelClicked" />
+        </StackPanel>
+    </Grid>
+</Window>

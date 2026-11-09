@@ -1,0 +1,122 @@
+<ui:FluentWindow x:Class="AresToys.App.Views.QrGeneratorWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:Markup="clr-namespace:AresToys.App.Markup"
+                 Title="{Markup:Loc QrGenerator_Title}"
+                 Width="780" Height="520"
+                 MinWidth="640" MinHeight="420"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 Background="{DynamicResource Surface1Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+        <Style TargetType="ui:TextBox" BasedOn="{StaticResource {x:Type ui:TextBox}}" />
+        <Style x:Key="SubduedHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundDarkBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+    <Border Background="{DynamicResource Surface2Brush}" CornerRadius="8"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ui:TitleBar Grid.Row="0" Title="{Markup:Loc QrGenerator_Title}">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="{StaticResource AresToysLogo}" Margin="0,0,-12,0" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+
+            <!-- Body — multiline editor on the left, live preview + options on the right.
+                 Editor takes the lion's share of width because the typical use cases
+                 (vCards, ICE cards, JSON payloads) easily run several hundred characters. -->
+            <Grid Grid.Row="1" Margin="12,8,12,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="280" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Editor -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="{Markup:Loc QrGenerator_Content}" Style="{StaticResource SubduedHeader}" />
+                    <ui:TextBox Grid.Row="1" x:Name="InputText"
+                                AcceptsReturn="True" AcceptsTab="False"
+                                TextWrapping="Wrap"
+                                VerticalScrollBarVisibility="Auto"
+                                FontFamily="Consolas"
+                                ClearButtonEnabled="False"
+                                PlaceholderText="{Markup:Loc QrGenerator_PlaceholderInput}" />
+                    <TextBlock Grid.Row="2" x:Name="StatusText"
+                               Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                               FontSize="11" Margin="0,4,0,0" />
+                </Grid>
+
+                <!-- Preview + options -->
+                <StackPanel Grid.Column="1" Orientation="Vertical" Margin="16,0,0,0" Width="290">
+                    <TextBlock Text="{Markup:Loc QrGenerator_Preview}" Style="{StaticResource SubduedHeader}" />
+                    <Border Padding="8" Background="White" CornerRadius="4"
+                            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1">
+                        <Image x:Name="QrPreview" Width="260" Height="260" Stretch="Uniform" />
+                    </Border>
+
+                    <TextBlock Text="{Markup:Loc QrGenerator_ErrorCorrection}" Style="{StaticResource SubduedHeader}" Margin="0,12,0,4" />
+                    <ComboBox x:Name="EccCombo" SelectionChanged="OnOptionsChanged">
+                        <ComboBoxItem Tag="L" Content="{Markup:Loc QrGenerator_EccL}" />
+                        <ComboBoxItem Tag="M" Content="{Markup:Loc QrGenerator_EccM}" />
+                        <ComboBoxItem Tag="Q" IsSelected="True" Content="{Markup:Loc QrGenerator_EccQ}" />
+                        <ComboBoxItem Tag="H" Content="{Markup:Loc QrGenerator_EccH}" />
+                    </ComboBox>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Markup:Loc QrGenerator_ModuleSize}" Style="{StaticResource SubduedHeader}" Margin="0" />
+                        <TextBlock Grid.Column="1" x:Name="DensityValueText"
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                    </Grid>
+                    <Slider x:Name="DensitySlider" Minimum="4" Maximum="24" Value="12"
+                            TickFrequency="1" IsSnapToTickEnabled="True"
+                            ValueChanged="OnOptionsChanged" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Action footer — same Surface2 background as the body so the window reads as a
+                 single panel; previously used Surface3 which painted a darker strip at the
+                 bottom that the user found visually noisy. CornerRadius matches the outer
+                 Border (8px) minus its 2px BorderThickness on the bottom corners only. -->
+            <Border Grid.Row="2" Padding="12,10" CornerRadius="0,0,6,6">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Content="{Markup:Loc QrGenerator_CopyImage}" Margin="0,0,8,0" Click="OnCopyClicked"
+                               ToolTip="{Markup:Loc QrGenerator_TooltipCopyImage}" />
+                    <ui:Button x:Name="SaveToHistoryButton"
+                               Content="{Markup:Loc QrGenerator_SaveToHistory}" Margin="0,0,8,0" Click="OnSaveToHistoryClicked"
+                               ToolTip="{Markup:Loc QrGenerator_TooltipSaveHistory}" />
+                    <ui:Button Content="{Markup:Loc QrGenerator_SavePng}" Margin="0,0,8,0" Click="OnSavePngClicked" />
+                    <ui:Button Content="{Markup:Loc QrGenerator_SaveSvg}" Margin="0,0,8,0" Click="OnSaveSvgClicked"
+                               ToolTip="{Markup:Loc QrGenerator_TooltipSaveSvg}" />
+                    <ui:Button Content="{Markup:Loc QrGenerator_Close}" Width="80" Click="OnCloseClicked" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+    </Grid>
+</ui:FluentWindow>

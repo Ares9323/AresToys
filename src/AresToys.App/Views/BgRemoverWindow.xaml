@@ -1,0 +1,233 @@
+<ui:FluentWindow x:Class="AresToys.App.Views.BgRemoverWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:markup="clr-namespace:AresToys.App.Markup"
+                 Title="AresToys - Remove background"
+                 Width="1180" Height="780"
+                 MinWidth="900" MinHeight="640"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 Background="{DynamicResource Surface1Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+        <Style x:Key="PanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InnerBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
+            BorderThickness="2" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- TitleBar -->
+                <RowDefinition Height="*" />     <!-- Split preview -->
+                <RowDefinition Height="Auto" />  <!-- Sliders -->
+                <RowDefinition Height="Auto" />  <!-- Brush bar -->
+                <RowDefinition Height="Auto" />  <!-- Status footer -->
+                <RowDefinition Height="Auto" />  <!-- Buttons -->
+            </Grid.RowDefinitions>
+
+            <ui:TitleBar Grid.Row="0" Title="{markup:Loc BgRemover_WindowTitle}">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="{StaticResource AresToysLogo}" Margin="0,0,-12,0" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+
+            <!-- Source / cutout split. Both panels use Surface3Brush as outer background and
+                 the inner Image element renders on a checker pattern to make transparency
+                 visible (cutout pane only — source pane shows the original RGB).  -->
+            <Grid Grid.Row="1" Margin="12,8,12,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource PanelStyle}"
+                        Background="{DynamicResource Surface3Brush}" Margin="0,0,4,0" Padding="0">
+                    <Grid>
+                        <Image x:Name="SourcePreview" Stretch="Uniform" />
+                    </Grid>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource PanelStyle}"
+                        Background="{StaticResource CheckerBrush}" Margin="4,0,0,0" Padding="0">
+                    <!-- CutoutHost is the viewport: clips its content (the zoom layer) so
+                         panned/zoomed content doesn't escape into the source pane. All mouse
+                         events are wired here — bubbling lets us catch interactions over the
+                         Image while still using e.GetPosition(CutoutPreview) for bitmap-space
+                         math. ZoomLayer holds the actual Image + brush cursor canvas; its
+                         RenderTransform applies user zoom + pan in unison so the cursor ring
+                         stays correctly aligned with the painted region at any scale. -->
+                    <Grid x:Name="CutoutHost" ClipToBounds="True"
+                          MouseEnter="OnHostMouseEnter"
+                          MouseLeave="OnHostMouseLeave"
+                          MouseDown="OnHostMouseDown"
+                          MouseMove="OnHostMouseMove"
+                          MouseUp="OnHostMouseUp"
+                          PreviewMouseWheel="OnHostPreviewMouseWheel"
+                          Background="Transparent">
+                        <Grid x:Name="ZoomLayer" RenderTransformOrigin="0,0">
+                            <Grid.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="ZoomScale" />
+                                    <TranslateTransform x:Name="ZoomTranslate" />
+                                </TransformGroup>
+                            </Grid.RenderTransform>
+                            <Image x:Name="CutoutPreview" Stretch="Uniform" />
+                        </Grid>
+                        <!-- Brush cursor canvas is OUTSIDE the ZoomLayer so the ring stays
+                             at the same display size regardless of zoom level. The user
+                             explicitly wanted screen-size cursor: zooming in shouldn't make
+                             the ring bigger (cluttering view); the ring's diameter reflects
+                             brush size at fit-to-window scale, and the underlying paint
+                             still happens at the correct source-pixel footprint. -->
+                        <Canvas x:Name="BrushCursorHost" IsHitTestVisible="False">
+                            <!-- Outer ring: total brush radius. Inner ring: where the hard
+                                 core ends and the falloff begins (= hardness × radius).
+                                 At hardness=100% they coincide so we hide the inner; at lower
+                                 values the gap between the two visualises the gradient ramp. -->
+                            <Ellipse x:Name="BrushCursor" Width="0" Height="0"
+                                     Stroke="White" StrokeThickness="1.5"
+                                     IsHitTestVisible="False" Visibility="Collapsed">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="3"
+                                                      ShadowDepth="0" Opacity="0.8" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <Ellipse x:Name="BrushCursorCore" Width="0" Height="0"
+                                     Stroke="White" StrokeThickness="1"
+                                     StrokeDashArray="2,2"
+                                     IsHitTestVisible="False" Visibility="Collapsed">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="2"
+                                                      ShadowDepth="0" Opacity="0.7" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                        </Canvas>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Quality sliders 2×2. The 4th cell hosts the "Background opacity" preview-only
+                 knob: lets the user dial the masked-out regions back to semi-opaque so they
+                 can see what's been cut and paint over it with the brush. Saved PNG ignores
+                 this — Apply always produces a fully transparent background. -->
+            <Border Grid.Row="2" Style="{StaticResource PanelStyle}" Margin="12,4,12,4" Padding="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <!-- The three "heavy" sliders (threshold / feather / edge offset) all
+                         trigger the Skia blur+threshold pipeline on commit. We listen to
+                         Thumb.DragStarted / DragCompleted so the binding still updates the
+                         VM in real-time (text box / slider thumb stay in sync) but the
+                         pipeline only re-runs when the user RELEASES the thumb — keyboard
+                         arrows + track clicks still apply immediately because they don't
+                         raise DragStarted. Without this, a fast slider drag spammed the
+                         pipeline with intermediate values that the user never wanted to
+                         see, eating CPU on every step. -->
+                    <DockPanel Grid.Column="0" Grid.Row="0" LastChildFill="True" Margin="0,0,12,4">
+                        <TextBlock Text="{markup:Loc BgRemover_ParamThreshold}" Width="120" />
+                        <TextBox Text="{Binding Threshold}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding Threshold}" Minimum="0" Maximum="255"
+                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                Thumb.DragStarted="OnHeavySliderDragStarted"
+                                Thumb.DragCompleted="OnHeavySliderDragCompleted" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="1" Grid.Row="0" LastChildFill="True" Margin="12,0,0,4">
+                        <TextBlock Text="{markup:Loc BgRemover_ParamFeather}" Width="120" />
+                        <TextBox Text="{Binding FeatherPx}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding FeatherPx}" Minimum="0" Maximum="20"
+                                IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight"
+                                Thumb.DragStarted="OnHeavySliderDragStarted"
+                                Thumb.DragCompleted="OnHeavySliderDragCompleted" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="0" Grid.Row="1" LastChildFill="True" Margin="0,4,12,0">
+                        <TextBlock Text="{markup:Loc BgRemover_ParamEdgeOffset}" Width="120" />
+                        <TextBox Text="{Binding EdgeOffsetPx}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding EdgeOffsetPx}" Minimum="-20" Maximum="20"
+                                IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight"
+                                Thumb.DragStarted="OnHeavySliderDragStarted"
+                                Thumb.DragCompleted="OnHeavySliderDragCompleted" />
+                    </DockPanel>
+                    <DockPanel Grid.Column="1" Grid.Row="1" LastChildFill="True" Margin="12,4,0,0">
+                        <TextBlock Text="{markup:Loc BgRemover_ParamBackgroundOpacity}" Width="120" />
+                        <TextBox Text="{Binding BackgroundOpacity}" Width="48" DockPanel.Dock="Right" />
+                        <Slider Value="{Binding BackgroundOpacity}" Minimum="0" Maximum="100"
+                                IsSnapToTickEnabled="True" TickFrequency="1" />
+                    </DockPanel>
+                </Grid>
+            </Border>
+
+            <!-- Brush bar: three radio toggles for the brush mode + size slider. The brush
+                 paints onto a separate overlay layer so it survives slider changes (a user
+                 who painted a mistake out doesn't see it come back when they nudge a slider). -->
+            <Border Grid.Row="3" Style="{StaticResource PanelStyle}" Margin="12,4,12,4" Padding="12,8">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{markup:Loc BgRemover_BrushLabel}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <!-- Focusable=False on the brush radios + reset buttons keeps Enter
+                         routing to the IsDefault Apply button: clicking a radio / button
+                         doesn't move keyboard focus there, so a subsequent Enter doesn't
+                         re-fire the radio toggle / re-run the reset action. The X hotkey
+                         (handled at the window level) does the toggle anyway. -->
+                    <RadioButton GroupName="Brush" Content="{markup:Loc BgRemover_BrushAdd}"
+                                 IsChecked="{Binding BrushIsAdd, Mode=TwoWay}" Margin="0,0,12,0"
+                                 Focusable="False" />
+                    <RadioButton GroupName="Brush" Content="{markup:Loc BgRemover_BrushRemove}"
+                                 IsChecked="{Binding BrushIsRemove, Mode=TwoWay}" Margin="0,0,24,0"
+                                 Focusable="False" />
+                    <TextBlock Text="{markup:Loc BgRemover_BrushSize}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Slider Width="140" Value="{Binding BrushSizePx}" Minimum="5" Maximum="200"
+                            IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" />
+                    <!-- Width 56 instead of 40: 3-digit values (e.g. 100, 200) need ~50 px
+                         to fit comfortably with the textbox padding; 40 was clipping the
+                         trailing digit so "100" rendered as "10". Same fix for Hardness
+                         which can also reach the 3-digit range at 100. -->
+                    <TextBox Text="{Binding BrushSizePx}" Width="56" Margin="8,0,16,0" />
+                    <TextBlock Text="{markup:Loc BgRemover_BrushHardness}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Slider Width="120" Value="{Binding BrushHardness}" Minimum="0" Maximum="100"
+                            IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" />
+                    <TextBox Text="{Binding BrushHardness}" Width="56" Margin="8,0,0,0" />
+                    <ui:Button x:Name="ResetBrushBtn" Content="{markup:Loc BgRemover_BrushReset}"
+                               Margin="16,0,0,0" Click="OnResetBrushClicked" Focusable="False" />
+                    <ui:Button x:Name="ResetViewBtn" Content="{markup:Loc BgRemover_ResetView}"
+                               Margin="8,0,0,0" Click="OnResetViewClicked" Focusable="False" />
+                </StackPanel>
+            </Border>
+
+            <!-- Status line + footer buttons. -->
+            <Border Grid.Row="4" Style="{StaticResource PanelStyle}" Margin="12,4,12,4" Padding="12,6">
+                <TextBlock Text="{Binding StatusText}" />
+            </Border>
+
+            <Border Grid.Row="5" Style="{StaticResource PanelStyle}" Margin="12,4,12,12" Padding="12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- IsCancel/IsDefault wire Esc → Cancel and Enter → Apply respectively
+                         so the user can confirm/discard from the keyboard regardless of
+                         where focus sits. Pairs with Focusable=False on the brush radios +
+                         reset buttons so those clicks don't steal focus from the default
+                         button. Affirmative-left / Cancel-right matches the rest of the app's
+                         dialogs (NewWormholeDialog, GradientEditorWindow, UploaderConfigDialog…). -->
+                    <ui:Button x:Name="ApplyBtn" Content="{markup:Loc BgRemover_Apply}"
+                               Appearance="Primary" Click="OnApplyClicked" IsDefault="True"
+                               Margin="0,0,8,0"
+                               IsEnabled="{Binding IsInferenceRunning, Converter={StaticResource InverseBool}}" />
+                    <ui:Button Content="{markup:Loc Common_Cancel}" Click="OnCancelClicked"
+                               IsCancel="True" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

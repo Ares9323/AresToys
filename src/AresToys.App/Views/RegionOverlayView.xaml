@@ -1,0 +1,184 @@
+<Window x:Class="AresToys.App.Views.RegionOverlayView"
+        x:ClassModifier="internal"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        WindowStyle="None"
+        Background="Black"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        Cursor="Cross"
+        MouseLeftButtonDown="OnMouseLeftButtonDown"
+        MouseMove="OnMouseMove"
+        MouseLeftButtonUp="OnMouseLeftButtonUp"
+        MouseWheel="OnMouseWheel"
+        PreviewKeyDown="OnKeyDown"
+        KeyDown="OnKeyDown">
+    <Grid x:Name="RootGrid">
+        <!-- Frozen screenshot of THIS monitor, cropped from the one snapshot of the virtual
+             screen taken before any view exists. Painted as the background so the window needs no
+             AllowsTransparency: a layered window would push the whole surface on every frame.
+             The window sits exactly on its monitor (PerMonitorOverlayHost), so Fill is one
+             physical pixel per screen pixel. -->
+        <Image x:Name="ScreenshotImage" Stretch="Fill" />
+        <!-- Dim layer with an even-odd "hole" at the selection rect (rebuilt on each move).
+             40000000 = ~25% black: enough to mute the un-selected area visually but light
+             enough that the user still recognises what's outside the rect (e.g. picking from
+             a screen with white windows). #80 (50%) was reported as too dark to comfortably
+             frame against pre-existing UI. -->
+        <Path x:Name="DimPath" Fill="#40000000" />
+        <Canvas x:Name="OverlayCanvas">
+            <Rectangle x:Name="SelectionRect"
+                       Stroke="#33B5FF"
+                       StrokeThickness="1"
+                       Fill="Transparent"
+                       Visibility="Collapsed" />
+            <!-- Snap-preview rectangle highlighting the window under the cursor (visible only
+                 while idle). Outline only, no fill: a tinted fill makes the preview feel
+                 intrusive when the user is just hovering. -->
+            <Rectangle x:Name="SnapRect"
+                       Stroke="#FFD000"
+                       StrokeThickness="2"
+                       StrokeDashArray="4,3"
+                       Fill="Transparent"
+                       Visibility="Collapsed"
+                       IsHitTestVisible="False" />
+            <Border x:Name="SizeLabelBorder"
+                    Background="#222"
+                    BorderBrush="#80FFFFFF"
+                    BorderThickness="1"
+                    Padding="6,3"
+                    CornerRadius="3"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="SizeLabel"
+                           Foreground="White"
+                           FontFamily="Consolas"
+                           FontSize="16" />
+            </Border>
+            <Border x:Name="CursorPosBorder"
+                    Background="#222"
+                    BorderBrush="#80FFFFFF"
+                    BorderThickness="1"
+                    Padding="6,3"
+                    CornerRadius="3"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="CursorPosLabel"
+                           Foreground="White"
+                           FontFamily="Consolas"
+                           FontSize="16" />
+            </Border>
+
+            <!-- Screen-edge crosshair: 2 lines extending from cursor to canvas bounds with
+                 marching-ants animation. Kept Collapsed (reported as distracting) so a future
+                 setting can re-enable them without a XAML restructure. RenderOptions.EdgeMode =
+                 Aliased keeps the 1-px line crisp. -->
+            <Line x:Name="CrosshairH" Stroke="White" StrokeThickness="1"
+                  StrokeDashArray="4,4" IsHitTestVisible="False" Visibility="Collapsed"
+                  RenderOptions.EdgeMode="Aliased" />
+            <Line x:Name="CrosshairHDark" Stroke="Black" StrokeThickness="1"
+                  StrokeDashArray="4,4" StrokeDashOffset="4"
+                  IsHitTestVisible="False" Visibility="Collapsed"
+                  RenderOptions.EdgeMode="Aliased" />
+            <Line x:Name="CrosshairV" Stroke="White" StrokeThickness="1"
+                  StrokeDashArray="4,4" IsHitTestVisible="False" Visibility="Collapsed"
+                  RenderOptions.EdgeMode="Aliased" />
+            <Line x:Name="CrosshairVDark" Stroke="Black" StrokeThickness="1"
+                  StrokeDashArray="4,4" StrokeDashOffset="4"
+                  IsHitTestVisible="False" Visibility="Collapsed"
+                  RenderOptions.EdgeMode="Aliased" />
+
+            <!-- Round pixel-picker. Image element clipped to an ellipse:
+                 RenderOptions.BitmapScalingMode=NearestNeighbor only takes effect on Image,
+                 not on ImageBrush (WPF falls back to bilinear there and pixels come out
+                 blurred). Outer Ellipse + centred crosshair stack on top via the same Grid.
+                 Hidden (not Collapsed) until the session shows it: a Hidden element still has an
+                 ActualWidth, which the placement needs before the first frame. -->
+            <Grid x:Name="MagnifierGroup" Width="160" Height="160" Visibility="Hidden">
+                <Image x:Name="MagnifierImage"
+                       Width="160" Height="160"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor"
+                       IsHitTestVisible="False">
+                    <Image.Clip>
+                        <EllipseGeometry Center="80,80" RadiusX="80" RadiusY="80" />
+                    </Image.Clip>
+                </Image>
+                <Ellipse x:Name="MagnifierCircle"
+                         Width="160" Height="160"
+                         Stroke="#80FFFFFF" StrokeThickness="1.5"
+                         Fill="Transparent"
+                         IsHitTestVisible="False" />
+                <Rectangle x:Name="MagnifierCrosshair"
+                           Stroke="Red" StrokeThickness="1.5"
+                           Fill="Transparent"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           IsHitTestVisible="False" />
+            </Grid>
+            <Border x:Name="MagnifierCoordsBorder"
+                    Background="#222"
+                    BorderBrush="#80FFFFFF"
+                    BorderThickness="1"
+                    Padding="6,3"
+                    CornerRadius="3"
+                    Visibility="Hidden">
+                <TextBlock x:Name="MagnifierCoords"
+                           Foreground="White"
+                           FontFamily="Consolas"
+                           FontWeight="SemiBold"
+                           FontSize="14" />
+            </Border>
+            <!-- Single unified popup: hint row + status / zoom / Apply / Cancel below. The user
+                 can drag it anywhere on the overlay (the session moves it, keeps it whole inside
+                 one monitor and saves the spot). Background is the explicit drag handle: only
+                 the Buttons inside opt out of the drag, so any background pixel grabs it. Hidden
+                 (not Collapsed) so it keeps its measured size; only the view that holds the
+                 toolbar shows it. -->
+            <Border x:Name="Toolbar"
+                    Background="#222"
+                    BorderBrush="#80FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12,8"
+                    Cursor="SizeAll"
+                    Canvas.ZIndex="200"
+                    Canvas.Left="0" Canvas.Top="0"
+                    Visibility="Hidden">
+                <StackPanel Orientation="Vertical">
+                    <TextBlock Foreground="#BBB" FontSize="11"
+                               Margin="0,0,0,6"
+                               Text="{Markup:Loc RegionOverlay_Instructions}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="StatusLabel"
+                                   Foreground="White" FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,16,0"
+                                   Text="{Markup:Loc RegionOverlay_NoRegions}" />
+                        <Border Width="1" Background="#80FFFFFF" Margin="0,0,16,0" />
+                        <TextBlock x:Name="ZoomLabel"
+                                   Foreground="#AAA" FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,16,0"
+                                   Text="Zoom: 17px" />
+                        <Border Width="1" Background="#80FFFFFF" Margin="0,0,16,0" />
+                        <Button x:Name="ToolbarApplyButton"
+                                Content="{Markup:Loc RegionOverlay_ApplyButton}"
+                                Click="OnToolbarApplyClicked"
+                                Background="#249A56" Foreground="White"
+                                BorderBrush="#249A56" BorderThickness="0"
+                                Padding="10,4" Margin="0,0,8,0"
+                                IsEnabled="False" />
+                        <Button x:Name="ToolbarCancelButton"
+                                Content="{Markup:Loc RegionOverlay_CancelButton}"
+                                Click="OnToolbarCancelClicked"
+                                Background="#C54747" Foreground="White"
+                                BorderBrush="#C54747" BorderThickness="0"
+                                Padding="10,4" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Canvas>
+    </Grid>
+</Window>

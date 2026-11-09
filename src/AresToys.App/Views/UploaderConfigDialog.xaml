@@ -1,0 +1,163 @@
+<Window x:Class="AresToys.App.Views.UploaderConfigDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:vm="clr-namespace:AresToys.App.ViewModels"
+        xmlns:svc="clr-namespace:AresToys.App.Services"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        Title="Configure uploader"
+        Width="460"
+        SizeToContent="Height"
+        MaxHeight="640"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource Surface2Brush}"
+        Foreground="White">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- One DataTemplate per field shape. The ItemsControl below resolves by runtime type so
+             the form is just a vertical list of these. Sensitive StringSetting routes to the
+             PasswordBox template instead of TextBox by inspecting the Sensitive flag in code. -->
+        <DataTemplate x:Key="StringFieldTemplate" DataType="{x:Type vm:StringFieldViewModel}">
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock svc:LinkifyTextBlock.Text="{Binding Description}" FontSize="11"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           TextWrapping="Wrap" Margin="0,0,0,4"
+                           Visibility="{Binding Description, Converter={StaticResource NotNullToVisibility}}" />
+                <ui:TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="{Binding Placeholder}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="SensitiveStringFieldTemplate" DataType="{x:Type vm:StringFieldViewModel}">
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock svc:LinkifyTextBlock.Text="{Binding Description}" FontSize="11"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           TextWrapping="Wrap" Margin="0,0,0,4"
+                           Visibility="{Binding Description, Converter={StaticResource NotNullToVisibility}}" />
+                <!-- WPF PasswordBox doesn't support data binding for security reasons; we wire it
+                     manually in the code-behind and keep the Tag pointing at the field VM so the
+                     handler knows where to write back. -->
+                <PasswordBox x:Name="SecretBox"
+                             Tag="{Binding}"
+                             PasswordChanged="OnPasswordChanged"
+                             Loaded="OnPasswordBoxLoaded"
+                             Background="{DynamicResource Surface3Brush}"
+                             Foreground="White"
+                             BorderBrush="{DynamicResource OuterBorderBrush}"
+                             BorderThickness="1"
+                             Padding="8,6"
+                             FontFamily="Consolas" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="BoolFieldTemplate" DataType="{x:Type vm:BoolFieldViewModel}">
+            <StackPanel Margin="0,0,0,12">
+                <CheckBox Content="{Binding Label}"
+                          IsChecked="{Binding Value, Mode=TwoWay}" />
+                <TextBlock svc:LinkifyTextBlock.Text="{Binding Description}" FontSize="11"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           TextWrapping="Wrap" Margin="22,2,0,0"
+                           Visibility="{Binding Description, Converter={StaticResource NotNullToVisibility}}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DropdownFieldTemplate" DataType="{x:Type vm:DropdownFieldViewModel}">
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock svc:LinkifyTextBlock.Text="{Binding Description}" FontSize="11"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           TextWrapping="Wrap" Margin="0,0,0,4"
+                           Visibility="{Binding Description, Converter={StaticResource NotNullToVisibility}}" />
+                <ComboBox ItemsSource="{Binding Options}"
+                          SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                          DisplayMemberPath="Display" />
+            </StackPanel>
+        </DataTemplate>
+
+        <vm:UploaderConfigFieldTemplateSelector x:Key="FieldTemplateSelector"
+            StringTemplate="{StaticResource StringFieldTemplate}"
+            SensitiveStringTemplate="{StaticResource SensitiveStringFieldTemplate}"
+            BoolTemplate="{StaticResource BoolFieldTemplate}"
+            DropdownTemplate="{StaticResource DropdownFieldTemplate}" />
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{Binding DisplayName}" FontSize="18" FontWeight="SemiBold"
+                   Margin="0,0,0,4" />
+        <TextBlock Grid.Row="1" FontSize="12" Margin="0,0,0,16"
+                   Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                   Text="{Markup:Loc Uploader_SensitiveHint}" />
+
+        <!-- OAuth sign-in panel — only present for IOAuthUploader implementations. Three states:
+             not signed in (Sign-in button), busy (spinner-text + status), signed in (label + Sign-out).
+             DataContext = OAuthSection, which itself drives commands and visibility flags. -->
+        <Border Grid.Row="2" DataContext="{Binding OAuthSection}"
+                Background="{DynamicResource Surface3Brush}"
+                CornerRadius="4" Padding="12" Margin="0,0,0,16"
+                Visibility="{Binding DataContext.HasOAuthSection, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="Account" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <!-- Signed-out state -->
+                        <TextBlock Text="{Markup:Loc Uploader_NotSignedIn}"
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                   Visibility="{Binding IsSignedIn, Converter={StaticResource InverseBoolToVisibility}}" />
+                        <!-- Signed-in state: account label OR generic "Signed in" if provider doesn't expose one -->
+                        <StackPanel Visibility="{Binding IsSignedIn, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Markup:Loc Uploader_SignedIn}"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       Visibility="{Binding SignedInDisplayName, Converter={StaticResource NullToVisibility}}" />
+                            <TextBlock Text="{Binding SignedInDisplayName}" FontWeight="SemiBold"
+                                       Visibility="{Binding SignedInDisplayName, Converter={StaticResource NotNullToVisibility}}" />
+                        </StackPanel>
+                        <!-- Last error / status (sign-in failure, cancel, …) -->
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="#E07070" TextWrapping="Wrap"
+                                   Visibility="{Binding StatusMessage, Converter={StaticResource NotNullToVisibility}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:Button Content="Sign in" Padding="14,4"
+                                   Command="{Binding SignInCommand}"
+                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
+                                   Visibility="{Binding IsSignedIn, Converter={StaticResource InverseBoolToVisibility}}"
+                                   Appearance="Primary" />
+                        <ui:Button Content="Sign out" Padding="14,4"
+                                   Command="{Binding SignOutCommand}"
+                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
+                                   Visibility="{Binding IsSignedIn, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Fields}"
+                          ItemTemplateSelector="{StaticResource FieldTemplateSelector}" />
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <ui:Button Content="{Markup:Loc Common_Save}" Width="90" Margin="0,0,8,0" IsDefault="True" Click="OnSaveClicked"
+                       Appearance="Primary" />
+            <ui:Button Content="{Markup:Loc Common_Cancel}" Width="90" IsCancel="True" Click="OnCancelClicked" />
+        </StackPanel>
+    </Grid>
+</Window>

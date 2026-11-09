@@ -1,0 +1,698 @@
+using System.Reflection;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using AresToys.App.Services;
+using AresToys.App.Services.Plugins;
+using AresToys.Storage.Settings;
+
+namespace AresToys.App.ViewModels;
+
+public sealed partial class SettingsViewModel : ObservableObject
+{
+    private const string StartMinimizedKey = "app.start_minimized";
+    private const string CheckUpdatesAtStartupKey = "app.updates.check_at_startup";
+    private const string AutoInstallUpdatesKey = "app.updates.auto_install";
+    private const string EditorStartMaximizedKey = "app.editor_start_maximized";
+    private const string EditorAltClickNoMatchKey = "editor.alt_click_no_match";
+    private const string ClipboardShowSnippetWithLabelKey = "clipboard.show_snippet_with_label";
+    private const string ClipboardFocusLatestOnOpenKey = "clipboard.focus_latest_on_open";
+    // Module-toggle keys shared with ModuleSettings (kept in lockstep — App.OnStartup reads the
+    // same constants on launch to decide whether to spin each module up).
+    private const string ClipboardModuleKey  = ModuleSettings.ClipboardKey;
+    private const string LauncherModuleKey   = ModuleSettings.LauncherKey;
+    private const string WormholesModuleKey  = ModuleSettings.WormholesKey;
+    private const string KeySequencesModuleKey = ModuleSettings.KeySequencesKey;
+    private const string PeekModuleKey = ModuleSettings.PeekKey;
+    private readonly AutostartService _autostart;
+    private readonly ElevationService _elevation;
+    private readonly ISettingsStore _settingsStore;
+    private readonly AresToys.App.Services.Notifications.ToastLifetimeService _toastLifetime;
+    private readonly PopupWindowViewModel _clipboardVm;
+    private readonly AresToys.App.Services.KeySequences.KeySequenceModuleSettings _keySequencesSettings;
+    private readonly AresToys.App.Services.Pins.PinPersistenceService _pins;
+    private readonly AresToys.App.Services.Satellite.SatelliteService _satellite;
+
+    public SettingsViewModel(
+        PluginRegistry registry,
+        AutostartService autostart,
+        ElevationService elevation,
+        ISettingsStore settingsStore,
+        UploadersViewModel uploaders,
+        HotkeysViewModel hotkeys,
+        CaptureDefaultsViewModel capture,
+        WorkflowsViewModel workflows,
+        ThemeViewModel theme,
+        CategoriesViewModel categories,
+        DebugViewModel debug,
+        WormholesViewModel wormholes,
+        AlwaysOnTopViewModel alwaysOnTop,
+        DictationViewModel dictation,
+        WindowSnappingViewModel windowSnapping,
+        NewPlusViewModel newPlus,
+        PeekSettingsViewModel peek,
+        PopupWindowViewModel clipboardVm,
+        AresToys.App.Services.KeySequences.KeySequenceModuleSettings keySequencesSettings,
+        AresToys.App.Services.Notifications.ToastLifetimeService toastLifetime,
+        AresToys.App.Services.Pins.PinPersistenceService pins,
+        AresToys.App.Services.Satellite.SatelliteService satellite)
+    {
+        _autostart = autostart;
+        _elevation = elevation;
+        _settingsStore = settingsStore;
+        _clipboardVm = clipboardVm;
+        _keySequencesSettings = keySequencesSettings;
+        _toastLifetime = toastLifetime;
+        _pins = pins;
+        _satellite = satellite;
+        Theme = theme;
+        Categories = categories;
+        Debug = debug;
+        Wormholes = wormholes;
+        AlwaysOnTop = alwaysOnTop;
+        Dictation = dictation;
+        WindowSnapping = windowSnapping;
+        NewPlus = newPlus;
+        Peek = peek;
+        // Initial state mirrors Task Scheduler — the on-disk task is the single source of truth
+        // for the autostart toggle.
+        _suppressAutostartPersist = true;
+        StartWithWindows = autostart.IsEnabled;
+        _suppressAutostartPersist = false;
+
+        // RunElevated is the persisted "Always run as administrator" preference. Hydrated from
+        // HKCU registry (see ElevationService for why registry and not the SQLite store — App.OnStartup
+        // needs to read it before DI is built). Subsequent UI toggles propagate via
+        // OnRunElevatedChanged below.
+        _suppressRunElevatedPersist = true;
+        RunElevated = elevation.RunElevated;
+        _suppressRunElevatedPersist = false;
+
+        // StartMinimized + EditorStartMaximized hydrate async from the SQLite settings store.
+        // The fire-and-forget is intentional: SettingsViewModel is constructed eagerly during
+        // DI, before the user has navigated to the Settings tab, so we don't block startup
+        // waiting for values most users will never look at on this launch. Suppress flags
+        // prevent the initial assignment from round-tripping back to disk with the same value.
+        _ = LoadPersistedSettingsAsync();
+        Uploaders = uploaders;
+        // Hotkeys "Add custom workflow" button → run the Add flow (no modal — auto-default name)
+        // then drop straight into the edit view with the inline name field focused + selected
+        // so the user can type the real name immediately.
+        hotkeys.AddCustomWorkflowRequested += async (_, _) =>
+        {
+            await workflows.ReloadWorkflowsAsync().ConfigureAwait(true);
+            await workflows.AddWorkflowCommand.ExecuteAsync(null).ConfigureAwait(true);
+            if (workflows.SelectedWorkflow is { } added)
+                await hotkeys.BeginEditAsync(added.Id, focusName: true).ConfigureAwait(true);
+        };
+        Hotkeys = hotkeys;
+        Capture = capture;
+        Workflows = workflows;
+        // Reads the same string that MSBuild's -p:Version was given (suffix included). Falls
+        // back to the 4-part numeric version when the InformationalVersion attribute is
+        // missing — defensive only, the SDK always emits one.
+        var asm = typeof(SettingsViewModel).Assembly;
+        var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        // SourceLink appends "+<git-sha>" to InformationalVersion in modern .NET SDKs; keep
+        // just the leading semver part so About reads "0.1.0-dev" not "0.1.0-dev+abc1234".
+        var plus = info?.IndexOf('+') ?? -1;
+        AppVersion = plus >= 0 ? info![..plus] : (info ?? asm.GetName().Version?.ToString() ?? "dev");
+        // Hold a reference so DI doesn't garbage-collect the registry singleton through this VM.
+        _ = registry;
+    }
+
+    public UploadersViewModel Uploaders { get; }
+    public HotkeysViewModel Hotkeys { get; }
+    public CaptureDefaultsViewModel Capture { get; }
+    public WorkflowsViewModel Workflows { get; }
+    public ThemeViewModel Theme { get; }
+    public CategoriesViewModel Categories { get; }
+    public DebugViewModel Debug { get; }
+    public WormholesViewModel Wormholes { get; }
+    public AlwaysOnTopViewModel AlwaysOnTop { get; }
+    public DictationViewModel Dictation { get; }
+    public WindowSnappingViewModel WindowSnapping { get; }
+    public NewPlusViewModel NewPlus { get; }
+    public PeekSettingsViewModel Peek { get; }
+
+    [ObservableProperty]
+    private SettingsTab _selectedTab = SettingsTab.Hotkeys;
+
+    /// <summary>Bound to the Settings-tab "Run AresToys when Windows starts" checkbox. Reads /
+    /// writes HKCU Run via <see cref="AutostartService"/>. Constructor seeds it from the current
+    /// registry value (no flicker), then user toggles propagate immediately.</summary>
+    [ObservableProperty]
+    private bool _startWithWindows;
+
+    private bool _suppressAutostartPersist;
+    private bool _suppressRunElevatedPersist;
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (_suppressAutostartPersist) return;
+        // Pair the autostart task's RunLevel with the persisted "Always run as administrator"
+        // preference: enabling autostart while RunElevated is on registers the task as
+        // HighestAvailable (so logon auto-elevates without a prompt); enabling it while
+        // RunElevated is off uses LeastPrivilege as before. RunElevated can only be toggled when
+        // AresToys is itself elevated (see RunElevated below + the XAML IsEnabled gating), so
+        // schtasks always sees an elevated caller for the HighestAvailable case — no DACL drama
+        // on later modifications.
+        _autostart.SetEnabled(value, RunElevated);
+    }
+
+    /// <summary>True when the current AresToys process is running with an elevated token. Drives
+    /// the IsEnabled gating in the "Running as administrator" Settings card: the "Always run as
+    /// administrator" checkbox is only clickable when this is true, and the "Restart as
+    /// administrator" button is only clickable when this is false. Mirrors the PowerToys flow.</summary>
+    public bool IsRunningAsAdmin => _elevation.IsProcessElevated;
+
+    /// <summary>Inverse of <see cref="IsRunningAsAdmin"/>, bound to the "Restart as administrator"
+    /// button's <c>IsEnabled</c>. Computed property (no field) because the elevation state is
+    /// frozen at process start and never changes mid-run.</summary>
+    public bool CanRestartAsAdmin => !_elevation.IsProcessElevated;
+
+    /// <summary>Persisted "Always run as administrator" preference. <c>App.OnStartup</c> reads it
+    /// from the registry early and self-relaunches via ShellExecute runas if true and the
+    /// current process isn't already elevated. Toggling it here also reshapes the autostart
+    /// task's RunLevel so the logon-time auto-launch matches.</summary>
+    [ObservableProperty]
+    private bool _runElevated;
+
+    partial void OnRunElevatedChanged(bool value)
+    {
+        if (_suppressRunElevatedPersist) return;
+        _elevation.RunElevated = value;
+        // Keep the autostart task in lockstep: if the user enabled both autostart AND
+        // "always run as admin", the task needs HighestAvailable so the logon-time launch comes
+        // up elevated without a UAC prompt. This call is safe because the checkbox is gated to
+        // only be clickable when AresToys is itself elevated.
+        if (StartWithWindows)
+        {
+            _autostart.SetEnabled(true, value);
+        }
+    }
+
+    /// <summary>One time restart without elevation, for when AresToys runs as administrator. Same path as the
+    /// tray's "Restart normally": the child is started with the shell token and skips the "Always run as
+    /// administrator" gate for that session only.</summary>
+    [RelayCommand]
+    private void RestartUnelevated()
+    {
+        if (ElevationService.RestartUnelevated())
+        {
+            System.Windows.Application.Current.Shutdown();
+        }
+    }
+
+    [RelayCommand]
+    private void RestartAsAdmin()
+    {
+        // Persist the preference first so the elevated child reads it back on its OnStartup and
+        // keeps the toggle reflecting the user's intent — even if they hadn't explicitly toggled
+        // the "Always run as admin" checkbox yet (one-shot elevation request).
+        if (ElevationService.RestartElevated())
+        {
+            System.Windows.Application.Current.Shutdown();
+        }
+        // UAC declined / failed: stay in the current non-elevated session. No state to revert.
+    }
+
+    /// <summary>Bound to the Settings-tab "Start minimized" checkbox. Persisted in the SQLite
+    /// settings store under <see cref="StartMinimizedKey"/>; <see cref="App.OnStartup"/> reads
+    /// it before deciding whether to call <c>window.Show()</c> on launch.</summary>
+    [ObservableProperty]
+    private bool _startMinimized;
+
+    /// <summary>Bound to "Look for updates at startup" (default ON). Persisted under
+    /// <see cref="CheckUpdatesAtStartupKey"/>; <see cref="App.OnStartup"/> reads it before
+    /// firing the silent <c>UpdaterService.CheckSilentlyAsync</c> call. Turning it off skips
+    /// the GitHub API roundtrip entirely — manual checks from the About tab keep working.</summary>
+    [ObservableProperty]
+    private bool _checkUpdatesAtStartup = true;
+
+    /// <summary>Bound to "Automatically install updates when available" (default OFF, safe).
+    /// Persisted under <see cref="AutoInstallUpdatesKey"/>. When ON, an available update from
+    /// the silent startup check downloads + applies + restarts without the toast prompt;
+    /// when OFF the existing toast appears so the user picks the timing. Gated behind the
+    /// startup check — if that's off, this flag has no effect.</summary>
+    [ObservableProperty]
+    private bool _autoInstallUpdates;
+
+    /// <summary>Bound to the Settings-tab "Start editor maximized" checkbox. Persisted under
+    /// <see cref="EditorStartMaximizedKey"/>. Honoured by <c>EditorLauncher.OpenAsync</c> (the
+    /// non-pipeline open path: toast click, history → edit). Workflow tasks have their own
+    /// <c>fullscreen</c> JSON config which is read inside <c>EditAsync</c> and overrides this
+    /// — the user's per-task choice always wins over the global default.</summary>
+    [ObservableProperty]
+    private bool _editorStartMaximized;
+
+    /// <summary>Bound to the Editor-section "Alt+click selects any shape" toggle. Persisted
+    /// under <see cref="EditorAltClickNoMatchKey"/> as <c>"select_any"</c> (true) or
+    /// <c>"place"</c> (false / default). Read by <see cref="Services.EditorLauncher"/> on each
+    /// editor open and pushed into the editor view-model's <c>AltClickFallback</c> property.
+    /// Governs only the no-match fallback: alt+click on a same-type hit always selects.
+    /// (Renamed from EditorShiftClickSelectAny in 0.1.6 — Shift was reassigned to multi-select-
+    /// toggle so it stacks with Alt: Alt+Shift = select-and-add-to-set.)</summary>
+    [ObservableProperty]
+    private bool _editorAltClickSelectAny;
+
+    /// <summary>Bound to the Settings-tab "Show content snippet under label" checkbox.
+    /// Persisted under <see cref="ClipboardShowSnippetWithLabelKey"/>. On change the new
+    /// value is pushed directly into <see cref="PopupWindowViewModel.ShowSnippetWithLabel"/>
+    /// so an already-open clipboard window updates its rows immediately — the popup VM is a
+    /// singleton and its own setter re-persists harmlessly to the same key.</summary>
+    [ObservableProperty]
+    private bool _clipboardShowSnippetWithLabel;
+
+    /// <summary>Bound to the Settings-tab "Focus the newest entry on open" checkbox (issue #20).
+    /// Persisted under <see cref="ClipboardFocusLatestOnOpenKey"/>, default ON. Pushed straight
+    /// into <see cref="PopupWindowViewModel.FocusLatestOnOpen"/> like the snippet toggle.</summary>
+    [ObservableProperty]
+    private bool _clipboardFocusLatestOnOpen = true;
+
+    /// <summary>Bound to "Restore pinned images at startup" (default ON). Persisted by
+    /// <see cref="AresToys.App.Services.Pins.PinPersistenceService"/> under its
+    /// <c>RestoreSettingKey</c>. Turning it off also deletes the saved pins, so turning it back
+    /// on later never brings back pins from long ago; the pins on screen stay open.</summary>
+    [ObservableProperty]
+    private bool _restorePinsAtStartup = true;
+
+    /// <summary>Bound to the Settings → Modules "Clipboard" toggle. Persisted under
+    /// <see cref="ClipboardModuleKey"/> — read by <see cref="App.OnStartup"/> to decide whether
+    /// to start <see cref="Services.ClipboardIngestionService"/>, pre-warm the popup window, and
+    /// register the Win+V hotkey. Toggling at runtime persists immediately but the resulting
+    /// behaviour change only lands on the next launch, signalled to the user via the
+    /// <see cref="ModulesRestartRequired"/> hint.</summary>
+    [ObservableProperty]
+    private bool _clipboardModuleEnabled = true;
+
+    /// <summary>Bound to the Settings → Modules "Launcher" toggle. Same lifecycle as
+    /// <see cref="ClipboardModuleEnabled"/> — gates pre-warm of <see cref="Views.LauncherWindow"/>
+    /// + the launcher hotkey + the tray menu entry.</summary>
+    [ObservableProperty]
+    private bool _launcherModuleEnabled = true;
+
+    /// <summary>Bound to the Settings → Modules "Wormholes" toggle. Wormholes is the desktop-
+    /// fence subsystem currently in development (see docs/WormholesSpec.md). The toggle persists
+    /// here so existing installs can opt in ahead of the feature shipping; the gates that read
+    /// this flag in <see cref="App.OnStartup"/> are currently no-ops.</summary>
+    [ObservableProperty]
+    private bool _wormholesModuleEnabled;
+
+    /// <summary>Bound to the Settings → Modules "Peek" toggle (Ctrl+Space file preview in Explorer).
+    /// Defaults OFF: only a stored "true" turns it on.</summary>
+    [ObservableProperty]
+    private bool _peekModuleEnabled;
+
+    /// <summary>Bound to the Settings → Modules "Key Sequences" toggle. Defaults OFF — the module
+    /// installs a global keyboard stream listener when enabled, so opt-in only. Toggle persists
+    /// immediately; takes effect at next launch (the listener install path runs once at startup).</summary>
+    [ObservableProperty]
+    private bool _keySequencesModuleEnabled;
+
+    /// <summary>Bound to the "Overlay position" dropdown under the Key Sequences module toggle.
+    /// Hot-reloadable: the change applies on the next overlay spawn — no restart needed (unlike
+    /// the master enable flag, since the overlay positioning logic re-reads
+    /// <see cref="KeySequenceModuleSettings.Position"/> each Show).</summary>
+    [ObservableProperty]
+    private string _keySequencesPosition = nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter);
+
+    /// <summary>Options bound to the position dropdown's ItemsSource. Strings rather than enum
+    /// values so XAML data-binding stays simple and back-compat with old serialized values (the
+    /// settings store always reads/writes the enum name as a string).</summary>
+    public IReadOnlyList<string> KeySequencesPositionOptions { get; } = new[]
+    {
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.MouseCursor),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.LastPosition),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedTop),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedBottom),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.CaretRight),
+        nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.CaretTop),
+    };
+
+    /// <summary>True while at least one module toggle has been changed in the current session.
+    /// Bound to a hint label below the toggle group that prompts the user to restart for the
+    /// changes to take effect — the gates fire once on startup, so live tear-down isn't
+    /// supported and the hint is the honest answer.</summary>
+    [ObservableProperty]
+    private bool _modulesRestartRequired;
+
+    private bool _suppressStartMinimizedPersist;
+    private bool _suppressCheckUpdatesAtStartupPersist;
+    private bool _suppressAutoInstallUpdatesPersist;
+    private bool _suppressEditorStartMaximizedPersist;
+    private bool _suppressEditorAltClickSelectAnyPersist;
+    private bool _suppressClipboardShowSnippetWithLabelPersist;
+    private bool _suppressClipboardFocusLatestOnOpenPersist;
+    private bool _suppressRestorePinsAtStartupPersist;
+    private bool _suppressClipboardModulePersist;
+    private bool _suppressLauncherModulePersist;
+    private bool _suppressWormholesModulePersist;
+    private bool _suppressPeekModulePersist;
+    private bool _suppressKeySequencesModulePersist;
+    private bool _suppressKeySequencesPositionPersist;
+
+    /// <summary>Seconds the toast popup stays on screen. 0 = whatever Windows does (~7 s),
+    /// a positive value closes it after exactly that long, -1 = no popup at all (the toast goes
+    /// straight to the Notification Center). Bound to the Settings-tab number box; the service
+    /// owns persistence and the notifier reads it on every toast.</summary>
+    [ObservableProperty] private int _toastPopupSeconds;
+
+    /// <summary>Seconds the toast stays in the Notification Center after the popup closes.
+    /// 0 = until the user clears it (stock Windows behaviour), a positive value lets Windows
+    /// drop it by itself, -1 = never kept, so notifications don't pile up in the Center.</summary>
+    [ObservableProperty] private int _toastCenterSeconds;
+
+    private bool _suppressToastLifetimePersist;
+
+    partial void OnToastPopupSecondsChanged(int value)
+    {
+        if (_suppressToastLifetimePersist) return;
+        _ = _toastLifetime.SetPopupSecondsAsync(value, CancellationToken.None);
+    }
+
+    partial void OnToastCenterSecondsChanged(int value)
+    {
+        if (_suppressToastLifetimePersist) return;
+        _ = _toastLifetime.SetCenterSecondsAsync(value, CancellationToken.None);
+    }
+
+    private async Task LoadPersistedSettingsAsync()
+    {
+        // The lifetime service is hydrated by App.OnStartup before any window resolves, so this
+        // just mirrors it onto the bound properties.
+        _suppressToastLifetimePersist = true;
+        try
+        {
+            ToastPopupSeconds = _toastLifetime.PopupSeconds;
+            ToastCenterSeconds = _toastLifetime.CenterSeconds;
+        }
+        finally { _suppressToastLifetimePersist = false; }
+
+        var rawMin = await _settingsStore.GetAsync(StartMinimizedKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressStartMinimizedPersist = true;
+        try { StartMinimized = string.Equals(rawMin, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressStartMinimizedPersist = false; }
+
+        // "Look for updates at startup" defaults ON when the key is missing (fresh install,
+        // pre-0.1.11 upgrade) — matches the prior behaviour where the silent check always ran.
+        var rawCheckUpdates = await _settingsStore.GetAsync(CheckUpdatesAtStartupKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressCheckUpdatesAtStartupPersist = true;
+        try { CheckUpdatesAtStartup = !string.Equals(rawCheckUpdates, "false", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressCheckUpdatesAtStartupPersist = false; }
+
+        // "Auto-install updates" defaults OFF — opt-in only, since auto-install + restart is a
+        // surprise the user shouldn't get unless they explicitly asked for it.
+        var rawAutoInstall = await _settingsStore.GetAsync(AutoInstallUpdatesKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressAutoInstallUpdatesPersist = true;
+        try { AutoInstallUpdates = string.Equals(rawAutoInstall, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressAutoInstallUpdatesPersist = false; }
+
+        var rawMax = await _settingsStore.GetAsync(EditorStartMaximizedKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressEditorStartMaximizedPersist = true;
+        try { EditorStartMaximized = string.Equals(rawMax, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressEditorStartMaximizedPersist = false; }
+
+        var rawAlt = await _settingsStore.GetAsync(EditorAltClickNoMatchKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressEditorAltClickSelectAnyPersist = true;
+        try { EditorAltClickSelectAny = string.Equals(rawAlt, "select_any", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressEditorAltClickSelectAnyPersist = false; }
+
+        var rawSnippet = await _settingsStore.GetAsync(ClipboardShowSnippetWithLabelKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressClipboardShowSnippetWithLabelPersist = true;
+        try { ClipboardShowSnippetWithLabel = rawSnippet == "1"; }
+        finally { _suppressClipboardShowSnippetWithLabelPersist = false; }
+
+        var rawFocusLatest = await _settingsStore.GetAsync(ClipboardFocusLatestOnOpenKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressClipboardFocusLatestOnOpenPersist = true;
+        try { ClipboardFocusLatestOnOpen = rawFocusLatest != "0"; }
+        finally { _suppressClipboardFocusLatestOnOpenPersist = false; }
+
+        var rawRestorePins = await _settingsStore.GetAsync(AresToys.App.Services.Pins.PinPersistenceService.RestoreSettingKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressRestorePinsAtStartupPersist = true;
+        try { RestorePinsAtStartup = !string.Equals(rawRestorePins, "false", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressRestorePinsAtStartupPersist = false; }
+
+        // Module flags share the "unset → default" semantics with App.OnStartup: Clipboard +
+        // Launcher default ON when the key is missing, Wormholes defaults OFF (opt-in).
+        var rawClipboardModule = await _settingsStore.GetAsync(ClipboardModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressClipboardModulePersist = true;
+        try { ClipboardModuleEnabled = !string.Equals(rawClipboardModule, "false", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressClipboardModulePersist = false; }
+
+        var rawLauncherModule = await _settingsStore.GetAsync(LauncherModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressLauncherModulePersist = true;
+        try { LauncherModuleEnabled = !string.Equals(rawLauncherModule, "false", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressLauncherModulePersist = false; }
+
+        var rawWormholesModule = await _settingsStore.GetAsync(WormholesModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressWormholesModulePersist = true;
+        try { WormholesModuleEnabled = string.Equals(rawWormholesModule, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressWormholesModulePersist = false; }
+
+        var rawPeekModule = await _settingsStore.GetAsync(PeekModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressPeekModulePersist = true;
+        try { PeekModuleEnabled = string.Equals(rawPeekModule, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressPeekModulePersist = false; }
+
+        var rawKeySequencesModule = await _settingsStore.GetAsync(KeySequencesModuleKey, CancellationToken.None).ConfigureAwait(true);
+        _suppressKeySequencesModulePersist = true;
+        try { KeySequencesModuleEnabled = string.Equals(rawKeySequencesModule, "true", StringComparison.OrdinalIgnoreCase); }
+        finally { _suppressKeySequencesModulePersist = false; }
+
+        // Position mode dropdown: hydrate from the settings store, falling back to the default
+        // (FixedCenter) when unset OR when the stored value is a legacy mode name (Caret /
+        // CaretRight / FixedScreen — removed in favour of the explicit FixedTop/Center/Bottom set).
+        var rawKeySequencesPosition = await _settingsStore.GetAsync(
+            AresToys.App.Services.KeySequences.KeySequenceModuleSettings.KeyPosition,
+            CancellationToken.None).ConfigureAwait(true);
+        _suppressKeySequencesPositionPersist = true;
+        try
+        {
+            KeySequencesPosition = KeySequencesPositionOptions.Contains(rawKeySequencesPosition ?? string.Empty)
+                ? rawKeySequencesPosition!
+                : nameof(AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter);
+        }
+        finally { _suppressKeySequencesPositionPersist = false; }
+
+        // Modules whose switch sits in App Settings > Modules and whose page is hidden while they are off: their
+        // view models must be loaded here, not only when their page opens, or the switch and the sidebar entry
+        // would show the default (off) and a click would save a half loaded page.
+        await LoadModulePageAsync(Dictation.LoadAsync).ConfigureAwait(true);
+        await LoadModulePageAsync(WindowSnapping.LoadAsync).ConfigureAwait(true);
+        await LoadModulePageAsync(NewPlus.LoadAsync).ConfigureAwait(true);
+        await LoadModulePageAsync(AlwaysOnTop.LoadAsync).ConfigureAwait(true);
+    }
+
+    private static async Task LoadModulePageAsync(Func<Task> load)
+    {
+        try { await load().ConfigureAwait(true); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Settings: loading a module page failed: {ex}"); }
+    }
+
+    partial void OnStartMinimizedChanged(bool value)
+    {
+        if (_suppressStartMinimizedPersist) return;
+        _ = _settingsStore.SetAsync(StartMinimizedKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnCheckUpdatesAtStartupChanged(bool value)
+    {
+        if (_suppressCheckUpdatesAtStartupPersist) return;
+        _ = _settingsStore.SetAsync(CheckUpdatesAtStartupKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnAutoInstallUpdatesChanged(bool value)
+    {
+        if (_suppressAutoInstallUpdatesPersist) return;
+        _ = _settingsStore.SetAsync(AutoInstallUpdatesKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnEditorStartMaximizedChanged(bool value)
+    {
+        if (_suppressEditorStartMaximizedPersist) return;
+        _ = _settingsStore.SetAsync(EditorStartMaximizedKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnEditorAltClickSelectAnyChanged(bool value)
+    {
+        if (_suppressEditorAltClickSelectAnyPersist) return;
+        _ = _settingsStore.SetAsync(EditorAltClickNoMatchKey,
+            value ? "select_any" : "place",
+            sensitive: false,
+            CancellationToken.None);
+    }
+
+    partial void OnClipboardShowSnippetWithLabelChanged(bool value)
+    {
+        if (_suppressClipboardShowSnippetWithLabelPersist) return;
+        _ = _settingsStore.SetAsync(ClipboardShowSnippetWithLabelKey,
+            value ? "1" : "0",
+            sensitive: false,
+            CancellationToken.None);
+        // Push into the clipboard VM so an already-visible window refreshes its rows now,
+        // without waiting for the next Hide→Show cycle to re-read from SQLite.
+        _clipboardVm.ShowSnippetWithLabel = value;
+    }
+
+    partial void OnClipboardFocusLatestOnOpenChanged(bool value)
+    {
+        if (_suppressClipboardFocusLatestOnOpenPersist) return;
+        _ = _settingsStore.SetAsync(ClipboardFocusLatestOnOpenKey,
+            value ? "1" : "0",
+            sensitive: false,
+            CancellationToken.None);
+        _clipboardVm.FocusLatestOnOpen = value;
+    }
+
+    partial void OnRestorePinsAtStartupChanged(bool value)
+    {
+        if (_suppressRestorePinsAtStartupPersist) return;
+        _ = _pins.SetEnabledAsync(value, CancellationToken.None);
+    }
+
+    partial void OnClipboardModuleEnabledChanged(bool value)
+    {
+        if (_suppressClipboardModulePersist) return;
+        _ = _settingsStore.SetAsync(ClipboardModuleKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+        ModulesRestartRequired = true;
+    }
+
+    // The Launcher and Wormholes live in the non elevated satellite: once the switch is saved, the satellite is
+    // started, stopped or restarted for the new module set. The restart hint stays because the main app still
+    // reads these switches at start-up for the Launcher hotkey and tray entry and for the Wormholes startup work.
+    partial void OnLauncherModuleEnabledChanged(bool value)
+    {
+        if (_suppressLauncherModulePersist) return;
+        _ = PersistModuleAndApplySatelliteAsync(LauncherModuleKey, value);
+        ModulesRestartRequired = true;
+    }
+
+    partial void OnWormholesModuleEnabledChanged(bool value)
+    {
+        if (_suppressWormholesModulePersist) return;
+        _ = PersistModuleAndApplySatelliteAsync(WormholesModuleKey, value);
+        ModulesRestartRequired = true;
+    }
+
+    // Peek restarts by itself on Apply (the satellite follows the key), so no restart hint.
+    partial void OnPeekModuleEnabledChanged(bool value)
+    {
+        if (_suppressPeekModulePersist) return;
+        _ = PersistModuleAndApplySatelliteAsync(PeekModuleKey, value);
+    }
+
+    /// <summary>Saves a module switch, then lets the satellite follow it. The save is awaited first because
+    /// <see cref="AresToys.App.Services.Satellite.SatelliteService.Apply"/> reads the switches from the store.</summary>
+    private async Task PersistModuleAndApplySatelliteAsync(string key, bool value)
+    {
+        try
+        {
+            await _settingsStore.SetAsync(key, value ? "true" : "false", sensitive: false, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _satellite.Apply();
+        }
+    }
+
+    partial void OnKeySequencesModuleEnabledChanged(bool value)
+    {
+        if (_suppressKeySequencesModulePersist) return;
+        _ = _settingsStore.SetAsync(KeySequencesModuleKey,
+            value ? "true" : "false",
+            sensitive: false,
+            CancellationToken.None);
+        ModulesRestartRequired = true;
+    }
+
+    partial void OnKeySequencesPositionChanged(string value)
+    {
+        if (_suppressKeySequencesPositionPersist) return;
+        // Parse the dropdown's string value back to the enum. If parsing fails (e.g. someone
+        // edited the underlying ItemsSource), default to FixedCenter — same fallback the load
+        // path uses. Apply via SetPositionAsync so the in-memory KeySequenceModuleSettings is
+        // updated AS WELL as the on-disk store, giving us a true hot-reload.
+        var mode = Enum.TryParse<AresToys.App.Services.KeySequences.OverlayPositionMode>(
+            value, ignoreCase: false, out var parsed)
+            ? parsed
+            : AresToys.App.Services.KeySequences.OverlayPositionMode.FixedCenter;
+        _ = _keySequencesSettings.SetPositionAsync(mode, CancellationToken.None);
+    }
+
+    public bool IsUploadersSelected => SelectedTab == SettingsTab.Uploaders;
+    public bool IsHotkeysSelected   => SelectedTab == SettingsTab.Hotkeys;
+    public bool IsCaptureSelected   => SelectedTab == SettingsTab.Capture;
+    public bool IsThemeSelected      => SelectedTab == SettingsTab.Theme;
+    public bool IsCategoriesSelected => SelectedTab == SettingsTab.Categories;
+    public bool IsWormholesSelected  => SelectedTab == SettingsTab.Wormholes;
+    public bool IsAlwaysOnTopSelected => SelectedTab == SettingsTab.AlwaysOnTop;
+    public bool IsDictationSelected => SelectedTab == SettingsTab.Dictation;
+    public bool IsWindowSnappingSelected => SelectedTab == SettingsTab.WindowSnapping;
+    public bool IsNewPlusSelected => SelectedTab == SettingsTab.NewPlus;
+    public bool IsPeekSelected => SelectedTab == SettingsTab.Peek;
+    public bool IsSettingsSelected   => SelectedTab == SettingsTab.Settings;
+    public bool IsDebugSelected     => SelectedTab == SettingsTab.Debug;
+    public bool IsAboutSelected     => SelectedTab == SettingsTab.About;
+
+    public string AppVersion { get; }
+
+    partial void OnSelectedTabChanged(SettingsTab value)
+    {
+        OnPropertyChanged(nameof(IsUploadersSelected));
+        OnPropertyChanged(nameof(IsHotkeysSelected));
+        OnPropertyChanged(nameof(IsCaptureSelected));
+        OnPropertyChanged(nameof(IsThemeSelected));
+        OnPropertyChanged(nameof(IsCategoriesSelected));
+        OnPropertyChanged(nameof(IsWormholesSelected));
+        OnPropertyChanged(nameof(IsAlwaysOnTopSelected));
+        OnPropertyChanged(nameof(IsDictationSelected));
+        OnPropertyChanged(nameof(IsWindowSnappingSelected));
+        OnPropertyChanged(nameof(IsNewPlusSelected));
+        OnPropertyChanged(nameof(IsPeekSelected));
+        OnPropertyChanged(nameof(IsSettingsSelected));
+        OnPropertyChanged(nameof(IsDebugSelected));
+        OnPropertyChanged(nameof(IsAboutSelected));
+        if (value == SettingsTab.Uploaders) _ = Uploaders.ReloadAsync();
+        if (value == SettingsTab.Hotkeys) _ = Hotkeys.ReloadAsync();
+        if (value == SettingsTab.Wormholes) _ = Wormholes.ReloadAsync();
+        if (value == SettingsTab.AlwaysOnTop) _ = AlwaysOnTop.LoadAsync();
+        if (value == SettingsTab.Dictation) _ = Dictation.LoadAsync();
+        if (value == SettingsTab.WindowSnapping) _ = WindowSnapping.LoadAsync();
+        if (value == SettingsTab.NewPlus) _ = NewPlus.LoadAsync();
+        if (value == SettingsTab.Peek) _ = Peek.LoadAsync();
+    }
+
+    [RelayCommand] private void ShowUploaders() => SelectedTab = SettingsTab.Uploaders;
+    [RelayCommand] private void ShowHotkeys()   => SelectedTab = SettingsTab.Hotkeys;
+    [RelayCommand] private void ShowCapture()   => SelectedTab = SettingsTab.Capture;
+    [RelayCommand] private void ShowTheme()      => SelectedTab = SettingsTab.Theme;
+    [RelayCommand] private void ShowCategories() => SelectedTab = SettingsTab.Categories;
+    [RelayCommand] private void ShowWormholes()  => SelectedTab = SettingsTab.Wormholes;
+    [RelayCommand] private void ShowAlwaysOnTop() => SelectedTab = SettingsTab.AlwaysOnTop;
+    [RelayCommand] private void ShowDictation() => SelectedTab = SettingsTab.Dictation;
+    [RelayCommand] private void ShowWindowSnapping() => SelectedTab = SettingsTab.WindowSnapping;
+    [RelayCommand] private void ShowNewPlus() => SelectedTab = SettingsTab.NewPlus;
+    [RelayCommand] private void ShowPeek() => SelectedTab = SettingsTab.Peek;
+    [RelayCommand] private void ShowSettings()   => SelectedTab = SettingsTab.Settings;
+    [RelayCommand] private void ShowDebug()     => SelectedTab = SettingsTab.Debug;
+    [RelayCommand] private void ShowAbout()     => SelectedTab = SettingsTab.About;
+}
+
+public enum SettingsTab { Uploaders, Hotkeys, Capture, Theme, Categories, AlwaysOnTop, Dictation, WindowSnapping, NewPlus, Peek, Wormholes, Settings, Debug, About }

@@ -1,0 +1,89 @@
+<ui:FluentWindow x:Class="AresToys.App.Services.Peek.PeekWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:AresToys.App.Services.Peek"
+                 xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+                 Title="Peek"
+                 Width="960" Height="640"
+                 MinWidth="480" MinHeight="320"
+                 ShowInTaskbar="False"
+                 Topmost="True"
+                 ResizeMode="CanResize"
+                 WindowStartupLocation="Manual"
+                 ShowActivated="True"
+                 ExtendsContentIntoTitleBar="True"
+                 Background="{DynamicResource Surface1Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}"
+                 PreviewKeyDown="OnPreviewKeyDown">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}"
+            BorderThickness="2" CornerRadius="8">
+        <Grid x:Name="Root" Background="Transparent">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- Title row -->
+                <RowDefinition Height="*" />     <!-- Image -->
+                <RowDefinition Height="Auto" />  <!-- Thumbnail strip -->
+                <RowDefinition Height="Auto" />  <!-- Footer -->
+            </Grid.RowDefinitions>
+
+            <!-- File name on the left, counter then close button on the right. Close hides the window (see OnClosing). -->
+            <ui:TitleBar x:Name="Bar" Grid.Row="0" Title="" ShowMinimize="False" ShowMaximize="False">
+                <ui:TitleBar.TrailingContent>
+                    <TextBlock x:Name="CounterText" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.75" />
+                </ui:TitleBar.TrailingContent>
+            </ui:TitleBar>
+
+            <Grid x:Name="Viewport" Grid.Row="1" Background="{DynamicResource Surface1Brush}" ClipToBounds="True">
+                <!-- A canvas: the image is placed by code at its zoomed size and may be larger than the area
+                     (the viewport clips it); see ApplyZoom. -->
+                <Canvas x:Name="ImageLayer" IsHitTestVisible="False">
+                    <Image x:Name="PreviewImage" Stretch="Fill" RenderTransformOrigin="0.5,0.5"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                </Canvas>
+                <!-- Text, code, Markdown and HTML. A web view is a native window drawn over everything in its
+                     area: the chevrons live in PeekNavOverlay, an owned window above it. -->
+                <wv2:WebView2 x:Name="PreviewWeb" Visibility="Collapsed" />
+                <!-- A Windows preview handler (PDF, Office, the AresExplorerTools formats) draws in this native
+                     child window, also covered by the overlay chevrons. -->
+                <local:PeekShellPreview x:Name="PreviewShell" Visibility="Collapsed" />
+                <TextBlock x:Name="FallbackText" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Margin="24" TextWrapping="Wrap" TextAlignment="Center" Opacity="0.75"
+                           Visibility="Collapsed" />
+
+            </Grid>
+
+            <local:PeekThumbnailStrip x:Name="Strip" Grid.Row="2" Visibility="Collapsed" />
+
+            <Border Grid.Row="3" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,1,0,0"
+                    Padding="14,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- The "Browse" menu button: which files of the folder previous and next go through. -->
+                        <ContentPresenter x:Name="BrowsePresenter" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ContentPresenter x:Name="StripTogglePresenter" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock x:Name="InfoText" VerticalAlignment="Center" Opacity="0.75" />
+                    </StackPanel>
+                    <!-- Piece 5 puts the "Open in" menu here. -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- The "Show as" menu button: how the extension of the file is shown. -->
+                        <!-- The image zoom menu and the rotate and flip buttons (built in code). -->
+                        <ContentPresenter x:Name="ZoomPresenter" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ContentPresenter x:Name="ShowAsPresenter" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ContentPresenter x:Name="OpenInPresenter" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

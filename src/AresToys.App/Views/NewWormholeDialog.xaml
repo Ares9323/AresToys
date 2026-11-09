@@ -1,0 +1,82 @@
+<!-- FluentWindow (not plain Window) so the title bar matches the rest of AresToys: dark
+     themed strip integrated with the content area instead of the OS-default white chrome.
+     Same configuration as MainWindow.xaml (ExtendsContentIntoTitleBar + WindowBackdropType=None
+     + Surface2 background) — replicating it here means new dialogs adopt the AresToys look
+     without per-window theming bolted on. -->
+<ui:FluentWindow x:Class="AresToys.App.Views.NewWormholeDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        WindowStartupLocation="CenterOwner"
+        Title="{Markup:Loc NewWormhole_Title}"
+        Width="480"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowBackdropType="None"
+        ExtendsContentIntoTitleBar="True"
+        Background="{DynamicResource Surface2Brush}"
+        ShowInTaskbar="False">
+    <!-- Accent-tinted frame around the content — same treatment as MainWindow.xaml so the dialog
+         reads as part of AresToys instead of "flat themed Window". The outer Border carries the
+         AresToys "accent telaio" (BorderBrush=AccentForegroundDarkBrush, BorderThickness=2,
+         CornerRadius=8) used by Launcher / Clipboard / HotkeyCapture / MainWindow.
+         ExtendsContentIntoTitleBar (on the window) lets us paint into the caption strip; the
+         ui:TitleBar control handles drag + close + restore for us. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="{Markup:Loc NewWormhole_Title}">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/icon.ico" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+    <StackPanel Grid.Row="1" Margin="20">
+        <!-- (No inline header — the ui:TitleBar above already shows "New wormhole" and a
+             second heading is just visual noise.) -->
+
+        <!-- Title input. Defaults to "Wormhole"; the user typically edits it before confirming
+             so we focus + select-all in OnLoaded for a one-keystroke retype gesture. -->
+        <TextBlock Text="{Markup:Loc NewWormhole_TitleLabel}" Foreground="{DynamicResource AccentForegroundBrush}"
+                   FontSize="12" Margin="0,0,0,4" />
+        <TextBox x:Name="TitleBox" Text="{Markup:Loc NewWormhole_DefaultTitle}" FontSize="13" Margin="0,0,0,12" />
+
+        <!-- Folder row — always visible. A wormhole is now just "a folder on disk shown as a
+             grid", no more Shortcuts vs Portal distinction (it was redundant: a Shortcuts
+             wormhole was a Folder portal pointing at a hidden internal folder full of .lnk
+             files). Folder picker is the authoritative input; the textbox is read-only so the
+             user can't half-type a broken path. -->
+        <StackPanel x:Name="PortalFolderRow" Margin="0,0,0,12">
+            <TextBlock Text="{Markup:Loc NewWormhole_FolderLabel}" Foreground="{DynamicResource AccentForegroundBrush}"
+                       FontSize="12" Margin="0,0,0,4" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="FolderBox" Grid.Column="0" FontSize="13"
+                         IsReadOnly="True" />
+                <ui:Button Grid.Column="1" Content="{Markup:Loc NewWormhole_BrowseButton}" Margin="8,0,0,0"
+                           Padding="12,4" Click="OnBrowseClicked" />
+            </Grid>
+            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                       TextWrapping="Wrap" Margin="0,6,0,0"
+                       Text="{Markup:Loc NewWormhole_Hint}" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <!-- IsDefault=True wires Enter (from any focused control in this window) to fire
+                 Click on Create — saves a Tab + Space gesture after typing the title. IsCancel
+                 on the Cancel button maps Esc the same way without any explicit InputBinding. -->
+            <ui:Button x:Name="OkButton" Content="{Markup:Loc NewWormhole_CreateButton}" Padding="14,4" Margin="0,0,8,0"
+                       Appearance="Primary" IsDefault="True" Click="OnOkClicked" />
+            <ui:Button Content="{Markup:Loc Common_Cancel}" Padding="14,4" IsCancel="True" Click="OnCancelClicked" />
+        </StackPanel>
+    </StackPanel>
+    </Grid>
+    </Border>
+</ui:FluentWindow>

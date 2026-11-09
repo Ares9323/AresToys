@@ -1,0 +1,96 @@
+<Window x:Class="AresToys.App.Views.IconPickerDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:vm="clr-namespace:AresToys.App.ViewModels"
+        xmlns:Markup="clr-namespace:AresToys.App.Markup"
+        Title="{Markup:Loc IconPicker_Title}"
+        Width="540" Height="500"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <!-- AllowsTransparency=True + Background=Transparent on the Window so the inner Border can
+         render rounded corners (CornerRadius is purely visual; without transparency the
+         opaque chrome behind clips the rounding back to a square). Same trick the Launcher /
+         Clipboard / HotkeyCapture windows use to share the same "soft card" look. -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+            CornerRadius="8">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                <TextBlock Text="{Markup:Loc IconPicker_Title}" Foreground="White" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text="{Markup:Loc IconPicker_Hint}"
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                           FontSize="11" Margin="0,4,0,0" />
+            </StackPanel>
+
+            <!-- Live filter — case-insensitive substring match against the icon name. The
+                 ItemsSource is rebuilt in code-behind on every keystroke so the grid shrinks
+                 immediately. Empty query → full catalog. -->
+            <ui:TextBox Grid.Row="1" x:Name="SearchBox"
+                        PlaceholderText="🔍 Search icons (e.g. folder, code, star)…"
+                        TextChanged="OnSearchChanged"
+                        Margin="0,0,0,12" />
+
+            <!-- Auto-fitting grid: ItemsControl with a UniformGrid panel. 8 columns × however
+                 many rows the catalog produces; each cell is a clickable Button that fires
+                 OnIconClicked with the IconCatalogEntry.Glyph as Tag. -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <!-- VerticalAlignment=Top breaks the stretch chain: without it the ItemsControl
+                     fills the ScrollViewer's full content area, and UniformGrid then divides
+                     that height across whatever rows it has — so 9 filtered icons in 2 rows end
+                     up with each row half the panel's height (huge gap between row 1 and row 2).
+                     Top-aligning makes the panel size to its natural content height instead. -->
+                <ItemsControl x:Name="IconGrid" VerticalAlignment="Top">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:IconCatalogEntry}">
+                            <Button Width="56" Height="56" Margin="2"
+                                    Background="{DynamicResource Surface3Brush}"
+                                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="1"
+                                    Cursor="Hand"
+                                    Tag="{Binding Glyph}"
+                                    ToolTip="{Binding Name}"
+                                    Click="OnIconClicked">
+                                <!-- DynamicResource (not Static) so the lookup walks up to
+                                     Application.Resources from this separate Window — Static
+                                     would only see Window.Resources / parent visual tree. -->
+                                <TextBlock Text="{Binding Glyph}"
+                                           FontFamily="{DynamicResource IconFont}"
+                                           FontSize="22"
+                                           Foreground="{DynamicResource AccentForegroundBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Grid Grid.Row="3" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- Clear sets the picked Glyph to empty string and closes — used to remove an
+                     existing icon from a category without re-typing one. -->
+                <ui:Button Grid.Column="0" Content="{Markup:Loc IconPicker_ClearButton}" Width="80" Click="OnClearClicked" />
+                <ui:Button Grid.Column="2" Content="{Markup:Loc Common_Cancel}" Width="80" IsCancel="True" Click="OnCancelClicked" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
