@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>AresToys.Updater</RootNamespace>
+    <AssemblyName>AresToys.Updater</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Velopack" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
+  </ItemGroup>
+</Project>
