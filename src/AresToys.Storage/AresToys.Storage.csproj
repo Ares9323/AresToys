@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>AresToys.Storage</RootNamespace>
+    <AssemblyName>AresToys.Storage</AssemblyName>
+    <EmbeddedResourceUseDependentUponConvention>true</EmbeddedResourceUseDependentUponConvention>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
+    <!-- AresToys.ImageEffects is referenced for the EffectPreset model + JSON serializer used
+         by SqliteImageEffectPresetStore. Brings in SkiaSharp transitively, but the
+         alternative (a parallel "AresToys.ImageEffects.Storage" project) duplicates the DI /
+         migration scaffolding for one extra table — not worth it. -->
+    <ProjectReference Include="..\AresToys.ImageEffects\AresToys.ImageEffects.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Database\SchemaSql\*.sql" />
+  </ItemGroup>
+</Project>
