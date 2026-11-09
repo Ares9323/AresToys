@@ -1,0 +1,25 @@
+[package]
+name = "vectorcraft-ffi"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "C ABI over vectorcraft-trace for AresToys: raster in, finished SVG out."
+
+[lib]
+name = "vectorcraft_ffi"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Pinned to the same revision LaserAres uses. Never a path dependency: CI has no local checkout.
+vectorcraft-trace = { git = "https://github.com/storytold/vectorcraft", rev = "5628de96f866185d8eb289b167b89691f213c0c3", package = "vectorcraft-trace" }
+kurbo = "0.13"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "unwind"
+
+# Own workspace root so cargo never looks for a parent workspace in the AresToys repo.
+[workspace]

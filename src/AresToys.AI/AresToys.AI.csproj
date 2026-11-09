@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>AresToys.AI</RootNamespace>
+    <AssemblyName>AresToys.AI</AssemblyName>
+    <!-- The VectorCraft tracer calls the native DLL through function pointers (progress callback). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <VectorCraftFfiDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'native', 'vectorcraft-ffi'))</VectorCraftFfiDir>
+    <VectorCraftFfiDll>$(VectorCraftFfiDir)target\release\vectorcraft_ffi.dll</VectorCraftFfiDll>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- ONNX Runtime for U2NetP background removal. DirectML provides GPU acceleration on
+         Win10/11 with any DX12 GPU; the implementation falls back to CPU when DirectML
+         init fails (older driver, headless CI, etc.). Versions live in Directory.Packages.props
+         (Central Package Management is enabled at the repo root). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
+    <!-- Dictation: whisper.cpp bindings with the CPU runtime (the GPU one is optional and separate) and microphone capture. -->
+    <PackageReference Include="Whisper.net" />
+    <PackageReference Include="Whisper.net.Runtime" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" />
+    <PackageReference Include="NAudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ~4.5 MB binary embedded into the assembly so we don't need a side-channel download
+         on first run. Bumps assembly size accordingly; acceptable for a feature this useful.
+         If the file is missing the inference falls back gracefully (caller gets the input
+         bytes back unchanged). -->
+    <EmbeddedResource Include="Models\u2netp.onnx" Condition="Exists('Models\u2netp.onnx')" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- VectorCraft tracing engine (Rust cdylib, native/vectorcraft-ffi). Copied next to AresToys.AI.dll,
+         so it flows into AresToys.App and the publish folder. The file only exists once the target below has run. -->
+    <None Include="$(VectorCraftFfiDll)" Link="vectorcraft_ffi.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <VectorCraftFfiSource Include="$(VectorCraftFfiDir)src\**\*.rs;$(VectorCraftFfiDir)Cargo.toml;$(VectorCraftFfiDir)Cargo.lock" />
+  </ItemGroup>
+  <!-- Builds the native tracer only when its sources changed; a second build with no Rust change skips cargo.
+       BeforeBuild, not Build: the copy of the DLL to the output folder runs inside CoreBuild, before Build itself. -->
+  <Target Name="BuildVectorCraftFfi" BeforeTargets="BeforeBuild" Inputs="@(VectorCraftFfiSource)" Outputs="$(VectorCraftFfiDll)">
+    <Exec Command="cargo build --release --locked --manifest-path &quot;$(VectorCraftFfiDir)Cargo.toml&quot;" />
+  </Target>
+</Project>
