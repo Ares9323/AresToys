@@ -1,0 +1,212 @@
+name: Release
+
+# Triggers (whichever the user prefers):
+#   1. workflow_dispatch — manual run from the Actions tab. Type the version in the form.
+#   2. push of a tag matching v* — `git tag v0.1.8 && git push origin v0.1.8` cuts the release
+#      with the tag's version (the leading v is stripped). Pre-release flag is inferred from
+#      the tag containing a hyphen (e.g. v0.1.8-rc1) so the SemVer pre-release suffix doubles
+#      as the "mark as pre-release on GitHub" signal — no extra knob.
+# Either path produces the same artifacts (vpk pack + draft GitHub Release). Releases stay
+# deliberate either way: workflow_dispatch needs a manual click, tag push needs an explicit
+# `git push origin <tag>`.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version without leading v (e.g. 0.1.0). Becomes the tag, Velopack package version, and Release name.'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark the GitHub Release as pre-release.'
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write    # Needed for `vpk upload github` (creates the Release + uploads assets).
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # Full history so vpk delta-pack can compare against previous releases. Without it the
+          # first delta after a shallow clone would either be missing or full-size.
+          fetch-depth: 0
+
+      # Normalise the version + prerelease flag from whichever trigger fired. Downstream steps
+      # read $env:RELEASE_VERSION / $env:RELEASE_PRERELEASE so they don't care which path got
+      # us here. workflow_dispatch: take the form input verbatim. push tag: strip the leading
+      # 'v' and infer pre-release from the presence of a SemVer pre-release suffix (hyphen).
+      - name: Resolve release version
+        id: resolve
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ github.event.inputs.version }}'
+            $prerelease = '${{ github.event.inputs.prerelease }}'
+          } else {
+            $tag = '${{ github.ref_name }}'                    # e.g. v0.1.8 or v0.1.8-rc1
+            if ($tag -notmatch '^v') { throw "Release tags must start with 'v', got '$tag'." }
+            $version = $tag.Substring(1)
+            $prerelease = if ($version.Contains('-')) { 'true' } else { 'false' }
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "Empty release version after parsing." }
+          Write-Host "Release version: $version (prerelease=$prerelease)"
+          "RELEASE_VERSION=$version"       | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_PRERELEASE=$prerelease" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # The VectorCraft tracer (native/vectorcraft-ffi) is a Rust DLL that the AresToys.AI build compiles.
+      - name: Setup Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Restore .NET tools (vpk)
+        run: dotnet tool restore
+
+      - name: Restore solution
+        run: dotnet restore AresToys.sln
+
+      # OAuth Client IDs / Secrets for the bundled uploaders (Imgur user-mode, OneDrive,
+      # Google Drive, Dropbox). Stored as repo secrets — write them out to Secrets.Local.cs
+      # so the .csproj's <Compile Remove="Secrets.cs" Condition="Exists('Secrets.Local.cs')"/>
+      # picks them up over the placeholder Secrets.cs that ships in the repo. Each secret is
+      # optional individually: a missing one falls through to the empty string and the
+      # uploader surfaces "isn't configured in this build" at runtime, same as a fresh clone.
+      # Without this step the public release would have zero working OAuth uploaders.
+      - name: Generate Secrets.Local.cs from repo secrets
+        shell: pwsh
+        env:
+          IMGUR_CLIENT_ID:        ${{ secrets.IMGUR_CLIENT_ID }}
+          ONEDRIVE_CLIENT_ID:     ${{ secrets.ONEDRIVE_CLIENT_ID }}
+          ONEDRIVE_CLIENT_SECRET: ${{ secrets.ONEDRIVE_CLIENT_SECRET }}
+          GDRIVE_CLIENT_ID:       ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET:   ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          DROPBOX_CLIENT_ID:      ${{ secrets.DROPBOX_CLIENT_ID }}
+          DROPBOX_CLIENT_SECRET:  ${{ secrets.DROPBOX_CLIENT_SECRET }}
+        run: |
+          $content = @"
+          // Generated by .github/workflows/release.yml — do not commit.
+          namespace AresToys.Uploaders;
+          internal static class Secrets
+          {
+              public const string OneDriveClientId = "$env:ONEDRIVE_CLIENT_ID";
+              public const string OneDriveClientSecret = "$env:ONEDRIVE_CLIENT_SECRET";
+              public const string GoogleDriveClientId = "$env:GDRIVE_CLIENT_ID";
+              public const string GoogleDriveClientSecret = "$env:GDRIVE_CLIENT_SECRET";
+              public const string DropboxClientId = "$env:DROPBOX_CLIENT_ID";
+              public const string DropboxClientSecret = "$env:DROPBOX_CLIENT_SECRET";
+              public const string ImgurClientId = "$env:IMGUR_CLIENT_ID";
+          }
+          "@
+          $path = "src/AresToys.Uploaders/Secrets.Local.cs"
+          Set-Content -Path $path -Value $content -Encoding UTF8 -NoNewline
+          Write-Host "Wrote $path ($(($content.Length)) chars)"
+
+      - name: Build solution (Release)
+        run: dotnet build AresToys.sln --configuration Release --no-restore
+
+      # Self-contained publish: ships the .NET runtime alongside AresToys so end-users don't need
+      # the SDK / runtime installed. ReadyToRun trimming off — the asset stays bigger but the
+      # build is reliable across uploaders / pipeline tasks that use reflection (Velopack, ZXing).
+      # -p:Version is what Settings → About reads via Assembly.GetName().Version. Without this
+       # the in-app "Version" line stays at 1.0.0.0 regardless of which Velopack version we
+       # ship, which is confusing as hell when triaging update bugs. Velopack uses --packVersion
+       # below for the package metadata; we keep both in lockstep via the same input.
+      - name: Publish AresToys.App
+        run: >
+          dotnet publish src/AresToys.App/AresToys.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:Version=${{ env.RELEASE_VERSION }}
+          -p:PublishSingleFile=false
+          -p:PublishReadyToRun=false
+          -o publish
+
+      # --releaseNotes used to point straight at CHANGELOG.md, so every GitHub Release page and
+      # every in-app update prompt carried the WHOLE project history instead of the version being
+      # shipped. Pull out just this version's section — the next "## " heading (or EOF) ends it.
+      # A missing section is a hard failure on purpose: shipping a release whose notes silently
+      # describe something else is worse than stopping here.
+      - name: Extract release notes for this version
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_VERSION
+          $lines = @(Get-Content CHANGELOG.md)
+          $pattern = '^## \[' + [regex]::Escape($version) + '\]'
+          $start = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match $pattern) { $start = $i; break }
+          }
+          if ($start -lt 0) { throw "CHANGELOG.md has no '## [$version]' section — add it before tagging." }
+          $end = $lines.Count
+          for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^## ') { $end = $i; break }
+          }
+          $block = ($lines[$start..($end - 1)] -join "`n").TrimEnd()
+          Set-Content -Path release-notes.md -Value $block -Encoding UTF8
+          Write-Host "Release notes for $version ($($block.Length) chars):"
+          Write-Host $block
+
+      # vpk pack produces:
+      #   - AresToys-win-Setup.exe       — installer (self-extracting, installs to %LocalAppData%)
+      #   - AresToys-win-Portable.zip    — portable extract-anywhere build
+      #   - AresToys-<ver>-full.nupkg    — Velopack release artifact (delta + full update payloads)
+      #   - RELEASES                   — Velopack catalog file the in-app updater fetches
+      # Channel "win" is the canonical Windows channel — keep it stable so existing installs
+      # keep finding updates.
+      - name: Pack with Velopack
+        run: >
+          dotnet vpk pack
+          --packId AresToys
+          --packVersion ${{ env.RELEASE_VERSION }}
+          --packDir publish
+          --mainExe AresToys.exe
+          --packTitle "AresToys"
+          --packAuthors "AresToys contributors"
+          --releaseNotes release-notes.md
+          --channel win
+
+      # vpk upload github creates a draft Release on the supplied tag and uploads every artifact
+      # in Releases\. The user reviews + publishes from the GitHub UI — keeps "I want to release"
+      # an explicit final click instead of an automatic-on-merge surprise.
+      # When the trigger was a tag push, vpk would normally try to CREATE the tag itself and
+      # fail (tag already exists). We pass the tag explicitly either way; vpk handles the
+      # "tag exists, attach release to it" path. The conditional --pre flag uses the
+      # normalised prerelease env (workflow_dispatch input OR tag-suffix detection).
+      - name: Upload to GitHub Releases (draft)
+        run: >
+          dotnet vpk upload github
+          --repoUrl https://github.com/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --tag v${{ env.RELEASE_VERSION }}
+          --releaseName "AresToys ${{ env.RELEASE_VERSION }}"
+          --publish
+          --channel win
+          ${{ env.RELEASE_PRERELEASE == 'true' && '--pre' || '' }}
+
+      - name: Upload artifacts (debug copy)
+        uses: actions/upload-artifact@v5
+        with:
+          name: velopack-${{ env.RELEASE_VERSION }}
+          path: Releases/
