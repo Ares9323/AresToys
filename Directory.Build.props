@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>NU1701</WarningsNotAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <Deterministic>true</Deterministic>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Authors>AresToys contributors</Authors>
+    <Product>AresToys</Product>
+    <Copyright>Copyright (c) AresToys contributors</Copyright>
+    <RepositoryUrl>https://github.com/Ares9323/AresToys</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- Logging-related analyzer rules requiring LoggerMessage source generators are overkill at this stage -->
+    <NoWarn>$(NoWarn);CA1848;CA1873;CA1822;CA1859;CA1711</NoWarn>
+  </PropertyGroup>
+
+  <!-- Test projects: relax rules that conflict with xUnit conventions and test ergonomics -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861;CA1859</NoWarn>
+  </PropertyGroup>
+</Project>
