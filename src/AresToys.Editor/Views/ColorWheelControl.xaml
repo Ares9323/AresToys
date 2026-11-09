@@ -1,0 +1,40 @@
+<UserControl x:Class="AresToys.Editor.Views.ColorWheelControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+    <Grid x:Name="Root"
+          MouseLeftButtonDown="OnMouseDown"
+          MouseMove="OnMouseMove"
+          MouseLeftButtonUp="OnMouseUp"
+          Background="Transparent">
+        <!-- The bitmap is rendered once at V=1 (full brightness) and never recomputed —
+             V is reflected by the black overlay below, an O(1) opacity tweak instead of
+             an O(n²) per-pixel rerun on every slider tick. 2px margin on every layer so the
+             antialias seam at the bitmap's round/corner boundary lands inside the ellipse
+             stroke (which itself bridges that boundary as a hard black ring). -->
+        <Image x:Name="WheelImage" Stretch="Uniform" Margin="2"
+               RenderOptions.BitmapScalingMode="HighQuality" />
+        <!-- Black ring + fill at variable alpha. The Stroke is always opaque (3px black) to give
+             the disc a clean defined edge — hides the antialiasing seam between the bitmap's
+             round area and the surrounding transparent corners. The Fill's brush alpha is what
+             reflects V (set in code), so the ring stays visible even at V=1. -->
+        <Ellipse x:Name="ValueOverlay" IsHitTestVisible="False"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2"
+                 Stroke="#1A1A1A" StrokeThickness="3"
+                 Width="{Binding ActualWidth, ElementName=WheelImage}"
+                 Height="{Binding ActualHeight, ElementName=WheelImage}">
+            <Ellipse.Fill>
+                <SolidColorBrush x:Name="ValueOverlayBrush" Color="#00000000" />
+            </Ellipse.Fill>
+        </Ellipse>
+        <!-- Canvas keeps NO margin so the cursor positioning code can work in the UserControl
+             coordinate space directly. The 2px disc inset is accounted for inside the cursor
+             math via a smaller effective radius. -->
+        <Canvas IsHitTestVisible="False">
+            <Ellipse x:Name="WheelCursor"
+                     Width="14" Height="14"
+                     Stroke="White" StrokeThickness="2"
+                     Fill="Transparent" />
+        </Canvas>
+    </Grid>
+</UserControl>

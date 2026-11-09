@@ -1,0 +1,604 @@
+<ui:FluentWindow x:Class="AresToys.Editor.Views.EditorWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:AresToys.Editor.ViewModels"
+                 xmlns:tools="clr-namespace:AresToys.Editor.Tools"
+                 xmlns:views="clr-namespace:AresToys.Editor.Views"
+                 Title="AresToys - Editor"
+                 Icon="pack://application:,,,/AresToys;component/Assets/icon.ico"
+                 Width="1280" Height="820"
+                 WindowStartupLocation="CenterScreen"
+                 WindowBackdropType="None"
+                 Background="{DynamicResource Surface2Brush}"
+                 Foreground="{DynamicResource AccentForegroundBrush}"
+                 ExtendsContentIntoTitleBar="True"
+                 KeyDown="OnWindowKeyDown">
+    <ui:FluentWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Toolbar tool icons (Select/Rectangle/Ellipse/Line/Arrow/Freehand/Text/Step/
+                     Image/Blur/Pixelate/Spotlight/Erase/Crop/Resize). Pulled from external SVGs;
+                     see EditorToolIcons.xaml for the conversion notes. -->
+                <ResourceDictionary Source="EditorToolIcons.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        <!-- AresToys logo loaded from the App assembly (Assets/AresToysLogo.png). Cross-assembly
+             pack URI because AresToys.Editor doesn't reference AresToys.App's resource
+             dictionary directly. Same pattern as the Window.Icon above. -->
+        <BitmapImage x:Key="LocalAresToysLogo" UriSource="pack://application:,,,/AresToys;component/Assets/AresToysLogo.png" />
+        <!-- Override WPF-UI v4's checkbox brush keys so checkboxes (Smooth stroke / End arrow,
+             Bold/Italic in step + text sections) follow the AresToys accent theme instead of
+             the default teal. Same approach used in MainWindow.xaml's UploaderRowTemplate. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource AccentBackgroundDarkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource AccentBackgroundDarkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBorderBrush" Color="{DynamicResource AccentForegroundColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForeground" Color="{DynamicResource AccentForegroundColor}" />
+        <!-- Hover for every default-appearance ui:Button of the editor (tool strip, title bar).
+             The App theme sets ButtonBackground, ButtonBackgroundPointerOver and ButtonBackgroundPressed
+             all to Surface3, so without this override the hover is invisible. Scoped to this window.
+             Primary (the active tool) and Danger (Cancel) use their own Accent / Danger keys, so the
+             selected tool stays distinct from a hovered one. -->
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource AccentBackgroundDarkColor}" />
+        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{DynamicResource AccentBackgroundColor}" />
+        <!-- Dark checkerboard behind the screenshot (AresExplorerTools reference: 8 px cells of
+             #26262B and #3A3A3F). Fixed dark in every theme. Absolute viewport, so the cells keep
+             their size at every zoom: it paints the canvas ScrollViewer, not the image. -->
+        <DrawingBrush x:Key="EditorCanvasChecker"
+                      TileMode="Tile"
+                      Viewport="0,0,16,16" ViewportUnits="Absolute"
+                      Stretch="None">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#26262B">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,16,16" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#3A3A3F">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="8,0,8,8" />
+                                <RectangleGeometry Rect="0,8,8,8" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+        </ResourceDictionary>
+    </ui:FluentWindow.Resources>
+
+    <!-- Outer accent border + corner radius — matches MainWindow / ClipboardWindow / Launcher
+         look. WindowBackdropType=None means we paint the whole chrome ourselves; the Border
+         here gives the window its identity (Surface2 fill, accent dark frame, rounded). -->
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />  <!-- vertical tool strip -->
+            <ColumnDefinition Width="*" />     <!-- canvas -->
+            <ColumnDefinition Width="Auto" />  <!-- property panel -->
+        </Grid.ColumnDefinitions>
+
+        <Grid.Resources>
+            <!-- Tool button of the vertical strip on the left. BasedOn the implicit Fluent button
+                 style; its hover colour comes from the ButtonBackgroundPointerOver override in the window resources. -->
+            <Style x:Key="ToolBtn" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Width" Value="38" />
+                <Setter Property="Padding" Value="4,2" />
+                <Setter Property="Margin" Value="0,2" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+            <!-- Inner icon: 18x18 keeps the 30-tall button visually balanced with ~6px padding
+                 above/below; smaller would feel lost, larger crowds the button border. -->
+            <Style x:Key="ToolIcon" TargetType="Image">
+                <Setter Property="Width" Value="18" />
+                <Setter Property="Height" Value="18" />
+                <Setter Property="Stretch" Value="Uniform" />
+            </Style>
+            <!-- Horizontal 1-px line between tool groups of the vertical strip. -->
+            <Style x:Key="ToolGroupDivider" TargetType="Border">
+                <Setter Property="Height" Value="1" />
+                <Setter Property="Background" Value="{DynamicResource AccentForegroundDarkBrush}" />
+                <Setter Property="Margin" Value="4,6" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Opacity" Value="0.5" />
+            </Style>
+        </Grid.Resources>
+
+        <!-- Title bar band in the panel colour (Surface1), same as the tool strip and the property
+             panel. Sits behind the TitleBar (earlier sibling, so it paints first); the top corners
+             follow the outer frame (radius 8 minus the 2 px border). Height matches the TitleBar. -->
+        <Border Grid.Row="0" Grid.ColumnSpan="3" Height="32"
+                Background="{DynamicResource Surface1Brush}" CornerRadius="6,6,0,0" />
+
+        <!-- Only the title and the caption buttons live here now (tools moved to the left strip),
+             so the bar is as short as the caption buttons allow. -->
+        <ui:TitleBar Grid.Row="0" Grid.ColumnSpan="3" Title="" Height="32" Padding="8,0,0,0">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="{StaticResource LocalAresToysLogo}" Margin="0,0,6,0" />
+            </ui:TitleBar.Icon>
+            <ui:TitleBar.Header>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleBarText" Text="AresToys - Editor"
+                               Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="SemiBold" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <!-- Undo / Redo / Save as / Copy / Cancel, then a separator and the zoom controls
+                         (owner ruling 1619). Icon-only. Glyphs: FontAwesome 7 Free Solid
+                         (IconFont lives in the host assembly, hence DynamicResource).
+                         f0e2 = arrow-rotate-left, f01e = arrow-rotate-right, f0c7 = floppy-disk,
+                         f0c5 = copy, f00d = xmark, f010/f00e = magnifying-glass minus/plus. -->
+                    <ui:Button x:Name="UndoButton"
+                               Height="26" Padding="10,0" Margin="0,0,4,0"
+                               Click="OnUndoClicked"
+                               ToolTip="Undo (Ctrl+Z)">
+                        <TextBlock Text="&#xf0e2;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="RedoButton"
+                               Height="26" Padding="10,0" Margin="0,0,4,0"
+                               Click="OnRedoClicked"
+                               ToolTip="Redo (Ctrl+Y)">
+                        <TextBlock Text="&#xf01e;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="SaveAsButton"
+                               Height="26" Padding="18,0" Margin="0,0,4,0"
+                               Click="OnSaveAsClicked"
+                               ToolTip="Export to a file you pick. Format chosen via the dialog filter (PNG / JPEG / BMP / GIF). Does not touch history.">
+                        <TextBlock Text="&#xf0c7;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="SaveButton"
+                               Height="26" Padding="18,0" Margin="0,0,4,0"
+                               Click="OnSaveClicked"
+                               ToolTip="Confirm / copy to clipboard (also adds to history; original kept for safety)">
+                        <TextBlock Text="&#xf0c5;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="CancelButton" Appearance="Danger"
+                               Height="26" Padding="18,0" Margin="0"
+                               Click="OnCancelClicked"
+                               ToolTip="Discard edits and close (original stays in history) (Esc)">
+                        <TextBlock Text="&#xf00d;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <Border Width="1" Height="18" Margin="8,0,8,0" VerticalAlignment="Center"
+                            Background="{DynamicResource OuterBorderBrush}" />
+                    <ui:Button x:Name="ZoomOutButton"
+                               Height="26" Padding="10,0" Margin="0,0,4,0"
+                               Click="OnZoomOutClicked"
+                               ToolTip="Zoom out">
+                        <TextBlock Text="&#xf010;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <Border x:Name="ZoomLabelBox" MinWidth="48" Height="26" Margin="0,0,4,0"
+                            Background="{DynamicResource Surface3Brush}" CornerRadius="4"
+                            ToolTip="Current zoom">
+                        <TextBlock x:Name="ZoomLabel" Text="100%"
+                                   Foreground="{DynamicResource AccentForegroundBrush}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   FontSize="11" />
+                    </Border>
+                    <ui:Button x:Name="ZoomInButton"
+                               Height="26" Padding="10,0" Margin="0,0,4,0"
+                               Click="OnZoomInClicked"
+                               ToolTip="Zoom in">
+                        <TextBlock Text="&#xf00e;" FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </ui:Button>
+                    <ui:Button x:Name="ZoomFitButton" Content="Fit"
+                               Height="26" Padding="10,0" Margin="0,0,4,0"
+                               Click="OnZoomFitClicked"
+                               ToolTip="Fit to window (Ctrl+0)" />
+                    <ui:Button x:Name="ZoomResetButton" Content="1:1"
+                               Height="26" Padding="10,0" Margin="0"
+                               Click="OnZoomResetClicked"
+                               ToolTip="Actual size (1:1)" />
+                </StackPanel>
+            </ui:TitleBar.Header>
+        </ui:TitleBar>
+
+        <!-- Row 1 placeholder (zero height). -->
+        <Border Grid.Row="1" Grid.ColumnSpan="3" Height="0" />
+
+        <!-- Tool strip, vertical, left of the canvas. It scrolls (hidden bar, wheel works) when the
+             window is too short for every tool. -->
+        <Border Grid.Row="2" Grid.Column="0"
+                Padding="6,8"
+                Background="{DynamicResource Surface1Brush}"
+                BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="0,0,1,0"
+                CornerRadius="0,0,0,6">
+                    <ScrollViewer x:Name="ToolbarScroll"
+                                  VerticalScrollBarVisibility="Hidden"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Background="Transparent">
+                        <StackPanel Orientation="Vertical">
+                <ui:Button x:Name="SelectToolBtn" Style="{StaticResource ToolBtn}" Click="OnSelectToolClicked" ToolTip="Select (V)">
+                    <Image Source="{StaticResource ToolIconSelect}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="RectangleToolBtn" Style="{StaticResource ToolBtn}" Click="OnRectangleToolClicked" ToolTip="Rectangle (R)">
+                    <Image Source="{StaticResource ToolIconRectangle}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="EllipseToolBtn" Style="{StaticResource ToolBtn}" Click="OnEllipseToolClicked" ToolTip="Ellipse (E)">
+                    <Image Source="{StaticResource ToolIconEllipse}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="LineToolBtn" Style="{StaticResource ToolBtn}" Click="OnLineToolClicked" ToolTip="Line (L)">
+                    <Image Source="{StaticResource ToolIconLine}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="ArrowToolBtn" Style="{StaticResource ToolBtn}" Click="OnArrowToolClicked" ToolTip="Arrow (A)">
+                    <Image Source="{StaticResource ToolIconArrow}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="FreehandToolBtn" Style="{StaticResource ToolBtn}" Click="OnFreehandToolClicked" ToolTip="Freehand (F)">
+                    <Image Source="{StaticResource ToolIconFreehand}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="TextToolBtn" Style="{StaticResource ToolBtn}" Click="OnTextToolClicked" ToolTip="Text (T)">
+                    <Image Source="{StaticResource ToolIconText}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="StepToolBtn" Style="{StaticResource ToolBtn}" Click="OnStepToolClicked" ToolTip="Step counter (S)">
+                    <Image Source="{StaticResource ToolIconStep}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="ImageBtn" Style="{StaticResource ToolBtn}" Click="OnImageClicked" ToolTip="Image (I)">
+                    <Image Source="{StaticResource ToolIconImage}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="BlurToolBtn" Style="{StaticResource ToolBtn}" Click="OnBlurToolClicked" ToolTip="Blur (B)">
+                    <Image Source="{StaticResource ToolIconBlur}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="PixelateToolBtn" Style="{StaticResource ToolBtn}" Click="OnPixelateToolClicked" ToolTip="Pixelate (X)">
+                    <Image Source="{StaticResource ToolIconPixelate}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="SpotlightToolBtn" Style="{StaticResource ToolBtn}" Click="OnSpotlightToolClicked" ToolTip="Spotlight (O)">
+                    <Image Source="{StaticResource ToolIconSpotlight}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="SmartEraserToolBtn" Style="{StaticResource ToolBtn}" Click="OnSmartEraserToolClicked" ToolTip="Smart Eraser (K)">
+                    <Image Source="{StaticResource ToolIconErase}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+
+                <Border Style="{StaticResource ToolGroupDivider}" />
+                <ui:Button x:Name="CropToolBtn" Style="{StaticResource ToolBtn}" Click="OnCropToolClicked" ToolTip="Crop (C)">
+                    <Image Source="{StaticResource ToolIconCrop}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="ResizeBtn" Style="{StaticResource ToolBtn}" Click="OnResizeClicked" ToolTip="Resize…">
+                    <Image Source="{StaticResource ToolIconResize}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="EffectsBtn" Style="{StaticResource ToolBtn}" Click="OnEffectsClicked" ToolTip="Effects…">
+                    <Image Source="{StaticResource ToolIconEffects}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="TraceBtn" Style="{StaticResource ToolBtn}" Click="OnTraceClicked" ToolTip="Trace to SVG…">
+                    <Image Source="{StaticResource ToolIconTrace}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                <ui:Button x:Name="MagicEraserBtn" Style="{StaticResource ToolBtn}" Click="OnMagicEraserClicked" ToolTip="Remove background…">
+                    <Image Source="{StaticResource ToolIconMagicEraser}" Style="{StaticResource ToolIcon}" />
+                </ui:Button>
+                        </StackPanel>
+                    </ScrollViewer>
+        </Border>
+
+        <!-- Canvas -->
+        <ScrollViewer Grid.Row="2" Grid.Column="1"
+                      x:Name="CanvasScrollViewer"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      PreviewMouseWheel="OnCanvasMouseWheel"
+                      PreviewMouseLeftButtonDown="OnCanvasMouseDown"
+                      PreviewMouseMove="OnCanvasMouseMove"
+                      PreviewMouseLeftButtonUp="OnCanvasMouseUp"
+                      PreviewMouseRightButtonDown="OnCanvasRightButtonDown"
+                      PreviewMouseRightButtonUp="OnCanvasRightButtonUp"
+                      PreviewMouseDown="OnCanvasPreviewMouseDown"
+                      PreviewMouseUp="OnCanvasPreviewMouseUp"
+                      MouseLeave="OnCanvasMouseLeave"
+                      Background="{StaticResource EditorCanvasChecker}">
+            <Grid x:Name="CanvasHost" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Image x:Name="SourceImage" />
+                <Canvas x:Name="DrawingCanvas" Background="Transparent" />
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Property panel (right) — DockPanel split: scrollable property surface on top,
+             pinned footer (history + zoom) at the bottom of the column.
+             CornerRadius matches the outer window's CornerRadius="8" minus its 2px border
+             thickness on the bottom-right corner only — top stays flat against the titlebar
+             and the left edge is straight where the sidebar meets the canvas column. Without
+             this the Surface1 fill paints over the rounded outer corner and the bottom-right
+             of the window looks square. -->
+        <Border Grid.Row="2" Grid.Column="2"
+                Width="240" Padding="12"
+                Background="{DynamicResource Surface1Brush}"
+                BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1,0,0,0"
+                CornerRadius="0,0,6,0">
+        <DockPanel LastChildFill="True">
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,0">
+            <StackPanel x:Name="PropertyPanel">
+                <!-- Crop properties — visible only when the Crop tool is active and there are
+                     pending crop rectangles. Hosts the global "Apply all crops" action so the
+                     user has a discoverable button beyond the keyboard shortcut (Enter). -->
+                <StackPanel x:Name="CropPropertiesSection" Visibility="Collapsed" Margin="0,0,0,12">
+                    <TextBlock Text="Crop properties" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14"
+                               FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBlock x:Name="CropCountLabel" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
+                               Margin="0,0,0,8" />
+                    <ui:Button x:Name="ApplyCropsButton" Appearance="Primary"
+                               HorizontalAlignment="Stretch"
+                               Click="OnApplyCropsClicked"
+                               ToolTip="Apply all pending crop rectangles as a composite (Enter, or double-click inside a rect)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xf00c;" FontFamily="{DynamicResource IconFont}"
+                                       FontSize="13" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,8,0"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="Apply all crops" Foreground="{DynamicResource AccentForegroundBrush}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+                    <Border Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,12,0,0" />
+                </StackPanel>
+
+                <!-- Dynamic title — set from RefreshPropertyPanel based on selection or active tool. -->
+                <TextBlock x:Name="PanelTitleText" Text="Properties"
+                           Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,0,0,8" />
+                <TextBlock x:Name="NoSelectionText"
+                           Text="Select a shape to edit its properties (V tool, then click)."
+                           Foreground="{DynamicResource AccentForegroundDarkBrush}" TextWrapping="Wrap" />
+                <StackPanel x:Name="SelectedShapeStack" Visibility="Collapsed">
+
+                    <Grid x:Name="SelOutlineFillRow" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" x:Name="SelOutlineSection">
+                            <TextBlock x:Name="SelOutlineLabel" Text="Outline" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="SelOutlineSwatch" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" x:Name="SelFillSection">
+                            <TextBlock x:Name="SelFillLabel" Text="Fill" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                            <views:ColorSwatchButton x:Name="SelFillSwatch" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel x:Name="SelStrokeSection" Margin="0,0,0,12">
+                        <!-- Header row: label on the left, live px
+                             readout on the right bound to the slider's Value. -->
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="SelStrokeLabel" Grid.Column="0" Text="Stroke" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" />
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Binding ElementName=SelStrokeSlider, Path=Value, StringFormat='{}{0:F0}px'}" />
+                        </Grid>
+                        <Slider x:Name="SelStrokeSlider" Minimum="1" Maximum="20" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelEffectSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <TextBlock x:Name="SelEffectLabel" Text="Effect" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0" x:Name="SelEffectSlider" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="SelEffectBox"
+                                     Width="44" Margin="6,0,0,0" Padding="2"
+                                     VerticalAlignment="Center" TextAlignment="Right" />
+                        </Grid>
+                        <StackPanel x:Name="SelEffectSecondarySection" Visibility="Collapsed">
+                            <TextBlock x:Name="SelEffectSecondaryLabel" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Grid.Column="0" x:Name="SelEffectSecondarySlider" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="1" x:Name="SelEffectSecondaryBox"
+                                         Width="44" Margin="6,0,0,0" Padding="2"
+                                         VerticalAlignment="Center" TextAlignment="Right" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelFreehandSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <CheckBox x:Name="SelFreehandSmoothCheck"
+                                  Content="Smooth stroke"
+                                  Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                  Margin="0,0,0,6"
+                                  ToolTip="Apply Chaikin corner-cutting + Catmull-Rom rendering to remove hand jitter from this stroke." />
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox x:Name="SelFreehandStartCapCheck" Grid.Column="0"
+                                      Content="Start"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      MinWidth="0" Margin="0,0,6,0"
+                                      ToolTip="Cap the start of the stroke with a ShareX-style arrowhead tangent to the first segment." />
+                            <CheckBox x:Name="SelFreehandEndCapCheck" Grid.Column="1" MinWidth="0"
+                                      Content="End"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      ToolTip="Cap the end of the stroke with a ShareX-style arrowhead tangent to the last segment." />
+                        </Grid>
+                        <TextBlock x:Name="SelFreehandTipStyleLabel" Text="Tip style" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <ComboBox x:Name="SelFreehandTipStyleCombo"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip="Shape of the tip: Curved (a V with a concave base that blends into the stroke) or a solid filled triangle." />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelLineSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox x:Name="SelLineEndCapCheck" Grid.Column="0" MinWidth="0" Margin="0,0,6,0"
+                                      Content="End"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      ToolTip="Add a ShareX-style arrowhead at the To end of this line, oriented along the bezier tangent at that point." />
+                            <CheckBox x:Name="SelLineStartCapCheck" Grid.Column="1"
+                                      Content="Start"
+                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="11"
+                                      MinWidth="0"
+                                      ToolTip="Add a ShareX-style arrowhead at the From end of this line, oriented along the bezier tangent at that point." />
+                        </Grid>
+                        <TextBlock x:Name="SelLineTipStyleLabel" Text="Tip style" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <ComboBox x:Name="SelLineTipStyleCombo"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip="Shape of the tip: Curved (a V with a concave base that blends into the stroke) or a solid filled triangle." />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelRotationSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <TextBlock x:Name="SelRotationLabel" Text="Rotation" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0" x:Name="SelRotationSlider" Minimum="-180" Maximum="180" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="SelRotationBox"
+                                     Width="44" Margin="6,0,0,0" Padding="2"
+                                     VerticalAlignment="Center" TextAlignment="Right" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelStepCounterSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <!-- Step counter size now rides on the Stroke slider above (Radius =
+                             StrokeWidth * 2.5), so this section only carries font knobs — no
+                             dedicated radius control. -->
+                        <TextBlock x:Name="SelStepFontLabel" Text="Font" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,8">
+                            <TextBox x:Name="SelStepFontInput" Padding="4,3" />
+                            <Popup x:Name="SelStepFontPopup"
+                                   PlacementTarget="{Binding ElementName=SelStepFontInput}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True">
+                                <Border Background="#252525" BorderBrush="#555" BorderThickness="1" CornerRadius="3">
+                                    <ListBox x:Name="SelStepFontList"
+                                             MaxHeight="260"
+                                             MinWidth="200"
+                                             BorderThickness="0"
+                                             Background="Transparent" />
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox x:Name="SelStepBoldCheck" Content="Bold" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,0" />
+                            <CheckBox x:Name="SelStepItalicCheck" Content="Italic" Foreground="{DynamicResource AccentForegroundBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SelTextStyleSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock x:Name="SelTextColorLabel" Text="Text color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                                <views:ColorSwatchButton x:Name="SelTextColorSwatch" HorizontalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="SelTextOutlineColorLabel" Text="Outline color" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" HorizontalAlignment="Center" />
+                                <views:ColorSwatchButton x:Name="SelTextOutlineSwatch" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock x:Name="SelTextOutlineWidthLabel" Text="Outline width" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0" x:Name="SelTextOutlineSlider" Minimum="0" Maximum="20" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="SelTextOutlineBox"
+                                     Width="44" Margin="6,0,0,0" Padding="2"
+                                     VerticalAlignment="Center" TextAlignment="Right" IsReadOnly="True" />
+                        </Grid>
+
+                        <TextBlock x:Name="SelFontLabel" Text="Font" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,8">
+                            <TextBox x:Name="SelFontInput" Padding="4,3" />
+                            <Popup x:Name="SelFontPopup"
+                                   PlacementTarget="{Binding ElementName=SelFontInput}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True">
+                                <Border Background="#252525" BorderBrush="#555" BorderThickness="1" CornerRadius="3">
+                                    <ListBox x:Name="SelFontList"
+                                             MaxHeight="260"
+                                             MinWidth="200"
+                                             BorderThickness="0"
+                                             Background="Transparent" />
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <TextBlock x:Name="SelSizeLabel" Text="Size" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Grid.Column="0" x:Name="SelFontSizeSlider" Minimum="8" Maximum="256" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1" x:Name="SelFontSizeBox"
+                                     Width="44" Margin="6,0,0,0" Padding="2"
+                                     VerticalAlignment="Center" TextAlignment="Right" />
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <CheckBox x:Name="SelBoldCheck" Content="Bold" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,0" />
+                            <CheckBox x:Name="SelItalicCheck" Content="Italic" Foreground="{DynamicResource AccentForegroundBrush}" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="SelAlignmentLabel" Text="Alignment" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton x:Name="SelAlignLeftBtn" Content="L" Width="32" Margin="0,0,4,0" Click="OnSelAlignLeftClicked" />
+                            <ToggleButton x:Name="SelAlignCenterBtn" Content="C" Width="32" Margin="0,0,4,0" Click="OnSelAlignCenterClicked" />
+                            <ToggleButton x:Name="SelAlignRightBtn" Content="R" Width="32" Click="OnSelAlignRightClicked" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Recent: styles placed with the tool in view. Rows are built in code
+                         (RefreshRecentList); the section hides itself when no tool is in view. -->
+                    <StackPanel x:Name="RecentSection" Margin="0,12,0,0" Visibility="Collapsed">
+                        <Border Height="1" Background="{DynamicResource Surface3Brush}" Margin="0,0,0,12" />
+                        <TextBlock x:Name="RecentTitleText" Text="Recent"
+                                   Foreground="{DynamicResource AccentForegroundBrush}" FontSize="14" FontWeight="SemiBold"
+                                   Margin="0,0,0,8" />
+                        <StackPanel x:Name="RecentList" />
+                        <TextBlock x:Name="RecentEmptyText" Text="Styles you draw with land here (up to 10)."
+                                   Foreground="{DynamicResource AccentForegroundDarkBrush}" TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+        </Border>
+    </Grid>
+    </Border>
+</ui:FluentWindow>

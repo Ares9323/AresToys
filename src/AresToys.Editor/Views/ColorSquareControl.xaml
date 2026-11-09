@@ -1,0 +1,25 @@
+<UserControl x:Class="AresToys.Editor.Views.ColorSquareControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+    <Grid x:Name="Root"
+          MouseLeftButtonDown="OnMouseDown"
+          MouseMove="OnMouseMove"
+          MouseLeftButtonUp="OnMouseUp"
+          Background="Transparent">
+        <!-- SV bitmap rendered at the current H — gets re-rasterised when H changes (cheap,
+             ~few ms for 360² pixels). The Border draws a #1A1A1A frame matching the wheel
+             so the two controls feel like the same widget in different shapes. -->
+        <Border BorderBrush="#1A1A1A" BorderThickness="3">
+            <Image x:Name="SquareImage" Stretch="Fill"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+        </Border>
+        <!-- Cursor canvas with no margin so positioning math runs in UserControl coords. -->
+        <Canvas IsHitTestVisible="False">
+            <Ellipse x:Name="SquareCursor"
+                     Width="14" Height="14"
+                     Stroke="White" StrokeThickness="2"
+                     Fill="Transparent" />
+        </Canvas>
+    </Grid>
+</UserControl>

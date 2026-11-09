@@ -1,0 +1,67 @@
+<Window x:Class="AresToys.Editor.Views.ResizeDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Resize image"
+        Width="320" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource Surface2Brush}"
+        Foreground="White">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource Surface1Brush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Surface3Brush}" />
+            <Setter Property="Padding" Value="2" />
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="14">
+        <TextBlock x:Name="OriginalSizeLabel" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,8" />
+
+        <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="60" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="40" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Width" />
+            <TextBox Grid.Column="1" x:Name="WidthBox" />
+            <TextBlock Grid.Column="2" Text="px" Margin="6,0,0,0" />
+        </Grid>
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="60" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="40" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Height" />
+            <TextBox Grid.Column="1" x:Name="HeightBox" />
+            <TextBlock Grid.Column="2" Text="px" Margin="6,0,0,0" />
+        </Grid>
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="60" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="40" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Scale" />
+            <TextBox Grid.Column="1" x:Name="PercentBox" Text="100" />
+            <TextBlock Grid.Column="2" Text="%" Margin="6,0,0,0" />
+        </Grid>
+
+        <CheckBox x:Name="MaintainAspectCheck"
+                  Content="Maintain aspect ratio"
+                  Foreground="White"
+                  IsChecked="True"
+                  Margin="0,0,0,12" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK" Width="80" Margin="0,0,4,0" IsDefault="True" Click="OnOkClicked" />
+            <Button Content="Cancel" Width="80" IsCancel="True" Click="OnCancelClicked" />
+        </StackPanel>
+    </StackPanel>
+</Window>

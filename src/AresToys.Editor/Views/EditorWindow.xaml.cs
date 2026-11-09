@@ -1,0 +1,5807 @@
+using System.Collections.Specialized;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using AresToys.Editor.Adorners;
+using AresToys.Editor.HitTesting;
+using AresToys.Editor.Model;
+using AresToys.Editor.Tools;
+using AresToys.Editor.ViewModels;
+using Wpf.Ui.Controls;
+
+namespace AresToys.Editor.Views;
+
+public partial class EditorWindow : FluentWindow
+{
+    private readonly EditorViewModel _vm;
+    private double _gestureStartX, _gestureStartY;
+
+    private double _zoom = 1.0;
+    private double _minZoom = 0.1;
+    private const double MaxZoom = 8.0;
+    private bool _initialFitDone;
+
+    // Marquee state (Select tool, drag on empty area).
+    private bool _isMarqueeing;
+    private System.Windows.Shapes.Rectangle? _marqueeRect;
+    private double _marqueeStartX, _marqueeStartY;
+
+    // Pending-crop interactive editing: lets the user resize / move the dimmed crop rect via
+    // 8 grip handles (corners + edge midpoints) and inside-rect drag-to-move. _cropDragMode
+    // identifies which gesture is active; _cropDragStart is the mouse-down point in canvas
+    // coords; _cropDragOriginal is the rect as it was at mouse-down so deltas are computed
+    // against a stable baseline (vs. integrating frame-to-frame drift).
+    private CropDragMode _cropDragMode = CropDragMode.None;
+    private int _cropDragIndex = -1;
+    private System.Windows.Point _cropDragStart;
+    private CropRect? _cropDragOriginal;
+
+    /// <summary>Marching-ants animation: a dispatcher timer ticks every ~50 ms and bumps
+    /// <see cref="_antsPhase"/>; <see cref="UpdateMarchingAntsPhase"/> applies the new offset
+    /// to every dashed pending-crop rect on the canvas. Cheap (4-8 children at 20 Hz) and
+    /// keeps the visual flair ShareX uses for region preview without the per-rect Storyboard
+    /// gymnastics. Stops when no pending crops exist so we don't tick forever.</summary>
+    private System.Windows.Threading.DispatcherTimer? _antsTimer;
+    private double _antsPhase;
+
+    private enum CropDragMode { None, Move, ResizeNW, ResizeN, ResizeNE, ResizeE, ResizeSE, ResizeS, ResizeSW, ResizeW }
+
+    // Move-drag state (Select tool): _moveStartShape captures the shape at mouse-down,
+    // _moveOriginalShape captures the shape as it was when first selected (for undo span).
+    private Shape? _moveStartShape;
+    private double _moveAnchorX, _moveAnchorY;
+    private bool _isDraggingShape;
+    // Snapshot of selected shapes at mouse-down, used to compute translation across all selected items.
+    private List<Shape>? _moveStartSnapshots;
+
+    // Live-edit tracking: per-shape original snapshots, so a sequence of property tweaks (or drag-to-move)
+    // commits as ONE undo step per shape when the selection changes (or window closes).
+    private List<Shape> _liveEditOriginals = [];
+    private bool _suppressLiveUpdates;
+
+    // Inline text editing: a TextBox is parented to the canvas at the click point.
+    // _editingTextShape is non-null only when modifying an existing TextShape.
+    private System.Windows.Controls.TextBox? _activeTextBox;
+    private TextShape? _editingTextShape;
+    // Pixels beneath each effect (screenshot + the shapes placed before it), cached by shape identity.
+    // Assigned first thing in the constructor, before anything can ask for a redraw.
+    private readonly AresToys.Editor.Rendering.BeneathComposer _beneath;
+    // Live outline preview drawn behind the inline editor so "text with an outline" previews the
+    // real crisp geometry while typing, not just a soft glow. Built via the same CreateOutlinedText
+    // used for the committed shape, so preview == result. Rebuilt on every keystroke.
+    private System.Windows.UIElement? _activeTextOutlinePreview;
+
+    // Text-frame drag state: when the user drags with the Text tool active we draw a marquee
+    // and use its final bounds as the new TextShape's box. Mouse-up below the threshold falls
+    // back to a click-and-default-size at the down point.
+    private bool _isDrawingTextFrame;
+    private double _textFrameStartX, _textFrameStartY;
+    private System.Windows.Shapes.Rectangle? _textFrameMarquee;
+    private const double TextFrameDragThreshold = 4;
+
+    // Grip drag state (resize / endpoint / font-size). Only active for single-selection in Select tool.
+    private GripKind _activeGrip = GripKind.None;
+    private Shape? _gripStartShape;
+    private double _gripAnchorX, _gripAnchorY;
+
+    // Eyedropper state. While non-null, the next canvas click samples a pixel and feeds it back.
+    private Action<ShapeColor?>? _eyedropperContinuation;
+
+    // "Modifica al volo" state: alt+click on a placement tool selects a shape AND auto-switches
+    // to Select. _returnToToolAfterDeselect remembers the placement tool the user came from so
+    // a deselect (click on empty canvas) bounces them straight back into placing mode without
+    // the V → R / A / etc. round-trip. Cleared the moment the user picks a different tool by
+    // hand (so a manual switch wins over the queued auto-return). _autoSwitchingTool guards
+    // the PropertyChanged subscription against treating OUR own tool writes as "user manually
+    // picked a tool" and clobbering the field we just set.
+    private EditorTool? _returnToToolAfterDeselect;
+    private bool _autoSwitchingTool;
+
+    // RMB-pan state. While the right button is held over the canvas, dragging the mouse
+    // translates the ScrollViewer's scroll offsets — same gesture Photoshop / Aseprite / Figma
+    // use for canvas pan. We capture the screen-space cursor at mouse-down (RootVisual avoids
+    // jitter from the scroll motion itself moving the viewport relative to CanvasHost) and the
+    // initial scroll offsets; MouseMove computes a delta and adjusts the scrollbars.
+    private bool _isPanning;
+    private System.Windows.Point _panStartCursor;
+    private double _panStartScrollH;
+    private double _panStartScrollV;
+    private System.Windows.Input.Cursor? _panSavedCursor;
+
+    private readonly AresToys.Core.Imaging.IImageEncoder? _encoder;
+
+    // Crop magnifier — built lazily on first mouse-move while the Crop tool is active,
+    // hidden when the tool changes. Round picker: Image element clipped to an ellipse
+    // (NearestNeighbor scaling only takes effect on Image, not on ImageBrush — the latter
+    // falls back to bilinear and produces blurred pixels), with a thin outline ring + a
+    // red crosshair on top.
+    private System.Windows.Controls.Border? _cropMagnifier;
+    private System.Windows.Controls.Image? _cropMagnifierImage;
+
+    public EditorWindow(EditorViewModel viewModel, AresToys.Core.Imaging.IImageEncoder? encoder = null)
+    {
+        _beneath = new AresToys.Editor.Rendering.BeneathComposer(MakeUiElement);
+        InitializeComponent();
+        _vm = viewModel;
+        DataContext = _vm;
+        _encoder = encoder;
+
+        _vm.StylesChanged += OnStylesChanged;
+        _vm.Shapes.CollectionChanged += OnShapesChanged;
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(EditorViewModel.PreviewShape)) RedrawPreview();
+            if (e.PropertyName == nameof(EditorViewModel.SourcePngBytes)) LoadSourceImage();
+            if (e.PropertyName == nameof(EditorViewModel.SelectedShape)) OnSelectedShapeChanged();
+            if (e.PropertyName == nameof(EditorViewModel.PendingCrops)
+             || e.PropertyName == nameof(EditorViewModel.SelectedPendingCropIndex))
+            {
+                RedrawPendingCrop();
+                RefreshCropPropertiesSection();
+            }
+            if (e.PropertyName == nameof(EditorViewModel.CurrentTool))
+            {
+                CommitInlineTextEdit();
+                RefreshToolButtonHighlight();
+                RefreshPropertyPanel();
+                // Auto-scroll the toolbar so the just-activated tool button is visible. Covers
+                // keyboard shortcuts (R / A / T / …) just as well as mouse clicks — both flow
+                // through CurrentTool here. Looks up the matching button by tool enum so we
+                // don't have to thread the scroll call through every individual click handler.
+                ScrollToolIntoView(GetToolButton(_vm.CurrentTool));
+                // Crop magnifier is tool-specific — switching to anything else means we need to
+                // pull it off the canvas, otherwise it sticks at its last position forever.
+                if (_vm.CurrentTool != EditorTool.Crop) HideCropMagnifier();
+                // Manual tool switch (V hotkey, sidebar button, …) wins over a queued auto-
+                // return: if the user has actively chosen a different tool, drop the
+                // _returnToToolAfterDeselect breadcrumb so the next deselect doesn't fight
+                // their explicit choice. Auto-switches we initiate ourselves set
+                // _autoSwitchingTool so this clear is suppressed.
+                if (!_autoSwitchingTool) _returnToToolAfterDeselect = null;
+                // Pending crops survive a tool switch (they behave like blur/pixelate effect
+                // shapes — non-destructive previews that persist until the user explicitly
+                // applies or discards). With Select tool active, click on a rect selects it
+                // for Delete; with another drawing tool, the user can keep annotating with
+                // the dim overlay still visible. Apply / Cancel / Esc / Enter all still
+                // work, plus the canvas Apply All button stays clickable across tools.
+            }
+        };
+        _vm.SelectedShapes.CollectionChanged += (_, e) =>
+        {
+            RedrawAll();
+            // Re-snapshot live-edit originals only on real selection changes (Add/Remove/Reset),
+            // NOT on Replace (which fires during LiveReplaceShape).
+            if (e.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Replace)
+            {
+                OnSelectionSetChanged();
+            }
+        };
+
+        // Realtime property panel: each change live-updates the shape via DependencyPropertyDescriptor hooks.
+        HookSwatchColor(SelOutlineSwatch, (_, _) => OnSelOutlineChanged());
+        HookSwatchColor(SelFillSwatch, (_, _) => OnSelFillChanged());
+        SelStrokeSlider.ValueChanged += (_, _) => OnSelStrokeChanged();
+        SelRotationSlider.ValueChanged += (_, _) => OnSelRotationSliderChanged();
+        SelEffectSlider.ValueChanged += (_, _) => OnSelEffectSliderChanged();
+        SelEffectBox.LostFocus += (_, _) => OnSelEffectBoxCommitted();
+        SelEffectBox.KeyDown += (_, ev) => { if (ev.Key == Key.Enter) OnSelEffectBoxCommitted(); };
+        SelEffectSecondarySlider.ValueChanged += (_, _) => OnSelEffectSecondarySliderChanged();
+        SelEffectSecondaryBox.LostFocus += (_, _) => OnSelEffectSecondaryBoxCommitted();
+        SelEffectSecondaryBox.KeyDown += (_, ev) => { if (ev.Key == Key.Enter) OnSelEffectSecondaryBoxCommitted(); };
+        SelRotationBox.LostFocus += (_, _) => OnSelRotationBoxCommitted();
+        SelRotationBox.KeyDown += (_, ev) => { if (ev.Key == Key.Enter) OnSelRotationBoxCommitted(); };
+        SelFreehandSmoothCheck.Checked += (_, _) => OnSelFreehandSmoothChanged();
+        SelFreehandSmoothCheck.Unchecked += (_, _) => OnSelFreehandSmoothChanged();
+        SelFreehandStartCapCheck.Checked += (_, _) => OnSelFreehandCapsChanged();
+        SelFreehandStartCapCheck.Unchecked += (_, _) => OnSelFreehandCapsChanged();
+        SelFreehandEndCapCheck.Checked += (_, _) => OnSelFreehandCapsChanged();
+        SelFreehandEndCapCheck.Unchecked += (_, _) => OnSelFreehandCapsChanged();
+        PopulateTipStyleCombo(SelFreehandTipStyleCombo);
+        SelFreehandTipStyleCombo.SelectionChanged += (_, _) => OnSelFreehandTipStyleChanged();
+        SelLineStartCapCheck.Checked += (_, _) => OnSelLineCapsChanged();
+        SelLineStartCapCheck.Unchecked += (_, _) => OnSelLineCapsChanged();
+        SelLineEndCapCheck.Checked += (_, _) => OnSelLineCapsChanged();
+        SelLineEndCapCheck.Unchecked += (_, _) => OnSelLineCapsChanged();
+        PopulateTipStyleCombo(SelLineTipStyleCombo);
+        SelLineTipStyleCombo.SelectionChanged += (_, _) => OnSelLineTipStyleChanged();
+
+        WireFontPickers();
+        SelFontSizeSlider.ValueChanged += (_, _) => OnSelFontSizeSliderChanged();
+        SelFontSizeBox.LostFocus += (_, _) => OnSelFontSizeBoxCommitted();
+        SelFontSizeBox.KeyDown += (_, ev) => { if (ev.Key == Key.Enter) OnSelFontSizeBoxCommitted(); };
+        SelBoldCheck.Checked += (_, _) => OnSelTextStyleChanged();
+        SelBoldCheck.Unchecked += (_, _) => OnSelTextStyleChanged();
+        SelItalicCheck.Checked += (_, _) => OnSelTextStyleChanged();
+        SelItalicCheck.Unchecked += (_, _) => OnSelTextStyleChanged();
+
+        SelStepBoldCheck.Checked += (_, _) => OnSelStepFontStyleChanged();
+        SelStepBoldCheck.Unchecked += (_, _) => OnSelStepFontStyleChanged();
+        SelStepItalicCheck.Checked += (_, _) => OnSelStepFontStyleChanged();
+        SelStepItalicCheck.Unchecked += (_, _) => OnSelStepFontStyleChanged();
+
+        HookSwatchColor(SelTextColorSwatch, (_, _) => OnSelTextStyleChanged());
+        HookSwatchColor(SelTextOutlineSwatch, (_, _) => OnSelTextOutlineChanged());
+        SelTextOutlineSlider.ValueChanged += (_, _) => OnSelTextOutlineChanged();
+
+        Loaded += (_, _) =>
+        {
+            LoadSourceImage();
+            RefreshPropertyPanel();
+            RefreshToolButtonHighlight();
+            // Defer fit to after layout pass so ViewportWidth/Height is populated.
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () => FitZoomToViewport());
+            // Eyedropper handler is wired by the host (AresToys.App.EditorLauncher) so the
+            // picker uses the same ScreenColorPickerOverlay magnifier the rest of the app
+            // shows. We don't install a canvas-sampling fallback here because canvas mode
+            // would need to hide the modal picker and re-show it after sampling — that
+            // pattern broke on .NET 10 (Show-after-Hide resets _showingAsDialog and the OK
+            // click crashed). EnterCanvasEyedropperMode + _eyedropperContinuation remain in
+            // the file as plumbing in case a future host wants a canvas-precise sampler
+            // that opens nested-modal (e.g. a canvas magnifier window) instead.
+        };
+        Closing += OnClosing;
+        Closed += (_, _) =>
+        {
+            UnhookSwatchColors();
+            // A running DispatcherTimer is rooted by the Dispatcher and its Tick captures this window:
+            // a crop still pending at close kept the whole editor alive.
+            _antsTimer?.Stop();
+        };
+    }
+
+    /// <summary>DependencyPropertyDescriptor.AddValueChanged stores the handler in a static,
+    /// process-wide table, so every hook keeps this window (and its full-size source image)
+    /// alive until it is removed. Hooks go through here and are removed on Closed: before
+    /// this, every editor ever opened stayed in memory for the life of the process.</summary>
+    private static readonly System.ComponentModel.DependencyPropertyDescriptor? SwatchColorDescriptor =
+        System.ComponentModel.DependencyPropertyDescriptor.FromProperty(
+            ColorSwatchButton.SelectedColorProperty, typeof(ColorSwatchButton));
+
+    private readonly List<(ColorSwatchButton Swatch, EventHandler Handler)> _swatchColorHooks = [];
+
+    private void HookSwatchColor(ColorSwatchButton swatch, EventHandler handler)
+    {
+        if (SwatchColorDescriptor is null) return;
+        SwatchColorDescriptor.AddValueChanged(swatch, handler);
+        _swatchColorHooks.Add((swatch, handler));
+    }
+
+    private void UnhookSwatchColors()
+    {
+        foreach (var (swatch, handler) in _swatchColorHooks)
+            SwatchColorDescriptor?.RemoveValueChanged(swatch, handler);
+        _swatchColorHooks.Clear();
+    }
+
+    public bool Saved { get; private set; }
+
+    /// <summary>PNG bytes captured at Save-click time, BEFORE <see cref="System.Windows.Window.Close"/>
+    /// runs. Hosts (EditorLauncher) read this from the <c>Closed</c> event handler instead of
+    /// calling <see cref="ExportCanvasPng"/> there directly — by the time the visual tree gets
+    /// the Closed event, the window has been disconnected from its PresentationSource and the
+    /// RenderTargetBitmap of CanvasHost ends up blank (the user's "the workflow's clipboard
+    /// copy is empty" bug). Capturing inside <c>OnSaveClicked</c> while the canvas is still
+    /// attached produces the real bytes.</summary>
+    public byte[]? SavedPng { get; private set; }
+
+    /// <summary>Asked before a Save (the Save button, Enter, or Yes on the close prompt) takes effect, with the exported
+    /// PNG (null when the export failed): false keeps the editor open with the edits as they are. The host uses it to ask
+    /// "overwrite or save a copy" and to write the file while the window is still there, so Cancel or a failed write
+    /// costs nothing.</summary>
+    public Func<byte[]?, bool>? SaveGuard { get; set; }
+
+    /// <summary>The file the image was opened from, when there is one: "Save as" then starts in its folder with its name
+    /// and format instead of a timestamped PNG.</summary>
+    public string? SourcePath { get; set; }
+
+    /// <summary>Cross-assembly handoff for the Effects tool. The host (AresToys.App.EditorLauncher)
+    /// wires this once at startup with a function that opens its <c>ImageEffectsWindow</c>
+    /// preloaded with the editor's source bytes; on Apply, the function returns the rendered
+    /// PNG, which the editor swaps in via an undoable <c>ReplaceSourceCommand</c>. Returns
+    /// null when the user cancels (closes the window without applying). Same pattern as
+    /// <see cref="ColorSwatchButton.EyedropperHandler"/>.</summary>
+    public static Func<byte[], System.Windows.Window?, Task<byte[]?>>? OpenEffectsHandler { get; set; }
+
+    /// <summary>Cross-assembly handoff for the Trace tool. Takes source bytes + owner window
+    /// (for Save dialog parenting); the host opens its own dialog and writes the .svg to
+    /// disk so the editor stays I/O-free. Fire-and-forget — the editor doesn't get the SVG
+    /// back since tracing produces a separate vector artifact rather than a new raster.</summary>
+    public static Func<byte[], System.Windows.Window?, Task>? TraceHandler { get; set; }
+
+    /// <summary>Cross-assembly handoff for the Magic Eraser (AI background removal).
+    /// Takes source bytes; returns processed bytes (transparent-bg PNG) or null on cancel /
+    /// failure. Same shape as <see cref="OpenEffectsHandler"/> minus the owner window since
+    /// background removal runs without showing a dialog. <see cref="EditorLauncher"/> wires
+    /// this once at startup.</summary>
+    public static Func<byte[], CancellationToken, Task<byte[]?>>? RemoveBackgroundHandler { get; set; }
+
+    private async void OnEffectsClicked(object sender, RoutedEventArgs e)
+    {
+        var handler = OpenEffectsHandler;
+        if (handler is null || _vm.SourcePngBytes.Length == 0) return;
+        try
+        {
+            var result = await handler(_vm.SourcePngBytes, this);
+            if (result is null || result.Length == 0) return;
+            _vm.ApplyReplaceSource(result);
+        }
+        catch
+        {
+            // Effects flow is opportunistic — a failure (decode error, missing preset store)
+            // shouldn't crash the editor. The host's handler also logs internally.
+        }
+    }
+
+    private async void OnTraceClicked(object sender, RoutedEventArgs e)
+    {
+        var handler = TraceHandler;
+        if (handler is null || _vm.SourcePngBytes.Length == 0) return;
+        TraceBtn.IsEnabled = false;
+        try { await handler(_vm.SourcePngBytes, this); }
+        catch
+        {
+            // Trace failures are logged inside the handler (host-side); the editor stays open.
+        }
+        finally { TraceBtn.IsEnabled = true; }
+    }
+
+    private async void OnMagicEraserClicked(object sender, RoutedEventArgs e)
+    {
+        var handler = RemoveBackgroundHandler;
+        if (handler is null || _vm.SourcePngBytes.Length == 0) return;
+        // Disable the button while inference runs (100 ms-3 s) so a frantic user can't queue
+        // a second pass and end up with stale state on the second result. The editor as a
+        // whole stays interactive — drawing / arrow placement remain available, only the
+        // Magic Eraser button itself is greyed.
+        MagicEraserBtn.IsEnabled = false;
+        try
+        {
+            var result = await handler(_vm.SourcePngBytes, default);
+            if (result is null || result.Length == 0) return;
+            _vm.ApplyReplaceSource(result);
+        }
+        catch
+        {
+            // Failures are logged inside the host-side handler; UI just stays on the original.
+        }
+        finally
+        {
+            MagicEraserBtn.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Render the canvas (image + shapes) to PNG bytes. Hosts (EditorLauncher) call
+    /// this from the <c>Closed</c> handler when <see cref="Saved"/> is true; the in-window
+    /// "Save as…" button calls it inline. Hides selection adorners (dashed bbox + grip handles)
+    /// during the render so the export captures only the user-drawn artwork — without this the
+    /// confirm flow would bake the bright-blue selection rectangle into the screenshot.</summary>
+    public byte[] ExportCanvasPng()
+    {
+        var canvasHost = (System.Windows.Controls.Grid)FindName("CanvasHost")!;
+        var (exportW, exportH, dpiX, dpiY) = ResolveExportPixels(canvasHost);
+
+        // Adorners (selection bbox + every resize/rotate/bend grip) all live as direct children
+        // of DrawingCanvas with Tag="adorner" — see RefreshSelectionAdorner. Collapse them for
+        // the render, restore in the finally. Restoring matters for "Save as…" (which keeps
+        // editing); for the confirm flow the window is about to close so cleanup is moot.
+        var hidden = new List<UIElement>();
+        foreach (UIElement child in DrawingCanvas.Children)
+        {
+            if (child is FrameworkElement fe
+                && fe.Visibility == Visibility.Visible
+                && (fe.Tag as string) == "adorner")
+            {
+                hidden.Add(child);
+            }
+        }
+        foreach (var a in hidden) a.Visibility = Visibility.Collapsed;
+        try
+        {
+            return AresToys.Editor.Rendering.CanvasPngExporter.Export(canvasHost, exportW, exportH, dpiX, dpiY);
+        }
+        finally
+        {
+            foreach (var a in hidden) a.Visibility = Visibility.Visible;
+        }
+    }
+
+    /// <summary>Localised label dictionary pushed by the host (AresToys.App.EditorLauncher) just
+    /// before <see cref="System.Windows.Window.ShowDialog"/>. Same handoff pattern as
+    /// <see cref="ColorPickerWindow.ApplyLocalization"/> — this assembly can't reach the App's
+    /// resx, so the host resolves every key against its own ResourceManager and pushes the
+    /// strings here. Missing keys leave the XAML defaults intact.</summary>
+    private IReadOnlyDictionary<string, string> _labels = new Dictionary<string, string>();
+
+    private string Loc(string key, string fallback) =>
+        _labels.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v) ? v : fallback;
+
+    public void ApplyLocalization(IReadOnlyDictionary<string, string> labels)
+    {
+        _labels = labels ?? new Dictionary<string, string>();
+
+        if (_labels.TryGetValue("TitleBar", out var titleBar)) TitleBarText.Text = titleBar;
+
+        // Tool palette tooltips. The icon is the visual; tooltip carries the localised name +
+        // (where present) the keyboard hint as a single string per resx entry.
+        if (_labels.TryGetValue("Tool_Select", out var s)) SelectToolBtn.ToolTip = s;
+        if (_labels.TryGetValue("Tool_Rectangle", out var r)) RectangleToolBtn.ToolTip = r;
+        if (_labels.TryGetValue("Tool_Ellipse", out var el)) EllipseToolBtn.ToolTip = el;
+        if (_labels.TryGetValue("Tool_Line", out var ln)) LineToolBtn.ToolTip = ln;
+        if (_labels.TryGetValue("Tool_Arrow", out var ar)) ArrowToolBtn.ToolTip = ar;
+        if (_labels.TryGetValue("Tool_Freehand", out var fh)) FreehandToolBtn.ToolTip = fh;
+        if (_labels.TryGetValue("Tool_Text", out var tx)) TextToolBtn.ToolTip = tx;
+        if (_labels.TryGetValue("Tool_Step", out var st)) StepToolBtn.ToolTip = st;
+        if (_labels.TryGetValue("Tool_Image", out var im)) ImageBtn.ToolTip = im;
+        if (_labels.TryGetValue("Tool_Blur", out var bl)) BlurToolBtn.ToolTip = bl;
+        if (_labels.TryGetValue("Tool_Pixelate", out var px)) PixelateToolBtn.ToolTip = px;
+        if (_labels.TryGetValue("Tool_Spotlight", out var sp)) SpotlightToolBtn.ToolTip = sp;
+        if (_labels.TryGetValue("Tool_SmartEraser", out var se)) SmartEraserToolBtn.ToolTip = se;
+        if (_labels.TryGetValue("Tool_Crop", out var cr)) CropToolBtn.ToolTip = cr;
+        if (_labels.TryGetValue("Tool_Resize", out var rz)) ResizeBtn.ToolTip = rz;
+        if (_labels.TryGetValue("Tool_Trace", out var tr)) TraceBtn.ToolTip = tr;
+        if (_labels.TryGetValue("Tool_MagicEraser", out var me)) MagicEraserBtn.ToolTip = me;
+
+        // Action triplet (top of right column). Buttons now host icon Images instead of text
+        // labels (Confirm/Copy, Floppy/Save-as, Dismiss/Cancel) so we DON'T overwrite their
+        // Content here — that would replace the Image with a string. Tooltips stay localised
+        // since hover help is the discoverability for the icon-only buttons.
+        if (_labels.TryGetValue("TooltipSave", out var tSave)) SaveButton.ToolTip = tSave;
+        if (_labels.TryGetValue("TooltipSaveAs", out var tSaveAs)) SaveAsButton.ToolTip = tSaveAs;
+        if (_labels.TryGetValue("TooltipCancel", out var tCancel)) CancelButton.ToolTip = tCancel;
+
+        // No-selection placeholder + dynamic title (live default, refreshed in RefreshPropertyPanel).
+        if (_labels.TryGetValue("NoSelection", out var ns)) NoSelectionText.Text = ns;
+        if (_labels.TryGetValue("Properties", out var props)) PanelTitleText.Text = props;
+
+        // Selected-shape labels.
+        if (_labels.TryGetValue("Outline", out var sOutl)) SelOutlineLabel.Text = sOutl;
+        if (_labels.TryGetValue("Fill", out var sFl)) SelFillLabel.Text = sFl;
+        if (_labels.TryGetValue("Stroke", out var sStrk)) SelStrokeLabel.Text = sStrk;
+        if (_labels.TryGetValue("Rotation", out var rot)) SelRotationLabel.Text = rot;
+        if (_labels.TryGetValue("TextColor", out var tc)) SelTextColorLabel.Text = tc;
+        if (_labels.TryGetValue("TextOutlineColor", out var toc)) SelTextOutlineColorLabel.Text = toc;
+        if (_labels.TryGetValue("TextOutlineWidth", out var tow)) SelTextOutlineWidthLabel.Text = tow;
+        if (_labels.TryGetValue("Font", out var fnt))
+        {
+            SelFontLabel.Text = fnt;
+            SelStepFontLabel.Text = fnt;
+        }
+        if (_labels.TryGetValue("Size", out var sz)) SelSizeLabel.Text = sz;
+        if (_labels.TryGetValue("Alignment", out var al)) SelAlignmentLabel.Text = al;
+        if (_labels.TryGetValue("Bold", out var bold))
+        {
+            SelBoldCheck.Content = bold;
+            SelStepBoldCheck.Content = bold;
+        }
+        if (_labels.TryGetValue("Italic", out var ital))
+        {
+            SelItalicCheck.Content = ital;
+            SelStepItalicCheck.Content = ital;
+        }
+        if (_labels.TryGetValue("SmoothStroke", out var ss)) SelFreehandSmoothCheck.Content = ss;
+        if (_labels.TryGetValue("StartCap", out var sc))
+        {
+            SelFreehandStartCapCheck.Content = sc;
+            SelLineStartCapCheck.Content = sc;
+        }
+        if (_labels.TryGetValue("EndCap", out var ec))
+        {
+            SelFreehandEndCapCheck.Content = ec;
+            SelLineEndCapCheck.Content = ec;
+        }
+        if (_labels.TryGetValue("TipStyle", out var ts))
+        {
+            SelFreehandTipStyleLabel.Text = ts;
+            SelLineTipStyleLabel.Text = ts;
+        }
+        if (_labels.TryGetValue("TooltipSmoothStroke", out var tSs)) SelFreehandSmoothCheck.ToolTip = tSs;
+        if (_labels.TryGetValue("TooltipStartCap", out var tSc))
+        {
+            SelFreehandStartCapCheck.ToolTip = tSc;
+            SelLineStartCapCheck.ToolTip = tSc;
+        }
+        if (_labels.TryGetValue("TooltipEndCap", out var tEc))
+        {
+            SelFreehandEndCapCheck.ToolTip = tEc;
+            SelLineEndCapCheck.ToolTip = tEc;
+        }
+        if (_labels.TryGetValue("TooltipTipStyle", out var tTs))
+        {
+            SelFreehandTipStyleCombo.ToolTip = tTs;
+            SelLineTipStyleCombo.ToolTip = tTs;
+        }
+        // Refresh combo item labels after the localization dictionary is populated.
+        PopulateTipStyleCombo(SelFreehandTipStyleCombo);
+        PopulateTipStyleCombo(SelLineTipStyleCombo);
+
+        // Footer.
+        if (_labels.TryGetValue("TooltipUndo", out var tUndo)) UndoButton.ToolTip = tUndo;
+        if (_labels.TryGetValue("TooltipRedo", out var tRedo)) RedoButton.ToolTip = tRedo;
+        if (_labels.TryGetValue("TooltipZoomOut", out var tZoomOut)) ZoomOutButton.ToolTip = tZoomOut;
+        if (_labels.TryGetValue("TooltipZoomIn", out var tZoomIn)) ZoomInButton.ToolTip = tZoomIn;
+        if (_labels.TryGetValue("TooltipZoomReset", out var tZoomReset)) ZoomResetButton.ToolTip = tZoomReset;
+        if (_labels.TryGetValue("TooltipZoomFit", out var tZoomFit)) ZoomFitButton.ToolTip = tZoomFit;
+        if (_labels.TryGetValue("ZoomFit", out var zoomFit)) ZoomFitButton.Content = zoomFit;
+        if (_labels.TryGetValue("TooltipZoomLevel", out var tZoomLevel)) ZoomLabelBox.ToolTip = tZoomLevel;
+
+        // Re-run RefreshPropertyPanel so dynamic strings (panel title, effect labels) pick up
+        // the new dictionary on the next paint — the populate path reads through Loc() now.
+        RefreshPropertyPanel();
+    }
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // Cleanup that runs whichever path closes the window.
+        CommitInlineTextEdit();
+        CommitPendingLiveEdit();
+
+        // Skip the prompt when the user explicitly clicked Save (Saved=true) or when nothing was
+        // changed. Cancel button + the X button + Alt+F4 all land here with Saved=false; if there
+        // are unsaved changes we ask for confirmation. Yes saves and closes, No discards and
+        // closes, Cancel keeps the editor open.
+        if (!Saved && _vm.HasUnsavedChanges)
+        {
+            var result = System.Windows.MessageBox.Show(
+                "The image has unsaved changes. Save before closing?",
+                "AresToys editor",
+                System.Windows.MessageBoxButton.YesNoCancel,
+                System.Windows.MessageBoxImage.Warning,
+                System.Windows.MessageBoxResult.Yes);
+            if (result == System.Windows.MessageBoxResult.Cancel)
+            {
+                e.Cancel = true;
+                return;
+            }
+            if (result == System.Windows.MessageBoxResult.Yes)
+            {
+                // The canvas is still attached while Closing runs, so the export is real (without it the host
+                // finds no bytes and treats the Yes as a cancel).
+                byte[]? exported = null;
+                try { exported = ExportCanvasPng(); }
+                catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or System.Runtime.InteropServices.COMException) { exported = null; }
+                if (SaveGuard is not null && !SaveGuard(exported))
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                Saved = true;
+                SavedPng = exported;
+                _vm.MarkSaved();
+            }
+            // No → fall through and close without saving.
+        }
+
+        ColorSwatchButton.EyedropperHandler = null;
+        CancelEyedropper();
+    }
+
+    private void LoadSourceImage()
+    {
+        if (_vm.SourcePngBytes.Length == 0) return;
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.StreamSource = new MemoryStream(_vm.SourcePngBytes);
+        bmp.EndInit();
+        bmp.Freeze();
+        SourceImage.Source = bmp;
+        DrawingCanvas.Width = bmp.PixelWidth;
+        DrawingCanvas.Height = bmp.PixelHeight;
+        SourceImage.Width = bmp.PixelWidth;
+        SourceImage.Height = bmp.PixelHeight;
+    }
+
+    private void OnSelectToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Select;
+    private void OnRectangleToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Rectangle;
+    private void OnArrowToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Arrow;
+    private void OnLineToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Line;
+    private void OnEllipseToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Ellipse;
+    private void OnFreehandToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Freehand;
+    private void OnTextToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Text;
+    private void OnStepToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.StepCounter;
+    private void OnBlurToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Blur;
+    private void OnPixelateToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Pixelate;
+    private void OnSpotlightToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Spotlight;
+    private void OnCropToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.Crop;
+
+    private void OnApplyCropsClicked(object sender, RoutedEventArgs e) => _vm.ConfirmAllPendingCrops();
+
+    /// <summary>Show / hide the Crop properties section based on whether there are pending
+    /// crops. The label updates to "1 region" or "N regions" so the user has a quick visual
+    /// confirm of what Apply All would commit. Called whenever PendingCrops or
+    /// CurrentTool changes — both can affect visibility.</summary>
+    private void RefreshCropPropertiesSection()
+    {
+        if (CropPropertiesSection is null) return; // before InitializeComponent
+        var visible = _vm.HasPendingCrops;
+        CropPropertiesSection.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (visible)
+        {
+            var count = _vm.PendingCrops.Count;
+            CropCountLabel.Text = count == 1 ? "1 region pending" : $"{count} regions pending";
+        }
+    }
+    private void OnSmartEraserToolClicked(object sender, RoutedEventArgs e) => _vm.CurrentTool = EditorTool.SmartEraser;
+    private void OnResizeClicked(object sender, RoutedEventArgs e) => OpenResizeDialog();
+    private void OnImageClicked(object sender, RoutedEventArgs e) => InsertImageFromFile();
+
+    private void RefreshToolButtonHighlight()
+    {
+        var buttons = new[]
+        {
+            (Btn: SelectToolBtn, Tool: EditorTool.Select),
+            (Btn: RectangleToolBtn, Tool: EditorTool.Rectangle),
+            (Btn: ArrowToolBtn, Tool: EditorTool.Arrow),
+            (Btn: LineToolBtn, Tool: EditorTool.Line),
+            (Btn: EllipseToolBtn, Tool: EditorTool.Ellipse),
+            (Btn: FreehandToolBtn, Tool: EditorTool.Freehand),
+            (Btn: TextToolBtn, Tool: EditorTool.Text),
+            (Btn: StepToolBtn, Tool: EditorTool.StepCounter),
+            (Btn: BlurToolBtn, Tool: EditorTool.Blur),
+            (Btn: PixelateToolBtn, Tool: EditorTool.Pixelate),
+            (Btn: SpotlightToolBtn, Tool: EditorTool.Spotlight),
+            (Btn: CropToolBtn, Tool: EditorTool.Crop),
+            (Btn: SmartEraserToolBtn, Tool: EditorTool.SmartEraser)
+        };
+        foreach (var (btn, tool) in buttons)
+        {
+            btn.Appearance = tool == _vm.CurrentTool
+                ? Wpf.Ui.Controls.ControlAppearance.Primary
+                : Wpf.Ui.Controls.ControlAppearance.Secondary;
+        }
+    }
+    private void OnUndoClicked(object sender, RoutedEventArgs e) => _vm.UndoCommand.Execute(null);
+    private void OnRedoClicked(object sender, RoutedEventArgs e) => _vm.RedoCommand.Execute(null);
+    private void InsertImageFromFile()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Insert image",
+            Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files (*.*)|*.*",
+            CheckFileExists = true
+        };
+        if (dlg.ShowDialog(this) != true) return;
+
+        BitmapSource bs;
+        try
+        {
+            var bmp = new System.Windows.Media.Imaging.BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bmp.UriSource = new Uri(dlg.FileName);
+            bmp.EndInit();
+            bmp.Freeze();
+            bs = bmp;
+        }
+        catch (Exception) { return; }
+
+        InsertImageShape(bs);
+    }
+
+    private void PasteImageFromClipboard()
+    {
+        BitmapSource? bs;
+        try
+        {
+            if (!System.Windows.Clipboard.ContainsImage()) return;
+            bs = System.Windows.Clipboard.GetImage();
+        }
+        catch (System.Runtime.InteropServices.COMException) { return; }
+        if (bs is null) return;
+        InsertImageShape(bs);
+    }
+
+    /// <summary>Static cache of the last copy/cut from inside the editor. Holds the actual
+    /// <see cref="Shape"/> records (immutable, so safe to share). Paste consults this whenever
+    /// our clipboard sentinel <see cref="ShapeClipboardFormat"/> is still on the system clipboard
+    /// — that's how we tell "the user is pasting our own copy" apart from "the user grabbed
+    /// something from another app". Survives editor close/reopen (the field is static), but
+    /// gets invalidated the moment any other app pushes data to the clipboard, since the
+    /// sentinel disappears with it.</summary>
+    private static IReadOnlyList<Shape>? _shapeClipboard;
+
+    /// <summary>Custom DataObject format key for the round-trip sentinel — its value is
+    /// irrelevant ("1" works), the presence of the key alone signals "shapes are in our
+    /// in-process cache". Versioned so future schema changes can branch cleanly.</summary>
+    private const string ShapeClipboardFormat = "AresToys.Editor.Shapes.v1";
+
+    /// <summary>Pixel offset applied to every pasted shape so the new copy lands beside (not on
+    /// top of) the original. Standard convention in vector editors (Figma, Illustrator, etc.).</summary>
+    private const double PasteOffset = 12;
+
+    /// <summary>Ctrl+V entry point. Resolution order:
+    /// <list type="number">
+    /// <item><description>Our sentinel on the clipboard + cached shapes → restore them as
+    ///     editable objects (offset by <see cref="PasteOffset"/> so they don't overlap).</description></item>
+    /// <item><description>Image on the clipboard → insert as <see cref="ImageShape"/>.</description></item>
+    /// <item><description>Text on the clipboard → insert as <see cref="TextShape"/> at the canvas centre.</description></item>
+    /// </list>
+    /// Mixed HTML+text+image clipboards (e.g. browser drag) hit the image branch — that's usually
+    /// what the user wants. Sentinel always wins, so an in-editor copy round-trips losslessly.</summary>
+    private void PasteFromClipboard()
+    {
+        try
+        {
+            if (System.Windows.Clipboard.ContainsData(ShapeClipboardFormat) && _shapeClipboard is { Count: > 0 } cached)
+            {
+                var pasted = cached.Select(s => TranslateShape(s, PasteOffset, PasteOffset)).ToList();
+                foreach (var s in pasted) _vm.AddShape(s);
+                // AddShape selects each individually; final state ends with the last one focused
+                // — match the user's expectation that "paste" leaves the freshly-pasted shapes
+                // selected so they can immediately drag/edit them.
+                _vm.SelectedShapes.Clear();
+                foreach (var s in pasted) _vm.SelectedShapes.Add(s);
+                return;
+            }
+            if (System.Windows.Clipboard.ContainsImage())
+            {
+                PasteImageFromClipboard();
+                return;
+            }
+            if (System.Windows.Clipboard.ContainsText())
+            {
+                var text = System.Windows.Clipboard.GetText();
+                if (!string.IsNullOrEmpty(text)) InsertTextShape(text);
+            }
+        }
+        catch (System.Runtime.InteropServices.COMException) { /* clipboard contention — drop the request */ }
+    }
+
+    /// <summary>Add a <see cref="TextShape"/> at the canvas centre using the current style,
+    /// pre-populated with <paramref name="text"/>. Skipped when text is empty (matches the
+    /// in-place text tool which also rejects empty submissions).</summary>
+    private void InsertTextShape(string text)
+    {
+        var canvasW = DrawingCanvas.Width  > 0 ? DrawingCanvas.Width  : 800;
+        var canvasH = DrawingCanvas.Height > 0 ? DrawingCanvas.Height : 600;
+        var x = canvasW * 0.1;
+        var y = canvasH * 0.1;
+        var fontSize = _vm.CurrentTextStyle.FontSize;
+        _vm.AddTextShape(new TextShape(x, y,
+            TextShape.DefaultWidthFor(fontSize), TextShape.DefaultHeightFor(fontSize),
+            text, _vm.CurrentTextStyle, _vm.TextOutlineColor, ShapeColor.Transparent, _vm.TextOutlineWidth));
+    }
+
+    /// <summary>Ctrl+C / Ctrl+X — export the current selection. Two channels are populated in
+    /// parallel on a single <see cref="DataObject"/>:
+    /// <list type="bullet">
+    /// <item><description>Our private <see cref="ShapeClipboardFormat"/> sentinel — paired with
+    ///     a static cache of the actual shape records, so an in-editor round-trip preserves
+    ///     them as editable objects (arrows stay arrows, not flattened images).</description></item>
+    /// <item><description>A native fallback for other apps: text for a single <see cref="TextShape"/>,
+    ///     image for a single <see cref="ImageShape"/>, otherwise a rasterised PNG of the
+    ///     selection's bounding rect.</description></item>
+    /// </list>
+    /// When <paramref name="cut"/> is true, the selection is also removed via the existing
+    /// remove-shapes path so undo/redo continue to work.</summary>
+    private void CopySelectionToClipboard(bool cut)
+    {
+        var sels = _vm.SelectedShapes.ToList();
+        if (sels.Count == 0) return;
+        CommitPendingLiveEdit();
+
+        // Cache the immutable shape records first — even if SetDataObject throws below, the
+        // in-process clipboard still has them. Records are immutable so sharing references is
+        // safe; paste applies TranslateShape which produces a fresh `with`-cloned instance.
+        _shapeClipboard = sels;
+
+        var data = new DataObject();
+        data.SetData(ShapeClipboardFormat, "1"); // sentinel — value irrelevant, presence drives paste
+
+        // Native fallback so external apps still see something useful. Single-shape branches
+        // map to lossless formats; the catch-all rasterises onto a transparent bitmap.
+        try
+        {
+            switch (sels.Count == 1 ? sels[0] : null)
+            {
+                case TextShape t when !string.IsNullOrEmpty(t.Text):
+                    data.SetText(t.Text);
+                    break;
+                case ImageShape img when img.PngBytes is { Length: > 0 }:
+                    // Publish PNG format too (preserves alpha for Telegram / Discord / browsers
+                    // / any modern paste target). SetImage alone publishes only CF_BITMAP and
+                    // strips alpha — semi-transparent shadows pasted as opaque neon blobs.
+                    AddPngWithAlpha(data, img.PngBytes);
+                    break;
+                default:
+                    if (RasterizeSelection(sels) is { } bs)
+                    {
+                        // Encode the rasterised selection as PNG so we can also publish the
+                        // alpha-preserving format alongside the legacy CF_BITMAP. Without this,
+                        // copying a shape with semi-transparent fill loses the transparency on
+                        // paste into modern apps.
+                        using var ms = new System.IO.MemoryStream();
+                        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bs));
+                        enc.Save(ms);
+                        AddPngWithAlpha(data, ms.ToArray());
+                    }
+                    break;
+            }
+            // copy: true → clipboard survives this process exiting; required so the user can
+            // paste in another app after closing the editor.
+            System.Windows.Clipboard.SetDataObject(data, copy: true);
+        }
+        catch (System.Runtime.InteropServices.COMException) { /* clipboard contention — drop */ }
+
+        if (cut) _vm.RemoveShapes(sels);
+    }
+
+    /// <summary>Attach <paramref name="pngBytes"/> to <paramref name="data"/> in the
+    /// alpha-preserving "PNG" registered clipboard format (preferred by Telegram / Discord /
+    /// browsers / modern Office). The legacy CF_BITMAP fallback is added <em>only</em> when
+    /// the PNG is opaque — otherwise some apps (Telegram in particular) prefer CF_BITMAP and
+    /// paste the cut-out with a flat white background instead of the transparent PNG.</summary>
+    private static void AddPngWithAlpha(DataObject data, byte[] pngBytes)
+    {
+        if (pngBytes.Length == 0) return;
+        // PNG-format payload (alpha preserved). MemoryStream is safe to leave alive — clipboard
+        // SetDataObject(copy:true) downstream serialises the data so the stream can be GC'd.
+        data.SetData("PNG", new System.IO.MemoryStream(pngBytes));
+        // PNG IHDR colour type sits at byte 25; types 3/4/6 carry alpha. Skip the CF_BITMAP
+        // fallback for those since modern consumers preferring it would render alpha=0 pixels
+        // as white — defeating the point of the cut-out / shadow. Fully-opaque PNGs (types 0/2)
+        // still emit CF_BITMAP for Paint / older Word.
+        if (pngBytes.Length >= 26)
+        {
+            var colorType = pngBytes[25];
+            if (colorType == 3 || colorType == 4 || colorType == 6) return;
+        }
+        try
+        {
+            using var ms = new System.IO.MemoryStream(pngBytes);
+            var decoder = System.Windows.Media.Imaging.BitmapFrame.Create(
+                ms,
+                System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            data.SetImage(decoder);
+        }
+        catch
+        {
+            // If the bitmap fallback fails (decoder couldn't read the PNG for whatever reason)
+            // the PNG payload is still on the data object — modern apps paste correctly.
+        }
+    }
+
+    /// <summary>Render the bounding rect of <paramref name="shapes"/> to a transparent
+    /// <see cref="BitmapSource"/>. Each shape is materialised through the same factory the
+    /// canvas uses (<see cref="MakeUiElement"/>), translated so the bbox top-left lands at
+    /// (0, 0), and packed into a throwaway Canvas. RenderTargetBitmap captures the result at
+    /// device DPI. Returns null when the selection has zero area (collapsed shapes).</summary>
+    private BitmapSource? RasterizeSelection(IReadOnlyList<Shape> shapes)
+    {
+        var bounds = shapes
+            .Select(ComputeBounds)
+            .Where(b => b.Width > 0 && b.Height > 0)
+            .ToList();
+        if (bounds.Count == 0) return null;
+        var minX = bounds.Min(b => b.X);
+        var minY = bounds.Min(b => b.Y);
+        var maxX = bounds.Max(b => b.X + b.Width);
+        var maxY = bounds.Max(b => b.Y + b.Height);
+        // Pad by stroke width so anti-aliased edges aren't clipped at the bbox border.
+        const double pad = 4;
+        var w = (int)Math.Ceiling(maxX - minX + pad * 2);
+        var h = (int)Math.Ceiling(maxY - minY + pad * 2);
+        if (w <= 0 || h <= 0) return null;
+
+        var host = new Canvas { Width = w, Height = h, Background = System.Windows.Media.Brushes.Transparent };
+        foreach (var s in shapes)
+        {
+            var ui = MakeUiElement(s);
+            if (ui is FrameworkElement fe)
+            {
+                // Compose a translation so the selection bbox top-left lands inside the
+                // throwaway host. Existing per-shape RenderTransform (rotation) is preserved
+                // by stacking via TransformGroup.
+                var tg = new TransformGroup();
+                if (fe.RenderTransform is { } existing && existing != Transform.Identity)
+                    tg.Children.Add(existing);
+                tg.Children.Add(new TranslateTransform(-minX + pad, -minY + pad));
+                fe.RenderTransform = tg;
+            }
+            host.Children.Add(ui);
+        }
+        host.Measure(new Size(w, h));
+        host.Arrange(new Rect(0, 0, w, h));
+
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(host);
+        rtb.Freeze();
+        return rtb;
+    }
+
+    /// <summary>Encode <paramref name="bs"/> as PNG, fit to ~50% of the canvas, center, add as ImageShape.</summary>
+    private void InsertImageShape(BitmapSource bs)
+    {
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bs));
+        using var ms = new System.IO.MemoryStream();
+        encoder.Save(ms);
+        var bytes = ms.ToArray();
+
+        var canvasW = DrawingCanvas.Width > 0 ? DrawingCanvas.Width : bs.PixelWidth;
+        var canvasH = DrawingCanvas.Height > 0 ? DrawingCanvas.Height : bs.PixelHeight;
+        var maxW = canvasW * 0.5;
+        var maxH = canvasH * 0.5;
+        var scale = Math.Min(1.0, Math.Min(maxW / bs.PixelWidth, maxH / bs.PixelHeight));
+        var w = bs.PixelWidth * scale;
+        var h = bs.PixelHeight * scale;
+        var x = (canvasW - w) / 2;
+        var y = (canvasH - h) / 2;
+
+        _vm.AddImageShape(new ImageShape(x, y, w, h, bytes));
+    }
+
+    private void OpenResizeDialog()
+    {
+        if (SourceImage.Source is not BitmapSource src) return;
+        var dlg = new ResizeDialog(src.PixelWidth, src.PixelHeight) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            _vm.ApplyResize(dlg.NewWidth, dlg.NewHeight);
+        }
+    }
+
+    private void OnSaveClicked(object sender, RoutedEventArgs e)
+    {
+        // Export first (before Close, see below) so the host can write the file from the guard while the editor is open.
+        byte[]? exported = null;
+        try { exported = ExportCanvasPng(); }
+        catch { /* defensive: degraded path = no bytes, caller treats as cancel */ }
+        if (SaveGuard is not null && !SaveGuard(exported)) return;
+        Saved = true;
+        // Capture the canvas BEFORE Close — RenderTargetBitmap on a closed window's visual tree
+        // produces a blank bitmap (window detached from its PresentationSource), which surfaced
+        // as "Region capture → editor save → empty image on clipboard". With the bytes cached
+        // here, the EditorLauncher's Closed handler just reads SavedPng off the window.
+        SavedPng = exported;
+        _vm.MarkSaved(); // belt-and-braces: the Closing handler also bypasses the prompt when Saved=true
+        Close();
+    }
+
+    /// <summary>"Save as…" — explicit user export. The user picks both the path and the format
+    /// (via the SaveFileDialog filter); we render the canvas to PNG, encode into the chosen
+    /// format, write to disk. Bypasses history entirely — Save-as is a one-shot export of
+    /// the current edits, not a state mutation. The editor stays open so the user can keep
+    /// editing or hit "Save" afterwards to also commit the result to the history item.</summary>
+    private void OnSaveAsClicked(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save image as",
+            Filter = "PNG (*.png)|*.png|JPEG (*.jpg;*.jpeg)|*.jpg;*.jpeg|BMP (*.bmp)|*.bmp|GIF (*.gif)|*.gif",
+            FilterIndex = 1,
+            FileName = $"arestoys-{DateTime.Now:yyyyMMdd-HHmmss}.png",
+            AddExtension = true,
+        };
+        if (!string.IsNullOrEmpty(SourcePath))
+        {
+            dialog.InitialDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(SourcePath));
+            dialog.FileName = System.IO.Path.GetFileName(SourcePath);
+            dialog.FilterIndex = System.IO.Path.GetExtension(SourcePath).ToUpperInvariant() switch
+            {
+                ".JPG" or ".JPEG" => 2,
+                ".BMP" => 3,
+                ".GIF" => 4,
+                _ => 1,
+            };
+        }
+        if (dialog.ShowDialog(this) != true) return;
+
+        // FilterIndex is 1-based, mirrors the Filter ordering above.
+        var target = dialog.FilterIndex switch
+        {
+            2 => AresToys.Core.Imaging.ImageFormat.Jpeg,
+            3 => AresToys.Core.Imaging.ImageFormat.Bmp,
+            4 => AresToys.Core.Imaging.ImageFormat.Gif,
+            _ => AresToys.Core.Imaging.ImageFormat.Png,
+        };
+
+        try
+        {
+            // ExportCanvasPng hides the selection adorners during render so the saved file
+            // captures only the user-drawn artwork — no dashed selection rect baked in.
+            var pngBytes = ExportCanvasPng();
+
+            byte[] outputBytes;
+            if (target == AresToys.Core.Imaging.ImageFormat.Png || _encoder is null)
+                outputBytes = pngBytes;
+            else
+                outputBytes = _encoder.Encode(pngBytes, target, jpegQuality: 90);
+
+            System.IO.File.WriteAllBytes(dialog.FileName, outputBytes);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(this,
+                $"Could not save the image:\n\n{ex.Message}",
+                "Save as failed",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Same logic <see cref="AresToys.App.Services.EditorLauncher"/> uses to size the
+    /// export — find the source <c>BitmapSource</c> inside CanvasHost and use its native
+    /// pixel dimensions, falling back to the host's ActualWidth/Height if the lookup fails.</summary>
+    private static (int W, int H, double DpiX, double DpiY) ResolveExportPixels(System.Windows.Controls.Grid canvasHost)
+    {
+        foreach (var child in canvasHost.Children)
+        {
+            if (child is System.Windows.Controls.Image img &&
+                img.Source is System.Windows.Media.Imaging.BitmapSource src)
+            {
+                // Honour the source's embedded DPI metadata. GDI+ (BitBltCaptureSource) writes
+                // the system DPI into the PNG, so on a 150% display DpiX is 144 and the
+                // exporter MUST use that for the RTB or the visual tree paints at half-width.
+                return (src.PixelWidth, src.PixelHeight, src.DpiX, src.DpiY);
+            }
+        }
+        return ((int)Math.Round(canvasHost.ActualWidth), (int)Math.Round(canvasHost.ActualHeight), 96, 96);
+    }
+
+    private void OnCancelClicked(object sender, RoutedEventArgs e) { Saved = false; Close(); }
+
+    private void OnZoomInClicked(object sender, RoutedEventArgs e) => SetZoom(_zoom * 1.25);
+    private void OnZoomOutClicked(object sender, RoutedEventArgs e) => SetZoom(_zoom / 1.25);
+    private void OnZoomResetClicked(object sender, RoutedEventArgs e) => SetZoom(ActualSizeZoom());
+    private void OnZoomFitClicked(object sender, RoutedEventArgs e) => SetZoom(FitZoom());
+
+    /// <summary>The zoom at which one image pixel covers one device pixel: 1 / the window's DPI scale (zoom is in DIPs).</summary>
+    private double ActualSizeZoom()
+    {
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        return dpi.DpiScaleX > 0 ? 1.0 / dpi.DpiScaleX : 1.0;
+    }
+
+    /// <summary>The zoom at which the whole image sits inside the canvas viewport (never above actual size, so a small image
+    /// is not blown up). Lowers the minimum zoom when the image is so large that 0.1 would not be enough.</summary>
+    private double FitZoom()
+    {
+        var actual = ActualSizeZoom();
+        var imageW = CanvasHost.ActualWidth;
+        var imageH = CanvasHost.ActualHeight;
+        var viewW = CanvasScrollViewer.ViewportWidth;
+        var viewH = CanvasScrollViewer.ViewportHeight;
+        if (imageW <= 0 || imageH <= 0 || viewW <= 0 || viewH <= 0) return actual;
+        var fit = Math.Min(Math.Min(viewW / imageW, viewH / imageH), actual);
+        if (fit < _minZoom) _minZoom = fit;
+        return fit;
+    }
+
+    /// <summary>Bring the just-selected tool into view inside the toolbar ScrollViewer. Called
+    /// after every tool switch (mouse click OR keyboard shortcut like R / A / T / …) so the
+    /// active tool can never sit behind the scrollbar when the toolbar is overflowing. Uses
+    /// the WPF FrameworkElement.BringIntoView() which the parent ScrollViewer hooks to scroll
+    /// horizontally just enough to make the element visible — same gesture Explorer / Visual
+    /// Studio use when you Tab through controls in a wide form.</summary>
+    /// <summary>Map an EditorTool enum to the corresponding toolbar button. Used by the
+    /// auto-scroll-into-view path so a tool change (whether via keyboard shortcut, sidebar
+    /// click, or programmatic switch) can tell the ScrollViewer which button to surface.
+    /// Returns null for tools that don't have a dedicated toolbar entry (currently none —
+    /// every drawing tool has its own button — but the null fallback keeps the caller honest
+    /// if a future tool ships without one).</summary>
+    private FrameworkElement? GetToolButton(EditorTool tool) => tool switch
+    {
+        EditorTool.Select       => SelectToolBtn,
+        EditorTool.Rectangle    => RectangleToolBtn,
+        EditorTool.Ellipse      => EllipseToolBtn,
+        EditorTool.Line         => LineToolBtn,
+        EditorTool.Arrow        => ArrowToolBtn,
+        EditorTool.Freehand     => FreehandToolBtn,
+        EditorTool.Text         => TextToolBtn,
+        EditorTool.StepCounter  => StepToolBtn,
+        EditorTool.Blur         => BlurToolBtn,
+        EditorTool.Pixelate     => PixelateToolBtn,
+        EditorTool.Spotlight    => SpotlightToolBtn,
+        EditorTool.SmartEraser  => SmartEraserToolBtn,
+        EditorTool.Crop         => CropToolBtn,
+        _ => null,
+    };
+
+    private void ScrollToolIntoView(FrameworkElement? toolButton)
+    {
+        if (toolButton is null) return;
+        // Defer to next layout pass: when ScrollToolIntoView fires from a KeyDown handler the
+        // ScrollViewer hasn't yet realised the recent layout if a tool just changed visibility.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+        {
+            try { toolButton.BringIntoView(); } catch { /* stale element during teardown */ }
+        }));
+    }
+
+    private void OnCanvasMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        var alt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+
+        if (ctrl)
+        {
+            // Zoom anchored at the cursor: capture the canvas-space point under the mouse, then
+            // after the LayoutTransform resize, scroll so that point sits where the cursor is.
+            // ScaleTransform alone scales from the canvas origin — without the post-scroll the
+            // user would see content shift away from their cursor.
+            var factor = e.Delta > 0 ? 1.15 : (1.0 / 1.15);
+            ZoomAt(_zoom * factor, e.GetPosition(CanvasHost));
+            e.Handled = true;
+            return;
+        }
+
+        if (shift && SelectionHasSpotlight())
+        {
+            // Shift+wheel over a spotlight adjusts how dark its surroundings are. Takes priority
+            // over horizontal scroll, which is the generic fallback right below — with a
+            // spotlight selected the user is tuning the effect, not panning the canvas.
+            ApplySpotlightDimDelta(e.Delta > 0 ? 0.05 : -0.05);
+            e.Handled = true;
+            return;
+        }
+
+        if (shift)
+        {
+            // Shift+wheel = horizontal scroll. Standard Windows convention (Edge/Chrome/VS).
+            // We intercept here because WPF's ScrollViewer doesn't translate the modifier
+            // automatically. Match the per-notch step the SystemParameters expose so the
+            // pacing feels native; SystemParameters.WheelScrollLines is the user's "lines per
+            // notch" preference (default 3).
+            var step = SystemParameters.WheelScrollLines * 16; // ~16px per logical line
+            var hScrollSign = e.Delta > 0 ? -1 : 1;
+            CanvasScrollViewer.ScrollToHorizontalOffset(CanvasScrollViewer.HorizontalOffset + hScrollSign * step);
+            e.Handled = true;
+            return;
+        }
+
+        // Wheel (no modifier) over a selection adjusts stroke width on each selected shape;
+        // Alt+wheel rotates them. Falls through to scrollviewer scroll when nothing is selected.
+        // Live-edit pattern: each notch live-replaces the shape; the existing
+        // CommitPendingLiveEdit machinery wraps the whole gesture into one undo step when the
+        // selection changes / window closes / Esc is pressed.
+        if (_vm.SelectedShapes.Count == 0) return;
+        var direction = e.Delta > 0 ? 1 : -1;
+
+        if (alt)
+        {
+            // 5° per notch — Shift could later quantize to 1° / 15° etc.
+            ApplyRotationDelta(direction * 5.0);
+            e.Handled = true;
+        }
+        else
+        {
+            ApplyStrokeDelta(direction); // ±1 px per notch
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>True when the selection contains at least one spotlight, which is what makes
+    /// Shift+wheel mean "dim" instead of "scroll sideways".</summary>
+    private bool SelectionHasSpotlight()
+        => _vm.SelectedShapes.Any(s => s is AresToys.Editor.Model.SpotlightShape);
+
+    /// <summary>Shift+wheel on a spotlight: how dark everything outside it gets, 0..1.</summary>
+    private void ApplySpotlightDimDelta(double delta)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is not AresToys.Editor.Model.SpotlightShape sp) continue;
+            var next = Math.Clamp(sp.DimAmount + delta, 0.0, 1.0);
+            if (Math.Abs(next - sp.DimAmount) < 0.001) continue;
+            _vm.LiveReplaceShape(s, sp with { DimAmount = next });
+            WriteStyle([EditorTool.Spotlight], style => style with { EffectAmount = next });
+        }
+        RefreshPropertyPanel();
+    }
+
+    private void ApplyStrokeDelta(int delta)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            // Effect regions have no stroke to speak of (they're drawn as filters, and their
+            // Outline/Fill are Transparent by construction). The wheel controls the knob that
+            // actually matters for each: blur radius, mosaic cell size, and a spotlight's blur —
+            // its dim lives on Shift+wheel.
+            switch (s)
+            {
+                case AresToys.Editor.Model.BlurShape blur:
+                {
+                    var next = Math.Clamp(blur.Radius + delta, 0.0, 60.0);
+                    if (Math.Abs(next - blur.Radius) > 0.001)
+                    {
+                        _vm.LiveReplaceShape(s, blur with { Radius = next });
+                        WriteStyle([EditorTool.Blur], style => style with { EffectAmount = next });
+                    }
+                    continue;
+                }
+                case AresToys.Editor.Model.PixelateShape pix:
+                {
+                    var next = Math.Clamp(pix.BlockSize + delta, 2, 60);
+                    if (next != pix.BlockSize)
+                    {
+                        _vm.LiveReplaceShape(s, pix with { BlockSize = next });
+                        WriteStyle([EditorTool.Pixelate], style => style with { EffectAmount = next });
+                    }
+                    continue;
+                }
+                case AresToys.Editor.Model.SpotlightShape spot:
+                {
+                    var next = Math.Clamp(spot.BlurRadius + delta, 0.0, 60.0);
+                    if (Math.Abs(next - spot.BlurRadius) > 0.001)
+                    {
+                        _vm.LiveReplaceShape(s, spot with { BlurRadius = next });
+                        WriteStyle([EditorTool.Spotlight], style => style with { EffectAmount2 = next });
+                    }
+                    continue;
+                }
+            }
+
+            // Text shapes have no meaningful stroke; the analogous "thickness" knob is the font
+            // size. We adjust by 2pt per notch so each scroll feels tactile, clamped 6..200pt.
+            if (s is AresToys.Editor.Model.TextShape t)
+            {
+                var nextSize = Math.Clamp(t.Style.FontSize + delta * 2.0, 6.0, 200.0);
+                if (Math.Abs(nextSize - t.Style.FontSize) < 0.001) continue;
+                var replacedText = t with { Style = t.Style with { FontSize = nextSize } };
+                _vm.LiveReplaceShape(s, replacedText);
+                WriteStyle([EditorTool.Text], style => style with { Text = style.Text with { FontSize = nextSize } });
+                continue;
+            }
+            var newStroke = Math.Clamp(s.StrokeWidth + delta, 1.0, 32.0);
+            if (Math.Abs(newStroke - s.StrokeWidth) < 0.001) continue;
+            var replaced = WithStrokeWidth(s, newStroke);
+            if (replaced is null) continue;
+            // Resolved from the shape as it was: a line's tool follows its caps, not its width.
+            var strokeTool = ToolFor(s);
+            _vm.LiveReplaceShape(s, replaced);
+            if (strokeTool is { } tool) WriteStyle([tool], style => style with { StrokeWidth = newStroke });
+        }
+        RefreshPropertyPanel();
+    }
+
+    private void ApplyRotationDelta(double degrees)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            var current = GetRotation(s);
+            if (current is null) continue; // shape type doesn't support rotation
+            var next = Normalize360(current.Value + degrees);
+            var replaced = WithRotation(s, next);
+            if (replaced is null) continue;
+            _vm.LiveReplaceShape(s, replaced);
+        }
+        RefreshPropertyPanel();
+    }
+
+    private static double Normalize360(double deg)
+    {
+        var n = deg % 360.0;
+        if (n < 0) n += 360.0;
+        return n;
+    }
+
+    private static Shape? WithStrokeWidth(Shape s, double w) => s switch
+    {
+        AresToys.Editor.Model.RectangleShape r  => r  with { StrokeWidth = w },
+        AresToys.Editor.Model.EllipseShape e    => e  with { StrokeWidth = w },
+        AresToys.Editor.Model.TextShape t       => t  with { StrokeWidth = w },
+        AresToys.Editor.Model.LineShape l       => l  with { StrokeWidth = w },
+        AresToys.Editor.Model.FreehandShape f   => f  with { StrokeWidth = w },
+        AresToys.Editor.Model.StepCounterShape sc => sc with { StrokeWidth = w },
+        // ImageShape / Blur / Pixelate / Spotlight / SmartEraser have no meaningful stroke.
+        _ => null,
+    };
+
+    private static double? GetRotation(Shape s) => s switch
+    {
+        AresToys.Editor.Model.RectangleShape r => r.Rotation,
+        AresToys.Editor.Model.EllipseShape e   => e.Rotation,
+        AresToys.Editor.Model.TextShape t      => t.Rotation,
+        AresToys.Editor.Model.ImageShape img   => img.Rotation,
+        AresToys.Editor.Model.LineShape l      => l.Rotation,
+        AresToys.Editor.Model.FreehandShape f  => f.Rotation,
+        _ => null,
+    };
+
+    private static Shape? WithRotation(Shape s, double r) => s switch
+    {
+        AresToys.Editor.Model.RectangleShape rect => rect with { Rotation = r },
+        AresToys.Editor.Model.EllipseShape e      => e with { Rotation = r },
+        AresToys.Editor.Model.TextShape t         => t with { Rotation = r },
+        AresToys.Editor.Model.ImageShape img      => img with { Rotation = r },
+        AresToys.Editor.Model.LineShape l         => l with { Rotation = r },
+        AresToys.Editor.Model.FreehandShape f     => f with { Rotation = r },
+        _ => null,
+    };
+
+    private void SetZoom(double newZoom)
+    {
+        var clamped = Math.Clamp(newZoom, _minZoom, MaxZoom);
+        if (Math.Abs(clamped - _zoom) < 0.001) return;
+        _zoom = clamped;
+        CanvasHost.LayoutTransform = new ScaleTransform(_zoom, _zoom);
+        ZoomLabel.Text = $"{_zoom * 100:F0}%";
+        // Grips are sized in screen pixels via inverse zoom; refresh so the new factor applies.
+        RefreshSelectionAdorner();
+        // Same trick for the pending-crop overlay grips — without redraw on zoom change they
+        // stay sized to whatever zoom they were rendered at, which means a 14-px grip becomes
+        // 28-px after a 2× zoom-in (and microscopic after zoom-out).
+        RedrawPendingCrop();
+    }
+
+    /// <summary>Zoom anchored at a canvas-space point (typically the mouse cursor). Applies the
+    /// new zoom factor, then scrolls the viewport so the captured point ends up at the same
+    /// screen position. Without this the canvas appears to slide away from the cursor on every
+    /// wheel notch — disorienting on large images.</summary>
+    private void ZoomAt(double newZoom, Point canvasPoint)
+    {
+        var clamped = Math.Clamp(newZoom, _minZoom, MaxZoom);
+        if (Math.Abs(clamped - _zoom) < 0.001) return;
+        // Pixel coords (in the viewport) BEFORE the zoom. Same point's pixel coords AFTER zoom
+        // is canvasPoint * clamped. The difference is what the viewport needs to scroll by to
+        // keep it stationary on screen.
+        var beforeX = canvasPoint.X * _zoom;
+        var beforeY = canvasPoint.Y * _zoom;
+        _zoom = clamped;
+        CanvasHost.LayoutTransform = new ScaleTransform(_zoom, _zoom);
+        ZoomLabel.Text = $"{_zoom * 100:F0}%";
+        // Refresh adorner + pending-crop overlay so their counter-zoom sizing applies.
+        RefreshSelectionAdorner();
+        RedrawPendingCrop();
+        var afterX = canvasPoint.X * _zoom;
+        var afterY = canvasPoint.Y * _zoom;
+        // Defer the scroll adjustment until layout has flushed the new ScaleTransform — without
+        // this the ScrollViewer's extents are still the old size and Scroll calls clamp wrong.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, () =>
+        {
+            CanvasScrollViewer.ScrollToHorizontalOffset(CanvasScrollViewer.HorizontalOffset + (afterX - beforeX));
+            CanvasScrollViewer.ScrollToVerticalOffset(CanvasScrollViewer.VerticalOffset + (afterY - beforeY));
+            RefreshSelectionAdorner();
+        });
+    }
+
+    /// <summary>Initial-zoom pass run once after the first layout. Product decision: "always
+    /// open at 1:1 — one image pixel covers one physical device pixel — regardless of fullscreen
+    /// mode". WPF's coordinate system is in DIPs (device-independent pixels, 1 DIP = 1 px at
+    /// 96 DPI), so on a 125% / 150% display setting <c>_zoom = 1.0</c> would actually upscale
+    /// the image by the DPI factor. We compensate by using <c>1 / dpiScale</c> as the initial
+    /// zoom so the canvas paints at native pixel density.
+    ///
+    /// Bigger-than-viewport images surface the ScrollViewer's bars; smaller images sit centred
+    /// with empty canvas around them. The non-fullscreen path pairs this with
+    /// <see cref="SizeToImage"/> on the launcher side, which pre-sizes the window so common
+    /// screenshots fit without scrolling.</summary>
+    private void FitZoomToViewport()
+    {
+        if (_initialFitDone) return;
+        if (SourceImage.Source is not BitmapSource) return;
+        // VisualTreeHelper.GetDpi works post-Show (HwndSource exists by the time the layout
+        // pass triggers this). DpiScaleX == DpiScaleY in 99% of monitors; we use X as the
+        // canonical scalar — the canvas can't render with anisotropic zoom anyway.
+        // Actual size (one image pixel per device pixel), unless the image is larger than the viewport at that size:
+        // then the whole image shows (the editor may have reopened at a remembered size smaller than the image).
+        SetZoom(FitZoom());
+        _initialFitDone = true;
+    }
+
+    /// <summary>Place the window on the monitor whose bounds are <paramref name="x"/>/<paramref name="y"/>/
+    /// <paramref name="width"/>/<paramref name="height"/> and maximise into it. Also flips the
+    /// initial-zoom pass into "fit-to-screen" mode so the image scales up to fill the viewport
+    /// instead of sitting at native pixel size in a giant maximised window.
+    ///
+    /// Call this BEFORE <c>ShowDialog()</c> — WindowStartupLocation has already been honoured
+    /// after Show, so a late call would maximise on whatever monitor the OS picked first.
+    ///
+    /// Implementation note: a FluentWindow has <c>ExtendsContentIntoTitleBar</c>, so a plain
+    /// <c>WindowState=Maximized</c> ends up oversized — the chrome doesn't honour the monitor's
+    /// work area and the borderless WindowChrome bleeds 7-8 px past every edge. We hook
+    /// WM_GETMINMAXINFO via SourceInitialized and clamp ptMaxPosition / ptMaxSize / ptMaxTrackSize
+    /// to the active monitor's work area. Standard WPF borderless-maximised pattern.</summary>
+    /// <summary>Pre-size the window so the image sits at 1:1 inside the canvas viewport without
+    /// scrolling, when feasible. Pairs with the always-1:1 initial zoom: workflow opens of small
+    /// screenshots end up with a tight window matching the capture, big screenshots get clamped
+    /// to the work area (and the user sees scrollbars). Skipped when the launcher requested
+    /// fullscreen — that path takes precedence and maximises into the active monitor.
+    ///
+    /// DPI handling: image pixels are physical pixels but Width/Height are DIPs. On a 150%
+    /// display, an 1920×1080 capture is only 1280×720 DIPs wide, so we divide by dpiScale before
+    /// adding the chrome overhead. Same conversion that <see cref="FitZoomToViewport"/> applies
+    /// to <c>_zoom</c> — both halves need to agree or the canvas ends up scrolling on a high-DPI
+    /// machine even when we tried to fit it.
+    ///
+    /// The chrome budget below is the static overhead of EditorWindow.xaml: side panel
+    /// (Width=240 + 12 padding both sides + scrollbar gutter) ≈ 280px wide; titlebar +
+    /// toolbar row + a status strip ≈ 110px tall. Approximate values are fine — the goal is
+    /// to fit the canvas reasonably, not pixel-perfect.</summary>
+    public void SizeToImage(int imageWidth, int imageHeight)
+    {
+        if (imageWidth <= 0 || imageHeight <= 0) return;
+
+        const double sideChromeBudget = 360; // property panel + vertical tool strip
+        const double topChromeBudget = 60;   // 32 px title bar only, the tools moved to the left strip
+        // Conservative floor: 800x600 keeps the editor usable on the smallest sensible laptop
+        // resolutions (HD = 1366x768 still has room around a 1280x768 window). The toolbar
+        // scrolls horizontally with the wheel when narrow, so we don't need to enforce a
+        // wider minimum to keep all tools reachable.
+        const double minWindowWidth = 800;
+        const double minWindowHeight = 600;
+
+        // Pre-Show: VisualTreeHelper.GetDpi(this) requires an HwndSource which doesn't exist
+        // yet, so we use the system-wide DPI via Win32 GetDpiForSystem (Win10 1607+, always
+        // present on the supported targets). 96 DPI = 1.0× scaling; anything higher means
+        // image pixels squeeze into fewer DIPs, so divide.
+        var dpiScale = GetDpiForSystem() / 96.0;
+        if (dpiScale <= 0) dpiScale = 1.0;
+        var imgWidthDips = imageWidth / dpiScale;
+        var imgHeightDips = imageHeight / dpiScale;
+
+        SetCenteredSize(Math.Max(imgWidthDips + sideChromeBudget, minWindowWidth),
+                        Math.Max(imgHeightDips + topChromeBudget, minWindowHeight));
+    }
+
+    /// <summary>Open at the size (DIPs) the user last closed the editor at. The launcher reads it
+    /// from settings; it wins over <see cref="SizeToImage"/>, which is only the first-run fallback.</summary>
+    public void ApplySavedSize(double width, double height)
+    {
+        if (width <= 0 || height <= 0) return;
+        SetCenteredSize(width, height);
+    }
+
+    /// <summary>The size to remember at close, in DIPs: the restore size when maximised.</summary>
+    public Size SizeToRemember => WindowState == WindowState.Normal
+        ? new Size(ActualWidth, ActualHeight)
+        : RestoreBounds.Size;
+
+    private void SetCenteredSize(double width, double height)
+    {
+        var work = System.Windows.SystemParameters.WorkArea;
+        var targetW = Math.Min(width, work.Width);
+        var targetH = Math.Min(height, work.Height);
+
+        Width = targetW;
+        Height = targetH;
+        // Re-centre on the work area: the XAML defaults to CenterScreen, but that snapshots the
+        // position at Show-time using the original 1200×820 — a wider/taller window would land
+        // shifted up-left. Recompute now that we know the final size.
+        Left = work.Left + (work.Width - targetW) / 2;
+        Top = work.Top + (work.Height - targetH) / 2;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForSystem();
+
+    public void EnableFullscreen(double x, double y, double width, double height)
+    {
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        // Park inside the target monitor BEFORE the maximise — WPF's Maximized snaps to whatever
+        // monitor the window currently sits on, so the Left/Top hint is what makes it land here
+        // and not on the primary.
+        Left = x;
+        Top = y;
+        Width = Math.Max(640, width / 2);   // fallback restore size when the user un-maximises
+        Height = Math.Max(480, height / 2);
+
+        SourceInitialized += (_, _) =>
+        {
+            var helper = new System.Windows.Interop.WindowInteropHelper(this);
+            var src = System.Windows.Interop.HwndSource.FromHwnd(helper.Handle);
+            src?.AddHook(MinMaxInfoHook);
+            // Maximize NOW, after the hook is in place — the WM_GETMINMAXINFO that fires from
+            // this state change will be intercepted and clamped to the monitor work area.
+            WindowState = WindowState.Maximized;
+        };
+    }
+
+    private const int WM_GETMINMAXINFO = 0x0024;
+    private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public POINT ptReserved;
+        public POINT ptMaxSize;
+        public POINT ptMaxPosition;
+        public POINT ptMinTrackSize;
+        public POINT ptMaxTrackSize;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    /// <summary>Clamp the maximised size to the monitor's WORK AREA (not full screen — leaves
+    /// the taskbar visible) and align ptMaxPosition to the monitor origin so a maximize on a
+    /// non-primary screen doesn't drag the window back onto the primary.</summary>
+    private static IntPtr MinMaxInfoHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_GETMINMAXINFO) return IntPtr.Zero;
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return IntPtr.Zero;
+        var info = new MONITORINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfoW(monitor, ref info)) return IntPtr.Zero;
+        var mmi = System.Runtime.InteropServices.Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        var work = info.rcWork;
+        var screen = info.rcMonitor;
+        // ptMaxPosition is RELATIVE to the monitor origin in MINMAXINFO semantics.
+        mmi.ptMaxPosition.X = Math.Abs(work.Left - screen.Left);
+        mmi.ptMaxPosition.Y = Math.Abs(work.Top - screen.Top);
+        mmi.ptMaxSize.X = Math.Abs(work.Right - work.Left);
+        mmi.ptMaxSize.Y = Math.Abs(work.Bottom - work.Top);
+        mmi.ptMaxTrackSize.X = mmi.ptMaxSize.X;
+        mmi.ptMaxTrackSize.Y = mmi.ptMaxSize.Y;
+        System.Runtime.InteropServices.Marshal.StructureToPtr(mmi, lParam, true);
+        handled = true;
+        return IntPtr.Zero;
+    }
+
+    private void OnWindowKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _eyedropperContinuation is not null) { CancelEyedropper(); e.Handled = true; return; }
+        // Skip when the focus is in any text input (caption editing, font-size NumberBox — its
+        // inner control is a TextBox, the inline text-shape edit, etc.). The user is likely
+        // typing; Enter would otherwise unexpectedly save and Esc would close the editor while
+        // they're editing a single field.
+        if (e.OriginalSource is System.Windows.Controls.TextBox) return;
+
+        // Pending crop(s) intercept Enter/Esc/Delete BEFORE the editor-level Save/Cancel
+        // and shape-Delete. Enter applies all pending crops as a composite; Esc discards
+        // them all; Delete removes only the selected rect (per-rect close ✗ via keyboard).
+        if (_vm.HasPendingCrops)
+        {
+            if (e.Key == Key.Enter)  { _vm.ConfirmAllPendingCrops(); e.Handled = true; return; }
+            if (e.Key == Key.Escape) { _vm.CancelAllPendingCrops();  e.Handled = true; return; }
+            if (e.Key == Key.Delete && _vm.SelectedPendingCropIndex >= 0)
+            {
+                _vm.RemovePendingCrop(_vm.SelectedPendingCropIndex);
+                _vm.SelectedPendingCropIndex = -1;
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Editor-level shortcuts: Enter = Save (matches the Save button), Esc = Cancel (matches
+        // the Cancel button — the OnClosing handler already prompts for unsaved changes, so we
+        // don't need to gate this).
+        if (e.Key == Key.Enter)  { OnSaveClicked(this, new RoutedEventArgs()); e.Handled = true; return; }
+        if (e.Key == Key.Escape)
+        {
+            // Esc step-back: with an active selection (typically from an alt+click "modifica
+            // al volo" promotion), first Esc clears the selection and bounces back to the
+            // placement tool the user came from; only the SECOND Esc cancels / closes the
+            // editor. With nothing selected, Esc behaves as before. Photoshop / Figma / Office
+            // all use the same layered Esc pattern.
+            if (_vm.SelectedShapes.Count > 0)
+            {
+                CommitPendingLiveEdit();
+                _vm.SetSelection([]);
+                TryReturnToPlacementTool();
+                e.Handled = true;
+                return;
+            }
+            OnCancelClicked(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        if (ctrl && (e.Key == Key.D0 || e.Key == Key.NumPad0)) { SetZoom(FitZoom()); e.Handled = true; return; }
+        if (ctrl && (e.Key == Key.D1 || e.Key == Key.NumPad1)) { SetZoom(ActualSizeZoom()); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.Z) { _vm.UndoCommand.Execute(null); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.Y) { _vm.RedoCommand.Execute(null); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.V) { PasteFromClipboard(); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.C) { CopySelectionToClipboard(cut: false); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.X) { CopySelectionToClipboard(cut: true);  e.Handled = true; return; }
+
+        if (e.Key == Key.Delete || e.Key == Key.Back)
+        {
+            if (_vm.SelectedShapes.Count > 0)
+            {
+                CommitPendingLiveEdit(); // Settle any in-flight edit before destroying the selection
+                _vm.RemoveShapes([.. _vm.SelectedShapes]);
+                // Auto-return to the placement tool the user came from when the delete
+                // happened in an alt+click-promoted Select session. Same "modifica al volo"
+                // logic as the empty-canvas-click path: a destructive deselect (Delete
+                // wipes the selection too) is the user signalling "done editing".
+                TryReturnToPlacementTool();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Bare-letter tool shortcuts only fire without modifiers — otherwise Ctrl+X / Ctrl+C
+        // would bleed through and switch tools after copy / cut. Modifier-bearing keys are
+        // handled above (Ctrl+Z / Y / V / C / X) and below (none yet).
+        if (ctrl) return;
+
+        switch (e.Key)
+        {
+            case Key.V: _vm.CurrentTool = EditorTool.Select; e.Handled = true; break;
+            case Key.R: _vm.CurrentTool = EditorTool.Rectangle; e.Handled = true; break;
+            case Key.A: _vm.CurrentTool = EditorTool.Arrow; e.Handled = true; break;
+            case Key.L: _vm.CurrentTool = EditorTool.Line; e.Handled = true; break;
+            case Key.E: _vm.CurrentTool = EditorTool.Ellipse; e.Handled = true; break;
+            case Key.F: _vm.CurrentTool = EditorTool.Freehand; e.Handled = true; break;
+            case Key.T: _vm.CurrentTool = EditorTool.Text; e.Handled = true; break;
+            case Key.S: _vm.CurrentTool = EditorTool.StepCounter; e.Handled = true; break;
+            case Key.B: _vm.CurrentTool = EditorTool.Blur; e.Handled = true; break;
+            case Key.X: _vm.CurrentTool = EditorTool.Pixelate; e.Handled = true; break;
+            case Key.O: _vm.CurrentTool = EditorTool.Spotlight; e.Handled = true; break;
+            case Key.C: _vm.CurrentTool = EditorTool.Crop; e.Handled = true; break;
+            case Key.K: _vm.CurrentTool = EditorTool.SmartEraser; e.Handled = true; break;
+            case Key.I: InsertImageFromFile(); e.Handled = true; break;
+            default: break;
+        }
+    }
+
+    private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // We listen on the ScrollViewer so clicks outside the bitmap area still hit shapes
+        // (DrawingCanvas with Transparent Background only hit-tests within Width×Height).
+        // Filter out clicks on scrollbar parts and on the inline TextBox editor.
+        if (IsScrollBarOrInputControl(e.OriginalSource as DependencyObject)) return;
+
+        // Pending-crop overlay buttons (per-rect ✗) handle their own routing — early-return
+        // before taking capture. Grips live in the overlay too but DO need our dispatch (we
+        // initiate a resize drag here, parameterised by the grip's encoded rect index +
+        // direction). Format: cropgrip_<index>_<CropDragMode>.
+        if (e.OriginalSource is DependencyObject src)
+        {
+            var grip = FindCropGripAncestor(src);
+            if (grip is not null && _vm.PendingCrops.Count > 0)
+            {
+                var raw = grip.Name?["cropgrip_".Length..] ?? string.Empty;
+                var sep = raw.IndexOf('_');
+                if (sep > 0
+                    && int.TryParse(raw[..sep], out var idx)
+                    && Enum.TryParse<CropDragMode>(raw[(sep + 1)..], out var mode)
+                    && idx >= 0 && idx < _vm.PendingCrops.Count)
+                {
+                    _cropDragMode = mode;
+                    _cropDragIndex = idx;
+                    _cropDragStart = e.GetPosition(DrawingCanvas);
+                    _cropDragOriginal = _vm.PendingCrops[idx];
+                    _vm.SelectedPendingCropIndex = idx;
+                    DrawingCanvas.CaptureMouse();
+                    e.Handled = true;
+                    return;
+                }
+            }
+            // Per-rect ✗ button, dashed border, dim path → let WPF route normally.
+            if (IsPendingCropElement(src)) return;
+        }
+
+        var p = e.GetPosition(DrawingCanvas);
+
+        // Click INSIDE one of the pending crop rects (not on a grip / button) selects it
+        // AND starts a move-drag. Walk the list top-down so the most-recently-added rect
+        // wins on overlap (Z-order intuition). Click outside every rect falls through to
+        // the normal canvas gesture path — with the Crop tool active that means a fresh
+        // BeginGesture which appends a new rect on commit.
+        if (_vm.PendingCrops.Count > 0)
+        {
+            for (var i = _vm.PendingCrops.Count - 1; i >= 0; i--)
+            {
+                var pcr = _vm.PendingCrops[i];
+                if (!PointInsideCropRect(p, pcr)) continue;
+                // Double-click inside a pending crop rect = confirm all (same as Enter / the
+                // "Apply all crops" button). The first click of the double already selected the
+                // rect + started a no-op move-drag (released by its own MouseUp before this
+                // second down arrives), so by the time ClickCount==2 we just hand off to the VM
+                // and let the standard commit path tear down the overlay.
+                if (e.ClickCount == 2)
+                {
+                    _vm.SelectedPendingCropIndex = i;
+                    _vm.ConfirmAllPendingCrops();
+                    e.Handled = true;
+                    return;
+                }
+                _cropDragMode = CropDragMode.Move;
+                _cropDragIndex = i;
+                _cropDragStart = p;
+                _cropDragOriginal = pcr;
+                _vm.SelectedPendingCropIndex = i;
+                DrawingCanvas.CaptureMouse();
+                e.Handled = true;
+                return;
+            }
+            // Click landed outside every rect → clear selection (Delete now no-ops, the
+            // overlay border on the previously-selected rect goes back to dashed).
+            _vm.SelectedPendingCropIndex = -1;
+        }
+
+        if (_eyedropperContinuation is not null)
+        {
+            var sampled = SamplePixelAt(p.X, p.Y);
+            FinishEyedropper(sampled);
+            e.Handled = true;
+            return;
+        }
+
+        if (_vm.CurrentTool == EditorTool.Text)
+        {
+            // Start a frame-draw gesture. If the user just clicks (mouse up before
+            // dragging past the threshold) we fall back to default-size at the down point;
+            // otherwise the marquee bounds become the new TextShape's box.
+            _isDrawingTextFrame = true;
+            _textFrameStartX = p.X;
+            _textFrameStartY = p.Y;
+            DrawingCanvas.CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+
+        if (_vm.CurrentTool == EditorTool.Select)
+        {
+            var shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+
+            // Grip hit-test takes priority over shape hit-test, but only on single-selection.
+            if (_vm.SelectedShapes.Count == 1)
+            {
+                var sel = _vm.SelectedShapes[0];
+                var rotOffset = sel is RectangleShape or EllipseShape or TextShape ? 25.0 / _zoom : 0;
+                var grip = ShapeGripLayout.HitTest(sel, p.X, p.Y, ShapeGripLayout.DefaultHitTolerance / _zoom, rotOffset);
+                if (grip != GripKind.None)
+                {
+                    _activeGrip = grip;
+                    _gripStartShape = sel;
+                    _gripAnchorX = p.X;
+                    _gripAnchorY = p.Y;
+                    DrawingCanvas.CaptureMouse();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            var hit = ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y, HitTolerance);
+            if (hit is not null)
+            {
+                if (e.ClickCount == 2 && hit is TextShape ts)
+                {
+                    BeginInlineTextEdit(ts.X, ts.Y, existing: ts);
+                    e.Handled = true;
+                    return;
+                }
+                if (shiftPressed)
+                {
+                    // Shift+Click: toggle in selection set. No drag.
+                    CommitPendingLiveEdit();
+                    var current = _vm.SelectedShapes.ToList();
+                    if (!current.Remove(hit)) current.Add(hit);
+                    _vm.SetSelection(current);
+                    return;
+                }
+
+                if (!_vm.SelectedShapes.Contains(hit))
+                {
+                    CommitPendingLiveEdit();
+                    _vm.SetSelection([hit]);
+                }
+                _moveStartShape = hit;
+                _moveAnchorX = p.X;
+                _moveAnchorY = p.Y;
+                _isDraggingShape = true;
+                _moveStartSnapshots = null; // built lazily on first move tick
+                DrawingCanvas.CaptureMouse();
+            }
+            else
+            {
+                // Click on empty area. Without Shift: clear selection then start marquee.
+                // With Shift: keep current selection; marquee will add to it on release.
+                if (!shiftPressed)
+                {
+                    CommitPendingLiveEdit();
+                    _vm.SetSelection([]);
+                    // "Modifica al volo" return: if we got into Select via an alt+click from a
+                    // placement tool, an empty-canvas click is the user signalling "I'm done
+                    // editing" — bounce them back into the previous placement tool instead of
+                    // starting a marquee. Manual tool switches (V hotkey, sidebar button)
+                    // already cleared _returnToToolAfterDeselect via the PropertyChanged
+                    // handler, so this only fires on the auto-promoted Select state.
+                    if (TryReturnToPlacementTool())
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+                }
+                _isMarqueeing = true;
+                _marqueeStartX = p.X;
+                _marqueeStartY = p.Y;
+                _marqueeRect = new System.Windows.Shapes.Rectangle
+                {
+                    Stroke = new SolidColorBrush(Color.FromArgb(180, 80, 200, 255)),
+                    StrokeThickness = 1,
+                    StrokeDashArray = [3.0, 2.0],
+                    Fill = new SolidColorBrush(Color.FromArgb(40, 80, 200, 255)),
+                    IsHitTestVisible = false,
+                    Tag = "marquee"
+                };
+                Canvas.SetLeft(_marqueeRect, p.X);
+                Canvas.SetTop(_marqueeRect, p.Y);
+                DrawingCanvas.Children.Add(_marqueeRect);
+                DrawingCanvas.CaptureMouse();
+            }
+            return;
+        }
+
+        // Alt+click on a placement tool: short-circuit BeginGesture and instead select an
+        // existing shape of the SAME type as the active tool under the cursor (Rectangle tool →
+        // pick a RectangleShape, Arrow/Line tool → pick a LineShape, etc.), then SWITCH to the
+        // Select tool so the grips / tail handle / properties row become editable. Alt is the
+        // place-mode "select" modifier; Shift remains the multi-select modifier (matching the
+        // Select tool's own shift+click toggle behaviour). Combined Alt+Shift toggles the hit
+        // shape into / out of the existing selection set instead of replacing it, so the user
+        // can collect multiple shapes from a placement tool without leaving it for Select.
+        // Switching tool keeps the selection (OnCurrentToolChanged only clears selection when
+        // leaving Select, not when entering it). With no same-type hit, AltClickFallback
+        // decides: Place (default) falls through to a normal placement, SelectAny selects any
+        // shape under the cursor instead.
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt
+            && TryGetPlacementToolShapeType(_vm.CurrentTool) is { } expectedType)
+        {
+            var shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            var fromTool = _vm.CurrentTool;
+            var sameTypeHit = HitTestShapeOfType(_vm.Shapes, expectedType, p.X, p.Y, HitTolerance);
+            if (sameTypeHit is not null)
+            {
+                CommitPendingLiveEdit();
+                ApplyAltClickSelection(sameTypeHit, shiftPressed);
+                AutoSwitchToSelect(fromTool);
+                e.Handled = true;
+                return;
+            }
+            if (_vm.AltClickFallback == AltClickFallback.SelectAny)
+            {
+                var anyHit = ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y, HitTolerance);
+                if (anyHit is not null)
+                {
+                    CommitPendingLiveEdit();
+                    ApplyAltClickSelection(anyHit, shiftPressed);
+                    AutoSwitchToSelect(fromTool);
+                }
+                // No-match in SelectAny mode → still no placement. User opted into this mode.
+                e.Handled = true;
+                return;
+            }
+            // Place mode → fall through to the normal placement gesture below.
+        }
+
+        _gestureStartX = p.X;
+        _gestureStartY = p.Y;
+        DrawingCanvas.CaptureMouse();
+        _vm.BeginGesture(p.X, p.Y);
+    }
+
+    /// <summary>Map a placement-style <see cref="EditorTool"/> to the concrete shape type its
+    /// gesture produces. Select / Crop return null (handled by their own dedicated paths).
+    /// Used to scope shift+click selection to "shapes the current tool would have drawn".</summary>
+    private static Type? TryGetPlacementToolShapeType(EditorTool tool) => tool switch
+    {
+        EditorTool.Rectangle   => typeof(RectangleShape),
+        EditorTool.Ellipse     => typeof(EllipseShape),
+        // Line and Arrow are intent aliases for the same internal LineTool — both produce
+        // LineShape, so alt+click in either tool selects any LineShape under the cursor.
+        EditorTool.Arrow       => typeof(LineShape),
+        EditorTool.Line        => typeof(LineShape),
+        EditorTool.Freehand    => typeof(FreehandShape),
+        EditorTool.Text        => typeof(TextShape),
+        EditorTool.StepCounter => typeof(StepCounterShape),
+        EditorTool.Blur        => typeof(BlurShape),
+        EditorTool.Pixelate    => typeof(PixelateShape),
+        EditorTool.Spotlight   => typeof(SpotlightShape),
+        EditorTool.SmartEraser => typeof(SmartEraserShape),
+        _ => null,
+    };
+
+    /// <summary>Top-down hit test that only considers shapes whose runtime type matches
+    /// <paramref name="t"/>. Iterates back-to-front (last = top) so the topmost matching shape
+    /// wins on overlap, mirroring <see cref="ShapeHitTester.HitTest"/>'s own ordering.</summary>
+    private static Shape? HitTestShapeOfType(IReadOnlyList<Shape> shapes, Type t, double px, double py, double tolerance)
+    {
+        for (var i = shapes.Count - 1; i >= 0; i--)
+        {
+            if (shapes[i].GetType() == t && ShapeHitTester.IsHit(shapes[i], px, py, tolerance))
+                return shapes[i];
+        }
+        return null;
+    }
+
+    /// <summary>Apply an alt+click selection: replace the selection with <paramref name="hit"/>
+    /// when <paramref name="addToSet"/> is false, or toggle <paramref name="hit"/> in / out of
+    /// the current set when true (Shift+Alt). Mirrors the Select tool's own shift+click
+    /// multi-select semantics so the user's mental model carries over from one mode to the
+    /// other.</summary>
+    private void ApplyAltClickSelection(Shape hit, bool addToSet)
+    {
+        if (!addToSet)
+        {
+            _vm.SetSelection([hit]);
+            return;
+        }
+        var current = _vm.SelectedShapes.ToList();
+        if (!current.Remove(hit)) current.Add(hit);
+        _vm.SetSelection(current);
+    }
+
+    /// <summary>Switch to the Select tool while remembering <paramref name="fromTool"/> as
+    /// the placement tool the user came from. Subsequent deselect on the empty canvas auto-
+    /// returns to that tool — see <see cref="TryReturnToPlacementTool"/>. The
+    /// <c>_autoSwitchingTool</c> guard stops the CurrentTool PropertyChanged handler from
+    /// treating our own write as "user picked a tool" and clobbering the breadcrumb. We only
+    /// overwrite the breadcrumb when <paramref name="fromTool"/> is itself a placement tool,
+    /// so chained alt+clicks (which would pass <c>EditorTool.Select</c>) preserve the
+    /// original placement tool the user was in before the very first alt+click.</summary>
+    private void AutoSwitchToSelect(EditorTool fromTool)
+    {
+        if (fromTool != EditorTool.Select) _returnToToolAfterDeselect = fromTool;
+        _autoSwitchingTool = true;
+        try { _vm.CurrentTool = EditorTool.Select; }
+        finally { _autoSwitchingTool = false; }
+    }
+
+    /// <summary>If an alt+click had previously promoted us into Select mode, take the user
+    /// back to the placement tool they came from. Returns true when a return happened (caller
+    /// should skip the normal Select-tool empty-area behaviour, e.g. the marquee start).
+    /// Returns false when there's no breadcrumb — caller continues as usual.</summary>
+    private bool TryReturnToPlacementTool()
+    {
+        if (_returnToToolAfterDeselect is not { } returnTool) return false;
+        _autoSwitchingTool = true;
+        try { _vm.CurrentTool = returnTool; }
+        finally { _autoSwitchingTool = false; }
+        _returnToToolAfterDeselect = null;
+        return true;
+    }
+
+    private void OnCanvasMouseMove(object sender, MouseEventArgs e)
+    {
+        // MMB pan takes precedence — when the middle button is held, every mouse-move
+        // translates the scroll offsets and bypasses tool-specific behaviour. Computed in
+        // ScrollViewer-space (CanvasScrollViewer) because that's the surface the offsets
+        // live on; CanvasHost moves with the scroll, which would feed back into our delta.
+        // ShareX-parity (was RMB pre-0.1.6 — the right button is now reserved for the
+        // step-counter quick-delete gesture).
+        if (_isPanning && e.MiddleButton == MouseButtonState.Pressed)
+        {
+            var current = e.GetPosition(CanvasScrollViewer);
+            var dx = current.X - _panStartCursor.X;
+            var dy = current.Y - _panStartCursor.Y;
+            CanvasScrollViewer.ScrollToHorizontalOffset(_panStartScrollH - dx);
+            CanvasScrollViewer.ScrollToVerticalOffset(_panStartScrollV - dy);
+            e.Handled = true;
+            return;
+        }
+
+        // Pending-crop drag (move or resize-from-grip) takes precedence over every other
+        // mouse handling — mouse is captured to the DrawingCanvas and we just feed the
+        // current position into ApplyCropDrag. Also keep the pixel-zoom magnifier alive so
+        // the user can land an edge precisely on a sub-pixel feature without losing the
+        // visual reference (without this, the magnifier disappeared the moment a drag
+        // started — exactly when you needed it most).
+        if (_cropDragMode != CropDragMode.None && e.LeftButton == MouseButtonState.Pressed)
+        {
+            var dragPos = e.GetPosition(DrawingCanvas);
+            ApplyCropDrag(dragPos);
+            if (_vm.CurrentTool == EditorTool.Crop) UpdateCropMagnifier(dragPos);
+            e.Handled = true;
+            return;
+        }
+
+        // Cursor feedback on grip hover (independent of mouse button state).
+        UpdateCursorForGripHover(e.GetPosition(DrawingCanvas));
+
+        // Crop tool magnifier — runs on every mouse-move, not just while dragging, so the user
+        // can preview where pixels lie before clicking down. Cheap because the underlying
+        // CroppedBitmap is just a window into the existing source bitmap (no copy).
+        if (_vm.CurrentTool == EditorTool.Crop)
+        {
+            UpdateCropMagnifier(e.GetPosition(DrawingCanvas));
+        }
+        else
+        {
+            HideCropMagnifier();
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+
+        if (_isDrawingTextFrame)
+        {
+            var p = e.GetPosition(DrawingCanvas);
+            UpdateTextFrameMarquee(p.X, p.Y);
+            return;
+        }
+
+        if (_vm.CurrentTool == EditorTool.Select)
+        {
+            var p = e.GetPosition(DrawingCanvas);
+            if (_activeGrip != GripKind.None && _gripStartShape is not null)
+            {
+                ApplyGripDrag(p.X, p.Y);
+                return;
+            }
+            if (_isMarqueeing && _marqueeRect is not null)
+            {
+                var x = Math.Min(_marqueeStartX, p.X);
+                var y = Math.Min(_marqueeStartY, p.Y);
+                Canvas.SetLeft(_marqueeRect, x);
+                Canvas.SetTop(_marqueeRect, y);
+                _marqueeRect.Width = Math.Abs(p.X - _marqueeStartX);
+                _marqueeRect.Height = Math.Abs(p.Y - _marqueeStartY);
+                return;
+            }
+            if (_isDraggingShape && _moveStartShape is not null)
+            {
+                var dx = p.X - _moveAnchorX;
+                var dy = p.Y - _moveAnchorY;
+                MoveSelectedShapesBy(dx, dy);
+            }
+            return;
+        }
+
+        var pos = e.GetPosition(DrawingCanvas);
+        var (cx, cy) = ApplyShiftConstraint(pos.X, pos.Y);
+        _vm.UpdateGesture(cx, cy);
+    }
+
+    private void EnterCanvasEyedropperMode(Action<ShapeColor?> continuation)
+    {
+        _eyedropperContinuation = continuation;
+        DrawingCanvas.Cursor = Cursors.Cross;
+        // Window stays focused so Esc cancels.
+        Focus();
+    }
+
+    private void FinishEyedropper(ShapeColor? sampled)
+    {
+        var cont = _eyedropperContinuation;
+        _eyedropperContinuation = null;
+        DrawingCanvas.Cursor = null;
+        cont?.Invoke(sampled);
+    }
+
+    private void CancelEyedropper() => FinishEyedropper(null);
+
+    /// <summary>Sample the pixel at (x, y) of the source bitmap. Returns null when out of bounds
+    /// or the source isn't loaded yet.</summary>
+    private ShapeColor? SamplePixelAt(double x, double y)
+    {
+        if (SourceImage.Source is not BitmapSource src) return null;
+        var ix = (int)Math.Floor(x);
+        var iy = (int)Math.Floor(y);
+        if (ix < 0 || iy < 0 || ix >= src.PixelWidth || iy >= src.PixelHeight) return null;
+
+        // Force conversion to a uniform 32-bit BGRA so we can read 4 bytes regardless of source format.
+        var conv = new System.Windows.Media.Imaging.FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+        var px = new byte[4];
+        conv.CopyPixels(new Int32Rect(ix, iy, 1, 1), px, 4, 0);
+        return new ShapeColor(px[3], px[2], px[1], px[0]);
+    }
+
+    /// <summary>True when the originating element is a scrollbar part or a text input — don't treat
+    /// such clicks as canvas gestures.</summary>
+    private static bool IsScrollBarOrInputControl(DependencyObject? d)
+    {
+        while (d is not null)
+        {
+            if (d is System.Windows.Controls.Primitives.ScrollBar) return true;
+            if (d is System.Windows.Controls.TextBox tb && (tb.Tag as string) == "inline-text-editor") return true;
+            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+        }
+        return false;
+    }
+
+    /// <summary>Grab zone around outlines in canvas units: a constant on screen at any zoom.</summary>
+    private double HitTolerance => ShapeHitTester.ScreenTolerance / _zoom;
+
+    private void UpdateCursorForGripHover(System.Windows.Point p)
+    {
+        if (_vm.CurrentTool != EditorTool.Select)
+        {
+            if (DrawingCanvas.Cursor != null) DrawingCanvas.Cursor = null;
+            return;
+        }
+        var grip = GripKind.None;
+        if (_vm.SelectedShapes.Count == 1)
+        {
+            var sel = _vm.SelectedShapes[0];
+            var rotOffset = sel is RectangleShape or EllipseShape or TextShape ? 25.0 / _zoom : 0;
+            grip = ShapeGripLayout.HitTest(sel, p.X, p.Y, ShapeGripLayout.DefaultHitTolerance / _zoom, rotOffset);
+        }
+        Cursor? c = grip switch
+        {
+            GripKind.TopLeft or GripKind.BottomRight or GripKind.Resize => Cursors.SizeNWSE,
+            GripKind.TopRight or GripKind.BottomLeft => Cursors.SizeNESW,
+            GripKind.Top or GripKind.Bottom => Cursors.SizeNS,
+            GripKind.Left or GripKind.Right => Cursors.SizeWE,
+            GripKind.From or GripKind.To => Cursors.Hand,
+            GripKind.Rotate => Cursors.Cross,
+            GripKind.Bend => Cursors.Hand,
+            GripKind.Tail => Cursors.Hand,
+            // No grip under the pointer: move cursor over anything a click would grab.
+            _ => ShapeHitTester.HitTest(_vm.Shapes, p.X, p.Y, HitTolerance) is not null ? Cursors.SizeAll : null
+        };
+        if (DrawingCanvas.Cursor != c) DrawingCanvas.Cursor = c;
+    }
+
+    /// <summary>Apply a grip drag by computing a new shape from the original snapshot and current pointer.
+    /// We always recompute from <see cref="_gripStartShape"/> (not the previous tick) so the result is
+    /// monotonic in the drag distance — no cumulative drift.</summary>
+    private void ApplyGripDrag(double x, double y)
+    {
+        if (_gripStartShape is null || _vm.SelectedShapes.Count == 0) return;
+        var current = _vm.SelectedShapes[0];
+        var shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        var updated = GripDrag.Transform(_gripStartShape, _activeGrip, x, y, shiftPressed);
+        if (updated is null || ReferenceEquals(updated, current)) return;
+        _vm.LiveReplaceShape(current, updated);
+    }
+
+    /// <summary>Translate every selected shape by (dx, dy) relative to the move-anchor's recorded snapshot.
+    /// We track per-selected-shape "start" snapshots in <see cref="_moveStartSnapshots"/>.</summary>
+    private void MoveSelectedShapesBy(double dx, double dy)
+    {
+        if (_moveStartSnapshots is null) BuildMoveStartSnapshots();
+        if (_moveStartSnapshots is null) return;
+
+        // Build a parallel list of new shapes and apply via LiveReplaceShape.
+        // Iterate by snapshot, find current incarnation (may differ from snapshot if previously replaced).
+        var currentList = _vm.SelectedShapes.ToList();
+        for (var i = 0; i < _moveStartSnapshots.Count && i < currentList.Count; i++)
+        {
+            var snapshot = _moveStartSnapshots[i];
+            var translated = TranslateShape(snapshot, dx, dy);
+            var currentIncarnation = currentList[i];
+            _vm.LiveReplaceShape(currentIncarnation, translated);
+        }
+    }
+
+    private void BuildMoveStartSnapshots()
+    {
+        _moveStartSnapshots = [.. _vm.SelectedShapes];
+    }
+
+    private void OnCanvasMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        // End a pending-crop move/resize drag. Mouse capture is released; the new rect is
+        // already committed to the VM (ApplyCropDrag set it on every move), so there's
+        // nothing to flush here — the user can immediately keep dragging another grip
+        // without going through a "commit" step.
+        if (_cropDragMode != CropDragMode.None)
+        {
+            _cropDragMode = CropDragMode.None;
+            _cropDragIndex = -1;
+            _cropDragOriginal = null;
+            if (DrawingCanvas.IsMouseCaptured) DrawingCanvas.ReleaseMouseCapture();
+            e.Handled = true;
+            return;
+        }
+
+        if (_isDrawingTextFrame)
+        {
+            FinishTextFrameDraw(e.GetPosition(DrawingCanvas));
+            e.Handled = true;
+            return;
+        }
+
+        if (_vm.CurrentTool == EditorTool.Select)
+        {
+            if (_activeGrip != GripKind.None)
+            {
+                _activeGrip = GripKind.None;
+                _gripStartShape = null;
+                DrawingCanvas.ReleaseMouseCapture();
+                // Commit the resize/rotate as its own undo step on mouse-up. Previously the commit
+                // only happened when the selection changed (OnSelectionSetChanged) or on Closing, so
+                // a grip drag that wasn't followed by a selection change never entered the undo stack
+                // and Ctrl+Z couldn't revert it. Re-seed the live-edit baseline afterwards so a second
+                // consecutive drag on the same selection is still undoable.
+                CommitPendingLiveEdit();
+                _liveEditOriginals = [.. _vm.SelectedShapes];
+                return;
+            }
+            if (_isMarqueeing && _marqueeRect is not null)
+            {
+                var p = e.GetPosition(DrawingCanvas);
+                var x = Math.Min(_marqueeStartX, p.X);
+                var y = Math.Min(_marqueeStartY, p.Y);
+                var w = Math.Abs(p.X - _marqueeStartX);
+                var h = Math.Abs(p.Y - _marqueeStartY);
+
+                DrawingCanvas.Children.Remove(_marqueeRect);
+                _marqueeRect = null;
+                _isMarqueeing = false;
+                DrawingCanvas.ReleaseMouseCapture();
+
+                if (w >= 3 && h >= 3)
+                {
+                    var shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                    var picked = _vm.Shapes
+                        .Where(s => MarqueeIntersects(s, x, y, w, h))
+                        .ToList();
+                    if (shiftPressed)
+                    {
+                        // Add to existing selection (deduplicating).
+                        var union = _vm.SelectedShapes.ToList();
+                        foreach (var s in picked) if (!union.Contains(s)) union.Add(s);
+                        _vm.SetSelection(union);
+                    }
+                    else
+                    {
+                        _vm.SetSelection(picked);
+                    }
+                }
+            }
+            else if (_isDraggingShape)
+            {
+                DrawingCanvas.ReleaseMouseCapture();
+                _isDraggingShape = false;
+                _moveStartShape = null;
+                _moveStartSnapshots = null;
+                // Commit the move as its own undo step on mouse-up. Previously the commit only
+                // happened when the user changed selection or on Closing, so a drag-move that wasn't
+                // followed by a selection change never made it onto the undo stack and Ctrl+Z did
+                // nothing. Re-seed the live-edit baseline so a second consecutive move on the same
+                // selection is still undoable.
+                CommitPendingLiveEdit();
+                _liveEditOriginals = [.. _vm.SelectedShapes];
+            }
+            return;
+        }
+
+        DrawingCanvas.ReleaseMouseCapture();
+        var pos = e.GetPosition(DrawingCanvas);
+        var (cx, cy) = ApplyShiftConstraint(pos.X, pos.Y);
+        _vm.CommitGesture(cx, cy);
+    }
+
+    private static bool MarqueeIntersects(Shape s, double mx, double my, double mw, double mh)
+    {
+        var b = ComputeBounds(s);
+        return !(b.X + b.Width < mx || mx + mw < b.X || b.Y + b.Height < my || my + mh < b.Y);
+    }
+
+    private static Shape TranslateShape(Shape s, double dx, double dy) => s switch
+    {
+        RectangleShape r => r with { X = r.X + dx, Y = r.Y + dy },
+        EllipseShape e => e with { X = e.X + dx, Y = e.Y + dy },
+        LineShape l => l with { FromX = l.FromX + dx, FromY = l.FromY + dy, ToX = l.ToX + dx, ToY = l.ToY + dy },
+        FreehandShape f => f with { Points = f.Points.Select(p => (p.X + dx, p.Y + dy)).ToList() },
+        TextShape t => t with { X = t.X + dx, Y = t.Y + dy },
+        // Translate both the disc centre and the tail tip — same delta so the wedge keeps
+        // its anchor relative to the disc when the whole counter is dragged around.
+        StepCounterShape c => c with { CenterX = c.CenterX + dx, CenterY = c.CenterY + dy, TailX = c.TailX + dx, TailY = c.TailY + dy },
+        BlurShape b => b with { X = b.X + dx, Y = b.Y + dy },
+        PixelateShape p => p with { X = p.X + dx, Y = p.Y + dy },
+        SpotlightShape sp => sp with { X = sp.X + dx, Y = sp.Y + dy },
+        ImageShape i => i with { X = i.X + dx, Y = i.Y + dy },
+        SmartEraserShape se => se with { X = se.X + dx, Y = se.Y + dy },
+        _ => s
+    };
+
+    /// <summary>Right-click on the canvas. Sole job since 0.1.6: ShareX-parity quick-delete
+    /// of a step counter (right-click on the disc removes it and renumbers every counter that
+    /// came after). Pan moved to the middle mouse button — see
+    /// <see cref="OnCanvasPreviewMouseDown"/>. Anywhere outside a step counter, the click
+    /// falls through unhandled (no context menu wired, so nothing visible happens).</summary>
+    private void OnCanvasRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // Skip when the click lands on a scrollbar / interactive child — they have their own
+        // RMB semantics (e.g. scrollbar context menu) we shouldn't override.
+        if (IsScrollBarOrInputControl(e.OriginalSource as DependencyObject)) return;
+
+        var hit = ShapeHitTester.HitTest(_vm.Shapes, e.GetPosition(DrawingCanvas).X, e.GetPosition(DrawingCanvas).Y, HitTolerance);
+        if (hit is StepCounterShape step)
+        {
+            CommitPendingLiveEdit();
+            _vm.DeleteStepAndRenumber(step);
+            // Same "modifica al volo" return as the Delete-key path: if the user got into
+            // Select via an alt+click, the destructive action is the signal that they're
+            // done editing — bounce them back to the placement tool. No-op when there's no
+            // breadcrumb (right-click delete from a placement tool already keeps them there).
+            TryReturnToPlacementTool();
+            e.Handled = true;
+        }
+    }
+
+    private void OnCanvasRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // No-op since RMB pan moved to MMB. Kept for the XAML wiring and for future RMB
+        // gestures (context menu, etc.) — currently the only RMB interaction is the
+        // step-counter delete on press, which doesn't need a release handler.
+    }
+
+    /// <summary>Start MMB-pan: capture the scroll offsets + cursor in viewport coords, swap
+    /// the cursor to SizeAll. The MouseMove handler reads <see cref="_isPanning"/> and
+    /// translates the scroll to follow the cursor. Mouse-capture on the ScrollViewer makes
+    /// MouseMove keep firing even if the user drags outside the canvas bounds. Wired through
+    /// the generic PreviewMouseDown / PreviewMouseUp events because WPF doesn't expose a
+    /// dedicated MiddleButton variant — we filter by <see cref="MouseButtonEventArgs.ChangedButton"/>
+    /// and ignore left/right (they're handled by the dedicated handlers).</summary>
+    private void OnCanvasPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle) return;
+        if (IsScrollBarOrInputControl(e.OriginalSource as DependencyObject)) return;
+
+        _isPanning = true;
+        _panStartCursor = e.GetPosition(CanvasScrollViewer);
+        _panStartScrollH = CanvasScrollViewer.HorizontalOffset;
+        _panStartScrollV = CanvasScrollViewer.VerticalOffset;
+        _panSavedCursor = CanvasScrollViewer.Cursor;
+        CanvasScrollViewer.Cursor = System.Windows.Input.Cursors.SizeAll;
+        CanvasScrollViewer.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OnCanvasPreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle) return;
+        if (!_isPanning) return;
+        _isPanning = false;
+        CanvasScrollViewer.ReleaseMouseCapture();
+        CanvasScrollViewer.Cursor = _panSavedCursor;
+        _panSavedCursor = null;
+        e.Handled = true;
+    }
+
+    private void OnSelectedShapeChanged()
+    {
+        RefreshPropertyPanel();
+    }
+
+    private void OnSelectionSetChanged()
+    {
+        CommitPendingLiveEdit();
+        _liveEditOriginals = [.. _vm.SelectedShapes];
+        RefreshPropertyPanel();
+    }
+
+    private void CommitPendingLiveEdit()
+    {
+        if (_liveEditOriginals.Count == 0) return;
+        var current = _vm.SelectedShapes.ToList();
+        for (var i = 0; i < _liveEditOriginals.Count && i < current.Count; i++)
+        {
+            var orig = _liveEditOriginals[i];
+            var cur = current[i];
+            if (!ReferenceEquals(orig, cur) && _vm.Shapes.Contains(cur))
+            {
+                _vm.CommitLiveEdit(orig, cur);
+            }
+        }
+        _liveEditOriginals = [];
+    }
+
+    /// <summary>The placement tool whose current style a shape follows, or null for a shape no
+    /// tool styles (images, smart eraser). A line with a cap on either end follows the Arrow
+    /// style, a bare one the Line style, which is also how <see cref="ShapeKindName"/> names it.</summary>
+    private static EditorTool? ToolFor(Shape s) => s switch
+    {
+        RectangleShape => EditorTool.Rectangle,
+        EllipseShape => EditorTool.Ellipse,
+        LineShape l => l.StartCap || l.EndCap ? EditorTool.Arrow : EditorTool.Line,
+        FreehandShape => EditorTool.Freehand,
+        TextShape => EditorTool.Text,
+        StepCounterShape => EditorTool.StepCounter,
+        BlurShape => EditorTool.Blur,
+        PixelateShape => EditorTool.Pixelate,
+        SpotlightShape => EditorTool.Spotlight,
+        _ => null
+    };
+
+    /// <summary>True while a panel edit is writing the tool style, so the style-changed echo does
+    /// not rebuild the panel under the control the user is dragging.</summary>
+    private bool _writingStyle;
+
+    /// <summary>The tools whose current style a panel edit writes to: each distinct tool of the
+    /// selected shapes, or, with nothing selected, the active styled tool. <paramref name="appliesTo"/>
+    /// keeps out the tools that do not read the edited property. Call it BEFORE the shapes are
+    /// replaced: a line that gains a cap changes tool, and the edit belongs to the style it had.</summary>
+    private List<EditorTool> StyleTargets(Func<EditorTool, bool> appliesTo)
+    {
+        var tools = new List<EditorTool>();
+        if (_vm.SelectedShapes.Count > 0)
+        {
+            foreach (var s in _vm.SelectedShapes)
+                if (ToolFor(s) is { } t && appliesTo(t) && !tools.Contains(t)) tools.Add(t);
+        }
+        else if (ToolStyleBook.IsStyled(_vm.CurrentTool) && appliesTo(_vm.StyleTool))
+        {
+            tools.Add(_vm.StyleTool);
+        }
+        return tools;
+    }
+
+    /// <summary>Write one change into the current style of each of <paramref name="tools"/>.</summary>
+    private void WriteStyle(IReadOnlyList<EditorTool> tools, Func<EditorTool, ToolStyle, ToolStyle> change)
+    {
+        if (tools.Count == 0) return;
+        _writingStyle = true;
+        try
+        {
+            foreach (var tool in tools) _vm.EditStyle(tool, style => change(tool, style));
+        }
+        finally { _writingStyle = false; }
+    }
+
+    private void WriteStyle(IReadOnlyList<EditorTool> tools, Func<ToolStyle, ToolStyle> change) =>
+        WriteStyle(tools, (_, style) => change(style));
+
+    /// <summary>A style change made outside the panel (a Recent entry applied, a style loaded)
+    /// refreshes the controls when they show the active tool's style. Edits the panel itself wrote
+    /// are skipped: its controls already hold those values.</summary>
+    private void OnStylesChanged(EditorTool tool)
+    {
+        // A panel edit moved the current style: the controls hold the value already, only the
+        // Recent highlight can have changed.
+        if (_writingStyle)
+        {
+            UpdateRecentHighlight();
+            return;
+        }
+        if (_vm.SelectedShapes.Count == 0 && tool == _vm.CurrentTool)
+        {
+            RefreshPropertyPanel(); // also rebuilds the Recent list
+            return;
+        }
+        if (tool == RecentToolInView()) RefreshRecentList();
+    }
+
+    // ---- Recent list ------------------------------------------------------------------------
+
+    private const double RecentPreviewWidth = 40;
+    private const double RecentPreviewHeight = 24;
+
+    /// <summary>The rows currently shown, so a style change can move the highlight without a rebuild.</summary>
+    private readonly List<(Border Row, ToolStyle Entry)> _recentRows = [];
+    private EditorTool? _recentTool;
+    private IReadOnlyDictionary<string, string>? _recentLabels;
+
+    /// <summary>The tool whose Recent list the panel shows: with a selection, the tool all selected
+    /// shapes follow (none when they differ or one has no tool); with nothing selected, the active
+    /// styled tool.</summary>
+    private EditorTool? RecentToolInView()
+    {
+        var sels = _vm.SelectedShapes;
+        if (sels.Count == 0)
+            return ToolStyleBook.IsStyled(_vm.CurrentTool) ? _vm.StyleTool : null;
+
+        EditorTool? tool = null;
+        foreach (var s in sels)
+        {
+            var t = ToolFor(s);
+            if (t is null) return null;
+            if (tool is null) tool = t;
+            else if (tool != t) return null;
+        }
+        return tool;
+    }
+
+    /// <summary>Show the Recent list of the tool in view, or hide the section. Rows are only
+    /// rebuilt when the list, the tool or the language changed.</summary>
+    private void RefreshRecentList()
+    {
+        var tool = RecentToolInView();
+        if (tool is null)
+        {
+            RecentSection.Visibility = Visibility.Collapsed;
+            RecentList.Children.Clear();
+            _recentRows.Clear();
+            _recentTool = null;
+            return;
+        }
+
+        RecentSection.Visibility = Visibility.Visible;
+        RecentTitleText.Text = Loc("Recent", "Recent");
+        var entries = _vm.Styles.Recent(tool.Value);
+        RecentEmptyText.Text = Loc("RecentEmpty", "Styles you draw with land here (up to 10).");
+        RecentEmptyText.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_recentTool == tool && ReferenceEquals(_recentLabels, _labels)
+            && _recentRows.Count == entries.Count
+            && _recentRows.Select(r => r.Entry).SequenceEqual(entries))
+        {
+            UpdateRecentHighlight();
+            return;
+        }
+
+        _recentTool = tool;
+        _recentLabels = _labels;
+        RecentList.Children.Clear();
+        _recentRows.Clear();
+        var current = _vm.Styles.Current(tool.Value);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var row = BuildRecentRow(tool.Value, entries[i], i);
+            SetRecentRowCurrent(row, entries[i].Equals(current));
+            _recentRows.Add((row, entries[i]));
+            RecentList.Children.Add(row);
+        }
+    }
+
+    private void UpdateRecentHighlight()
+    {
+        if (_recentTool is not { } tool) return;
+        var current = _vm.Styles.Current(tool);
+        foreach (var (row, entry) in _recentRows) SetRecentRowCurrent(row, entry.Equals(current));
+    }
+
+    private static void SetRecentRowCurrent(Border row, bool current)
+    {
+        if (current) row.SetResourceReference(Border.BorderBrushProperty, "AccentBackgroundBrush");
+        else row.BorderBrush = System.Windows.Media.Brushes.Transparent;
+    }
+
+    private Border BuildRecentRow(EditorTool tool, ToolStyle entry, int index)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        if (BuildRecentPreview(tool, entry) is { } preview)
+        {
+            var frame = new Border
+            {
+                Width = RecentPreviewWidth,
+                Height = RecentPreviewHeight,
+                CornerRadius = new CornerRadius(3),
+                Child = preview
+            };
+            frame.SetResourceReference(Border.BackgroundProperty, "Surface3Brush");
+            content.Children.Add(frame);
+        }
+        var description = new System.Windows.Controls.TextBlock
+        {
+            Text = DescribeRecentStyle(tool, entry),
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(content.Children.Count > 0 ? 8 : 4, 0, 0, 0)
+        };
+        description.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentForegroundBrush");
+        content.Children.Add(description);
+
+        // Text rows: preview and size on the first line, the full font name under it; the outline
+        // reads from the preview, and every detail is in the tooltip.
+        object rowContent = content;
+        var tooltip = Loc("RecentUse", "Use this style");
+        if (tool == EditorTool.Text)
+        {
+            var font = new System.Windows.Controls.TextBlock
+            {
+                Text = entry.Text.FontFamily,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+            font.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "AccentForegroundBrush");
+            var stack = new StackPanel();
+            stack.Children.Add(content);
+            stack.Children.Add(font);
+            rowContent = stack;
+            tooltip = $"{entry.Text.FontFamily}, " + string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                Loc("RecentTextFormat", "{0} px, outline {1}"),
+                FormatRecentNumber(entry.Text.FontSize),
+                FormatRecentNumber(entry.TextOutlineWidth));
+        }
+
+        var use = new Wpf.Ui.Controls.Button
+        {
+            Appearance = ControlAppearance.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(4),
+            Content = rowContent,
+            ToolTip = tooltip
+        };
+        use.Click += (_, _) => UseRecentStyle(tool, entry);
+
+        var remove = new Wpf.Ui.Controls.Button
+        {
+            Appearance = ControlAppearance.Transparent,
+            Content = "×",
+            FontSize = 16,
+            Width = 28,
+            Padding = new Thickness(0),
+            Margin = new Thickness(2, 0, 0, 0),
+            ToolTip = Loc("RecentRemove", "Remove from Recent")
+        };
+        System.Windows.Automation.AutomationProperties.SetName(remove, Loc("RecentRemove", "Remove from Recent"));
+        remove.Click += (_, _) => _vm.Styles.RemoveRecent(tool, index);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(use, 0);
+        Grid.SetColumn(remove, 1);
+        grid.Children.Add(use);
+        grid.Children.Add(remove);
+
+        return new Border
+        {
+            BorderThickness = new Thickness(2),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 0, 0, 4),
+            Child = grid
+        };
+    }
+
+    /// <summary>Make a Recent entry the tool's current style and repaint the selected shapes of
+    /// that tool with it. The edits ride the selection session's live edit, so one undo reverts them.</summary>
+    private void UseRecentStyle(EditorTool tool, ToolStyle entry)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (ToolFor(s) == tool) _vm.LiveReplaceShape(s, WithStyle(s, entry));
+        }
+        WriteStyle([tool], _ => entry);
+        RefreshPropertyPanel();
+    }
+
+    /// <summary>The shape with every field a tool style owns replaced by the style's value: the same
+    /// fields the Sel* handlers write one by one.</summary>
+    private static Shape WithStyle(Shape shape, ToolStyle style) => shape switch
+    {
+        RectangleShape r => r with { Outline = style.Outline, Fill = style.Fill, StrokeWidth = style.StrokeWidth },
+        EllipseShape e => e with { Outline = style.Outline, Fill = style.Fill, StrokeWidth = style.StrokeWidth },
+        LineShape l => l with
+        {
+            Outline = style.Outline,
+            StrokeWidth = style.StrokeWidth,
+            StartCap = style.StartCap,
+            EndCap = style.EndCap,
+            TipStyle = style.TipStyle
+        },
+        FreehandShape f => f with
+        {
+            Outline = style.Outline,
+            StrokeWidth = style.StrokeWidth,
+            Smooth = style.Smooth,
+            StartCap = style.StartCap,
+            EndCap = style.EndCap,
+            TipStyle = style.TipStyle
+        },
+        TextShape t => t with { Style = style.Text, Outline = style.TextOutlineColor, StrokeWidth = style.TextOutlineWidth },
+        StepCounterShape sc => sc with
+        {
+            Outline = style.Outline,
+            Fill = style.Fill,
+            StrokeWidth = style.StrokeWidth,
+            FontFamily = style.StepFontFamily,
+            Bold = style.StepBold,
+            Italic = style.StepItalic
+        },
+        BlurShape b => b with { Radius = Math.Max(0, style.EffectAmount) },
+        PixelateShape p => p with { BlockSize = (int)Math.Max(2, Math.Round(style.EffectAmount)) },
+        SpotlightShape sp => sp with
+        {
+            DimAmount = Math.Clamp(style.EffectAmount, 0, 1),
+            BlurRadius = Math.Max(0, style.EffectAmount2)
+        },
+        _ => shape
+    };
+
+    private static string FormatRecentNumber(double value) =>
+        Math.Round(value).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string DescribeRecentStyle(EditorTool tool, ToolStyle style)
+    {
+        string Tips() => (style.StartCap, style.EndCap) switch
+        {
+            (true, true) => Loc("RecentTipsBoth", "two tips"),
+            (true, false) => Loc("RecentTipStart", "start tip"),
+            (false, true) => Loc("RecentTipEnd", "end tip"),
+            _ => ""
+        };
+
+        var stroke = $"{FormatRecentNumber(style.StrokeWidth)} px";
+        switch (tool)
+        {
+            case EditorTool.Line:
+            case EditorTool.Arrow:
+            case EditorTool.Freehand:
+                var tips = Tips();
+                return tips.Length == 0 ? stroke : $"{stroke}, {tips}";
+            case EditorTool.Text:
+                return $"{FormatRecentNumber(style.Text.FontSize)} px";
+            case EditorTool.Blur:
+                return $"{FormatRecentNumber(style.EffectAmount)} px";
+            case EditorTool.Pixelate:
+                return $"{FormatRecentNumber(Math.Round(style.EffectAmount))} px";
+            case EditorTool.Spotlight:
+                var dim = $"{FormatRecentNumber(Math.Round(style.EffectAmount * 100))}%";
+                return style.EffectAmount2 > 0 ? $"{dim}, {FormatRecentNumber(style.EffectAmount2)} px" : dim;
+            default:
+                return stroke;
+        }
+    }
+
+    /// <summary>A small rendering of a sample shape drawn with the style, built by the same
+    /// renderer the canvas uses. Stroke and font size are clamped for the preview only. Blur,
+    /// Pixelate and Spotlight need the source image, so they get no preview.</summary>
+    private UIElement? BuildRecentPreview(EditorTool tool, ToolStyle style)
+    {
+        var stroke = Math.Clamp(style.StrokeWidth, 0, 8);
+        double width, height;
+        Shape sample;
+        switch (tool)
+        {
+            case EditorTool.Rectangle:
+            case EditorTool.Ellipse:
+            {
+                // The outline is drawn outside the box, so the canvas grows by one stroke per side.
+                width = 56 + 2 * stroke;
+                height = 20 + 2 * stroke;
+                sample = tool == EditorTool.Rectangle
+                    ? new RectangleShape(stroke, stroke, 56, 20, style.Outline, style.Fill, stroke)
+                    : new EllipseShape(stroke, stroke, 56, 20, style.Outline, style.Fill, stroke);
+                break;
+            }
+            case EditorTool.Line:
+            case EditorTool.Arrow:
+            {
+                // The sample grows with the stroke so the tips never swallow the line.
+                var pad = Math.Max(6, stroke * 3); // room for the tip caps
+                var len = Math.Max(56, stroke * 14);
+                width = len + 2 * pad;
+                height = len * 0.35 + 2 * pad;
+                sample = new LineShape(pad, pad + len * 0.35, pad + len, pad, style.Outline, stroke,
+                    StartCap: style.StartCap, EndCap: style.EndCap, TipStyle: style.TipStyle);
+                break;
+            }
+            case EditorTool.Freehand:
+            {
+                // One gentle wave, sized to the stroke, so a thick stroke still reads as a line.
+                var pad = Math.Max(6, stroke * 3);
+                var len = Math.Max(56, stroke * 14);
+                var amp = len * 0.12;
+                width = len + 2 * pad;
+                height = 2 * amp + 2 * pad;
+                var points = new List<(double X, double Y)>();
+                for (var i = 0; i <= 24; i++)
+                {
+                    var t = i / 24.0;
+                    points.Add((pad + len * t, pad + amp - amp * Math.Sin(t * Math.PI * 2)));
+                }
+                sample = new FreehandShape(points, style.Outline, stroke, 0, style.Smooth,
+                    style.StartCap, style.EndCap, style.TipStyle);
+                break;
+            }
+            case EditorTool.Text:
+            {
+                var size = Math.Clamp(style.Text.FontSize, 8, 26);
+                width = RecentPreviewWidth;
+                height = size * 1.4;
+                sample = new TextShape(0, 0, width, height, "Aa",
+                    style.Text with { FontSize = size, Align = TextAlign.Center },
+                    style.TextOutlineColor, ShapeColor.Transparent, Math.Clamp(style.TextOutlineWidth, 0, 4));
+                break;
+            }
+            case EditorTool.StepCounter:
+            {
+                var step = Math.Clamp(style.StrokeWidth, 1, 5); // radius is 2.5 x stroke
+                var radius = step * 2.5;
+                width = height = radius * 2;
+                sample = new StepCounterShape(radius, radius, 1, style.Outline, style.Fill, step,
+                    style.StepFontFamily, style.StepBold, style.StepItalic);
+                break;
+            }
+            default:
+                return null;
+        }
+
+        var host = new Canvas { Width = width, Height = height, IsHitTestVisible = false };
+        host.Children.Add(MakeUiElement(sample));
+        return new Viewbox
+        {
+            Width = RecentPreviewWidth,
+            Height = RecentPreviewHeight,
+            Stretch = Stretch.Uniform,
+            Child = host
+        };
+    }
+
+    private void OnSelOutlineChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var color = SelOutlineSwatch.SelectedColor;
+        var tools = StyleTargets(t => ToolCategory(t)?.Outline == true);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            _vm.LiveReplaceShape(s, ApplyOutlineColor(s, color));
+        }
+        WriteStyle(tools, style => style with { Outline = color });
+    }
+
+    private void OnSelFillChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var color = SelFillSwatch.SelectedColor;
+        var tools = StyleTargets(t => ToolCategory(t)?.Fill == true);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            _vm.LiveReplaceShape(s, ApplyFillColor(s, color));
+        }
+        WriteStyle(tools, style => style with { Fill = color });
+    }
+
+    private void OnSelStrokeChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var width = SelStrokeSlider.Value;
+        var tools = StyleTargets(t => ToolCategory(t)?.Stroke == true);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            _vm.LiveReplaceShape(s, ApplyStrokeWidth(s, width));
+        }
+        WriteStyle(tools, style => style with { StrokeWidth = width });
+    }
+
+    private void OnSelFreehandSmoothChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var smooth = SelFreehandSmoothCheck.IsChecked == true;
+        var tools = StyleTargets(t => t == EditorTool.Freehand);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is FreehandShape f && f.Smooth != smooth)
+                _vm.LiveReplaceShape(s, f with { Smooth = smooth });
+        }
+        WriteStyle(tools, style => style with { Smooth = smooth });
+    }
+
+    /// <summary>Read the step-counter font fields and apply them to every selected step counter,
+    /// and to the Step counter style so the next one gets the same look.
+    /// Family/Bold/Italic are handled together — each individual control's change event funnels
+    /// through here, mirroring the text-style picker's <see cref="OnSelTextStyleChanged"/>.</summary>
+    private void OnSelStepFontStyleChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var family = string.IsNullOrWhiteSpace(SelStepFontInput.Text) ? "Segoe UI" : SelStepFontInput.Text;
+        var bold = SelStepBoldCheck.IsChecked == true;
+        var italic = SelStepItalicCheck.IsChecked == true;
+        var tools = StyleTargets(t => t == EditorTool.StepCounter);
+
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is StepCounterShape sc)
+                _vm.LiveReplaceShape(s, sc with { FontFamily = family, Bold = bold, Italic = italic });
+        }
+        WriteStyle(tools, style => style with { StepFontFamily = family, StepBold = bold, StepItalic = italic });
+    }
+
+    private void OnSelFreehandCapsChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var startCap = SelFreehandStartCapCheck.IsChecked == true;
+        var endCap = SelFreehandEndCapCheck.IsChecked == true;
+        var tools = StyleTargets(t => t == EditorTool.Freehand);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is FreehandShape f && (f.StartCap != startCap || f.EndCap != endCap))
+                _vm.LiveReplaceShape(s, f with { StartCap = startCap, EndCap = endCap });
+        }
+        WriteStyle(tools, style => style with { StartCap = startCap, EndCap = endCap });
+    }
+
+    private void OnSelFreehandTipStyleChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        if (SelFreehandTipStyleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not LineTipStyle tip) return;
+        var tools = StyleTargets(t => t == EditorTool.Freehand);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is FreehandShape f && f.TipStyle != tip)
+                _vm.LiveReplaceShape(s, f with { TipStyle = tip });
+        }
+        WriteStyle(tools, style => style with { TipStyle = tip });
+    }
+
+    private void OnSelLineCapsChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var startCap = SelLineStartCapCheck.IsChecked == true;
+        var endCap = SelLineEndCapCheck.IsChecked == true;
+        // The caps decide the tool: any cap is an Arrow, none a Line. A line that gains or loses
+        // a cap becomes the other tool, so the edit is written to the style it becomes.
+        var target = startCap || endCap ? EditorTool.Arrow : EditorTool.Line;
+        var lines = _vm.SelectedShapes.OfType<LineShape>().ToList();
+        foreach (var l in lines)
+        {
+            if (l.StartCap != startCap || l.EndCap != endCap)
+                _vm.LiveReplaceShape(l, l with { StartCap = startCap, EndCap = endCap });
+        }
+        var active = _vm.CurrentTool is EditorTool.Line or EditorTool.Arrow;
+        if (lines.Count > 0 || active)
+            WriteStyle([target], (_, style) => style with { StartCap = startCap, EndCap = endCap });
+        // Switching tool rebuilds the panel under _suppressLiveUpdates, so this does not echo back.
+        if (active && _vm.CurrentTool != target) _vm.CurrentTool = target;
+    }
+
+    private void OnSelLineTipStyleChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        if (SelLineTipStyleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not LineTipStyle tip) return;
+        var tools = StyleTargets(t => t is EditorTool.Line or EditorTool.Arrow);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            if (s is LineShape l && l.TipStyle != tip)
+                _vm.LiveReplaceShape(s, l with { TipStyle = tip });
+        }
+        WriteStyle(tools, style => style with { TipStyle = tip });
+    }
+
+    /// <summary>(Re)populate a TipStyle ComboBox with one entry per <see cref="LineTipStyle"/>
+    /// value, label sourced from the localization dictionary (with a sensible fallback when
+    /// the dict isn't populated yet — e.g. before <c>ApplyLocalization</c> runs). Item.Tag
+    /// stores the enum value so the SelectionChanged handlers don't have to map by index.</summary>
+    private void PopulateTipStyleCombo(ComboBox combo)
+    {
+        var preserveTag = combo.SelectedItem is ComboBoxItem prevItem ? prevItem.Tag : null;
+        combo.Items.Clear();
+        foreach (LineTipStyle value in Enum.GetValues<LineTipStyle>())
+        {
+            var labelKey = value switch
+            {
+                LineTipStyle.ShareXCurve => "TipStyleShareXCurve",
+                LineTipStyle.FilledTriangle => "TipStyleFilledTriangle",
+                _ => null,
+            };
+            var label = (labelKey is not null && _labels.TryGetValue(labelKey, out var loc)) ? loc : value.ToString();
+            var item = new ComboBoxItem { Content = label, Tag = value };
+            combo.Items.Add(item);
+            if (preserveTag is LineTipStyle preserved && preserved == value) combo.SelectedItem = item;
+        }
+        if (combo.SelectedItem is null && combo.Items.Count > 0) combo.SelectedIndex = 0;
+    }
+
+    /// <summary>Pick the ComboBoxItem whose Tag matches <paramref name="value"/>. No-op if not
+    /// found (e.g. the combo hasn't been populated yet).</summary>
+    private static void SelectTipStyleInCombo(ComboBox combo, LineTipStyle value)
+    {
+        foreach (var raw in combo.Items)
+        {
+            if (raw is ComboBoxItem item && item.Tag is LineTipStyle tip && tip == value)
+            {
+                combo.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    private void OnSelRotationSliderChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var deg = SelRotationSlider.Value;
+        SelRotationBox.Text = ((int)Math.Round(deg)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        ApplyRotation(deg);
+    }
+
+    private void OnSelRotationBoxCommitted()
+    {
+        if (_suppressLiveUpdates) return;
+        if (!double.TryParse(SelRotationBox.Text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            SelRotationBox.Text = ((int)Math.Round(SelRotationSlider.Value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+        v = ((v + 180) % 360 + 360) % 360 - 180;
+        _suppressLiveUpdates = true;
+        try { SelRotationSlider.Value = v; }
+        finally { _suppressLiveUpdates = false; }
+        ApplyRotation(v);
+    }
+
+    private void OnSelEffectSliderChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var v = SelEffectSlider.Value;
+        SelEffectBox.Text = ((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        ApplyEffectParam(v);
+    }
+
+    private void OnSelEffectBoxCommitted()
+    {
+        if (_suppressLiveUpdates) return;
+        if (!double.TryParse(SelEffectBox.Text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            SelEffectBox.Text = ((int)Math.Round(SelEffectSlider.Value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+        v = Math.Max(SelEffectSlider.Minimum, v);
+        _suppressLiveUpdates = true;
+        try { SelEffectSlider.Value = Math.Clamp(v, SelEffectSlider.Minimum, SelEffectSlider.Maximum); }
+        finally { _suppressLiveUpdates = false; }
+        ApplyEffectParam(v);
+    }
+
+    private void OnSelEffectSecondarySliderChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var v = SelEffectSecondarySlider.Value;
+        SelEffectSecondaryBox.Text = ((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        ApplyEffectSecondaryParam(v);
+    }
+
+    private void OnSelEffectSecondaryBoxCommitted()
+    {
+        if (_suppressLiveUpdates) return;
+        if (!double.TryParse(SelEffectSecondaryBox.Text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            SelEffectSecondaryBox.Text = ((int)Math.Round(SelEffectSecondarySlider.Value)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+        v = Math.Max(SelEffectSecondarySlider.Minimum, v);
+        _suppressLiveUpdates = true;
+        try { SelEffectSecondarySlider.Value = Math.Clamp(v, SelEffectSecondarySlider.Minimum, SelEffectSecondarySlider.Maximum); }
+        finally { _suppressLiveUpdates = false; }
+        ApplyEffectSecondaryParam(v);
+    }
+
+    private void ApplyEffectParam(double v)
+    {
+        var tools = StyleTargets(t => t is EditorTool.Blur or EditorTool.Pixelate or EditorTool.Spotlight);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            Shape? updated = s switch
+            {
+                BlurShape b => b with { Radius = Math.Max(0, v) },
+                PixelateShape p => p with { BlockSize = (int)Math.Max(2, Math.Round(v)) },
+                SpotlightShape sp => sp with { DimAmount = Math.Clamp(v / 100.0, 0, 1) },
+                _ => null
+            };
+            if (updated is not null) _vm.LiveReplaceShape(s, updated);
+        }
+        // The style keeps the same number the shape gets: radius, block size or dim (0..1).
+        WriteStyle(tools, (tool, style) => style with
+        {
+            EffectAmount = tool switch
+            {
+                EditorTool.Blur => Math.Max(0, v),
+                EditorTool.Pixelate => Math.Max(2, Math.Round(v)),
+                _ => Math.Clamp(v / 100.0, 0, 1)
+            }
+        });
+    }
+
+    private void ApplyEffectSecondaryParam(double v)
+    {
+        var tools = StyleTargets(t => t == EditorTool.Spotlight);
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            Shape? updated = s switch
+            {
+                SpotlightShape sp => sp with { BlurRadius = Math.Max(0, v) },
+                _ => null
+            };
+            if (updated is not null) _vm.LiveReplaceShape(s, updated);
+        }
+        WriteStyle(tools, style => style with { EffectAmount2 = Math.Max(0, v) });
+    }
+
+    private void ApplyRotation(double deg)
+    {
+        foreach (var s in _vm.SelectedShapes.ToList())
+        {
+            Shape? updated = s switch
+            {
+                RectangleShape r => r with { Rotation = deg },
+                EllipseShape e => e with { Rotation = deg },
+                TextShape t => t with { Rotation = deg },
+                ImageShape i => i with { Rotation = deg },
+                _ => null
+            };
+            if (updated is not null) _vm.LiveReplaceShape(s, updated);
+        }
+    }
+
+    /// <summary>Update or create the dashed marquee that previews the text-frame box during
+    /// drag. Lazily instantiates the rectangle on first move past the threshold so a plain
+    /// click (no drag) doesn't paint anything.</summary>
+    private void UpdateTextFrameMarquee(double px, double py)
+    {
+        var dx = Math.Abs(px - _textFrameStartX);
+        var dy = Math.Abs(py - _textFrameStartY);
+        if (dx < TextFrameDragThreshold && dy < TextFrameDragThreshold) return;
+
+        if (_textFrameMarquee is null)
+        {
+            _textFrameMarquee = new System.Windows.Shapes.Rectangle
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(180, 80, 200, 255)),
+                StrokeThickness = 1,
+                StrokeDashArray = [4.0, 3.0],
+                Fill = new SolidColorBrush(Color.FromArgb(20, 80, 200, 255)),
+                IsHitTestVisible = false
+            };
+            DrawingCanvas.Children.Add(_textFrameMarquee);
+        }
+        var x = Math.Min(_textFrameStartX, px);
+        var y = Math.Min(_textFrameStartY, py);
+        Canvas.SetLeft(_textFrameMarquee, x);
+        Canvas.SetTop(_textFrameMarquee, y);
+        _textFrameMarquee.Width = Math.Abs(px - _textFrameStartX);
+        _textFrameMarquee.Height = Math.Abs(py - _textFrameStartY);
+    }
+
+    /// <summary>Wrap up a text-frame drag: tear down the marquee, release capture, then open
+    /// the inline editor sized to the dragged rect. A drag below <see cref="TextFrameDragThreshold"/>
+    /// in both axes (i.e. just a click) falls back to <see cref="TextShape.DefaultWidthFor"/>
+    /// / <see cref="TextShape.DefaultHeightFor"/> at the down point, matching the legacy
+    /// behaviour for users who don't want to think about box size.</summary>
+    private void FinishTextFrameDraw(System.Windows.Point upPoint)
+    {
+        if (_textFrameMarquee is not null)
+        {
+            DrawingCanvas.Children.Remove(_textFrameMarquee);
+            _textFrameMarquee = null;
+        }
+        DrawingCanvas.ReleaseMouseCapture();
+        _isDrawingTextFrame = false;
+
+        var w = Math.Abs(upPoint.X - _textFrameStartX);
+        var h = Math.Abs(upPoint.Y - _textFrameStartY);
+        var x = Math.Min(_textFrameStartX, upPoint.X);
+        var y = Math.Min(_textFrameStartY, upPoint.Y);
+
+        if (w < TextFrameDragThreshold || h < TextFrameDragThreshold)
+        {
+            // Click → use defaults at the down point.
+            BeginInlineTextEdit(_textFrameStartX, _textFrameStartY, existing: null);
+            return;
+        }
+        BeginInlineTextEdit(x, y, existing: null, boxWidth: w, boxHeight: h);
+    }
+
+    private void BeginInlineTextEdit(double x, double y, TextShape? existing)
+        => BeginInlineTextEdit(x, y, existing, boxWidth: null, boxHeight: null);
+
+    private void BeginInlineTextEdit(double x, double y, TextShape? existing, double? boxWidth, double? boxHeight)
+    {
+        CommitInlineTextEdit();
+
+        // For a brand-new text, clear any previous selection so the previously selected text
+        // doesn't stay highlighted while the user types into the new one.
+        if (existing is null && _vm.SelectedShapes.Count > 0) _vm.SetSelection([]);
+
+        var style = existing?.Style ?? _vm.CurrentTextStyle;
+        var initialText = existing?.Text ?? "";
+
+        _editingTextShape = existing;
+        // Box size resolution order: caller-supplied (drag-to-draw frame) → existing shape's
+        // size (in-place edit) → font-size-derived defaults (plain click). Defaults scale with
+        // the active font so a tiny / huge font doesn't get the same fixed-px frame.
+        var boxW = boxWidth ?? existing?.Width ?? TextShape.DefaultWidthFor(style.FontSize);
+        var boxH = boxHeight ?? existing?.Height ?? TextShape.DefaultHeightFor(style.FontSize);
+
+        // For plain-click placement (no drag-rect, not editing an existing shape) the click
+        // point becomes the anchor that matches the text alignment: Left → top-left,
+        // Centre → top-centre, Right → top-right. That way clicking exactly where you want
+        // the text edge to live "just works" regardless of which alignment is active.
+        // Drag-rect callers already chose the bounds explicitly, so they're left alone.
+        if (boxWidth is null && existing is null)
+        {
+            switch (style.Align)
+            {
+                case TextAlign.Center: x -= boxW / 2; break;
+                case TextAlign.Right:  x -= boxW; break;
+            }
+        }
+        _activeTextBox = new System.Windows.Controls.TextBox
+        {
+            // Style=null escapes WPF-UI's implicit TextBox style (merged in via the App's
+            // ControlsDictionary) which would otherwise paint a TextControlBackground-bound
+            // surface3 fill on top of our subtle dark overlay AND add internal chrome padding
+            // that crops the trailing characters during typing. The bare WPF template gives
+            // us a transparent-friendly TextBox we can dress ourselves.
+            Style = null,
+            Text = initialText,
+            FontFamily = new FontFamily(style.FontFamily),
+            FontSize = style.FontSize,
+            FontWeight = style.Bold ? FontWeights.Bold : FontWeights.Normal,
+            FontStyle = style.Italic ? FontStyles.Italic : FontStyles.Normal,
+            Foreground = ToBrush(style.Color),
+            CaretBrush = ToBrush(style.Color),
+            TextAlignment = ToTextAlignment(style.Align),
+            Background = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(180, 80, 200, 255)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(2),
+            // Fixed width — content wraps horizontally — but height auto-grows with the typed
+            // content. MinHeight is the original shape's box so a freshly-created TextShape
+            // doesn't visually shrink before the user types anything. The Canvas it lives in
+            // doesn't constrain the bottom edge, so additional lines extend down naturally.
+            Width = boxW,
+            MinHeight = boxH,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            AcceptsReturn = true,
+            AcceptsTab = false,
+            Tag = "inline-text-editor"
+        };
+        Canvas.SetLeft(_activeTextBox, x);
+        Canvas.SetTop(_activeTextBox, y);
+        if (existing is { Rotation: var rot } && rot != 0)
+        {
+            _activeTextBox.RenderTransform = new RotateTransform(rot, boxW / 2, boxH / 2);
+        }
+        DrawingCanvas.Children.Add(_activeTextBox);
+        _activeTextBox.KeyDown += OnInlineTextBoxKeyDown;
+        _activeTextBox.TextChanged += (_, _) => RefreshInlineOutlinePreview();
+        RefreshInlineOutlinePreview();
+        var tb = _activeTextBox;
+        tb.Loaded += (_, _) =>
+        {
+            // Wire LostFocus only after focus has been acquired, otherwise the very first
+            // focus arrival from Loaded fires LostFocus immediately and commits-empty.
+            tb.Focus();
+            Keyboard.Focus(tb);
+            tb.SelectAll();
+            tb.LostFocus += (_, _) => CommitInlineTextEdit();
+        };
+
+        if (existing is not null) RedrawAll();
+    }
+
+    /// <summary>While typing in the inline editor the TextShape itself is skipped in the render pass
+    /// (the TextBox stands in for it), so the crisp geometry outline the committed text will get
+    /// isn't drawn yet. Draw the real contour behind the editor: a stroke-only glyph geometry path
+    /// (same build as <see cref="CreateOutlinedText"/>) whose inner half is covered by the TextBox's
+    /// own glyphs on top — so the live preview matches the committed result instead of a soft glow.
+    /// The box background goes transparent while the contour shows through; it's restored otherwise.</summary>
+    private void RefreshInlineOutlinePreview()
+    {
+        if (_activeTextOutlinePreview is not null)
+        {
+            DrawingCanvas.Children.Remove(_activeTextOutlinePreview);
+            _activeTextOutlinePreview = null;
+        }
+        if (_activeTextBox is null) return;
+
+        var (color, width) = InlineEditOutline();
+        var style = _editingTextShape?.Style ?? _vm.CurrentTextStyle;
+        var active = width > 0 && !color.IsTransparent && !string.IsNullOrEmpty(_activeTextBox.Text);
+
+        // When previewing, the contour path draws BOTH the fill and the stroke (identical to the
+        // committed CreateOutlinedText), and the TextBox's own glyphs are hidden — otherwise the
+        // TextBox glyphs and the path glyphs use two slightly different layouts and the outline
+        // looks shifted. The TextBox stays for input + caret only. Restored when no outline.
+        _activeTextBox.Background = active
+            ? System.Windows.Media.Brushes.Transparent
+            : new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
+        _activeTextBox.Foreground = active ? System.Windows.Media.Brushes.Transparent : ToBrush(style.Color);
+        if (!active) return;
+
+        // Build the preview from a throwaway TextShape run through the exact same renderer as the
+        // committed text, so preview == result. Position + size it EXACTLY like CommitInlineTextEdit
+        // will (box top-left, box Width/ActualHeight — NOT inset by Border/Padding), otherwise the
+        // text visibly jumps by the padding when committed. The TextBox glyphs are hidden, so we
+        // don't need to register with them; the (slightly padding-offset) caret is close enough.
+        var px = Canvas.GetLeft(_activeTextBox);
+        var py = Canvas.GetTop(_activeTextBox);
+        var boxH = _editingTextShape?.Height
+            ?? (_activeTextBox.ActualHeight > 0 ? _activeTextBox.ActualHeight : _activeTextBox.MinHeight);
+        var rotation = _editingTextShape?.Rotation ?? 0;
+        var previewShape = new TextShape(px, py, Math.Max(1, _activeTextBox.Width), boxH,
+            _activeTextBox.Text, style, color, ShapeColor.Transparent, width, rotation);
+        var preview = CreateOutlinedText(previewShape);
+        preview.IsHitTestVisible = false;
+
+        var idx = DrawingCanvas.Children.IndexOf(_activeTextBox);
+        if (idx >= 0) DrawingCanvas.Children.Insert(idx, preview);
+        else DrawingCanvas.Children.Add(preview);
+        _activeTextOutlinePreview = preview;
+    }
+
+    /// <summary>Outline (colour + width) the text being edited will carry: the shape's own values
+    /// when editing an existing text, otherwise the sticky text-outline defaults for a new one.</summary>
+    private (ShapeColor Color, double Width) InlineEditOutline() =>
+        _editingTextShape is not null
+            ? (_editingTextShape.Outline, _editingTextShape.StrokeWidth)
+            : (_vm.TextOutlineColor, _vm.TextOutlineWidth);
+
+    private void OnInlineTextBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            // Esc commits a new text (so the user keeps the typed content selected) but cancels
+            // an in-progress edit of an existing text (Esc = "back out, leave the original alone").
+            if (_editingTextShape is null) CommitInlineTextEdit();
+            else CancelInlineTextEdit();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+        {
+            CommitInlineTextEdit();
+            e.Handled = true;
+        }
+    }
+
+    private void CommitInlineTextEdit()
+    {
+        if (_activeTextBox is null) return;
+        var text = _activeTextBox.Text;
+        var x = Canvas.GetLeft(_activeTextBox);
+        var y = Canvas.GetTop(_activeTextBox);
+        // Inherit the inline editor's current size — that's the user-resized width/height the
+        // editor was tracking. For a fresh text the editor was sized to the existing shape (or
+        // DefaultWidth/Height for new text); for an in-place edit we honour the existing
+        // shape's size so a "just type more text" pass doesn't shrink the box.
+        var fontSize = (_editingTextShape?.Style ?? _vm.CurrentTextStyle).FontSize;
+        var width = _activeTextBox.ActualWidth > 0 ? _activeTextBox.ActualWidth : TextShape.DefaultWidthFor(fontSize);
+        var height = _activeTextBox.ActualHeight > 0 ? _activeTextBox.ActualHeight : TextShape.DefaultHeightFor(fontSize);
+
+        DrawingCanvas.Children.Remove(_activeTextBox);
+        RemoveInlineOutlinePreview();
+        var existing = _editingTextShape;
+        var style = existing?.Style ?? _vm.CurrentTextStyle;
+        _activeTextBox = null;
+        _editingTextShape = null;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            if (existing is not null) _vm.RemoveShapes([existing]);
+            return;
+        }
+
+        // Preserve rotation + size on edit; new shapes inherit the inline editor's working
+        // dimensions. When editing an existing text keep its own outline (colour + width); a
+        // brand-new text starts from the sticky outline defaults (off unless the user enabled it).
+        var rotation = existing?.Rotation ?? 0;
+        var finalWidth = existing?.Width ?? width;
+        var finalHeight = existing?.Height ?? height;
+        var outlineColor = existing?.Outline ?? _vm.TextOutlineColor;
+        var outlineWidth = existing?.StrokeWidth ?? _vm.TextOutlineWidth;
+        var shape = new TextShape(x, y, finalWidth, finalHeight,
+            text, style, outlineColor, ShapeColor.Transparent, outlineWidth, rotation);
+        if (existing is null)
+        {
+            _vm.AddTextShape(shape);
+            // Auto-select the new text WITHOUT switching tool — symmetric to drawing tools
+            // (CommitGesture does the same). The user can immediately tweak font/color/size/align
+            // from the panel and a fresh click on the canvas creates another text.
+            _vm.SetSelection([shape]);
+        }
+        else
+        {
+            _vm.ApplyShapeEdit(existing, shape);
+        }
+    }
+
+    private void CancelInlineTextEdit()
+    {
+        if (_activeTextBox is null) return;
+        DrawingCanvas.Children.Remove(_activeTextBox);
+        RemoveInlineOutlinePreview();
+        _activeTextBox = null;
+        _editingTextShape = null;
+        RedrawAll();
+    }
+
+    private void RemoveInlineOutlinePreview()
+    {
+        if (_activeTextOutlinePreview is null) return;
+        DrawingCanvas.Children.Remove(_activeTextOutlinePreview);
+        _activeTextOutlinePreview = null;
+    }
+
+    private double _currentTextSize = TextStyle.Default.FontSize;
+
+    private void OnSelFontSizeSliderChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        _currentTextSize = SelFontSizeSlider.Value;
+        SelFontSizeBox.Text = ((int)Math.Round(_currentTextSize)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        OnSelTextStyleChanged();
+    }
+
+    private void OnSelFontSizeBoxCommitted()
+    {
+        if (_suppressLiveUpdates) return;
+        if (!double.TryParse(SelFontSizeBox.Text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            SelFontSizeBox.Text = ((int)Math.Round(_currentTextSize)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+        // Hard cap at 1000 — anything bigger crashes WPF text rendering on the canvas.
+        v = Math.Clamp(v, 1, 1000);
+        _currentTextSize = v;
+        SelFontSizeBox.Text = ((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        // Update slider only if value fits its bounds; otherwise let the slider sit at its max.
+        _suppressLiveUpdates = true;
+        try { SelFontSizeSlider.Value = Math.Clamp(v, SelFontSizeSlider.Minimum, SelFontSizeSlider.Maximum); }
+        finally { _suppressLiveUpdates = false; }
+        OnSelTextStyleChanged();
+    }
+
+    private void OnSelAlignLeftClicked(object sender, RoutedEventArgs e) => SetTextAlign(TextAlign.Left);
+    private void OnSelAlignCenterClicked(object sender, RoutedEventArgs e) => SetTextAlign(TextAlign.Center);
+    private void OnSelAlignRightClicked(object sender, RoutedEventArgs e) => SetTextAlign(TextAlign.Right);
+
+    private void SetTextAlign(TextAlign a)
+    {
+        if (_suppressLiveUpdates) return;
+        ApplyTextStyle(a);
+        RefreshAlignToggles(a);
+    }
+
+    private void RefreshAlignToggles(TextAlign a)
+    {
+        SelAlignLeftBtn.IsChecked = a == TextAlign.Left;
+        SelAlignCenterBtn.IsChecked = a == TextAlign.Center;
+        SelAlignRightBtn.IsChecked = a == TextAlign.Right;
+    }
+
+    private void OnSelTextStyleChanged() => ApplyTextStyle(null);
+
+    /// <summary>Read every field of the text panel, build a TextStyle and push it to all selected
+    /// TextShapes and to the Text style. <paramref name="alignOverride"/> lets the alignment buttons
+    /// short-circuit the read of the toggle buttons (which haven't toggled yet at click time).</summary>
+    private void ApplyTextStyle(TextAlign? alignOverride)
+    {
+        if (_suppressLiveUpdates) return;
+        var family = string.IsNullOrWhiteSpace(SelFontInput.Text) ? "Segoe UI" : SelFontInput.Text;
+        var size = _currentTextSize;
+        var bold = SelBoldCheck.IsChecked == true;
+        var italic = SelItalicCheck.IsChecked == true;
+        var color = SelTextColorSwatch.SelectedColor;
+        var align = alignOverride ?? CurrentAlignFromToggles();
+        var newStyle = new TextStyle(family, size, bold, italic, color, align);
+        var tools = StyleTargets(t => t == EditorTool.Text);
+
+        foreach (var s in _vm.SelectedShapes.OfType<TextShape>().ToList())
+        {
+            _vm.LiveReplaceShape(s, s with { Style = newStyle });
+        }
+        WriteStyle(tools, style => style with { Text = newStyle });
+    }
+
+    /// <summary>Apply the outline colour + width from the text panel to every selected TextShape and
+    /// to the Text style. The contour is stored on TextShape's
+    /// inherited Outline / StrokeWidth fields; rendering (CreateOutlinedText) only kicks in when
+    /// width &gt; 0 and the colour isn't transparent, so width 0 or a transparent swatch turns the
+    /// outline off. Live-edit commits happen on mouse-up / selection change, same as the other
+    /// panel knobs.</summary>
+    private void OnSelTextOutlineChanged()
+    {
+        if (_suppressLiveUpdates) return;
+        var color = SelTextOutlineSwatch.SelectedColor;
+        var width = SelTextOutlineSlider.Value;
+        SelTextOutlineBox.Text = ((int)Math.Round(width)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var tools = StyleTargets(t => t == EditorTool.Text);
+
+        foreach (var s in _vm.SelectedShapes.OfType<TextShape>().ToList())
+        {
+            _vm.LiveReplaceShape(s, s with { Outline = color, StrokeWidth = width });
+        }
+        WriteStyle(tools, style => style with { TextOutlineColor = color, TextOutlineWidth = width });
+    }
+
+    /// <summary>Cached system font family names. Lazy-initialized once per process — enumerating
+    /// Fonts.SystemFontFamilies isn't free.</summary>
+    private static readonly Lazy<List<string>> SystemFonts = new(() =>
+        Fonts.SystemFontFamilies
+            .Select(f => f.Source)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList());
+
+    private bool _suppressFontInput;
+    private bool _suppressStepFontInput;
+    private FontPicker? _textFontPicker;
+    private FontPicker? _stepFontPicker;
+
+    /// <summary>Bag of refs + callbacks needed by <see cref="WireFontPicker(FontPicker)"/>. One
+    /// instance per autocomplete picker: text-shape style and step-counter font live independently
+    /// so each gets its own state (suppress flag, commit callback, controls).</summary>
+    private sealed class FontPicker
+    {
+        public required System.Windows.Controls.TextBox Input;
+        public required System.Windows.Controls.Primitives.Popup Popup;
+        public required ListBox List;
+        public required Action OnCommit;
+        public required Func<bool> GetSuppress;
+        public required Action<bool> SetSuppress;
+    }
+
+    /// <summary>Custom font picker: TextBox + Popup with ListBox. The TextBox shows the current font
+    /// and acts as a search field; the Popup lists matching fonts; clicking one applies it. This
+    /// replaces the editable ComboBox approach which had constant flash from CollectionView refresh
+    /// fighting with WPF's text/caret bookkeeping. Parameterised so the same wiring serves both
+    /// the text-style picker and the step-counter picker.</summary>
+    private void WireFontPickers()
+    {
+        _textFontPicker = new FontPicker
+        {
+            Input = SelFontInput,
+            Popup = SelFontPopup,
+            List = SelFontList,
+            OnCommit = () => OnSelTextStyleChanged(),
+            GetSuppress = () => _suppressFontInput,
+            SetSuppress = v => _suppressFontInput = v
+        };
+        _stepFontPicker = new FontPicker
+        {
+            Input = SelStepFontInput,
+            Popup = SelStepFontPopup,
+            List = SelStepFontList,
+            OnCommit = OnSelStepFontStyleChanged,
+            GetSuppress = () => _suppressStepFontInput,
+            SetSuppress = v => _suppressStepFontInput = v
+        };
+        WireFontPicker(_textFontPicker);
+        WireFontPicker(_stepFontPicker);
+    }
+
+    private void WireFontPicker(FontPicker p)
+    {
+        // No popup on GotFocus — that caused a flash from binding ~500 items into the ListBox.
+        // Popup opens only when the user actually starts typing or hits Down arrow.
+        p.Input.TextChanged += (_, _) =>
+        {
+            if (p.GetSuppress()) return;
+            var text = p.Input.Text ?? "";
+            if (text.Length == 0) { p.Popup.IsOpen = false; return; }
+            RebuildFontList(p, text);
+        };
+        p.Input.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape) { p.Popup.IsOpen = false; e.Handled = true; }
+            else if (e.Key == Key.Down)
+            {
+                if (!p.Popup.IsOpen)
+                {
+                    RebuildFontList(p, p.Input.Text ?? "");
+                    p.List.SelectedIndex = 0;
+                    (p.List.ItemContainerGenerator.ContainerFromIndex(0) as ListBoxItem)?.BringIntoView();
+                }
+                else if (p.List.Items.Count > 0)
+                {
+                    p.List.SelectedIndex = Math.Min(p.List.SelectedIndex + 1, p.List.Items.Count - 1);
+                    if (p.List.SelectedIndex < 0) p.List.SelectedIndex = 0;
+                    (p.List.ItemContainerGenerator.ContainerFromIndex(p.List.SelectedIndex) as ListBoxItem)?.BringIntoView();
+                }
+                PreviewSelectedFont(p);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Up)
+            {
+                if (p.List.SelectedIndex > 0)
+                {
+                    p.List.SelectedIndex--;
+                    (p.List.ItemContainerGenerator.ContainerFromIndex(p.List.SelectedIndex) as ListBoxItem)?.BringIntoView();
+                }
+                PreviewSelectedFont(p);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Enter)
+            {
+                if (p.List.SelectedItem is string s) CommitFontPick(p, s);
+                else if (p.List.Items.Count > 0 && p.List.Items[0] is string first) CommitFontPick(p, first);
+                e.Handled = true;
+            }
+        };
+        p.List.PreviewMouseLeftButtonUp += (_, e) =>
+        {
+            if (e.OriginalSource is DependencyObject d)
+            {
+                var item = FindParent<ListBoxItem>(d);
+                if (item?.Content is string s) CommitFontPick(p, s);
+            }
+        };
+    }
+
+    private static void RebuildFontList(FontPicker p, string filter)
+    {
+        var all = SystemFonts.Value;
+        IEnumerable<string> source = string.IsNullOrEmpty(filter)
+            ? all
+            : all.Where(f => f.Contains(filter, StringComparison.OrdinalIgnoreCase));
+        p.List.ItemsSource = source.Take(200).ToList();
+        if (!p.Popup.IsOpen) p.Popup.IsOpen = true;
+    }
+
+    private static void CommitFontPick(FontPicker p, string family)
+    {
+        p.SetSuppress(true);
+        try
+        {
+            p.Input.Text = family;
+            p.Input.CaretIndex = family.Length;
+        }
+        finally { p.SetSuppress(false); }
+        p.Popup.IsOpen = false;
+        p.OnCommit();
+    }
+
+    /// <summary>Live-preview the font of the currently highlighted ListBox item without closing the popup.
+    /// Updates the input silently and applies the new style via the picker's commit callback.</summary>
+    private static void PreviewSelectedFont(FontPicker p)
+    {
+        if (p.List.SelectedItem is not string family) return;
+        p.SetSuppress(true);
+        try
+        {
+            p.Input.Text = family;
+            p.Input.CaretIndex = family.Length;
+        }
+        finally { p.SetSuppress(false); }
+        p.OnCommit();
+    }
+
+    private static T? FindParent<T>(DependencyObject d) where T : DependencyObject
+    {
+        while (d is not null)
+        {
+            if (d is T t) return t;
+            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+        }
+        return null;
+    }
+
+    /// <summary>(Legacy method — kept for reference; not wired anymore.)</summary>
+    private static void WireFontFilter(ComboBox combo, List<string> allFonts)
+    {
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(allFonts);
+        var currentFilter = "";
+        view.Filter = obj =>
+        {
+            if (string.IsNullOrEmpty(currentFilter)) return true;
+            return obj is string s && s.Contains(currentFilter, StringComparison.OrdinalIgnoreCase);
+        };
+        combo.ItemsSource = view;
+
+        const int MinChars = 2;
+        var pendingText = "";
+        var debounce = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(350)
+        };
+        debounce.Tick += (_, _) =>
+        {
+            debounce.Stop();
+            // Don't filter on tiny inputs — too many matches, churn high, more chance of caret loss.
+            var effective = pendingText.Length >= MinChars ? pendingText : "";
+            if (string.Equals(currentFilter, effective, StringComparison.Ordinal)) return;
+            currentFilter = effective;
+
+            // Refresh resets the editable ComboBox's caret/text. Snapshot then restore.
+            var inner = combo.Template?.FindName("PART_EditableTextBox", combo) as System.Windows.Controls.TextBox;
+            var savedText = inner?.Text ?? combo.Text;
+            var savedCaret = inner?.CaretIndex ?? savedText.Length;
+
+            view.Refresh();
+            // Move the keyboard "current item" to the first match so arrow-down navigates within the
+            // filtered list rather than the full one. CurrentItem is the cursor for INavigateBy/key
+            // events on a CollectionView.
+            view.MoveCurrentToFirst();
+
+            combo.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
+            {
+                if (inner is null) return;
+                if (inner.Text != savedText) inner.Text = savedText;
+                inner.CaretIndex = Math.Min(savedCaret, inner.Text.Length);
+                if (!string.IsNullOrEmpty(currentFilter) && !combo.IsDropDownOpen) combo.IsDropDownOpen = true;
+            });
+        };
+
+        combo.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+            new System.Windows.Controls.TextChangedEventHandler((_, _) =>
+            {
+                var text = combo.Text ?? "";
+                // Don't filter when the user has just committed a selection (text matches selected item).
+                if (combo.SelectedItem is string sel && string.Equals(sel, text, StringComparison.Ordinal))
+                {
+                    debounce.Stop();
+                    if (currentFilter.Length > 0)
+                    {
+                        currentFilter = "";
+                        view.Refresh();
+                    }
+                    return;
+                }
+                pendingText = text;
+                debounce.Stop();
+                debounce.Start();
+            }));
+    }
+
+    private TextAlign CurrentAlignFromToggles()
+    {
+        if (SelAlignCenterBtn.IsChecked == true) return TextAlign.Center;
+        if (SelAlignRightBtn.IsChecked == true) return TextAlign.Right;
+        return TextAlign.Left;
+    }
+
+    /// <summary>Capabilities of a shape category, used to drive section visibility and the
+    /// "no-selection defaults" preview. Maps 1:1 to a drawing tool that produces this shape
+    /// kind (text → TextShape, freehand → FreehandShape, etc.). Tools that don't produce a
+    /// freestanding editable shape (Select, Crop, SmartEraser) return null from <see cref="ToolCategory"/>.</summary>
+    private sealed record ShapeCategory(
+        string Name,
+        bool Outline,
+        bool Fill,
+        bool Stroke,
+        bool Text,
+        bool Freehand,
+        bool Line,
+        bool Step,
+        ShapeCategory.EffectKind Effect)
+    {
+        public enum EffectKind { None, Blur, Pixelate, Spotlight }
+    }
+
+    private static ShapeCategory? ToolCategory(EditorTool tool) => tool switch
+    {
+        EditorTool.Rectangle   => new("Rectangle",   Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Ellipse     => new("Ellipse",     Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Arrow       => new("Arrow",       Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Line        => new("Line",        Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: false, Line: true,  Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Freehand    => new("Freehand",    Outline: true,  Fill: false, Stroke: true,  Text: false, Freehand: true,  Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.Text        => new("Text",        Outline: false, Fill: false, Stroke: false, Text: true,  Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.None),
+        EditorTool.StepCounter => new("Step counter",Outline: true,  Fill: true,  Stroke: true,  Text: false, Freehand: false, Line: false, Step: true,  ShapeCategory.EffectKind.None),
+        EditorTool.Blur        => new("Blur",        Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.Blur),
+        EditorTool.Pixelate    => new("Pixelate",    Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.Pixelate),
+        EditorTool.Spotlight   => new("Spotlight",   Outline: false, Fill: false, Stroke: false, Text: false, Freehand: false, Line: false, Step: false, ShapeCategory.EffectKind.Spotlight),
+        // Select / Crop / SmartEraser have no per-shape props worth previewing — fall back to
+        // the empty-state hint.
+        _ => null,
+    };
+
+    private string ShapeKindName(Shape s) => s switch
+    {
+        RectangleShape    => Loc("Shape_Rectangle",   "Rectangle"),
+        EllipseShape      => Loc("Shape_Ellipse",     "Ellipse"),
+        // A LineShape with any cap toggled on reads as "Arrow" in the user's mental model
+        // (the unified tool started as a separate Line and Arrow). Use the label that matches
+        // what they see.
+        LineShape l       => ToolFor(l) == EditorTool.Arrow ? Loc("Shape_Arrow", "Arrow") : Loc("Shape_Line", "Line"),
+        FreehandShape     => Loc("Shape_Freehand",    "Freehand"),
+        TextShape         => Loc("Shape_Text",        "Text"),
+        StepCounterShape  => Loc("Shape_StepCounter", "Step counter"),
+        BlurShape         => Loc("Shape_Blur",        "Blur"),
+        PixelateShape     => Loc("Shape_Pixelate",    "Pixelate"),
+        SpotlightShape    => Loc("Shape_Spotlight",   "Spotlight"),
+        ImageShape        => Loc("Shape_Image",       "Image"),
+        SmartEraserShape  => Loc("Shape_SmartEraser", "Smart eraser"),
+        _ => s.GetType().Name.Replace("Shape", string.Empty),
+    };
+
+    /// <summary>Map a <see cref="ShapeCategory.Name"/> (the literal English fallback stored in
+    /// <see cref="ToolCategory"/>) onto its localised display string. Lets the static category
+    /// table stay static while still flowing through Loc().</summary>
+    private string LocalizedCategoryName(string fallback) => fallback switch
+    {
+        "Rectangle"    => Loc("Shape_Rectangle",   fallback),
+        "Ellipse"      => Loc("Shape_Ellipse",     fallback),
+        "Arrow"        => Loc("Shape_Arrow",       fallback),
+        "Line"         => Loc("Shape_Line",        fallback),
+        "Freehand"     => Loc("Shape_Freehand",    fallback),
+        "Text"         => Loc("Shape_Text",        fallback),
+        "Step counter" => Loc("Shape_StepCounter", fallback),
+        "Blur"         => Loc("Shape_Blur",        fallback),
+        "Pixelate"     => Loc("Shape_Pixelate",    fallback),
+        "Spotlight"    => Loc("Shape_Spotlight",   fallback),
+        _ => fallback,
+    };
+
+    /// <summary>Show the sections relevant to <paramref name="category"/> and pre-fill them
+    /// with the active tool's current style so the user sees the values their next shape gets.
+    /// Shows what a selection of that tool's shapes would (rotation aside), sourced from the
+    /// style instead of a concrete shape; editing a control writes that style.</summary>
+    /// <summary>With a fill the swatch is the shape's outline; without one (line, arrow, freehand) it is the
+    /// colour of the stroke itself, so it says so.</summary>
+    private void UpdateOutlineLabel()
+        => SelOutlineLabel.Text = SelFillSection.Visibility == Visibility.Visible
+            ? Loc("Outline", "Outline")
+            : Loc("StrokeColor", "Stroke color");
+
+    private void ApplyToolDefaultsToPanel(ShapeCategory category)
+    {
+        var style = _vm.Styles.Current(_vm.CurrentTool);
+        SelOutlineSection.Visibility = category.Outline ? Visibility.Visible : Visibility.Collapsed;
+        SelFillSection.Visibility    = category.Fill    ? Visibility.Visible : Visibility.Collapsed;
+        UpdateOutlineLabel();
+        SelOutlineFillRow.Visibility = (category.Outline || category.Fill) ? Visibility.Visible : Visibility.Collapsed;
+        SelStrokeSection.Visibility  = category.Stroke  ? Visibility.Visible : Visibility.Collapsed;
+        SelTextStyleSection.Visibility = category.Text  ? Visibility.Visible : Visibility.Collapsed;
+        SelFreehandSection.Visibility  = category.Freehand ? Visibility.Visible : Visibility.Collapsed;
+        SelLineSection.Visibility      = category.Line ? Visibility.Visible : Visibility.Collapsed;
+        SelEffectSection.Visibility    = category.Effect != ShapeCategory.EffectKind.None ? Visibility.Visible : Visibility.Collapsed;
+        // Rotation is a property of one concrete shape, not part of a style.
+        SelRotationSection.Visibility = Visibility.Collapsed;
+        SelStepCounterSection.Visibility = category.Step ? Visibility.Visible : Visibility.Collapsed;
+
+        _suppressLiveUpdates = true;
+        try
+        {
+            if (category.Outline) SelOutlineSwatch.SelectedColor = style.Outline;
+            if (category.Fill)    SelFillSwatch.SelectedColor    = style.Fill;
+            if (category.Stroke)  SelStrokeSlider.Value          = style.StrokeWidth;
+            if (category.Text)    ApplyDefaultsToTextSection();
+            if (category.Step)
+            {
+                _suppressStepFontInput = true;
+                try { SelStepFontInput.Text = style.StepFontFamily; }
+                finally { _suppressStepFontInput = false; }
+                SelStepBoldCheck.IsChecked = style.StepBold;
+                SelStepItalicCheck.IsChecked = style.StepItalic;
+            }
+            if (category.Freehand)
+            {
+                SelFreehandSmoothCheck.IsChecked = style.Smooth;
+                SelFreehandStartCapCheck.IsChecked = style.StartCap;
+                SelFreehandEndCapCheck.IsChecked = style.EndCap;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, style.TipStyle);
+            }
+            if (category.Line)
+            {
+                SelLineStartCapCheck.IsChecked = style.StartCap;
+                SelLineEndCapCheck.IsChecked = style.EndCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, style.TipStyle);
+            }
+            // Effect tools: range, label and the amount the next region gets.
+            switch (category.Effect)
+            {
+                case ShapeCategory.EffectKind.Blur:
+                    SelEffectLabel.Text = Loc("BlurRadius", "Blur radius (px)");
+                    SelEffectSlider.Minimum = 0; SelEffectSlider.Maximum = 60;
+                    SelEffectSlider.Value = Math.Clamp(style.EffectAmount, 0, 60);
+                    SelEffectBox.Text = ((int)Math.Round(style.EffectAmount)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    SelEffectSecondarySection.Visibility = Visibility.Collapsed;
+                    break;
+                case ShapeCategory.EffectKind.Pixelate:
+                    SelEffectLabel.Text = Loc("PixelBlockSize", "Pixel block size");
+                    SelEffectSlider.Minimum = 2; SelEffectSlider.Maximum = 60;
+                    SelEffectSlider.Value = Math.Clamp(style.EffectAmount, 2, 60);
+                    SelEffectBox.Text = ((int)Math.Round(style.EffectAmount)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    SelEffectSecondarySection.Visibility = Visibility.Collapsed;
+                    break;
+                case ShapeCategory.EffectKind.Spotlight:
+                    SelEffectLabel.Text = Loc("SpotlightDim", "Spotlight dim (%)");
+                    SelEffectSlider.Minimum = 0; SelEffectSlider.Maximum = 100;
+                    SelEffectSlider.Value = Math.Clamp(Math.Round(style.EffectAmount * 100), 0, 100);
+                    SelEffectBox.Text = ((int)Math.Round(style.EffectAmount * 100)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    SelEffectSecondarySection.Visibility = Visibility.Visible;
+                    SelEffectSecondaryLabel.Text = Loc("SpotlightBlur", "Spotlight blur (px)");
+                    SelEffectSecondarySlider.Minimum = 0; SelEffectSecondarySlider.Maximum = 60;
+                    SelEffectSecondarySlider.Value = Math.Clamp(style.EffectAmount2, 0, 60);
+                    SelEffectSecondaryBox.Text = ((int)Math.Round(style.EffectAmount2)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+            }
+        }
+        finally { _suppressLiveUpdates = false; }
+    }
+
+    private void ApplyDefaultsToTextSection()
+    {
+        _suppressLiveUpdates = true;
+        try
+        {
+            var s = _vm.CurrentTextStyle;
+            _suppressFontInput = true;
+            try { SelFontInput.Text = s.FontFamily; } finally { _suppressFontInput = false; }
+            _currentTextSize = s.FontSize;
+            SelFontSizeSlider.Value = Math.Clamp(_currentTextSize, SelFontSizeSlider.Minimum, SelFontSizeSlider.Maximum);
+            SelFontSizeBox.Text = ((int)Math.Round(_currentTextSize)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            SelBoldCheck.IsChecked = s.Bold;
+            SelItalicCheck.IsChecked = s.Italic;
+            SelTextColorSwatch.SelectedColor = s.Color;
+            SelTextOutlineSwatch.SelectedColor = _vm.TextOutlineColor;
+            SelTextOutlineSlider.Value = Math.Clamp(_vm.TextOutlineWidth, SelTextOutlineSlider.Minimum, SelTextOutlineSlider.Maximum);
+            SelTextOutlineBox.Text = ((int)Math.Round(_vm.TextOutlineWidth)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            RefreshAlignToggles(s.Align);
+        }
+        finally { _suppressLiveUpdates = false; }
+    }
+
+    private static Shape ApplyOutlineColor(Shape s, ShapeColor c) => s switch
+    {
+        RectangleShape r => r with { Outline = c },
+        EllipseShape e => e with { Outline = c },
+        LineShape l => l with { Outline = c },
+        FreehandShape f => f with { Outline = c },
+        TextShape t => t with { Outline = c },
+        StepCounterShape sc => sc with { Outline = c },
+        ImageShape i => i with { Outline = c },
+        _ => s
+    };
+
+    private static Shape ApplyFillColor(Shape s, ShapeColor c) => s switch
+    {
+        RectangleShape r => r with { Fill = c },
+        EllipseShape e => e with { Fill = c },
+        StepCounterShape sc => sc with { Fill = c },
+        // Arrow/Line/Freehand/Text have no fill semantics; ignore.
+        _ => s
+    };
+
+    private static bool ShapeSupportsFill(Shape s) => s is RectangleShape or EllipseShape or StepCounterShape;
+
+    /// <summary>True for shapes that visually use the Outline color. TextShape uses Style.Color
+    /// instead, and effect shapes (blur/pixelate/spotlight) have no colored stroke at all.
+    /// <see cref="ImageShape"/> participates because outer-aligned outlines wrap the bitmap
+    /// without affecting the rendered pixels — same UX as Photoshop's "Stroke" layer effect.</summary>
+    private static bool ShapeSupportsOutline(Shape s) =>
+        s is RectangleShape or EllipseShape or LineShape or FreehandShape or StepCounterShape or ImageShape;
+
+    /// <summary>True for shapes that visually use StrokeWidth. TextShape uses FontSize, effect shapes
+    /// have no stroke.</summary>
+    private static bool ShapeSupportsStroke(Shape s) =>
+        s is RectangleShape or EllipseShape or LineShape or FreehandShape or StepCounterShape or ImageShape;
+
+    private static Shape ApplyStrokeWidth(Shape s, double w) => s switch
+    {
+        RectangleShape r => r with { StrokeWidth = w },
+        EllipseShape e => e with { StrokeWidth = w },
+        LineShape l => l with { StrokeWidth = w },
+        FreehandShape f => f with { StrokeWidth = w },
+        StepCounterShape sc => sc with { StrokeWidth = w },
+        ImageShape i => i with { StrokeWidth = w },
+        // TextShape uses Style.FontSize, not StrokeWidth — ignore.
+        _ => s
+    };
+
+    private (double X, double Y) ApplyShiftConstraint(double x, double y)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift) return (x, y);
+
+        var dx = x - _gestureStartX;
+        var dy = y - _gestureStartY;
+
+        switch (_vm.CurrentTool)
+        {
+            case EditorTool.Rectangle:
+            case EditorTool.Ellipse:
+            {
+                // Constrain to square / circle (equal width and height).
+                var size = Math.Max(Math.Abs(dx), Math.Abs(dy));
+                var sx = Math.Sign(dx) * size;
+                var sy = Math.Sign(dy) * size;
+                if (sx == 0) sx = size;
+                if (sy == 0) sy = size;
+                return (_gestureStartX + sx, _gestureStartY + sy);
+            }
+            case EditorTool.Line:
+            case EditorTool.Arrow:
+            {
+                // Snap to nearest multiple of 45° (8 angles).
+                var angle = Math.Atan2(dy, dx);
+                var snapped = Math.Round(angle / (Math.PI / 4)) * (Math.PI / 4);
+                var len = Math.Sqrt(dx * dx + dy * dy);
+                return (_gestureStartX + len * Math.Cos(snapped), _gestureStartY + len * Math.Sin(snapped));
+            }
+            default:
+                return (x, y);
+        }
+    }
+
+    private void OnShapesChanged(object? sender, NotifyCollectionChangedEventArgs e) => RedrawAll();
+
+    /// <summary>Render the non-destructive pending-crop overlay for ALL pending rects.
+    /// Multi-region: each rect renders its own border + 8 grips + ✗ close button; the dim
+    /// overlay is computed as ONE union path (even-odd fill) so areas inside ANY rect stay
+    /// bright while everything else is uniformly dimmed. Apply All is the global confirmation
+    /// hosted in the Crop properties panel; per-rect close lives on each rect.</summary>
+    private void RedrawPendingCrop()
+    {
+        for (var i = DrawingCanvas.Children.Count - 1; i >= 0; i--)
+        {
+            if (DrawingCanvas.Children[i] is FrameworkElement fe && (fe.Tag as string) == "pendingcrop")
+                DrawingCanvas.Children.RemoveAt(i);
+        }
+        if (_vm.PendingCrops.Count == 0)
+        {
+            _antsTimer?.Stop();
+            return;
+        }
+        EnsureMarchingAntsTimer();
+
+        // Combined dim overlay via even-odd Path: outer = canvas bounds + each crop rect as
+        // a sub-figure. Even-odd fill: pixels covered by an even number of subpaths stay
+        // unfilled, so anything inside any rect is bright; outside-every-rect → dimmed.
+        // Necessary for multi-rect (overlap of dim-tiles would double-darken inside one
+        // rect that intersects another); single-rect collapses to the same behaviour.
+        var canvasW = DrawingCanvas.Width > 0 ? DrawingCanvas.Width : DrawingCanvas.ActualWidth;
+        var canvasH = DrawingCanvas.Height > 0 ? DrawingCanvas.Height : DrawingCanvas.ActualHeight;
+        var dimGeometry = new PathGeometry { FillRule = FillRule.EvenOdd };
+        dimGeometry.Figures.Add(MakeRectFigure(0, 0, canvasW, canvasH));
+        foreach (var c in _vm.PendingCrops)
+            dimGeometry.Figures.Add(MakeRectFigure(c.X, c.Y, c.Width, c.Height));
+        var dimPath = new System.Windows.Shapes.Path
+        {
+            Data = dimGeometry,
+            Fill = new SolidColorBrush(Color.FromArgb(140, 0, 0, 0)),
+            IsHitTestVisible = false,
+            Tag = "pendingcrop",
+        };
+        DrawingCanvas.Children.Add(dimPath);
+        for (var idx = 0; idx < _vm.PendingCrops.Count; idx++)
+        {
+            DrawCropRectBorderGripsAndCloseButton(_vm.PendingCrops[idx], idx, idx == _vm.SelectedPendingCropIndex);
+        }
+
+        // No floating Apply-All affordance on the canvas: the "Apply all crops" button in
+        // the Crop properties panel covers the same intent without dropping a green square
+        // next to a pending rect (Enter shortcut still works too).
+    }
+
+    private static PathFigure MakeRectFigure(double x, double y, double w, double h)
+    {
+        var f = new PathFigure { StartPoint = new System.Windows.Point(x, y), IsClosed = true };
+        f.Segments.Add(new LineSegment(new System.Windows.Point(x + w, y), false));
+        f.Segments.Add(new LineSegment(new System.Windows.Point(x + w, y + h), false));
+        f.Segments.Add(new LineSegment(new System.Windows.Point(x, y + h), false));
+        return f;
+    }
+
+    private void DrawCropRectBorderGripsAndCloseButton(CropRect c, int index, bool isSelected)
+    {
+        // Two-pass dashed border for legibility on any background. Selected = yellow+black,
+        // unselected = white+black. Both animated via the marching-ants timer (offsets
+        // bumped each tick) — the second pass uses a half-period phase shift so the dash
+        // gaps interlock, reading like a continuously-scrolling line. Stroke thickness is
+        // counter-zoomed so the line stays 1 px on screen at any zoom level.
+        const double dashOn = 4;
+        const double dashOff = 4;
+        var primary = isSelected
+            ? new SolidColorBrush(Color.FromArgb(255, 255, 196, 0)) // amber
+            : System.Windows.Media.Brushes.White;
+        var dark = System.Windows.Media.Brushes.Black;
+        var darkRect = new System.Windows.Shapes.Rectangle
+        {
+            Width = c.Width, Height = c.Height,
+            Stroke = dark,
+            StrokeThickness = (isSelected ? 1.5 : 1) / _zoom,
+            StrokeDashArray = [dashOn, dashOff],
+            StrokeDashOffset = _antsPhase + dashOn,  // half-period phase = interlock with primary
+            IsHitTestVisible = false,
+            Tag = "pendingcrop",
+        };
+        darkRect.SetValue(FrameworkElement.NameProperty, "ants_dark");
+        Canvas.SetLeft(darkRect, c.X);
+        Canvas.SetTop(darkRect, c.Y);
+        DrawingCanvas.Children.Add(darkRect);
+        var primaryRect = new System.Windows.Shapes.Rectangle
+        {
+            Width = c.Width, Height = c.Height,
+            Stroke = primary,
+            StrokeThickness = (isSelected ? 1.5 : 1) / _zoom,
+            StrokeDashArray = [dashOn, dashOff],
+            StrokeDashOffset = _antsPhase,
+            IsHitTestVisible = false,
+            Tag = "pendingcrop",
+        };
+        primaryRect.SetValue(FrameworkElement.NameProperty, "ants_primary");
+        Canvas.SetLeft(primaryRect, c.X);
+        Canvas.SetTop(primaryRect, c.Y);
+        DrawingCanvas.Children.Add(primaryRect);
+
+        AddCropGrip(c.X,                  c.Y,                  index, CropDragMode.ResizeNW);
+        AddCropGrip(c.X + c.Width / 2,    c.Y,                  index, CropDragMode.ResizeN);
+        AddCropGrip(c.X + c.Width,        c.Y,                  index, CropDragMode.ResizeNE);
+        AddCropGrip(c.X + c.Width,        c.Y + c.Height / 2,   index, CropDragMode.ResizeE);
+        AddCropGrip(c.X + c.Width,        c.Y + c.Height,       index, CropDragMode.ResizeSE);
+        AddCropGrip(c.X + c.Width / 2,    c.Y + c.Height,       index, CropDragMode.ResizeS);
+        AddCropGrip(c.X,                  c.Y + c.Height,       index, CropDragMode.ResizeSW);
+        AddCropGrip(c.X,                  c.Y + c.Height / 2,   index, CropDragMode.ResizeW);
+
+        // Per-rect close button intentionally REMOVED — the user removes individual rects
+        // by selecting (click on rect body) and pressing Delete, same as any other shape.
+        // Treating crops as "shapes you can select and delete" is what ShareX does and it
+        // unifies the mental model: only the global Apply All button is special.
+    }
+
+
+    /// <summary>Lazy-init the marching-ants timer; idempotent across redraws. Only starts
+    /// ticking when there are pending crops; <see cref="RedrawPendingCrop"/> stops it on the
+    /// transition back to zero rects.</summary>
+    private void EnsureMarchingAntsTimer()
+    {
+        if (_antsTimer is not null)
+        {
+            if (!_antsTimer.IsEnabled) _antsTimer.Start();
+            return;
+        }
+        _antsTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(50),  // 20 Hz — smooth without burning CPU
+        };
+        _antsTimer.Tick += (_, _) =>
+        {
+            // Bump phase by half a unit per tick → 4 px / 0.4 s = comfortable scroll speed.
+            _antsPhase = (_antsPhase + 0.5) % 8.0;  // period = dashOn (4) + dashOff (4)
+            UpdateMarchingAntsPhase();
+        };
+        _antsTimer.Start();
+    }
+
+    /// <summary>Apply the current <see cref="_antsPhase"/> to every dashed pending-crop
+    /// rect on the canvas. The two-pass rendering tags rects with Name "ants_primary" or
+    /// "ants_dark"; primary is offset by phase, dark by phase + half-period (so the gaps
+    /// interlock visually). Cheap: at most ~16 children to update per tick (8 rects × 2
+    /// passes).</summary>
+    private void UpdateMarchingAntsPhase()
+    {
+        foreach (var child in DrawingCanvas.Children)
+        {
+            if (child is not System.Windows.Shapes.Rectangle r) continue;
+            if (r.Name == "ants_primary") r.StrokeDashOffset = _antsPhase;
+            else if (r.Name == "ants_dark") r.StrokeDashOffset = _antsPhase + 4;
+        }
+    }
+
+    private void AddCropGrip(double cx, double cy, int rectIndex, CropDragMode mode)
+    {
+        // Screen-space size: a counter-zoom factor keeps the grip at a constant on-screen
+        // footprint regardless of zoom level. Without this, grips become microscopic at
+        // high zoom and giant at low zoom — opposite of what an interactive handle wants.
+        const double screenSize = 10;          // 30% smaller than the previous 14 — user request
+        const double strokeScreen = 1.5;
+        var canvasSize = screenSize / _zoom;
+        var grip = new System.Windows.Shapes.Rectangle
+        {
+            Width = canvasSize, Height = canvasSize,
+            Fill = Brushes.White,
+            Stroke = new SolidColorBrush(Color.FromArgb(255, 80, 200, 255)),
+            StrokeThickness = strokeScreen / _zoom,
+            Tag = "pendingcrop",
+            Cursor = ResizeCursorFor(mode),
+        };
+        // Encode rect index + drag mode in Name so OnCanvasMouseDown can dispatch directly
+        // off the OriginalSource without a coordinate-based hit-test pass. Format
+        // "cropgrip_<index>_<mode>" lets a tiny string split recover both parts.
+        grip.SetValue(FrameworkElement.NameProperty, $"cropgrip_{rectIndex}_{mode}");
+        Canvas.SetLeft(grip, cx - canvasSize / 2);
+        Canvas.SetTop(grip, cy - canvasSize / 2);
+        DrawingCanvas.Children.Add(grip);
+    }
+
+    private static Cursor ResizeCursorFor(CropDragMode mode) => mode switch
+    {
+        CropDragMode.ResizeNW or CropDragMode.ResizeSE => Cursors.SizeNWSE,
+        CropDragMode.ResizeNE or CropDragMode.ResizeSW => Cursors.SizeNESW,
+        CropDragMode.ResizeN  or CropDragMode.ResizeS  => Cursors.SizeNS,
+        CropDragMode.ResizeE  or CropDragMode.ResizeW  => Cursors.SizeWE,
+        _ => Cursors.Arrow,
+    };
+
+    private static bool IsPendingCropElement(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement fe && (fe.Tag as string) == "pendingcrop") return true;
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+        return false;
+    }
+
+    private static FrameworkElement? FindCropGripAncestor(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement fe && fe.Name?.StartsWith("cropgrip_", StringComparison.Ordinal) == true)
+                return fe;
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+        return null;
+    }
+
+    private static bool PointInsideCropRect(System.Windows.Point p, CropRect c) =>
+        p.X >= c.X && p.X <= c.X + c.Width && p.Y >= c.Y && p.Y <= c.Y + c.Height;
+
+    /// <summary>Apply the active drag (move or resize-from-grip) to <see cref="_cropDragOriginal"/>
+    /// and push the resulting rect into the VM. Clamping to a 1-px minimum width/height
+    /// happens inside <see cref="EditorViewModel.SetPendingCrop"/>; here we just compute the
+    /// raw rect for each drag mode.</summary>
+    private void ApplyCropDrag(System.Windows.Point current)
+    {
+        if (_cropDragOriginal is not { } o) return;
+        if (_cropDragIndex < 0) return;
+        var dx = current.X - _cropDragStart.X;
+        var dy = current.Y - _cropDragStart.Y;
+        double x = o.X, y = o.Y, w = o.Width, h = o.Height;
+        switch (_cropDragMode)
+        {
+            case CropDragMode.Move:     x += dx; y += dy; break;
+            case CropDragMode.ResizeNW: x += dx; y += dy; w -= dx; h -= dy; break;
+            case CropDragMode.ResizeN:           y += dy;          h -= dy; break;
+            case CropDragMode.ResizeNE:          y += dy; w += dx; h -= dy; break;
+            case CropDragMode.ResizeE:                    w += dx;          break;
+            case CropDragMode.ResizeSE:                   w += dx; h += dy; break;
+            case CropDragMode.ResizeS:                             h += dy; break;
+            case CropDragMode.ResizeSW: x += dx;          w -= dx; h += dy; break;
+            case CropDragMode.ResizeW:  x += dx;          w -= dx;          break;
+        }
+        _vm.UpdatePendingCrop(_cropDragIndex, x, y, w, h);
+    }
+
+    private void RedrawAll()
+    {
+        DrawingCanvas.Children.Clear();
+        // One pass in creation order (true layers): every shape sits on top of the ones before it.
+        // An effect (blur / pixelate / spotlight / smart-eraser) works on what is beneath it at that
+        // point (screenshot, earlier annotations, earlier effects), so it is built from the
+        // composite of the shapes before it, not from the bare screenshot.
+        var shapes = VisibleShapes();
+        var source = SourceImage.Source as BitmapSource;
+        for (var i = 0; i < shapes.Count; i++)
+        {
+            var shape = shapes[i];
+            var beneath = source is not null && AresToys.Editor.Rendering.BeneathComposer.IsEffect(shape)
+                ? _beneath.Beneath(source, shapes, i)
+                : null;
+            DrawingCanvas.Children.Add(MakeUiElement(shape, beneath));
+        }
+        RedrawPreview();
+        _beneath.Trim();
+        RefreshSelectionAdorner();
+        // Pending-crop overlay sits on TOP of shapes + adorners + preview so the dim shading
+        // applies uniformly and the action buttons are clickable. Redrawn after the standard
+        // pass so it survives a full RedrawAll (e.g. after a shape edit while a crop is pending).
+        RedrawPendingCrop();
+        if (_activeTextBox is not null)
+        {
+            DrawingCanvas.Children.Add(_activeTextBox);
+            // RedrawAll cleared the canvas, so the outline-preview path (which sits just behind the
+            // editor) has to be rebuilt and re-inserted after the TextBox is back.
+            _activeTextOutlinePreview = null;
+            RefreshInlineOutlinePreview();
+        }
+    }
+
+    /// <summary>The shapes the canvas draws, in creation order. The text being edited inline is left
+    /// out: the live TextBox stands in for it, and effects placed after it do not see it until the
+    /// edit is committed.</summary>
+    private List<Shape> VisibleShapes() =>
+        _vm.Shapes.Where(s => !ReferenceEquals(s, _editingTextShape)).ToList();
+
+    private void RedrawPreview()
+    {
+        for (var i = DrawingCanvas.Children.Count - 1; i >= 0; i--)
+        {
+            if (DrawingCanvas.Children[i] is FrameworkElement fe && (fe.Tag as string) == "preview")
+            {
+                DrawingCanvas.Children.RemoveAt(i);
+            }
+        }
+        if (_vm.PreviewShape is null) return;
+        // Crop tool gets a ShareX-style "marching ants" rect: white dash on top of black dash
+        // shifted half a period, so the gaps interlock and the rectangle reads on any
+        // background. Less aggressive than the red default outline used by drawing tools.
+        if (_vm.CurrentTool == EditorTool.Crop && _vm.PreviewShape is RectangleShape cropRect)
+        {
+            foreach (var element in CreateCropPreview(cropRect))
+            {
+                if (element is FrameworkElement fe2) fe2.Tag = "preview";
+                DrawingCanvas.Children.Add(element);
+            }
+            return;
+        }
+        // A preview effect is the topmost shape: it works on everything currently on the canvas.
+        BitmapSource? beneath = null;
+        if (AresToys.Editor.Rendering.BeneathComposer.IsEffect(_vm.PreviewShape)
+            && SourceImage.Source is BitmapSource previewSource)
+        {
+            var below = VisibleShapes();
+            beneath = _beneath.Beneath(previewSource, below, below.Count);
+        }
+        var ui = MakeUiElement(_vm.PreviewShape, beneath);
+        if (ui is FrameworkElement fe1) fe1.Tag = "preview";
+        DrawingCanvas.Children.Add(ui);
+    }
+
+    /// <summary>Two stacked Rectangles forming the ShareX-style dashed selection. The black
+    /// rect uses an offset dash array so its dashes sit in the gaps of the white one — gives
+    /// the "marching ants" silhouette legibility on both bright and dark backgrounds without
+    /// animating anything (cheaper than a DispatcherTimer-driven offset).</summary>
+    private static IEnumerable<UIElement> CreateCropPreview(RectangleShape r)
+    {
+        const double dashOn = 4;
+        const double dashOff = 4;
+        var black = new System.Windows.Shapes.Rectangle
+        {
+            Width = r.Width, Height = r.Height,
+            Stroke = System.Windows.Media.Brushes.Black,
+            StrokeThickness = 1,
+            StrokeDashArray = [dashOn, dashOff],
+            StrokeDashOffset = dashOn, // half-period shift relative to the white pass below
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(black, r.X);
+        Canvas.SetTop(black, r.Y);
+        var white = new System.Windows.Shapes.Rectangle
+        {
+            Width = r.Width, Height = r.Height,
+            Stroke = System.Windows.Media.Brushes.White,
+            StrokeThickness = 1,
+            StrokeDashArray = [dashOn, dashOff],
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(white, r.X);
+        Canvas.SetTop(white, r.Y);
+        yield return black;
+        yield return white;
+    }
+
+    /// <summary>Show / refresh the magnifier overlay near the cursor while the Crop tool is
+    /// active. Samples an 11×11 px window around the cursor from <see cref="SourceImage"/> and
+    /// scales it 10× with <c>NearestNeighbor</c> so each source pixel reads as a hard square.
+    /// A 1-px crosshair marks the exact cursor pixel — that's the pixel that ends up on the
+    /// crop edge if the user clicks now.</summary>
+    private void UpdateCropMagnifier(System.Windows.Point cursorOnCanvas)
+    {
+        if (SourceImage.Source is not BitmapSource src)
+        {
+            HideCropMagnifier();
+            return;
+        }
+
+        const int sampleSize = 11;          // odd, so a unique centre pixel exists
+        const int displaySize = 110;        // 10× zoom for pixel-art readability
+        var cx = (int)Math.Round(cursorOnCanvas.X);
+        var cy = (int)Math.Round(cursorOnCanvas.Y);
+        if (cx < 0 || cy < 0 || cx >= src.PixelWidth || cy >= src.PixelHeight)
+        {
+            HideCropMagnifier();
+            return;
+        }
+
+        var halfSample = sampleSize / 2;
+        var clampedX = Math.Max(0, Math.Min(cx - halfSample, src.PixelWidth - sampleSize));
+        var clampedY = Math.Max(0, Math.Min(cy - halfSample, src.PixelHeight - sampleSize));
+        // Ensure we never request a region larger than what's available — small images would
+        // otherwise blow up the CroppedBitmap ctor.
+        var w = Math.Min(sampleSize, src.PixelWidth);
+        var h = Math.Min(sampleSize, src.PixelHeight);
+        var crop = new CroppedBitmap(src, new Int32Rect(clampedX, clampedY, w, h));
+
+        if (_cropMagnifier is null)
+        {
+            // Image (with NearestNeighbor) clipped to an ellipse, then a transparent
+            // outline ellipse + red centre marker stacked above it. Going via Image (vs
+            // ImageBrush) is what guarantees the magnified pixels stay crisp instead of
+            // being bilinearly interpolated.
+            _cropMagnifierImage = new System.Windows.Controls.Image
+            {
+                Width = displaySize, Height = displaySize,
+                Stretch = System.Windows.Media.Stretch.Fill,
+                IsHitTestVisible = false,
+                Clip = new System.Windows.Media.EllipseGeometry(
+                    new System.Windows.Point(displaySize / 2.0, displaySize / 2.0),
+                    displaySize / 2.0, displaySize / 2.0),
+            };
+            RenderOptions.SetBitmapScalingMode(_cropMagnifierImage, BitmapScalingMode.NearestNeighbor);
+
+            var outlineRing = new System.Windows.Shapes.Ellipse
+            {
+                Width = displaySize, Height = displaySize,
+                Stroke = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF)),
+                StrokeThickness = 1.5,
+                Fill = System.Windows.Media.Brushes.Transparent,
+                IsHitTestVisible = false,
+            };
+            var centerMarker = new System.Windows.Shapes.Rectangle
+            {
+                Width = (double)displaySize / sampleSize,
+                Height = (double)displaySize / sampleSize,
+                Stroke = System.Windows.Media.Brushes.Red,
+                StrokeThickness = 1.5,
+                Fill = System.Windows.Media.Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+            var inner = new System.Windows.Controls.Grid
+            {
+                Width = displaySize, Height = displaySize,
+            };
+            inner.Children.Add(_cropMagnifierImage);
+            inner.Children.Add(outlineRing);
+            inner.Children.Add(centerMarker);
+            _cropMagnifier = new System.Windows.Controls.Border
+            {
+                Child = inner,
+                IsHitTestVisible = false,
+                Tag = "crop-magnifier",
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7, Color = Colors.Black,
+                },
+            };
+            // Force-stack above every other DrawingCanvas child. RedrawPendingCrop / effect
+            // shape redraws clear and re-add their visuals on every change, which would
+            // otherwise leave the magnifier sandwiched below them. ZIndex lets us pin it on
+            // top regardless of insertion order.
+            Canvas.SetZIndex(_cropMagnifier, 10000);
+            DrawingCanvas.Children.Add(_cropMagnifier);
+        }
+        if (_cropMagnifierImage is not null) _cropMagnifierImage.Source = crop;
+
+        // Position the magnifier offset from the cursor so it doesn't sit under the pixel
+        // it's trying to show. Flip to the left / top edge when running off the canvas.
+        const double cursorOffset = 20;
+        var magW = _cropMagnifier.Width > 0 ? _cropMagnifier.Width : displaySize + 2;
+        var magH = _cropMagnifier.Height > 0 ? _cropMagnifier.Height : displaySize + 2;
+        var px = cursorOnCanvas.X + cursorOffset;
+        var py = cursorOnCanvas.Y + cursorOffset;
+        if (px + magW > src.PixelWidth) px = cursorOnCanvas.X - cursorOffset - displaySize;
+        if (py + magH > src.PixelHeight) py = cursorOnCanvas.Y - cursorOffset - displaySize;
+        Canvas.SetLeft(_cropMagnifier, px);
+        Canvas.SetTop(_cropMagnifier, py);
+        _cropMagnifier.Visibility = Visibility.Visible;
+    }
+
+    private void HideCropMagnifier()
+    {
+        if (_cropMagnifier is not null) _cropMagnifier.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Hide the magnifier when the cursor leaves the canvas — otherwise it would
+    /// linger at the last position the mouse-move event reached, which looks dead.</summary>
+    private void OnCanvasMouseLeave(object sender, MouseEventArgs e) => HideCropMagnifier();
+
+    private void RefreshSelectionAdorner()
+    {
+        for (var i = DrawingCanvas.Children.Count - 1; i >= 0; i--)
+        {
+            if (DrawingCanvas.Children[i] is FrameworkElement fe && (fe.Tag as string) == "adorner")
+                DrawingCanvas.Children.RemoveAt(i);
+        }
+
+        foreach (var s in _vm.SelectedShapes)
+        {
+            var b = ComputeBounds(s);
+            var rotation = ShapeGripLayout.RotationOf(s);
+            var box = new System.Windows.Shapes.Rectangle
+            {
+                Width = b.Width + 8, Height = b.Height + 8,
+                Stroke = new SolidColorBrush(Color.FromArgb(255, 80, 200, 255)),
+                StrokeThickness = 1.5,
+                StrokeDashArray = [4.0, 3.0],
+                Tag = "adorner",
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(box, b.X - 4);
+            Canvas.SetTop(box, b.Y - 4);
+            if (rotation != 0)
+            {
+                // Pivot is the bbox center, expressed in the rectangle's local coords.
+                box.RenderTransform = new RotateTransform(rotation, (b.Width + 8) / 2, (b.Height + 8) / 2);
+            }
+            DrawingCanvas.Children.Add(box);
+        }
+
+        // Edit grips only for single-selection in Select tool. Multi-select keeps just the dashed boxes.
+        // Grips are sized in canvas units; we apply an inverse zoom transform so they keep a constant
+        // 8×8-pixel screen footprint regardless of zoom level. For rotated shapes, the grip layout
+        // is computed in local (non-rotated) coordinates, then a RotateTransform is applied to each
+        // grip around the shape's pivot so they follow the rotation visually.
+        if (_vm.CurrentTool == EditorTool.Select && _vm.SelectedShapes.Count == 1)
+        {
+            var sel = _vm.SelectedShapes[0];
+            var inv = 1.0 / _zoom;
+            var rotation = ShapeGripLayout.RotationOf(sel);
+            var pivot = ShapeGripLayout.PivotOf(sel);
+            var rotateOffset = sel is RectangleShape or EllipseShape or TextShape ? 25.0 / _zoom : 0;
+
+            foreach (var g in ShapeGripLayout.GripsFor(sel, rotateOffset))
+            {
+                var isRotateGrip = g.Kind == GripKind.Rotate;
+                var isBendGrip = g.Kind == GripKind.Bend;
+                var isTailGrip = g.Kind == GripKind.Tail;
+                // Rotate grip: filled blue circle. Bend grip: filled yellow circle (drag-to-
+                // curve hint). Tail grip: filled mint-green circle (ShareX-style step-counter
+                // tail anchor — distinct so the user reads it as "drag to point at something"
+                // and not "resize"). Other grips: white square.
+                var fillBrush = isRotateGrip ? new SolidColorBrush(Color.FromArgb(255, 80, 200, 255))
+                              : isBendGrip   ? new SolidColorBrush(Color.FromArgb(255, 255, 208, 0))
+                              : isTailGrip   ? new SolidColorBrush(Color.FromArgb(255, 100, 220, 140))
+                              : (Brush)Brushes.White;
+                var isCircleGrip = isRotateGrip || isBendGrip || isTailGrip;
+                var grip = new System.Windows.Shapes.Rectangle
+                {
+                    Width = 8, Height = 8,
+                    Stroke = new SolidColorBrush(Color.FromArgb(255, 80, 200, 255)),
+                    StrokeThickness = 1.5,
+                    Fill = fillBrush,
+                    RadiusX = isCircleGrip ? 4 : 0,
+                    RadiusY = isCircleGrip ? 4 : 0,
+                    Tag = "adorner",
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(grip, g.X - 4);
+                Canvas.SetTop(grip, g.Y - 4);
+                var transforms = new TransformGroup();
+                transforms.Children.Add(new ScaleTransform(inv, inv, 4, 4));
+                if (rotation != 0)
+                {
+                    // RotateTransform is applied in the grip's local coords, so the pivot must be
+                    // expressed relative to the grip's top-left (Canvas.SetLeft = g.X - 4).
+                    transforms.Children.Add(new RotateTransform(rotation, pivot.X - (g.X - 4), pivot.Y - (g.Y - 4)));
+                }
+                grip.RenderTransform = transforms;
+                DrawingCanvas.Children.Add(grip);
+            }
+        }
+    }
+
+    private static (double X, double Y, double Width, double Height) ComputeBounds(Shape shape) => shape switch
+    {
+        RectangleShape r => (r.X, r.Y, r.Width, r.Height),
+        EllipseShape e => (e.X, e.Y, e.Width, e.Height),
+        LineShape l => (Math.Min(l.FromX, l.ToX), Math.Min(l.FromY, l.ToY), Math.Abs(l.ToX - l.FromX), Math.Abs(l.ToY - l.FromY)),
+        FreehandShape f => FreehandBounds(f),
+        TextShape t => (t.X, t.Y, t.Width, t.Height),
+        StepCounterShape c => (c.CenterX - c.Radius, c.CenterY - c.Radius, c.Radius * 2, c.Radius * 2),
+        BlurShape b => (b.X, b.Y, b.Width, b.Height),
+        PixelateShape p => (p.X, p.Y, p.Width, p.Height),
+        SpotlightShape s => (s.X, s.Y, s.Width, s.Height),
+        ImageShape i => (i.X, i.Y, i.Width, i.Height),
+        SmartEraserShape se => (se.X, se.Y, se.Width, se.Height),
+        _ => (0, 0, 0, 0)
+    };
+
+    private static (double X, double Y, double Width, double Height) FreehandBounds(FreehandShape f)
+    {
+        if (f.Points.Count == 0) return (0, 0, 0, 0);
+        var minX = f.Points.Min(p => p.X);
+        var minY = f.Points.Min(p => p.Y);
+        var maxX = f.Points.Max(p => p.X);
+        var maxY = f.Points.Max(p => p.Y);
+        return (minX, minY, maxX - minX, maxY - minY);
+    }
+
+    /// <summary><paramref name="beneath"/> is the composite under an effect shape (screenshot plus the
+    /// shapes placed before it, see <see cref="AresToys.Editor.Rendering.BeneathComposer"/>). Callers
+    /// that draw a shape outside the layer stack (selection copy) pass none and an effect reads the
+    /// original screenshot.</summary>
+    private UIElement MakeUiElement(Shape shape, BitmapSource? beneath = null)
+    {
+        var under = beneath ?? SourceImage.Source as BitmapSource;
+        UIElement ui = shape switch
+        {
+            RectangleShape r => CreateRectangle(r),
+            EllipseShape e => CreateEllipse(e),
+            LineShape l => CreateLine(l),
+            FreehandShape f => CreateFreehand(f),
+            TextShape t => CreateText(t),
+            StepCounterShape c => CreateStepCounter(c),
+            BlurShape b => CreateBlur(b, under),
+            PixelateShape p => CreatePixelate(p, under),
+            SpotlightShape s => CreateSpotlight(s, under),
+            ImageShape i => CreateImage(i),
+            SmartEraserShape se => CreateSmartEraser(se, under),
+            _ => throw new NotSupportedException($"Unknown shape kind: {shape.GetType().Name}")
+        };
+        // Drawn shapes never intercept clicks: hit-testing happens geometrically via ShapeHitTester.
+        ui.IsHitTestVisible = false;
+        return ui;
+    }
+
+    private static UIElement CreateRectangle(RectangleShape r)
+        => BuildOuterStrokedShape(
+            r.X, r.Y, r.Width, r.Height, r.StrokeWidth, r.Outline, r.Fill, r.Rotation,
+            isEllipse: false);
+
+    private static UIElement CreateEllipse(EllipseShape e)
+        => BuildOuterStrokedShape(
+            e.X, e.Y, e.Width, e.Height, e.StrokeWidth, e.Outline, e.Fill, e.Rotation,
+            isEllipse: true);
+
+    /// <summary>Render a closed shape (rectangle or ellipse) with an OUTER-aligned stroke.
+    /// WPF's <c>Stroke</c>/<c>StrokeThickness</c> on a Shape straddles the geometry edge —
+    /// half inside, half outside — which makes interior fills shrink as the stroke gets thicker.
+    /// Outer alignment keeps the fill at the size the user dragged and pushes the visible
+    /// outline band entirely outside, matching the convention every raster editor (Photoshop,
+    /// Affinity, Figma) uses.
+    /// <para>Implementation: build the outline as a <em>filled</em> ring geometry — outer
+    /// shape minus inner shape with <see cref="FillRule.EvenOdd"/> — instead of using
+    /// <c>Stroke</c>. That eliminates stroke-straddling math; the ring's inner edge is exactly
+    /// the user's drawn rectangle, the outer edge sits <c>strokeWidth</c> further out. The
+    /// fill (when present) is rendered separately at the original bounds. Both children live
+    /// inside a single Canvas so one rotation transform spins them together.</para></summary>
+    private static UIElement BuildOuterStrokedShape(
+        double x, double y, double w, double h,
+        double strokeWidth, ShapeColor outline, ShapeColor fill, double rotation,
+        bool isEllipse)
+    {
+        var t = strokeWidth;
+        var canvas = new Canvas
+        {
+            Width = w + 2 * t,
+            Height = h + 2 * t,
+            // Transparent background keeps the wrapper hit-test friendly when inert (the editor
+            // sets IsHitTestVisible=false on the returned element anyway, but explicit is safer
+            // than relying on null-background semantics).
+            Background = System.Windows.Media.Brushes.Transparent
+        };
+
+        if (!fill.IsTransparent)
+        {
+            System.Windows.Shapes.Shape fillElement = isEllipse
+                ? new System.Windows.Shapes.Ellipse { Width = w, Height = h, Fill = ToBrush(fill) }
+                : new System.Windows.Shapes.Rectangle { Width = w, Height = h, Fill = ToBrush(fill) };
+            Canvas.SetLeft(fillElement, t);
+            Canvas.SetTop(fillElement, t);
+            canvas.Children.Add(fillElement);
+        }
+
+        if (t > 0 && !outline.IsTransparent)
+        {
+            // Ring = outer geometry XOR inner geometry. EvenOdd treats overlapping interiors
+            // as "outside", so the inner rectangle/ellipse punches a hole through the outer
+            // and we get a band of width `t` exactly where we want it.
+            var group = new GeometryGroup { FillRule = FillRule.EvenOdd };
+            if (isEllipse)
+            {
+                group.Children.Add(new EllipseGeometry(new Rect(0, 0, w + 2 * t, h + 2 * t)));
+                group.Children.Add(new EllipseGeometry(new Rect(t, t, w, h)));
+            }
+            else
+            {
+                group.Children.Add(new RectangleGeometry(new Rect(0, 0, w + 2 * t, h + 2 * t)));
+                group.Children.Add(new RectangleGeometry(new Rect(t, t, w, h)));
+            }
+            var ring = new System.Windows.Shapes.Path
+            {
+                Data = group,
+                Fill = ToBrush(outline)
+            };
+            canvas.Children.Add(ring);
+        }
+
+        // Place the wrapper so the inner area lands at (x, y) — that's where the user dragged
+        // the geometry; the ring extends `t` further out in every direction.
+        Canvas.SetLeft(canvas, x - t);
+        Canvas.SetTop(canvas, y - t);
+        if (rotation != 0)
+        {
+            canvas.RenderTransform = new RotateTransform(rotation, canvas.Width / 2, canvas.Height / 2);
+        }
+        return canvas;
+    }
+
+    private static UIElement CreateLine(LineShape l)
+    {
+        // Quadratic bezier through the optional control point. Caps (when enabled) are filled
+        // overlay paths anchored to From/To. The stroke is *trimmed* parametrically on each
+        // capped end so it ends inside the cap geometry — without the trim, the round line
+        // cap pokes out past the apex of the V and the line "shoulders" stick out around the
+        // narrow part of the cap (visually: a small red bump at the tip). The cap apex stays
+        // at the user-clicked endpoint; only the underlying stroke shrinks.
+        var (cx, cy) = l.ControlPoint;
+        var brush = ToBrush(l.Outline);
+
+        var dx = l.ToX - l.FromX;
+        var dy = l.ToY - l.FromY;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+        var capHeight = Math.Max(8, l.StrokeWidth * 4);
+        var bothFit = dist > capHeight * 2;
+        var drawStart = l.StartCap && (!l.EndCap || bothFit);
+        var drawEnd = l.EndCap;
+
+        // Trim amount per side: stroke width covers the round line cap + the line shoulders
+        // up to where the V/triangle becomes wider than the stroke. 1.2× is a safety margin —
+        // perceptually invisible because the cap is filled with the same colour as the stroke
+        // anyway, so a small overlap underneath is harmless.
+        var inset = TipInset(l.StrokeWidth);
+
+        var p0 = new Point(l.FromX, l.FromY);
+        var p1 = new Point(cx, cy);
+        var p2 = new Point(l.ToX, l.ToY);
+        // The trim is measured along the curve (arc length), not in the bezier parameter, so a
+        // curved line is cut at the same distance from the tip as a straight one.
+        var tStart = drawStart && dist > 0 ? Math.Min(0.45, ParamAtArcLength(p0, p1, p2, inset, fromEnd: false)) : 0;
+        var tEnd = drawEnd && dist > 0 ? Math.Max(0.55, ParamAtArcLength(p0, p1, p2, inset, fromEnd: true)) : 1;
+        var (sp0, sp1, sp2) = TrimQuadraticBezier(p0, p1, p2, tStart, tEnd);
+
+        var bezGeom = new PathGeometry();
+        var fig = new PathFigure { StartPoint = sp0 };
+        fig.Segments.Add(new QuadraticBezierSegment(sp1, sp2, true));
+        bezGeom.Figures.Add(fig);
+        var stroke = new System.Windows.Shapes.Path
+        {
+            Data = bezGeom,
+            Stroke = brush,
+            StrokeThickness = l.StrokeWidth,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round
+        };
+
+        // No caps → return the stroke directly (avoids a Canvas wrap when none is needed).
+        if (!drawStart && !drawEnd)
+        {
+            if (l.Rotation != 0)
+            {
+                var (mx, my) = l.Midpoint;
+                stroke.RenderTransform = new RotateTransform(l.Rotation, mx, my);
+            }
+            return stroke;
+        }
+
+        var canvas = new Canvas { IsHitTestVisible = false };
+        canvas.Children.Add(stroke);
+        if (drawEnd)
+        {
+            var tdx = l.ToX - cx;
+            var tdy = l.ToY - cy;
+            var tlen = Math.Max(Math.Sqrt(tdx * tdx + tdy * tdy), 1);
+            canvas.Children.Add(MakeTipCap(l.ToX, l.ToY, tdx / tlen, tdy / tlen, l.StrokeWidth, l.TipStyle, brush));
+        }
+        if (drawStart)
+        {
+            var tdx = l.FromX - cx;
+            var tdy = l.FromY - cy;
+            var tlen = Math.Max(Math.Sqrt(tdx * tdx + tdy * tdy), 1);
+            canvas.Children.Add(MakeTipCap(l.FromX, l.FromY, tdx / tlen, tdy / tlen, l.StrokeWidth, l.TipStyle, brush));
+        }
+        if (l.Rotation != 0)
+        {
+            var (mx, my) = l.Midpoint;
+            canvas.RenderTransform = new RotateTransform(l.Rotation, mx, my);
+        }
+        return canvas;
+    }
+
+    /// <summary>Build a filled arrowhead cap anchored at (<paramref name="tipX"/>,<paramref name="tipY"/>)
+    /// and oriented so its tip points along (<paramref name="ux"/>,<paramref name="uy"/>) (a unit vector
+    /// pointing toward the tip from the cap's base). Geometry mirrors ShareX's
+    /// <c>ArrowDrawingShape.CreatePen</c> arrow path: V with a concave-curved base for
+    /// <see cref="LineTipStyle.ShareXCurve"/>, solid isosceles for <see cref="LineTipStyle.FilledTriangle"/>.
+    /// Same scale relation as the legacy renderer (head ≈ stroke × 4) so existing arrows keep
+    /// roughly the visual weight users are used to.</summary>
+    private static System.Windows.Shapes.Path MakeTipCap(
+        double tipX, double tipY,
+        double ux, double uy,
+        double strokeWidth,
+        LineTipStyle style,
+        Brush fill)
+    {
+        var halfWidth = Math.Max(2, strokeWidth * 2);
+        var height = Math.Max(8, strokeWidth * 4);
+        var concave = Math.Max(1, strokeWidth);
+        // The caller passes the stroke endpoint; the apex sits slightly ahead of it along the
+        // tangent so the round end of the shaft (radius strokeWidth/2, ending TipInset behind
+        // the endpoint) stays fully inside the head. This is the one place the head is built:
+        // canvas render and PNG export both go through it.
+        var shift = TipForwardShift(strokeWidth, halfWidth, height);
+        tipX += ux * shift;
+        tipY += uy * shift;
+        // Right-hand perpendicular to (ux, uy) for laying out the base wings symmetrically.
+        var vx = -uy;
+        var vy = ux;
+        var baseCx = tipX - ux * height;
+        var baseCy = tipY - uy * height;
+        var leftX = baseCx - vx * halfWidth;
+        var leftY = baseCy - vy * halfWidth;
+        var rightX = baseCx + vx * halfWidth;
+        var rightY = baseCy + vy * halfWidth;
+
+        var geom = new PathGeometry();
+        var fig = new PathFigure { StartPoint = new Point(tipX, tipY), IsClosed = true, IsFilled = true };
+        fig.Segments.Add(new LineSegment(new Point(leftX, leftY), false));
+        if (style == LineTipStyle.ShareXCurve)
+        {
+            // Concave base: pulled `concave` units toward the tip so the bottom of the cap
+            // dips into the stroke instead of cutting it flat. CloseFigure on the figure
+            // closes from rightWing back to tipX/tipY automatically.
+            var concaveCx = baseCx + ux * concave;
+            var concaveCy = baseCy + uy * concave;
+            fig.Segments.Add(new QuadraticBezierSegment(new Point(concaveCx, concaveCy), new Point(rightX, rightY), false));
+        }
+        else
+        {
+            fig.Segments.Add(new LineSegment(new Point(rightX, rightY), false));
+        }
+        geom.Figures.Add(fig);
+
+        return new System.Windows.Shapes.Path
+        {
+            Data = geom,
+            Fill = fill
+        };
+    }
+
+    /// <summary>Distance behind the stroke endpoint where the shaft is cut under a tip.</summary>
+    private static double TipInset(double strokeWidth) => strokeWidth * 1.2;
+
+    /// <summary>How far the head apex moves ahead of the stroke endpoint. A circle of radius
+    /// strokeWidth/2 centred on the axis at distance a from the apex of a V with half-angle
+    /// theta fits inside it when a >= r / sin(theta); the shaft end sits TipInset behind the
+    /// endpoint, so the apex moves forward by whatever is missing. A floor proportional to the
+    /// stroke width keeps a clear margin for antialiasing and thick strokes.</summary>
+    private static double TipForwardShift(double strokeWidth, double halfWidth, double height)
+    {
+        var r = strokeWidth / 2;
+        var sinTheta = halfWidth / Math.Sqrt(halfWidth * halfWidth + height * height);
+        var needed = r / sinTheta + 0.75 - TipInset(strokeWidth);
+        return Math.Max(needed, strokeWidth * 0.3);
+    }
+
+    /// <summary>Bezier parameter at which the arc length from the chosen end of the quadratic
+    /// reaches <paramref name="distance"/> (sampled; exact enough for trimming a stroke).</summary>
+    private static double ParamAtArcLength(Point p0, Point p1, Point p2, double distance, bool fromEnd)
+    {
+        const int steps = 64;
+        var prev = fromEnd ? p2 : p0;
+        var acc = 0.0;
+        for (var i = 1; i <= steps; i++)
+        {
+            var t = fromEnd ? 1.0 - (double)i / steps : (double)i / steps;
+            var pt = QuadBezier(p0, p1, p2, t);
+            var seg = Math.Sqrt((pt.X - prev.X) * (pt.X - prev.X) + (pt.Y - prev.Y) * (pt.Y - prev.Y));
+            if (acc + seg >= distance && seg > 0)
+            {
+                var f = (distance - acc) / seg;
+                var tPrev = fromEnd ? 1.0 - (double)(i - 1) / steps : (double)(i - 1) / steps;
+                return tPrev + (t - tPrev) * f;
+            }
+            acc += seg;
+            prev = pt;
+        }
+        return fromEnd ? 0 : 1;
+    }
+
+    /// <summary>Return the sub-bezier of the quadratic <paramref name="p0"/>..<paramref name="p2"/>
+    /// over the parameter interval [<paramref name="tStart"/>, <paramref name="tEnd"/>] as a
+    /// new (P0, P1, P2) triple. Used to trim the visible stroke under a tip cap so it ends
+    /// inside the cap geometry rather than poking out past the apex.</summary>
+    private static (Point P0, Point P1, Point P2) TrimQuadraticBezier(
+        Point p0, Point p1, Point p2, double tStart, double tEnd)
+    {
+        // Sub-bezier from [0, u] of a quadratic:
+        //   P0' = P0
+        //   P1' = (1-u)·P0 + u·P1
+        //   P2' = B(u)
+        var u = tEnd;
+        var p1a = new Point((1 - u) * p0.X + u * p1.X, (1 - u) * p0.Y + u * p1.Y);
+        var p2a = QuadBezier(p0, p1, p2, u);
+        var p0a = p0;
+
+        if (tStart <= 0) return (p0a, p1a, p2a);
+
+        // Now sub-bezier of (p0a, p1a, p2a) over [v, 1] where v maps tStart from the original:
+        //   v = tStart / tEnd
+        //   P0'' = B'(v)   (B' is the new bezier defined by p0a/p1a/p2a)
+        //   P1'' = (1-v)·P1' + v·P2'
+        //   P2'' = P2'
+        var v = tStart / u;
+        var p0b = QuadBezier(p0a, p1a, p2a, v);
+        var p1b = new Point((1 - v) * p1a.X + v * p2a.X, (1 - v) * p1a.Y + v * p2a.Y);
+        return (p0b, p1b, p2a);
+    }
+
+    private static Point QuadBezier(Point p0, Point p1, Point p2, double t)
+    {
+        var omt = 1 - t;
+        return new Point(omt * omt * p0.X + 2 * omt * t * p1.X + t * t * p2.X,
+                         omt * omt * p0.Y + 2 * omt * t * p1.Y + t * t * p2.Y);
+    }
+
+    private static UIElement CreateFreehand(FreehandShape f)
+    {
+        // Build the stroke as a PathGeometry (polyline for raw, Catmull-Rom-Bezier for smooth).
+        // `displayPts` is what the user effectively sees rendered (smoothing, if requested).
+        // `strokePts` is `displayPts` with the capped end(s) trimmed back by ~strokeWidth so
+        // the round line cap doesn't poke past the V apex. Caps stay anchored to the *original*
+        // displayPts endpoints — the visible tip is the user's actual stroke endpoint.
+        IReadOnlyList<(double X, double Y)> displayPts;
+        if (f.Smooth && f.Points.Count >= 3)
+        {
+            // Smoothing pipeline:
+            //   1. Moving-average denoise (window 7, applied twice). Each point becomes the mean
+            //      of its 7-point neighbourhood — actively removes hand jitter, unlike Chaikin
+            //      which only rounds corners (and on dense mouse-captured points there are no
+            //      real corners to round). Two passes give a visible smoothing without flattening
+            //      the gesture entirely. Endpoints are preserved by the windowed clamp.
+            //   2. Catmull-Rom → cubic Bezier rendering through the denoised points so the
+            //      stroke looks like a continuous ink curve, not micro-segments.
+            displayPts = MovingAverage(MovingAverage(f.Points, 7), 7);
+        }
+        else
+        {
+            displayPts = f.Points;
+        }
+
+        var hasCaps = (f.StartCap || f.EndCap) && displayPts.Count >= 2;
+        var inset = TipInset(f.StrokeWidth);
+        var strokePts = hasCaps
+            ? TrimPolyline(displayPts, trimStart: f.StartCap ? inset : 0, trimEnd: f.EndCap ? inset : 0)
+            : displayPts;
+
+        var geom = new PathGeometry();
+        if (f.Smooth && strokePts.Count >= 3)
+        {
+            var fig = new PathFigure { StartPoint = new Point(strokePts[0].X, strokePts[0].Y) };
+            for (var i = 0; i < strokePts.Count - 1; i++)
+            {
+                var p0 = strokePts[Math.Max(0, i - 1)];
+                var p1 = strokePts[i];
+                var p2 = strokePts[i + 1];
+                var p3 = strokePts[Math.Min(strokePts.Count - 1, i + 2)];
+                var c1x = p1.X + (p2.X - p0.X) / 6.0;
+                var c1y = p1.Y + (p2.Y - p0.Y) / 6.0;
+                var c2x = p2.X - (p3.X - p1.X) / 6.0;
+                var c2y = p2.Y - (p3.Y - p1.Y) / 6.0;
+                fig.Segments.Add(new BezierSegment(new Point(c1x, c1y), new Point(c2x, c2y), new Point(p2.X, p2.Y), true));
+            }
+            geom.Figures.Add(fig);
+        }
+        else if (strokePts.Count > 0)
+        {
+            var fig = new PathFigure { StartPoint = new Point(strokePts[0].X, strokePts[0].Y) };
+            for (var i = 1; i < strokePts.Count; i++)
+                fig.Segments.Add(new LineSegment(new Point(strokePts[i].X, strokePts[i].Y), true));
+            geom.Figures.Add(fig);
+        }
+
+        var brush = ToBrush(f.Outline);
+        var stroke = new System.Windows.Shapes.Path
+        {
+            Data = geom,
+            Stroke = brush,
+            StrokeThickness = f.StrokeWidth,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round
+        };
+
+        UIElement root;
+        if (hasCaps)
+        {
+            var canvas = new Canvas { IsHitTestVisible = false };
+            canvas.Children.Add(stroke);
+            if (f.EndCap)
+            {
+                var cap = MakeFreehandCap(displayPts, fromEnd: true, f.StrokeWidth, f.TipStyle, brush);
+                if (cap is not null) canvas.Children.Add(cap);
+            }
+            if (f.StartCap)
+            {
+                var cap = MakeFreehandCap(displayPts, fromEnd: false, f.StrokeWidth, f.TipStyle, brush);
+                if (cap is not null) canvas.Children.Add(cap);
+            }
+            root = canvas;
+        }
+        else
+        {
+            root = stroke;
+        }
+
+        if (f.Rotation != 0)
+        {
+            var (px, py) = f.Pivot;
+            root.RenderTransform = new RotateTransform(f.Rotation, px, py);
+        }
+        return root;
+    }
+
+    /// <summary>Walk a polyline inward from each end and return a new list with
+    /// <paramref name="trimStart"/> / <paramref name="trimEnd"/> units of arc length removed
+    /// from the matching side. Used to shorten a freehand stroke under a tip cap so the round
+    /// line cap doesn't poke past the apex. Pass 0 to leave a side untouched.</summary>
+    private static IReadOnlyList<(double X, double Y)> TrimPolyline(
+        IReadOnlyList<(double X, double Y)> pts, double trimStart, double trimEnd)
+    {
+        if (pts.Count < 2 || (trimStart <= 0 && trimEnd <= 0)) return pts;
+
+        // Find new start: walk forward consuming distance until we've used trimStart units.
+        var startIdx = 0;
+        var startCarry = (X: pts[0].X, Y: pts[0].Y);
+        if (trimStart > 0)
+        {
+            var consumed = 0.0;
+            for (var i = 0; i < pts.Count - 1; i++)
+            {
+                var ax = pts[i].X; var ay = pts[i].Y;
+                var bx = pts[i + 1].X; var by = pts[i + 1].Y;
+                var segLen = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                if (consumed + segLen >= trimStart)
+                {
+                    var need = trimStart - consumed;
+                    var t = segLen > 0 ? need / segLen : 0;
+                    startCarry = (ax + (bx - ax) * t, ay + (by - ay) * t);
+                    startIdx = i + 1;
+                    break;
+                }
+                consumed += segLen;
+                startIdx = i + 1;
+            }
+        }
+
+        // Find new end: walk backward symmetrically.
+        var endIdx = pts.Count - 1;
+        var endCarry = (X: pts[^1].X, Y: pts[^1].Y);
+        if (trimEnd > 0)
+        {
+            var consumed = 0.0;
+            for (var i = pts.Count - 1; i > 0; i--)
+            {
+                var ax = pts[i].X; var ay = pts[i].Y;
+                var bx = pts[i - 1].X; var by = pts[i - 1].Y;
+                var segLen = Math.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                if (consumed + segLen >= trimEnd)
+                {
+                    var need = trimEnd - consumed;
+                    var t = segLen > 0 ? need / segLen : 0;
+                    endCarry = (ax + (bx - ax) * t, ay + (by - ay) * t);
+                    endIdx = i - 1;
+                    break;
+                }
+                consumed += segLen;
+                endIdx = i - 1;
+            }
+        }
+
+        // Degenerate case (trim swallowed the whole stroke): fall back to a 2-point sliver
+        // around the midpoint so the geometry stays valid (we still need at least 2 points
+        // for the cap-tangent code to work).
+        if (startIdx > endIdx)
+        {
+            var mid = ((pts[0].X + pts[^1].X) / 2, (pts[0].Y + pts[^1].Y) / 2);
+            return new[] { mid, mid };
+        }
+
+        var result = new List<(double X, double Y)>(endIdx - startIdx + 3) { startCarry };
+        for (var i = startIdx; i <= endIdx; i++)
+        {
+            // Skip duplicates of the carry-in point that sit right at the trim boundary.
+            if (i == startIdx && startCarry.X == pts[i].X && startCarry.Y == pts[i].Y) continue;
+            result.Add(pts[i]);
+        }
+        if (endCarry.X != result[^1].X || endCarry.Y != result[^1].Y) result.Add(endCarry);
+        return result;
+    }
+
+    /// <summary>Anchor a filled cap to either end of a freehand stroke. Tangent is averaged over
+    /// up to 8 points back from the chosen endpoint so a single jittery sample doesn't flick the
+    /// head sideways. Returns null when the tangent is degenerate (sub-pixel motion at the tip).</summary>
+    private static System.Windows.Shapes.Path? MakeFreehandCap(
+        IReadOnlyList<(double X, double Y)> pts,
+        bool fromEnd,
+        double strokeWidth,
+        LineTipStyle style,
+        Brush fill)
+    {
+        var tipIdx = fromEnd ? pts.Count - 1 : 0;
+        var anchorIdx = fromEnd ? Math.Max(0, tipIdx - 8) : Math.Min(pts.Count - 1, tipIdx + 8);
+        var tipX = pts[tipIdx].X;
+        var tipY = pts[tipIdx].Y;
+        var dx = tipX - pts[anchorIdx].X;
+        var dy = tipY - pts[anchorIdx].Y;
+        var len = Math.Sqrt(dx * dx + dy * dy);
+        if (len < 0.5) return null;
+        return MakeTipCap(tipX, tipY, dx / len, dy / len, strokeWidth, style, fill);
+    }
+
+    /// <summary>Moving-average denoising. Each output point is the mean of its window-sized
+    /// neighbourhood in the input — a low-pass filter that removes hand jitter without changing
+    /// the overall direction of the stroke. The window clamps at the endpoints so the stroke
+    /// still starts where the user pressed and ends where they released.</summary>
+    private static IReadOnlyList<(double X, double Y)> MovingAverage(IReadOnlyList<(double X, double Y)> pts, int window)
+    {
+        if (pts.Count < 3 || window < 3) return pts;
+        var result = new List<(double X, double Y)>(pts.Count);
+        var half = window / 2;
+        for (var i = 0; i < pts.Count; i++)
+        {
+            var lo = Math.Max(0, i - half);
+            var hi = Math.Min(pts.Count - 1, i + half);
+            double sx = 0, sy = 0;
+            for (var j = lo; j <= hi; j++) { sx += pts[j].X; sy += pts[j].Y; }
+            var n = hi - lo + 1;
+            result.Add((sx / n, sy / n));
+        }
+        return result;
+    }
+
+    private UIElement CreateText(TextShape t)
+    {
+        // Outline is opt-in: only when the user gave the text a stroke width AND a non-transparent
+        // outline colour. Without it we keep the plain TextBlock path (cheaper, pixel-identical to
+        // before). With it we render the glyph geometry so we can stroke the contour.
+        if (t.StrokeWidth > 0 && !t.Outline.IsTransparent)
+        {
+            return CreateOutlinedText(t);
+        }
+
+        // Fixed-size box: explicit Width AND Height come from the shape; text wraps inside
+        // and clips at the bottom edge if the user hasn't grown the box enough. TextAlignment
+        // needs the explicit Width too — without it short lines collapse to their content
+        // size and Centre/Right read identically to Left.
+        var tb = new System.Windows.Controls.TextBlock
+        {
+            Text = t.Text,
+            FontFamily = new FontFamily(t.Style.FontFamily),
+            FontSize = t.Style.FontSize,
+            FontWeight = t.Style.Bold ? FontWeights.Bold : FontWeights.Normal,
+            FontStyle = t.Style.Italic ? FontStyles.Italic : FontStyles.Normal,
+            Foreground = ToBrush(t.Style.Color),
+            TextAlignment = ToTextAlignment(t.Style.Align),
+            TextWrapping = TextWrapping.Wrap,
+            Width = t.Width,
+            Height = t.Height
+        };
+        Canvas.SetLeft(tb, t.X);
+        Canvas.SetTop(tb, t.Y);
+        if (t.Rotation != 0)
+        {
+            tb.RenderTransform = new RotateTransform(t.Rotation, t.Width / 2, t.Height / 2);
+        }
+        return tb;
+    }
+
+    /// <summary>Render text with an outer contour. Builds the glyph geometry via
+    /// <see cref="FormattedText"/> (which mirrors the TextBlock's wrap / alignment / box so
+    /// toggling the outline doesn't reflow the text) and layers two Paths: an outline path whose
+    /// centred stroke is twice the requested width (the inner half is hidden by the fill on top),
+    /// and a fill path that paints the glyph interior with the text colour. <see cref="TextShape"/>
+    /// reuses the base <c>Outline</c> / <c>StrokeWidth</c> fields for the contour colour + width.</summary>
+    private UIElement CreateOutlinedText(TextShape t)
+    {
+        var typeface = new Typeface(
+            new FontFamily(t.Style.FontFamily),
+            t.Style.Italic ? FontStyles.Italic : FontStyles.Normal,
+            t.Style.Bold ? FontWeights.Bold : FontWeights.Normal,
+            FontStretches.Normal);
+        var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var ft = new FormattedText(
+            t.Text,
+            System.Globalization.CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            typeface,
+            t.Style.FontSize,
+            ToBrush(t.Style.Color),
+            pixelsPerDip)
+        {
+            MaxTextWidth = Math.Max(1, t.Width),
+            MaxTextHeight = Math.Max(1, t.Height),
+            TextAlignment = ToTextAlignment(t.Style.Align)
+        };
+        var geometry = ft.BuildGeometry(new System.Windows.Point(0, 0));
+
+        var outlinePath = new System.Windows.Shapes.Path
+        {
+            Data = geometry,
+            Stroke = ToBrush(t.Outline),
+            StrokeThickness = t.StrokeWidth * 2,
+            StrokeLineJoin = PenLineJoin.Round
+        };
+        var fillPath = new System.Windows.Shapes.Path
+        {
+            Data = geometry,
+            Fill = ToBrush(t.Style.Color)
+        };
+
+        var host = new Canvas { Width = t.Width, Height = t.Height };
+        host.Children.Add(outlinePath);
+        host.Children.Add(fillPath);
+        Canvas.SetLeft(host, t.X);
+        Canvas.SetTop(host, t.Y);
+        if (t.Rotation != 0)
+        {
+            host.RenderTransform = new RotateTransform(t.Rotation, t.Width / 2, t.Height / 2);
+        }
+        return host;
+    }
+
+    private static System.Windows.TextAlignment ToTextAlignment(TextAlign a) => a switch
+    {
+        TextAlign.Center => System.Windows.TextAlignment.Center,
+        TextAlign.Right => System.Windows.TextAlignment.Right,
+        _ => System.Windows.TextAlignment.Left
+    };
+
+    private static UIElement CreateBlur(BlurShape b, BitmapSource? src)
+    {
+        if (src is null) return EmptyRectFor(b.X, b.Y, b.Width, b.Height);
+        // Crop the source to the rect so the BlurEffect operates only on the relevant region —
+        // applying it to the full-size image and clipping creates an offset halo.
+        var ix = (int)Math.Max(0, Math.Floor(b.X));
+        var iy = (int)Math.Max(0, Math.Floor(b.Y));
+        var iw = (int)Math.Min(src.PixelWidth - ix, Math.Ceiling(b.Width));
+        var ih = (int)Math.Min(src.PixelHeight - iy, Math.Ceiling(b.Height));
+        if (iw <= 0 || ih <= 0) return EmptyRectFor(b.X, b.Y, b.Width, b.Height);
+
+        var cropped = new System.Windows.Media.Imaging.CroppedBitmap(src, new Int32Rect(ix, iy, iw, ih));
+        var img = new System.Windows.Controls.Image
+        {
+            Source = cropped,
+            Stretch = Stretch.Fill,
+            Width = iw,
+            Height = ih,
+            // Clip the effect so the blur halo doesn't bleed outside the rect.
+            Clip = new RectangleGeometry(new Rect(0, 0, iw, ih)),
+            Effect = new System.Windows.Media.Effects.BlurEffect
+            {
+                Radius = b.Radius,
+                KernelType = System.Windows.Media.Effects.KernelType.Gaussian
+            }
+        };
+        Canvas.SetLeft(img, ix);
+        Canvas.SetTop(img, iy);
+        return img;
+    }
+
+    private static UIElement CreatePixelate(PixelateShape p, BitmapSource? src)
+    {
+        if (src is null) return EmptyRectFor(p.X, p.Y, p.Width, p.Height);
+        var blockSize = Math.Max(2, p.BlockSize);
+        var ix = (int)Math.Max(0, Math.Floor(p.X));
+        var iy = (int)Math.Max(0, Math.Floor(p.Y));
+        var iw = (int)Math.Min(src.PixelWidth - ix, Math.Ceiling(p.Width));
+        var ih = (int)Math.Min(src.PixelHeight - iy, Math.Ceiling(p.Height));
+        if (iw <= 0 || ih <= 0) return EmptyRectFor(p.X, p.Y, p.Width, p.Height);
+
+        var cropped = new System.Windows.Media.Imaging.CroppedBitmap(src, new Int32Rect(ix, iy, iw, ih));
+        var smallW = Math.Max(1, iw / blockSize);
+        var smallH = Math.Max(1, ih / blockSize);
+        // Downscale via a scaling transform; the upscale happens in the Image's Stretch=Fill with NearestNeighbor.
+        var down = new System.Windows.Media.Imaging.TransformedBitmap(cropped,
+            new ScaleTransform((double)smallW / iw, (double)smallH / ih));
+        var img = new System.Windows.Controls.Image
+        {
+            Source = down,
+            Stretch = Stretch.Fill,
+            Width = iw,
+            Height = ih
+        };
+        System.Windows.Media.RenderOptions.SetBitmapScalingMode(img, System.Windows.Media.BitmapScalingMode.NearestNeighbor);
+        Canvas.SetLeft(img, ix);
+        Canvas.SetTop(img, iy);
+        return img;
+    }
+
+    private UIElement CreateSpotlight(SpotlightShape s, BitmapSource? src)
+    {
+        var canvasW = DrawingCanvas.Width > 0 ? DrawingCanvas.Width : src?.PixelWidth ?? 0;
+        var canvasH = DrawingCanvas.Height > 0 ? DrawingCanvas.Height : src?.PixelHeight ?? 0;
+
+        // Even-odd geometry covers the canvas with a hole at the spotlight rect.
+        var outer = new RectangleGeometry(new Rect(0, 0, canvasW, canvasH));
+        var inner = new RectangleGeometry(new Rect(s.X, s.Y, s.Width, s.Height));
+        var combined = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        combined.Children.Add(outer);
+        combined.Children.Add(inner);
+
+        // Use a Canvas (not Grid) so absolute Canvas.SetLeft/Top on children works for the blur strips.
+        var canvasHost = new Canvas { Width = canvasW, Height = canvasH };
+
+        // Blur layer: instead of one full-size Image with Effect (which produces phantom duplicates
+        // because the effect's expanded bounds escape the Clip), crop the four U-strips around the
+        // spotlight rect and blur each one in place.
+        if (s.BlurRadius > 0 && src is not null)
+        {
+            var sx = (int)Math.Max(0, Math.Floor(s.X));
+            var sy = (int)Math.Max(0, Math.Floor(s.Y));
+            var sw = (int)Math.Min(src.PixelWidth - sx, Math.Ceiling(s.Width));
+            var sh = (int)Math.Min(src.PixelHeight - sy, Math.Ceiling(s.Height));
+            // Top strip
+            AddBlurStrip(canvasHost, src, 0, 0, src.PixelWidth, sy, s.BlurRadius);
+            // Bottom strip
+            AddBlurStrip(canvasHost, src, 0, sy + sh, src.PixelWidth, src.PixelHeight - (sy + sh), s.BlurRadius);
+            // Left strip (between top and bottom strips)
+            AddBlurStrip(canvasHost, src, 0, sy, sx, sh, s.BlurRadius);
+            // Right strip
+            AddBlurStrip(canvasHost, src, sx + sw, sy, src.PixelWidth - (sx + sw), sh, s.BlurRadius);
+        }
+
+        // Dim layer on top.
+        var alpha = (byte)Math.Round(Math.Clamp(s.DimAmount, 0, 1) * 255);
+        var dimPath = new System.Windows.Shapes.Path
+        {
+            Data = combined,
+            Fill = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0))
+        };
+        canvasHost.Children.Add(dimPath);
+        Canvas.SetLeft(canvasHost, 0);
+        Canvas.SetTop(canvasHost, 0);
+        return canvasHost;
+    }
+
+    private static void AddBlurStrip(Canvas host, BitmapSource src, int x, int y, int w, int h, double blurRadius)
+    {
+        if (w <= 0 || h <= 0) return;
+        var cropped = new System.Windows.Media.Imaging.CroppedBitmap(src, new Int32Rect(x, y, w, h));
+        var img = new System.Windows.Controls.Image
+        {
+            Source = cropped,
+            Stretch = Stretch.Fill,
+            Width = w,
+            Height = h,
+            Clip = new RectangleGeometry(new Rect(0, 0, w, h)),
+            Effect = new System.Windows.Media.Effects.BlurEffect
+            {
+                Radius = blurRadius,
+                KernelType = System.Windows.Media.Effects.KernelType.Gaussian
+            }
+        };
+        Canvas.SetLeft(img, x);
+        Canvas.SetTop(img, y);
+        host.Children.Add(img);
+    }
+
+    private static UIElement CreateImage(ImageShape i)
+    {
+        var bmp = new System.Windows.Media.Imaging.BitmapImage();
+        bmp.BeginInit();
+        bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        bmp.StreamSource = new System.IO.MemoryStream(i.PngBytes);
+        bmp.EndInit();
+        bmp.Freeze();
+
+        var hasOutline = i.StrokeWidth > 0 && !i.Outline.IsTransparent;
+        if (!hasOutline)
+        {
+            // Common case: no outline → return the bare Image so we don't pay for an extra
+            // Canvas + transform layer on every paste.
+            var bareImg = new System.Windows.Controls.Image
+            {
+                Source = bmp,
+                Stretch = Stretch.Fill,
+                Width = i.Width,
+                Height = i.Height
+            };
+            Canvas.SetLeft(bareImg, i.X);
+            Canvas.SetTop(bareImg, i.Y);
+            if (i.Rotation != 0)
+            {
+                bareImg.RenderTransform = new RotateTransform(i.Rotation, i.Width / 2, i.Height / 2);
+            }
+            return bareImg;
+        }
+
+        // Outer-aligned outline (same EvenOdd ring trick BuildOuterStrokedShape uses). The
+        // bitmap stays at user bounds; the outline band wraps it entirely outside.
+        var t = i.StrokeWidth;
+        var canvas = new Canvas
+        {
+            Width = i.Width + 2 * t,
+            Height = i.Height + 2 * t,
+            Background = System.Windows.Media.Brushes.Transparent
+        };
+        var img = new System.Windows.Controls.Image
+        {
+            Source = bmp,
+            Stretch = Stretch.Fill,
+            Width = i.Width,
+            Height = i.Height
+        };
+        Canvas.SetLeft(img, t);
+        Canvas.SetTop(img, t);
+        canvas.Children.Add(img);
+
+        var ringGroup = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        ringGroup.Children.Add(new RectangleGeometry(new Rect(0, 0, i.Width + 2 * t, i.Height + 2 * t)));
+        ringGroup.Children.Add(new RectangleGeometry(new Rect(t, t, i.Width, i.Height)));
+        var ring = new System.Windows.Shapes.Path { Data = ringGroup, Fill = ToBrush(i.Outline) };
+        canvas.Children.Add(ring);
+
+        Canvas.SetLeft(canvas, i.X - t);
+        Canvas.SetTop(canvas, i.Y - t);
+        if (i.Rotation != 0)
+        {
+            canvas.RenderTransform = new RotateTransform(i.Rotation, canvas.Width / 2, canvas.Height / 2);
+        }
+        return canvas;
+    }
+
+    private static UIElement CreateSmartEraser(SmartEraserShape s, BitmapSource? src)
+    {
+        if (src is null) return EmptyRectFor(s.X, s.Y, s.Width, s.Height);
+
+        // Sample the four corners of the rect from the bitmap beneath the eraser.
+        var (tl, tr, bl, br) = SampleCornerColors(src, s.X, s.Y, s.Width, s.Height);
+
+        // Build a 2×2 BGRA bitmap with the four corner colors. WPF's BitmapScalingMode=Linear
+        // bilinearly interpolates this 2×2 across whatever size the Image stretches to — exactly
+        // the gradient we want, for free.
+        var corners = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
+        var pixels = new byte[16];
+        WritePixel(pixels, 0, tl);   // (0,0) top-left
+        WritePixel(pixels, 4, tr);   // (1,0) top-right
+        WritePixel(pixels, 8, bl);   // (0,1) bottom-left
+        WritePixel(pixels, 12, br);  // (1,1) bottom-right
+        corners.WritePixels(new Int32Rect(0, 0, 2, 2), pixels, 8, 0);
+
+        var img = new System.Windows.Controls.Image
+        {
+            Source = corners,
+            Stretch = Stretch.Fill,
+            Width = s.Width,
+            Height = s.Height
+        };
+        System.Windows.Media.RenderOptions.SetBitmapScalingMode(img, System.Windows.Media.BitmapScalingMode.Linear);
+        Canvas.SetLeft(img, s.X);
+        Canvas.SetTop(img, s.Y);
+        return img;
+    }
+
+    private static (byte[] TL, byte[] TR, byte[] BL, byte[] BR) SampleCornerColors(BitmapSource src, double x, double y, double w, double h)
+    {
+        // Convert to a uniform Bgra32 view once so CopyPixels gives us 4-byte BGRA per pixel.
+        var conv = src.Format == PixelFormats.Bgra32 ? src : new System.Windows.Media.Imaging.FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+
+        byte[] SamplePixel(int px, int py)
+        {
+            var ix = Math.Clamp(px, 0, conv.PixelWidth - 1);
+            var iy = Math.Clamp(py, 0, conv.PixelHeight - 1);
+            var buf = new byte[4];
+            conv.CopyPixels(new Int32Rect(ix, iy, 1, 1), buf, 4, 0);
+            return buf;
+        }
+
+        // Inset by 1 px so a tiny rect doesn't sample all four corners from the same pixel.
+        var x0 = (int)Math.Floor(x);
+        var y0 = (int)Math.Floor(y);
+        var x1 = (int)Math.Floor(x + Math.Max(1, w - 1));
+        var y1 = (int)Math.Floor(y + Math.Max(1, h - 1));
+        return (SamplePixel(x0, y0), SamplePixel(x1, y0), SamplePixel(x0, y1), SamplePixel(x1, y1));
+    }
+
+    private static void WritePixel(byte[] dest, int offset, byte[] bgra)
+    {
+        dest[offset] = bgra[0];
+        dest[offset + 1] = bgra[1];
+        dest[offset + 2] = bgra[2];
+        dest[offset + 3] = bgra[3];
+    }
+
+    private static UIElement EmptyRectFor(double x, double y, double w, double h)
+    {
+        var r = new System.Windows.Shapes.Rectangle { Width = Math.Max(0, w), Height = Math.Max(0, h), Fill = Brushes.Transparent };
+        Canvas.SetLeft(r, x);
+        Canvas.SetTop(r, y);
+        return r;
+    }
+
+    private static UIElement CreateStepCounter(StepCounterShape c)
+    {
+        // Borderless filled disc + centered number, optionally with a triangular tail wedge
+        // pointing at TailX/TailY (ShareX parity, see StepDrawingShape.cs in their source).
+        // The tail is drawn FIRST so its wide base sits behind the disc — only the pointed
+        // tip pokes out, giving the "callout pointer" silhouette ShareX uses.
+        var diameter = c.Radius * 2;
+        var fillBrush = c.Fill.IsTransparent ? ToBrush(c.Outline) : ToBrush(c.Fill);
+
+        // Container is a Canvas at the disc's position so we can place the tail and the disc
+        // independently. Switching from a fixed-size Grid (the previous layout) to a Canvas
+        // lets the tail wedge extend past the disc's bounds without clipping.
+        var host = new Canvas
+        {
+            Width = 0,
+            Height = 0,
+            ClipToBounds = false,
+        };
+
+        // Tail wedge: a triangle whose base sits at the disc centre (perpendicular to the
+        // direction towards TailX/TailY) and whose apex is at the tail tip. Width of the
+        // base is the disc diameter, capped at the tail length so a very short tail doesn't
+        // produce a fan wider than it is long. Coordinates are in canvas space (same frame
+        // as TailX/TailY), and the host Canvas is parked at the origin so we don't have to
+        // offset them.
+        if (c.IsTailVisible)
+        {
+            var dx = c.TailX - c.CenterX;
+            var dy = c.TailY - c.CenterY;
+            var tailLength = Math.Sqrt(dx * dx + dy * dy);
+            var ux = dx / tailLength;
+            var uy = dy / tailLength;
+            // Perpendicular (rotated 90°) direction for the base half-width.
+            var halfBase = Math.Min(c.Radius, tailLength);
+            var nx = -uy;
+            var ny = ux;
+            var baseAX = c.CenterX + nx * halfBase;
+            var baseAY = c.CenterY + ny * halfBase;
+            var baseBX = c.CenterX - nx * halfBase;
+            var baseBY = c.CenterY - ny * halfBase;
+            var tailPolygon = new System.Windows.Shapes.Polygon
+            {
+                Points =
+                [
+                    new System.Windows.Point(baseAX, baseAY),
+                    new System.Windows.Point(baseBX, baseBY),
+                    new System.Windows.Point(c.TailX, c.TailY),
+                ],
+                Fill = fillBrush,
+            };
+            host.Children.Add(tailPolygon);
+        }
+
+        // Disc + centred number live in a fixed-size Grid so VerticalAlignment=Center works
+        // without us having to measure ActualHeight at draw time. The Grid is then placed on
+        // the host Canvas at the disc's top-left.
+        var discGrid = new Grid
+        {
+            Width = diameter,
+            Height = diameter,
+        };
+        var disc = new System.Windows.Shapes.Ellipse
+        {
+            Width = diameter,
+            Height = diameter,
+            Fill = fillBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        discGrid.Children.Add(disc);
+
+        var text = new System.Windows.Controls.TextBlock
+        {
+            Text = c.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            FontFamily = new FontFamily(string.IsNullOrWhiteSpace(c.FontFamily) ? "Segoe UI" : c.FontFamily),
+            Foreground = Brushes.White,
+            FontWeight = c.Bold ? FontWeights.Bold : FontWeights.Normal,
+            FontStyle = c.Italic ? FontStyles.Italic : FontStyles.Normal,
+            FontSize = c.Radius * 0.9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        discGrid.Children.Add(text);
+
+        Canvas.SetLeft(discGrid, c.CenterX - c.Radius);
+        Canvas.SetTop(discGrid, c.CenterY - c.Radius);
+        host.Children.Add(discGrid);
+
+        return host;
+    }
+
+    private static SolidColorBrush ToBrush(ShapeColor c)
+        => c.IsTransparent
+            ? (SolidColorBrush)System.Windows.Media.Brushes.Transparent
+            : new SolidColorBrush(System.Windows.Media.Color.FromArgb(c.A, c.R, c.G, c.B));
+
+    private void RefreshPropertyPanel()
+    {
+        var sels = _vm.SelectedShapes;
+        if (sels.Count == 0)
+        {
+            // No selection: defer to the active tool. Drawing tools render their target shape's
+            // sections pre-populated with the tool's current style; the Select / Crop / Smart-eraser
+            // tools (which don't produce a freestanding shape) fall through to the empty-state hint.
+            var category = ToolCategory(_vm.CurrentTool);
+            if (category is null)
+            {
+                PanelTitleText.Text = Loc("Properties", "Properties");
+                NoSelectionText.Visibility = Visibility.Visible;
+                NoSelectionText.Text = Loc("NoSelection", "Select a shape to edit its properties (V tool, then click).");
+                SelectedShapeStack.Visibility = Visibility.Collapsed;
+                RefreshSelectionAdorner();
+                return;
+            }
+
+            PanelTitleText.Text = string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                Loc("PropertiesTitleFormat", "{0} Properties"),
+                LocalizedCategoryName(category.Name));
+            NoSelectionText.Visibility = Visibility.Collapsed;
+            SelectedShapeStack.Visibility = Visibility.Visible;
+            ApplyToolDefaultsToPanel(category);
+            RefreshRecentList();
+            RefreshSelectionAdorner();
+            return;
+        }
+
+        // Selection-driven title — single shape names its kind (e.g. "Rectangle Properties"),
+        // multi-selection collapses to a generic "Shared Properties" since per-shape sections
+        // (rotation / freehand toggles / effect sliders) are hidden anyway in that case.
+        PanelTitleText.Text = sels.Count == 1
+            ? string.Format(
+                System.Globalization.CultureInfo.CurrentCulture,
+                Loc("PropertiesTitleFormat", "{0} Properties"),
+                ShapeKindName(sels[0]))
+            : Loc("SharedProperties", "Shared Properties");
+        NoSelectionText.Visibility = Visibility.Collapsed;
+        SelectedShapeStack.Visibility = Visibility.Visible;
+
+        // Hide the Fill block when no selected shape supports fill (arrows/lines/freehand/text).
+        var anyFillCapable = sels.Any(ShapeSupportsFill);
+        SelFillSection.Visibility = anyFillCapable ? Visibility.Visible : Visibility.Collapsed;
+        UpdateOutlineLabel();
+
+        // Hide outline + stroke for text-only selections (text uses Style.Color and FontSize).
+        var anyOutlineCapable = sels.Any(ShapeSupportsOutline);
+        var anyStrokeCapable = sels.Any(ShapeSupportsStroke);
+        SelOutlineSection.Visibility = anyOutlineCapable ? Visibility.Visible : Visibility.Collapsed;
+        SelStrokeSection.Visibility = anyStrokeCapable ? Visibility.Visible : Visibility.Collapsed;
+        // If both outline and fill are hidden the row collapses entirely (saves vertical space).
+        SelOutlineFillRow.Visibility = (anyOutlineCapable || anyFillCapable) ? Visibility.Visible : Visibility.Collapsed;
+
+        var textShapes = sels.OfType<TextShape>().ToList();
+        var showTextSection = textShapes.Count > 0 || _vm.CurrentTool == EditorTool.Text;
+        SelTextStyleSection.Visibility = showTextSection ? Visibility.Visible : Visibility.Collapsed;
+
+        // Step counter section: single-selection of a StepCounterShape, font knobs only —
+        // size now rides on the Stroke slider above (Radius = StrokeWidth * 10).
+        var singleStep = sels.Count == 1 ? sels[0] as StepCounterShape : null;
+        SelStepCounterSection.Visibility = singleStep is not null ? Visibility.Visible : Visibility.Collapsed;
+
+        // Rotation section: only single-selection of a rotatable shape (rect/ellipse/text/image).
+        var rotatable = sels.Count == 1 && sels[0] is RectangleShape or EllipseShape or TextShape or ImageShape;
+        SelRotationSection.Visibility = rotatable ? Visibility.Visible : Visibility.Collapsed;
+
+        // Freehand-specific: smooth + cap toggles + tip-style. Visible when a single
+        // FreehandShape is selected OR when the Freehand tool itself is active (so the user can
+        // pre-toggle before drawing — same UX the text-style section uses). Controls reflect
+        // the selected shape when present, otherwise the persisted defaults.
+        var singleFreehand = sels.Count == 1 ? sels[0] as FreehandShape : null;
+        var showFreehandSection = singleFreehand is not null || _vm.CurrentTool == EditorTool.Freehand;
+        SelFreehandSection.Visibility = showFreehandSection ? Visibility.Visible : Visibility.Collapsed;
+        if (showFreehandSection)
+        {
+            _suppressLiveUpdates = true;
+            if (singleFreehand is not null)
+            {
+                SelFreehandSmoothCheck.IsChecked = singleFreehand.Smooth;
+                SelFreehandStartCapCheck.IsChecked = singleFreehand.StartCap;
+                SelFreehandEndCapCheck.IsChecked = singleFreehand.EndCap;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, singleFreehand.TipStyle);
+            }
+            else
+            {
+                SelFreehandSmoothCheck.IsChecked = _vm.FreehandSmoothDefault;
+                SelFreehandStartCapCheck.IsChecked = _vm.FreehandStartCapDefault;
+                SelFreehandEndCapCheck.IsChecked = _vm.FreehandEndCapDefault;
+                SelectTipStyleInCombo(SelFreehandTipStyleCombo, _vm.LineTipStyleDefault);
+            }
+            _suppressLiveUpdates = false;
+        }
+
+        // Line/Arrow-specific: cap toggles + tip-style. Mirrors the Freehand pattern. Visible
+        // when a single LineShape is selected OR when the Line/Arrow tool is active.
+        var singleLine = sels.Count == 1 ? sels[0] as LineShape : null;
+        var showLineSection = singleLine is not null || _vm.CurrentTool == EditorTool.Line || _vm.CurrentTool == EditorTool.Arrow;
+        SelLineSection.Visibility = showLineSection ? Visibility.Visible : Visibility.Collapsed;
+        if (showLineSection)
+        {
+            _suppressLiveUpdates = true;
+            if (singleLine is not null)
+            {
+                SelLineStartCapCheck.IsChecked = singleLine.StartCap;
+                SelLineEndCapCheck.IsChecked = singleLine.EndCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, singleLine.TipStyle);
+            }
+            else
+            {
+                var startCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowStartCapDefault : _vm.LineStartCapDefault;
+                var endCap = _vm.CurrentTool == EditorTool.Arrow ? _vm.ArrowEndCapDefault : _vm.LineEndCapDefault;
+                SelLineStartCapCheck.IsChecked = startCap;
+                SelLineEndCapCheck.IsChecked = endCap;
+                SelectTipStyleInCombo(SelLineTipStyleCombo, _vm.LineTipStyleDefault);
+            }
+            _suppressLiveUpdates = false;
+        }
+
+        // Effect section: single-selection of an effect shape (blur/pixelate/spotlight).
+        var isEffect = sels.Count == 1 && sels[0] is BlurShape or PixelateShape or SpotlightShape;
+        SelEffectSection.Visibility = isEffect ? Visibility.Visible : Visibility.Collapsed;
+
+        // For multi-selection, show common values where all selected shapes agree;
+        // otherwise show a sensible placeholder (the user can still pick a value to apply to all).
+        var first = sels[0];
+        var allSameOutline = sels.All(s => s.Outline == first.Outline);
+        var fillCapable = sels.Where(ShapeSupportsFill).ToList();
+        var allSameFill = fillCapable.Count > 0 && fillCapable.All(s => s.Fill == fillCapable[0].Fill);
+        var fillRef = fillCapable.Count > 0 ? fillCapable[0].Fill : ShapeColor.Transparent;
+        var allSameStroke = sels.All(s => Math.Abs(s.StrokeWidth - first.StrokeWidth) < 0.01);
+
+        _suppressLiveUpdates = true;
+        try
+        {
+            SelOutlineSwatch.SelectedColor = allSameOutline ? first.Outline : ShapeColor.Black;
+            SelFillSwatch.SelectedColor = allSameFill ? fillRef : ShapeColor.Transparent;
+            SelStrokeSlider.Value = allSameStroke ? first.StrokeWidth : 2;
+
+            if (rotatable)
+            {
+                var rot = ShapeGripLayout.RotationOf(sels[0]);
+                rot = ((rot + 180) % 360 + 360) % 360 - 180;
+                SelRotationSlider.Value = rot;
+                SelRotationBox.Text = ((int)Math.Round(rot)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            if (isEffect)
+            {
+                switch (sels[0])
+                {
+                    case BlurShape b:
+                        SelEffectLabel.Text = Loc("BlurRadius", "Blur radius (px)");
+                        SelEffectSlider.Minimum = 0; SelEffectSlider.Maximum = 60;
+                        SelEffectSlider.Value = Math.Clamp(b.Radius, 0, 60);
+                        SelEffectBox.Text = ((int)Math.Round(b.Radius)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        break;
+                    case PixelateShape p:
+                        SelEffectLabel.Text = Loc("PixelBlockSize", "Pixel block size");
+                        SelEffectSlider.Minimum = 2; SelEffectSlider.Maximum = 60;
+                        SelEffectSlider.Value = Math.Clamp(p.BlockSize, 2, 60);
+                        SelEffectBox.Text = p.BlockSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        break;
+                    case SpotlightShape sp:
+                        SelEffectLabel.Text = Loc("SpotlightDim", "Spotlight dim (%)");
+                        SelEffectSlider.Minimum = 0; SelEffectSlider.Maximum = 100;
+                        SelEffectSlider.Value = Math.Round(sp.DimAmount * 100);
+                        SelEffectBox.Text = ((int)Math.Round(sp.DimAmount * 100)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        SelEffectSecondaryLabel.Text = Loc("SpotlightBlur", "Spotlight blur (px)");
+                        SelEffectSecondarySlider.Minimum = 0; SelEffectSecondarySlider.Maximum = 60;
+                        SelEffectSecondarySlider.Value = Math.Clamp(sp.BlurRadius, 0, 60);
+                        SelEffectSecondaryBox.Text = ((int)Math.Round(sp.BlurRadius)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        break;
+                }
+                SelEffectSecondarySection.Visibility = sels[0] is SpotlightShape ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (singleStep is not null)
+            {
+                _suppressStepFontInput = true;
+                try { SelStepFontInput.Text = singleStep.FontFamily; }
+                finally { _suppressStepFontInput = false; }
+                SelStepBoldCheck.IsChecked = singleStep.Bold;
+                SelStepItalicCheck.IsChecked = singleStep.Italic;
+            }
+
+            if (textShapes.Count > 0)
+            {
+                var firstText = textShapes[0];
+                var allSameFamily = textShapes.All(t => t.Style.FontFamily == firstText.Style.FontFamily);
+                var allSameSize = textShapes.All(t => Math.Abs(t.Style.FontSize - firstText.Style.FontSize) < 0.01);
+                var allSameBold = textShapes.All(t => t.Style.Bold == firstText.Style.Bold);
+                var allSameItalic = textShapes.All(t => t.Style.Italic == firstText.Style.Italic);
+                var allSameColor = textShapes.All(t => t.Style.Color == firstText.Style.Color);
+                var allSameAlign = textShapes.All(t => t.Style.Align == firstText.Style.Align);
+                var allSameOutlineColor = textShapes.All(t => t.Outline == firstText.Outline);
+                var allSameOutlineWidth = textShapes.All(t => Math.Abs(t.StrokeWidth - firstText.StrokeWidth) < 0.01);
+
+                _suppressFontInput = true;
+                try { if (allSameFamily) SelFontInput.Text = firstText.Style.FontFamily; }
+                finally { _suppressFontInput = false; }
+                _currentTextSize = allSameSize ? firstText.Style.FontSize : TextStyle.Default.FontSize;
+                SelFontSizeSlider.Value = Math.Clamp(_currentTextSize, SelFontSizeSlider.Minimum, SelFontSizeSlider.Maximum);
+                SelFontSizeBox.Text = ((int)Math.Round(_currentTextSize)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                SelBoldCheck.IsChecked = allSameBold && firstText.Style.Bold;
+                SelItalicCheck.IsChecked = allSameItalic && firstText.Style.Italic;
+                SelTextColorSwatch.SelectedColor = allSameColor ? firstText.Style.Color : ShapeColor.Red;
+                var outlineColor = allSameOutlineColor ? firstText.Outline : ShapeColor.Transparent;
+                var outlineWidth = allSameOutlineWidth ? firstText.StrokeWidth : 0;
+                SelTextOutlineSwatch.SelectedColor = outlineColor;
+                SelTextOutlineSlider.Value = Math.Clamp(outlineWidth, SelTextOutlineSlider.Minimum, SelTextOutlineSlider.Maximum);
+                SelTextOutlineBox.Text = ((int)Math.Round(outlineWidth)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                RefreshAlignToggles(allSameAlign ? firstText.Style.Align : TextAlign.Left);
+            }
+            else
+            {
+                ApplyDefaultsToTextSection();
+            }
+        }
+        finally
+        {
+            _suppressLiveUpdates = false;
+        }
+        RefreshRecentList();
+        RefreshSelectionAdorner();
+    }
+}

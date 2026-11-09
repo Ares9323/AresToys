@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>AresToys.Editor</RootNamespace>
+    <AssemblyName>AresToys.Editor</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="WPF-UI" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AresToys.Core\AresToys.Core.csproj" />
+    <ProjectReference Include="..\AresToys.Shared\AresToys.Shared.csproj" />
+    <ProjectReference Include="..\AresToys.Storage\AresToys.Storage.csproj" />
+  </ItemGroup>
+</Project>

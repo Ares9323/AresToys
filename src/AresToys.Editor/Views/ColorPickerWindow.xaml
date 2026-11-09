@@ -1,0 +1,413 @@
+<ui:FluentWindow x:Class="AresToys.Editor.Views.ColorPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:AresToys.Editor.Views"
+        Title=""
+        Width="680" Height="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowBackdropType="None"
+        ExtendsContentIntoTitleBar="True"
+        Background="{DynamicResource Surface2Brush}"
+        Foreground="{DynamicResource AccentForegroundBrush}"
+        Padding="0"
+        BorderThickness="0">
+    <ui:FluentWindow.Resources>
+        <!-- AresToys logo loaded from the App assembly (Assets/AresToysLogo.png). Cross-assembly
+             pack URI because this window lives in AresToys.Editor and can't reach App-level
+             resource dictionaries directly. -->
+        <BitmapImage x:Key="LocalAresToysLogo" UriSource="pack://application:,,,/AresToys;component/Assets/AresToysLogo.png" />
+        <DrawingBrush x:Key="CheckerBrush"
+                      TileMode="Tile"
+                      Viewport="0,0,8,8" ViewportUnits="Absolute"
+                      Stretch="None">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#DDDDDD">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,8,8" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#888888">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="0,0,4,4" />
+                                <RectangleGeometry Rect="4,4,4,4" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- TextBox: Surface3 background, 3-px rounded fill, accent border. Padding=2 to
+             match the original height — no taller controls, only the visual surface changes. -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource Surface3Brush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentForegroundDarkBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentForegroundBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBackgroundBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          VerticalAlignment="Center"
+                                          VerticalScrollBarVisibility="Hidden"
+                                          HorizontalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Border Background="{DynamicResource Surface2Brush}"
+            BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="2" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- titlebar -->
+                <RowDefinition Height="*" />     <!-- content -->
+            </Grid.RowDefinitions>
+
+            <!-- Custom titlebar — same pattern as MainWindow / ImageEffects / etc. -->
+            <ui:TitleBar Grid.Row="0" x:Name="TitleBarHeader" Title="AresToys - Color picker">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="{StaticResource LocalAresToysLogo}" Margin="0,0,-12,0" />
+                </ui:TitleBar.Icon>
+            </ui:TitleBar>
+
+            <Grid Grid.Row="1" Margin="12,0,12,12">
+        <!-- Single-row grid: left col = wheel + copy + palette, right col = controls + OK/Cancel
+             docked at the bottom inside the right column itself. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="290" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ╭──────── LEFT COLUMN: wheel pinned at top, Copy buttons docked at the bottom so
+                                 their last row aligns with the swatches/OK row in the right
+                                 column. The middle row absorbs any leftover vertical slack. ────────╮ -->
+        <Grid Grid.Row="0" Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />   <!-- 0: wheel / square -->
+                <RowDefinition Height="*" />      <!-- 1: leftover slack -->
+                <RowDefinition Height="Auto" />   <!-- 2: recent palette -->
+                <RowDefinition Height="Auto" />   <!-- 3: copy buttons -->
+            </Grid.RowDefinitions>
+            <local:ColorWheelControl Grid.Row="0" x:Name="ColorWheel" Width="280" Height="280"
+                                     HorizontalAlignment="Center" />
+            <local:ColorSquareControl Grid.Row="0" x:Name="ColorSquare" Width="280" Height="280"
+                                      HorizontalAlignment="Center" Visibility="Collapsed" />
+            <UniformGrid Grid.Row="3" Columns="3" Rows="2">
+                <ui:Button x:Name="CopyAllBtn"    Content="Copy all"    Margin="0,0,4,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyAllClicked"
+                           ToolTip="Copy every format on separate lines." />
+                <ui:Button x:Name="CopyRgbBtn"    Content="Copy RGB"    Margin="0,0,4,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyRgbClicked"
+                           ToolTip="rgb(R, G, B)" />
+                <ui:Button x:Name="CopyCmykBtn"   Content="Copy CMYK"   Margin="0,0,0,4" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyCmykClicked"
+                           ToolTip="cmyk(C%, M%, Y%, K%)" />
+                <ui:Button x:Name="CopyHsbBtn"    Content="Copy HSB"    Margin="0,0,4,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyHsbClicked"
+                           ToolTip="hsb(H°, S%, B%)" />
+                <ui:Button x:Name="CopyLinearBtn" Content="Copy Linear" Margin="0,0,4,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyLinearClicked"
+                           ToolTip="Unreal FLinearColor (R=…,G=…,B=…,A=…)" />
+                <ui:Button x:Name="CopyBgraBtn"   Content="Copy BGRA"   Margin="0,0,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCopyBgraClicked"
+                           ToolTip="Unreal FColor (B=…,G=…,R=…,A=…)" />
+            </UniformGrid>
+            <!-- Recent palette — sits above the Copy buttons so the swatches stay close to
+                 the wheel (where the user just picked a colour) and the action buttons land at
+                 the very bottom of the column. -->
+            <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                <TextBlock x:Name="RecentLabel" Text="Recent" Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" Margin="0,0,0,4" />
+                <ItemsControl x:Name="PaletteHost">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="10" Rows="1" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="22" Height="22" Margin="1"
+                                    BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+                                    Background="{Binding Brush}"
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="OnPaletteSwatchClick"
+                                    Tag="{Binding Color}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Grid>
+
+        <!-- ╭──────── RIGHT: form content stacked at the top, swatches+OK/Cancel docked at the
+                                  very bottom. Mirrors the left column's layout so the bottom
+                                  rows of both columns line up regardless of leftover vertical
+                                  slack. ────────╮ -->
+        <Grid Grid.Row="0" Grid.Column="1" Margin="12,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Grid.Row="0">
+            <!-- Preview row: [New, large] [Old, half-width] [sRGB] [Eyedropper] all on one row.
+                 New is twice as wide as Old so the user's current pick reads as the dominant
+                 swatch — Old is just there for "compare against the colour I started with".
+                 Heights match the Eyedropper button so the row is visually flat. -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="80" />   <!-- new preview (was 100) -->
+                    <ColumnDefinition Width="80" />   <!-- old preview (was 100) -->
+                    <ColumnDefinition Width="*" />    <!-- sRGB centred -->
+                    <ColumnDefinition Width="Auto" /> <!-- Eyedropper -->
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Height="32" BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+                        Background="{StaticResource CheckerBrush}">
+                    <Border>
+                        <Border.Background>
+                            <SolidColorBrush x:Name="NewPreviewBrush" />
+                        </Border.Background>
+                    </Border>
+                </Border>
+                <Border Grid.Column="1" Height="32" BorderBrush="{DynamicResource OuterBorderBrush}" BorderThickness="1"
+                        Background="{StaticResource CheckerBrush}">
+                    <Border>
+                        <Border.Background>
+                            <SolidColorBrush x:Name="OriginalPreviewBrush" />
+                        </Border.Background>
+                    </Border>
+                </Border>
+                <!-- sRGB centred in the slack between Old preview and Eyedropper. The * column
+                     absorbs all the remaining width and HorizontalAlignment="Center" parks the
+                     checkbox in the middle of that gap, so it visually anchors the row. -->
+                <CheckBox Grid.Column="2" x:Name="SrgbToggle" Content="sRGB" IsChecked="True"
+                          Foreground="{DynamicResource AccentForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                          ToolTip="Apply sRGB gamma to the preview swatches / sliders / wheel. Disable to see colors interpreted as linear (closer to how renderers like Unreal treat texture pixels)." />
+                <ui:Button Grid.Column="3" x:Name="SamplerBtn" Content="🔍 Sampler"
+                           VerticalAlignment="Center"
+                           Click="OnEyedropperClicked"
+                           ToolTip="Sample a pixel from anywhere on screen" />
+            </Grid>
+
+            <!-- HSB always visible -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="56" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="H" />
+                <local:ColorChannelSlider Grid.Column="1" x:Name="HSlider" Minimum="0" Maximum="360" Margin="4,0" />
+                <TextBox Grid.Column="2" x:Name="HBox" />
+            </Grid>
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="56" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="S" />
+                <local:ColorChannelSlider Grid.Column="1" x:Name="SSlider" Minimum="0" Maximum="100" Margin="4,0" />
+                <TextBox Grid.Column="2" x:Name="SBox" />
+            </Grid>
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="56" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="B" />
+                <local:ColorChannelSlider Grid.Column="1" x:Name="VSlider" Minimum="0" Maximum="100" Margin="4,0" />
+                <TextBox Grid.Column="2" x:Name="VBox" />
+            </Grid>
+
+            <!-- RGB / CMYK / Wheel / Square in one row, every cell exact same width via
+                 UniformGrid so the four toggles read as a balanced four-up bank instead of
+                 a left-clump + right-clump. RGB+CMYK pick the numeric channel block below;
+                 Wheel+Square pick the 2D shape on the left column. -->
+            <UniformGrid Columns="4" Margin="0,4,0,4">
+                <RadioButton x:Name="RgbTab" Content="RGB" GroupName="ColorMode" IsChecked="True"
+                             Foreground="{DynamicResource AccentForegroundBrush}" Checked="OnTabChanged" />
+                <RadioButton x:Name="CmykTab" Content="CMYK" GroupName="ColorMode"
+                             Foreground="{DynamicResource AccentForegroundBrush}" Checked="OnTabChanged" />
+                <RadioButton x:Name="WheelShape" Content="Wheel" GroupName="PickerShape" IsChecked="True"
+                             Foreground="{DynamicResource AccentForegroundBrush}" Checked="OnShapeChanged"
+                             ToolTip="HSV wheel — Hue around the rim, Saturation centre→edge. V on the slider." />
+                <RadioButton x:Name="SquareShape" Content="Square" GroupName="PickerShape"
+                             Foreground="{DynamicResource AccentForegroundBrush}" Checked="OnShapeChanged"
+                             ToolTip="SV square at fixed Hue — every pixel a distinct colour, all of S×V on a single drag." />
+            </UniformGrid>
+
+            <Grid x:Name="RgbBlock">
+                <StackPanel>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="R" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="RSlider" Minimum="0" Maximum="255" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="RBox" />
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="G" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="GSlider" Minimum="0" Maximum="255" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="GBox" />
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="B" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="BSlider" Minimum="0" Maximum="255" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="BBox" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <Grid x:Name="CmykBlock" Visibility="Collapsed">
+                <StackPanel>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="C" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="CSlider" Minimum="0" Maximum="100" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="CBox" />
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="M" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="MSlider" Minimum="0" Maximum="100" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="MBox" />
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Y" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="YSlider" Minimum="0" Maximum="100" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="YBox" />
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="56" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="K" />
+                        <local:ColorChannelSlider Grid.Column="1" x:Name="KSlider" Minimum="0" Maximum="100" Margin="4,0" />
+                        <TextBox Grid.Column="2" x:Name="KBox" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- Alpha -->
+            <Grid Margin="0,8,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="56" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="A" />
+                <local:ColorChannelSlider Grid.Column="1" x:Name="ASlider" Minimum="0" Maximum="255" ShowChecker="True" Margin="4,0" />
+                <TextBox Grid.Column="2" x:Name="ABox" />
+            </Grid>
+
+            <!-- Hex + Dec inline. Each pair is "[📋 LABEL button] [editable textbox]" — the
+                 button labels itself with the format name and copies on click; the textbox
+                 stays a plain input so the user can paste / type values. CharacterCasing on
+                 the hex textbox keeps user input uppercase too. -->
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ui:Button Grid.Column="0" x:Name="CopyHexBtn" Content="📋 Hex" Click="OnCopyHexClicked"
+                           Padding="8,2" ToolTip="Copy hex value" />
+                <TextBox  Grid.Column="1" x:Name="HexBox" Margin="4,0,0,0"
+                          FontFamily="Consolas" CharacterCasing="Upper" />
+                <ui:Button Grid.Column="3" x:Name="CopyDecBtn" Content="📋 Dec" Click="OnCopyDecimalClicked"
+                           Padding="8,2" ToolTip="Copy decimal value" />
+                <TextBox  Grid.Column="4" x:Name="DecBox" Margin="4,0,0,0"
+                          FontFamily="Consolas" />
+            </Grid>
+        </StackPanel>
+
+        <!-- OK / Cancel docked bottom-right. Recent palette moved into the left column under
+             the Copy buttons, freeing this row to be just the action buttons. -->
+        <Grid Grid.Row="2" VerticalAlignment="Bottom">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                <!-- IsDefault re-enabled: Enter commits + closes the dialog by default. The
+                     code-behind handlers on every value TextBox swallow the first Enter (after
+                     a ClearFocus that commits the typed value) so the dialog DOESN'T close
+                     mid-edit. A second Enter, with focus no longer on a TextBox, falls through
+                     to this default button — so the user's mental model "Enter to confirm"
+                     keeps working when they're done editing. -->
+                <Button x:Name="OkButton" x:FieldModifier="public"
+                        Content="OK" Width="80" Height="32" Margin="0,0,4,0"
+                        IsDefault="True" Click="OnOkClicked"
+                        FontWeight="SemiBold"
+                        Background="{DynamicResource AccentBackgroundBrush}"
+                        Foreground="{DynamicResource AccentForegroundBrush}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                  TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.85" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.7" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                <ui:Button x:Name="CancelButton" Content="Cancel" Width="80" IsCancel="True" Click="OnCancelClicked" />
+            </StackPanel>
+        </Grid>
+        </Grid>
+    </Grid>
+        </Grid>
+    </Border>
+</ui:FluentWindow>

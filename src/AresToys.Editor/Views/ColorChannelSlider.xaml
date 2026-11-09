@@ -1,0 +1,27 @@
+<UserControl x:Class="AresToys.Editor.Views.ColorChannelSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="22"
+             Cursor="SizeWE">
+    <Grid x:Name="Root">
+        <!-- Optional checker pattern behind the track — only used by the alpha channel; off for
+             every other instance because OpaqueOverChecker would muddle the visible gradient. -->
+        <Border x:Name="CheckerBorder" Visibility="Collapsed" />
+        <Border x:Name="TrackBorder"
+                BorderBrush="#555" BorderThickness="1"
+                CornerRadius="3"
+                MouseLeftButtonDown="OnTrackMouseDown"
+                MouseMove="OnTrackMouseMove"
+                MouseLeftButtonUp="OnTrackMouseUp" />
+        <!-- Thumb: a thin vertical line + outline so it stays readable on any colour gradient. -->
+        <Canvas IsHitTestVisible="False">
+            <Border x:Name="Thumb"
+                    Width="6" Height="22"
+                    Background="White"
+                    BorderBrush="Black"
+                    BorderThickness="1"
+                    CornerRadius="2"
+                    Canvas.Top="0" />
+        </Canvas>
+    </Grid>
+</UserControl>
