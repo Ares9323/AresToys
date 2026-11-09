@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AresToys.PluginContracts</RootNamespace>
+    <AssemblyName>AresToys.PluginContracts</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Plugin DLLs reference this assembly. Keep the surface tiny and stable: only interfaces and
+         records, no transitive deps that plugins would have to track. -->
+  </PropertyGroup>
+</Project>
