@@ -262,12 +262,12 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         ShowKeys();
     }
 
-    /// <summary>The message for a key Peek cannot use, or null. The navigation keys and the mouse buttons are refused
+    /// <summary>The message for a key Peek cannot use, or null. The navigation keys, F11 and the mouse buttons are refused
     /// whatever the modifiers; the Peek keys must all differ.</summary>
     internal static string? Refusal(HotkeyBinding binding, IEnumerable<HotkeyBinding> others)
     {
         var vk = binding.VirtualKey;
-        if (vk is 0x1B or 0x0D or >= 0x23 and <= 0x28) return Strings.Peek_ErrorKeyNavigation;
+        if (vk is 0x1B or 0x0D or 0x7A or >= 0x23 and <= 0x28) return Strings.Peek_ErrorKeyNavigation;
         if (HotkeyDisplay.IsMouseButton(vk)) return Strings.Peek_ErrorKeyMouse;
         if (others.Any(other => PeekKeys.Matches(other, (HotkeyModifiers)binding.Modifiers, vk))) return Strings.Peek_ErrorKeysSame;
         return null;

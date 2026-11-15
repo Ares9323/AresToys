@@ -318,9 +318,8 @@
                            Appearance="{Binding IsWindowSnappingSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
-                           Content="{Markup:Loc Sidebar_NewPlus}"
+                           Content="{Markup:Loc Sidebar_RightClickMenu}"
                            Command="{Binding ShowNewPlusCommand}"
-                           Visibility="{Binding NewPlus.Enabled, Converter={StaticResource BoolToVisibility}}"
                            Appearance="{Binding IsNewPlusSelected, Converter={StaticResource BoolToAppearance}}" />
                 <ui:Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                            Margin="0,0,0,4"
@@ -2086,18 +2085,40 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- New+: create files and folders from templates through the Explorer menu. Same options
-                 as PowerToys; every change saves and rewrites the Explorer menu at once. -->
+            <!-- Right Click Menu: every entry AresToys adds to the Explorer menu, each with its switch.
+                 New+ (create files and folders from templates, same options as PowerToys; every change saves
+                 and rewrites the Explorer menu at once) stays at the top level of the Explorer menu; the other
+                 entries sit in the "AresToys" cascade (AresToysSubmenuRegistration). Always in the sidebar. -->
             <ScrollViewer Visibility="{Binding IsNewPlusSelected, Converter={StaticResource BoolToVisibility}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="24,16,24,16" MaxWidth="640" HorizontalAlignment="Left">
-                    <TextBlock Text="{Markup:Loc Sidebar_NewPlus}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Text="{Markup:Loc Sidebar_RightClickMenu}" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="12"
                                TextWrapping="Wrap" Margin="0,0,0,16"
-                               Text="{Markup:Loc NewPlus_Blurb}" />
+                               Text="{Markup:Loc RightClickMenu_Blurb}" />
 
-                    <StackPanel>
+                    <!-- AresToys cascade: Unblock (UnblockContextMenuRegistration; the registry is the state). -->
+                    <TextBlock Text="{Markup:Loc RightClickMenu_Submenu}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="{Markup:Loc RightClickMenu_SubmenuHint}" />
+                    <CheckBox Content="{Markup:Loc UnblockMenu_Setting}"
+                              Loaded="OnUnblockMenuCheckBoxLoaded"
+                              Click="OnUnblockMenuToggled" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                               FontSize="11" TextWrapping="Wrap" Margin="22,4,0,24"
+                               Text="{Markup:Loc UnblockMenu_SettingHint}" />
+
+                    <!-- New+: top level of the Explorer menu; its options show only while it is on. -->
+                    <TextBlock Text="{Markup:Loc Sidebar_NewPlus}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="{Markup:Loc NewPlus_Blurb}" />
+                    <CheckBox IsChecked="{Binding NewPlus.Enabled, Mode=TwoWay}"
+                              Content="{Markup:Loc NewPlus_Enable}" Margin="0,0,0,16" />
+
+                    <StackPanel Visibility="{Binding NewPlus.Enabled, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{Markup:Loc NewPlus_Templates}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8" />
                         <TextBlock Text="{Markup:Loc NewPlus_Location}" FontWeight="SemiBold" Margin="0,0,0,4" />
                         <Grid Margin="0,0,0,8">
@@ -3024,11 +3045,6 @@
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
                                       HorizontalAlignment="Left" Margin="0,0,0,8"
                                       ToolTip="{Markup:Loc WindowSnappingTab_EnableHint}" />
-                            <CheckBox IsChecked="{Binding NewPlus.Enabled, Mode=TwoWay}"
-                                      Content="{Markup:Loc Sidebar_NewPlus}"
-                                      Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
-                                      HorizontalAlignment="Left" Margin="0,0,0,8"
-                                      ToolTip="{Markup:Loc NewPlus_Enable}" />
                             <CheckBox IsChecked="{Binding PeekModuleEnabled, Mode=TwoWay}"
                                       Content="{Markup:Loc Settings_ModulePeek}"
                                       Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"

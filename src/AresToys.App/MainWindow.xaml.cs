@@ -1240,6 +1240,34 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    private void OnUnblockMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.CheckBox cb)
+            cb.IsChecked = AresToys.App.Services.UnblockContextMenuRegistration.IsRegistered();
+    }
+
+    private void OnUnblockMenuToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox cb) return;
+        try
+        {
+            if (cb.IsChecked == true)
+                AresToys.App.Services.UnblockContextMenuRegistration.Register();
+            else
+                AresToys.App.Services.UnblockContextMenuRegistration.Unregister();
+        }
+        catch (Exception ex)
+        {
+            cb.IsChecked = AresToys.App.Services.UnblockContextMenuRegistration.IsRegistered();
+            // CA1863 wants a cached CompositeFormat; not worth it for a rare error dialog.
+#pragma warning disable CA1863
+            System.Windows.MessageBox.Show(this,
+                string.Format(System.Globalization.CultureInfo.CurrentCulture, AresToys.App.Resources.Strings.UnblockMenu_ToggleFailed, ex.Message),
+                "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+#pragma warning restore CA1863
+        }
+    }
+
     private void OnExplorerContextMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.CheckBox cb)

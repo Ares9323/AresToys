@@ -43,6 +43,15 @@ public partial class App : Application
 
         // First thing after base startup, so even bootstrap failures leave a crash log.
         AresToys.App.Services.Logging.CrashReporter.Install(this);
+
+        // --unblock <path>: the Explorer "Unblock" verb. Handled here in the launched process, before the startup
+        // trace (which would truncate the running app's), the elevation bounce and the single instance guard, so it
+        // never shows UAC or touches the running AresToys. Only a failure shows a message.
+        if (TryRunUnblock(e.Args))
+        {
+            Shutdown();
+            return;
+        }
         // The satellite (--satellite) is the non elevated companion process the main app starts. It must not
         // truncate the main app's startup trace (Begin overwrites the file), so it only appends marks.
         var isSatellite = SatelliteArgs.TryParse(e.Args, out var satelliteArgs);
@@ -1396,6 +1405,37 @@ public partial class App : Application
             MessageBox.Show(owner, $"Couldn't open .sxie file:\n{ex.Message}",
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>When the arguments hold <c>--unblock &lt;path&gt;</c>, removes the Mark of the Web from the file or from
+    /// every file below the folder (<see cref="AresToys.App.Services.MarkOfTheWeb"/>) and returns true; the caller then
+    /// exits. Silent on success; files that could not be unblocked are reported in a message box.</summary>
+    private static bool TryRunUnblock(string[] args)
+    {
+        string? path = null;
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], AresToys.App.Services.UnblockContextMenuRegistration.CommandLineArg, StringComparison.OrdinalIgnoreCase))
+            {
+                path = args[i + 1];
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        var result = AresToys.App.Services.MarkOfTheWeb.UnblockPath(Path.GetFullPath(path));
+        if (result.Failed > 0)
+        {
+            // CA1863 wants a cached CompositeFormat; this process formats one message and exits.
+#pragma warning disable CA1863
+            MessageBox.Show(
+                string.Format(System.Globalization.CultureInfo.CurrentCulture, AresToys.App.Resources.Strings.UnblockMenu_Failed, result.Failed, path),
+                "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
+#pragma warning restore CA1863
+        }
+
+        return true;
     }
 
     /// <summary>Route a file path from the Explorer "Upload with AresToys" verb through the

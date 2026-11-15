@@ -22,25 +22,44 @@
         </Style>
     </ui:FluentWindow.Resources>
 
-    <Border Background="{DynamicResource Surface2Brush}"
+    <Border x:Name="OuterFrame" Background="{DynamicResource Surface2Brush}"
             BorderBrush="{DynamicResource OuterBorderBrush}"
             BorderThickness="2" CornerRadius="8">
         <Grid x:Name="Root" Background="Transparent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />  <!-- Title row -->
+                <RowDefinition Height="Auto" />  <!-- Blocked file bar -->
                 <RowDefinition Height="*" />     <!-- Image -->
                 <RowDefinition Height="Auto" />  <!-- Thumbnail strip -->
                 <RowDefinition Height="Auto" />  <!-- Footer -->
             </Grid.RowDefinitions>
 
-            <!-- File name on the left, counter then close button on the right. Close hides the window (see OnClosing). -->
-            <ui:TitleBar x:Name="Bar" Grid.Row="0" Title="" ShowMinimize="False" ShowMaximize="False">
+            <!-- File name on the left, counter, maximize and close buttons on the right. Close hides the window (see OnClosing). -->
+            <ui:TitleBar x:Name="Bar" Grid.Row="0" Title="" ShowMinimize="False" ShowMaximize="True">
                 <ui:TitleBar.TrailingContent>
                     <TextBlock x:Name="CounterText" VerticalAlignment="Center" Margin="0,0,12,0" Opacity="0.75" />
                 </ui:TitleBar.TrailingContent>
             </ui:TitleBar>
 
-            <Grid x:Name="Viewport" Grid.Row="1" Background="{DynamicResource Surface1Brush}" ClipToBounds="True">
+            <!-- A downloaded file (Mark of the Web): Explorer will not preview it, Unblock removes the mark. In its own
+                 row, never over the viewport, where a native preview would paint over it. See UpdateBlockedBar. -->
+            <Border x:Name="BlockedBar" Grid.Row="1" Visibility="Collapsed" Padding="14,6"
+                    Background="{DynamicResource Surface3Brush}"
+                    BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="ShieldError24" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock x:Name="BlockedText" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <ui:Button x:Name="UnblockButton" Grid.Column="2" Focusable="False" Margin="12,0,0,0"
+                               VerticalAlignment="Center" Click="OnUnblockClick" />
+                </Grid>
+            </Border>
+
+            <Grid x:Name="Viewport" Grid.Row="2" Background="{DynamicResource Surface1Brush}" ClipToBounds="True">
                 <!-- A canvas: the image is placed by code at its zoomed size and may be larger than the area
                      (the viewport clips it); see ApplyZoom. -->
                 <Canvas x:Name="ImageLayer" IsHitTestVisible="False">
@@ -59,9 +78,9 @@
 
             </Grid>
 
-            <local:PeekThumbnailStrip x:Name="Strip" Grid.Row="2" Visibility="Collapsed" />
+            <local:PeekThumbnailStrip x:Name="Strip" Grid.Row="3" Visibility="Collapsed" />
 
-            <Border Grid.Row="3" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,1,0,0"
+            <Border x:Name="Footer" Grid.Row="4" BorderBrush="{DynamicResource InnerBorderBrush}" BorderThickness="0,1,0,0"
                     Padding="14,8">
                 <Grid>
                     <Grid.ColumnDefinitions>

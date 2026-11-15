@@ -195,6 +195,7 @@ public partial class PeekWindow : FluentWindow
 
     private void OnZoomClick(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenFooterMenu(_zoomButton)) return;
         var menu = new ContextMenu { PlacementTarget = _zoomButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
         foreach (var mode in PeekZoom.All)
         {
@@ -203,7 +204,69 @@ public partial class PeekWindow : FluentWindow
             menu.Items.Add(item);
         }
 
+        OpenFooterMenu(menu);
+    }
+
+    /// <summary>How close before a press on the menu's own button the menu must have closed for that press to count as
+    /// the one that closed it. Measured: IsOpen turns false in the same input pass, right before the button sees the press.</summary>
+    private const long FooterMenuPressWindowMs = 100;
+
+    private ContextMenu? _footerMenu;
+    private long _footerMenuClosedAt;
+    private object? _footerPressClosedMenuOf;
+
+    /// <summary>False when the click on <paramref name="button"/> comes from the press that closed its own menu: the
+    /// press outside the menu closes it, then the button gets the same press and its Click on the release, which would
+    /// open the menu again. So a second click on the button closes the menu (issue 42).</summary>
+    private bool CanOpenFooterMenu(UIElement button)
+    {
+        if (ReferenceEquals(_footerPressClosedMenuOf, button))
+        {
+            _footerPressClosedMenuOf = null;
+            return false;
+        }
+
+        if (_footerMenu is { IsOpen: true } menu && ReferenceEquals(menu.PlacementTarget, button))
+        {
+            menu.IsOpen = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Opens a footer menu and remembers it for <see cref="CanOpenFooterMenu"/>. The close time comes from the
+    /// IsOpen change, not from the Closed event: Closed is raised late, after the button's Click.</summary>
+    private void OpenFooterMenu(ContextMenu menu)
+    {
+        var isOpen = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(ContextMenu.IsOpenProperty, typeof(ContextMenu));
+        EventHandler? onChange = null;
+        onChange = (_, _) =>
+        {
+            if (menu.IsOpen) return;
+            _footerMenuClosedAt = Environment.TickCount64;
+            isOpen.RemoveValueChanged(menu, onChange);
+        };
+        isOpen.AddValueChanged(menu, onChange);
+
+        if (menu.PlacementTarget is UIElement target)
+        {
+            target.PreviewMouseLeftButtonDown -= OnFooterButtonPress;
+            target.PreviewMouseLeftButtonDown += OnFooterButtonPress;
+        }
+
+        _footerPressClosedMenuOf = null;
+        _footerMenu = menu;
         menu.IsOpen = true;
+    }
+
+    /// <summary>Marks a press on a footer button that came right after its own menu closed: that press closed it.</summary>
+    private void OnFooterButtonPress(object sender, MouseButtonEventArgs e)
+    {
+        var closedByThisPress = _footerMenu is { IsOpen: false } menu
+            && ReferenceEquals(menu.PlacementTarget, sender)
+            && Environment.TickCount64 - _footerMenuClosedAt <= FooterMenuPressWindowMs;
+        _footerPressClosedMenuOf = closedByThisPress ? sender : null;
     }
 
     /// <summary>A zoom mode picked in the footer: applied to the image now, kept for the next files, and saved. Lock
@@ -461,7 +524,7 @@ public partial class PeekWindow : FluentWindow
 
     private void UpdateStrip()
     {
-        Strip.Visibility = _stripOn && _files.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        Strip.Visibility = _stripOn && _files.Count > 1 && !_fullScreen ? Visibility.Visible : Visibility.Collapsed;
         Strip.SetCurrent(_index);
         _stripButton.Icon = new SymbolIcon(_stripOn ? SymbolRegular.ImageMultiple24 : SymbolRegular.ImageOff24);
         _stripButton.ToolTip = _stripOn ? AresToys.App.Resources.Strings.Peek_StripHide : AresToys.App.Resources.Strings.Peek_StripShow;
@@ -485,6 +548,7 @@ public partial class PeekWindow : FluentWindow
 
     private void OnBrowseClick(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenFooterMenu(_browseButton)) return;
         var menu = new ContextMenu { PlacementTarget = _browseButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
         foreach (var mode in new[] { PeekBrowseMode.All, PeekBrowseMode.Family, PeekBrowseMode.Extension })
         {
@@ -493,7 +557,7 @@ public partial class PeekWindow : FluentWindow
             menu.Items.Add(item);
         }
 
-        menu.IsOpen = true;
+        OpenFooterMenu(menu);
     }
 
     /// <summary>A mode picked in the footer: the list is filtered again around the current file (still shown, no reload),
@@ -550,7 +614,7 @@ public partial class PeekWindow : FluentWindow
 
     private void OnShowAsClick(object sender, RoutedEventArgs e)
     {
-        if (CurrentPath is not { } path) return;
+        if (CurrentPath is not { } path || !CanOpenFooterMenu(_showAsButton)) return;
         var current = PeekShowAs.PickFor(path);
         var menu = new ContextMenu { PlacementTarget = _showAsButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
 
@@ -590,7 +654,7 @@ public partial class PeekWindow : FluentWindow
             menu.Items.Add(Entry(PeekShowAs.DisplayName(PeekShowAs.Image), PeekShowAs.Image, current == PeekShowAs.Image));
         }
 
-        menu.IsOpen = true;
+        OpenFooterMenu(menu);
     }
 
     /// <summary>What the built-in rules would show the file as, for the "Auto (...)" entry: the language for code.</summary>
@@ -726,6 +790,11 @@ public partial class PeekWindow : FluentWindow
     /// <summary>The one way Peek hides: remembers the bounds, cancels a load in flight and hides the window.</summary>
     public void HidePeek()
     {
+        if (_fullScreen)
+        {
+            ToggleFullScreen();
+        }
+
         RememberBounds();
         FlushSave();
         CancelLoad();
@@ -742,7 +811,19 @@ public partial class PeekWindow : FluentWindow
         switch (key)
         {
             case Key.Escape:
-                HidePeek();
+                // In full screen Esc goes back to the window first, like a photo viewer.
+                if (_fullScreen)
+                {
+                    ToggleFullScreen();
+                }
+                else
+                {
+                    HidePeek();
+                }
+
+                break;
+            case Key.F11:
+                ToggleFullScreen();
                 break;
             case Key.Left:
                 MoveTo(_index - 1);
@@ -841,7 +922,7 @@ public partial class PeekWindow : FluentWindow
 
     private void OnOpenInClick(object sender, RoutedEventArgs e)
     {
-        if (CurrentPath is not { } path) return;
+        if (CurrentPath is not { } path || !CanOpenFooterMenu(_openInButton)) return;
         var programs = GetPrograms();
         if (programs.Count == 0) return;
 
@@ -860,7 +941,7 @@ public partial class PeekWindow : FluentWindow
             menu.Items.Add(item);
         }
 
-        menu.IsOpen = true;
+        OpenFooterMenu(menu);
     }
 
     /// <summary>Assigned program: the provider lists it first, the module tells through <see cref="AssignedProvider"/>.</summary>
@@ -922,6 +1003,7 @@ public partial class PeekWindow : FluentWindow
         UpdateBrowseButton();
         UpdateOpenInButton();
         UpdateStrip();
+        UpdateBlockedBar();
         var kind = path is null ? PeekPreviewKind.None : PeekPreview.For(path);
         UpdateShowAsButton(path, kind);
         UpdateZoomControls(kind);
@@ -1395,7 +1477,7 @@ public partial class PeekWindow : FluentWindow
             return;
         }
 
-        var bounds = _geometryIsFit ? _remembered : CurrentBounds();
+        var bounds = _geometryIsFit ? _remembered : _fullScreen ? _boundsBeforeFullScreen : CurrentBounds();
         if (bounds is { } rect && rect != _saved)
         {
             _saved = rect;
@@ -1410,7 +1492,7 @@ public partial class PeekWindow : FluentWindow
     private void FitToImage(int imagePixelWidth, int imagePixelHeight)
     {
         var hwnd = new WindowInteropHelper(this).Handle;
-        if (CurrentBounds() is not { } current)
+        if (_fullScreen || CurrentBounds() is not { } current)
         {
             return;
         }
@@ -1440,6 +1522,7 @@ public partial class PeekWindow : FluentWindow
     /// never had one), centered where it is now.</summary>
     private void RestoreRemembered()
     {
+        if (_fullScreen) return;
         _geometryIsFit = false;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (CurrentBounds() is not { } current)
@@ -1461,6 +1544,99 @@ public partial class PeekWindow : FluentWindow
         x = Math.Max(work.X, Math.Min(x, work.Right - width));
         y = Math.Max(work.Y, Math.Min(y, work.Bottom - height));
         ZoneNative.SetWindowPos(hwnd, 0, x, y, width, height, ZoneNative.SwpNoZOrder | ZoneNative.SwpNoActivate);
+    }
+
+    private bool _fullScreen;
+    private PixelRect? _boundsBeforeFullScreen;
+    private bool _maximizedBeforeFullScreen;
+
+    /// <summary>F11: the preview fills the whole monitor the window is on (title row, thumbnail strip and footer hidden,
+    /// no frame), or goes back to the window it was, maximized or not. Peek is topmost, so it covers the taskbar too.
+    /// While in full screen the image fit does not resize the window and the bounds Peek remembers stay the ones from
+    /// before.</summary>
+    private void ToggleFullScreen()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == 0) return;
+
+        if (!_fullScreen)
+        {
+            _maximizedBeforeFullScreen = WindowState == WindowState.Maximized;
+            if (WindowState != WindowState.Normal)
+            {
+                WindowState = WindowState.Normal;
+            }
+
+            _boundsBeforeFullScreen = CurrentBounds();
+            var info = new ZoneNative.MonitorInfoEx { Size = MonitorInfoExSize };
+            var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+            if (monitor == 0 || !ZoneNative.GetMonitorInfo(monitor, ref info)) return;
+
+            _fullScreen = true;
+            ApplyFullScreenChrome();
+            var screen = info.Monitor;
+            ApplyBounds(hwnd, new PixelRect(screen.Left, screen.Top, screen.Right - screen.Left, screen.Bottom - screen.Top));
+        }
+        else
+        {
+            _fullScreen = false;
+            ApplyFullScreenChrome();
+            if (_boundsBeforeFullScreen is { } before)
+            {
+                ApplyBounds(hwnd, before);
+            }
+
+            if (_maximizedBeforeFullScreen)
+            {
+                WindowState = WindowState.Maximized;
+            }
+        }
+
+        _nav?.Sync();
+    }
+
+    /// <summary>Shows or hides what surrounds the preview by <see cref="_fullScreen"/>.</summary>
+    private void ApplyFullScreenChrome()
+    {
+        var chrome = _fullScreen ? Visibility.Collapsed : Visibility.Visible;
+        Bar.Visibility = chrome;
+        Footer.Visibility = chrome;
+        OuterFrame.BorderThickness = new Thickness(_fullScreen ? 0 : 2);
+        OuterFrame.CornerRadius = new CornerRadius(_fullScreen ? 0 : 8);
+        UpdateStrip();
+        UpdateBlockedBar();
+    }
+
+    /// <summary>Shows the "came from the internet" bar for a current file that carries the Mark of the Web
+    /// (<see cref="MarkOfTheWeb"/>); hidden in full screen.</summary>
+    private void UpdateBlockedBar()
+    {
+        var blocked = !_fullScreen && CurrentPath is { } path && MarkOfTheWeb.IsBlocked(path);
+        if (blocked)
+        {
+            BlockedText.Text = AresToys.App.Resources.Strings.Peek_BlockedFile;
+            UnblockButton.Content = AresToys.App.Resources.Strings.Peek_Unblock;
+        }
+
+        BlockedBar.Visibility = blocked ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Unblock in the bar: removes the mark and hides the bar. A preview handler shows the file again, in case
+    /// it held back because of the mark; the other kinds stay as they are.</summary>
+    private void OnUnblockClick(object sender, RoutedEventArgs e)
+    {
+        if (CurrentPath is not { } path) return;
+        if (!MarkOfTheWeb.Unblock(path))
+        {
+            BlockedText.Text = AresToys.App.Resources.Strings.Peek_UnblockFailed;
+            return;
+        }
+
+        UpdateBlockedBar();
+        if (PeekPreview.For(path) == PeekPreviewKind.Shell)
+        {
+            ShowCurrent();
+        }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
