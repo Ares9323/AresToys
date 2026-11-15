@@ -175,6 +175,29 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>A/D for previous and next, W/S and Up/Down for zoom. Saved at once; the satellite reads it at each Peek.</summary>
+    [ObservableProperty] private bool _extraKeys;
+
+    partial void OnExtraKeysChanged(bool value)
+    {
+        if (_showingFit) return;
+        _ = SaveExtraKeysAsync(value);
+    }
+
+    private async Task SaveExtraKeysAsync(bool value)
+    {
+        try
+        {
+            await _windowStore.SaveExtraKeysAsync(value, CancellationToken.None).ConfigureAwait(true);
+            FitErrorText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Peek settings: could not save the extra keys option");
+            FitErrorText = SaveErrorText(ex);
+        }
+    }
+
     private async Task LoadFitAsync()
     {
         try
@@ -183,6 +206,7 @@ public sealed partial class PeekSettingsViewModel : ObservableObject
             _showingFit = true;
             FitToContent = window.FitToContent;
             BrowseMode = window.Browse;
+            ExtraKeys = window.ExtraKeys;
             FitErrorText = string.Empty;
         }
         catch (Exception ex)

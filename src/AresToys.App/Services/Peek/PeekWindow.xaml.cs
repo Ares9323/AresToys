@@ -491,9 +491,25 @@ public partial class PeekWindow : FluentWindow
         }
 
         e.Handled = true;
-        var next = PeekZoom.Step(old, e.Delta / 120.0);
+        ZoomAround(e.GetPosition(Viewport), e.Delta / 120.0);
+    }
+
+    /// <summary>The extra zoom keys (W/S, Up/Down): one wheel notch around the middle of the view. False when no image
+    /// is shown, so the key keeps its usual meaning.</summary>
+    private bool ZoomByKey(double notches)
+    {
+        if (PreviewImage.Source is null || _lastScale is null) return false;
+        ZoomAround(new System.Windows.Point(Viewport.ActualWidth / 2, Viewport.ActualHeight / 2), notches);
+        return true;
+    }
+
+    /// <summary>Zooms by <paramref name="notches"/> wheel steps keeping the image point under <paramref name="cursor"/>
+    /// (view coordinates) where it is. The scale is for this file only, see <see cref="_customScale"/>.</summary>
+    private void ZoomAround(System.Windows.Point cursor, double notches)
+    {
+        if (_lastScale is not { } old) return;
+        var next = PeekZoom.Step(old, notches);
         if (Math.Abs(next - old) < 1e-9) return;
-        var cursor = e.GetPosition(Viewport);
         var k = next / old;
         var dx = cursor.X - (Viewport.ActualWidth / 2 + _pan.X);
         var dy = cursor.Y - (Viewport.ActualHeight / 2 + _pan.Y);
@@ -845,7 +861,8 @@ public partial class PeekWindow : FluentWindow
 
                 break;
             default:
-                if (!HandleConfiguredKey(key, e.IsRepeat))
+                // A configured key (open, edit) wins over the optional extra keys.
+                if (!HandleConfiguredKey(key, e.IsRepeat) && !HandleExtraKey(key))
                 {
                     return;
                 }
@@ -854,6 +871,30 @@ public partial class PeekWindow : FluentWindow
         }
 
         e.Handled = true;
+    }
+
+    /// <summary>The optional keys (<see cref="PeekWindowSettings.ExtraKeys"/>): A/D previous and next, W/S and Up/Down
+    /// zoom the image. Only without modifiers, so Ctrl+S and the like keep their meaning. True when handled.</summary>
+    private bool HandleExtraKey(Key key)
+    {
+        if (!Settings.ExtraKeys || Keyboard.Modifiers != ModifierKeys.None) return false;
+        switch (key)
+        {
+            case Key.A:
+                MoveTo(_index - 1);
+                return true;
+            case Key.D:
+                MoveTo(_index + 1);
+                return true;
+            case Key.W:
+            case Key.Up:
+                return ZoomByKey(1);
+            case Key.S:
+            case Key.Down:
+                return ZoomByKey(-1);
+            default:
+                return false;
+        }
     }
 
     /// <summary>The open key asks to open the file in its assigned program, the editor key to open an image in the editor. The toggle shortcut is not handled here:

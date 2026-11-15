@@ -716,6 +716,8 @@
   <data name="Peek_ErrorSave" xml:space="preserve"><value>Could not save the Peek settings: {0}</value></data>
   <data name="Peek_ErrorNeedNameAndProgram" xml:space="preserve"><value>Enter a name and a program.</value></data>
   <data name="Peek_ErrorExtension" xml:space="preserve"><value>Enter an extension such as .jpg, or .* for every extension.</value></data>
+  <data name="Peek_ExtraKeys" xml:space="preserve"><value>Use A/D and W/S keys</value></data>
+  <data name="Peek_ExtraKeysHint" xml:space="preserve"><value>A and D show the previous and next file, W and S (or Up and Down) zoom the image in and out. A key you set above takes precedence.</value></data>
   <data name="Peek_FitToContent" xml:space="preserve"><value>Fit window to content</value></data>
   <data name="Peek_FitToContentHint" xml:space="preserve"><value>Size the Peek window to the image it shows. Other files open at the last size you used.</value></data>
   <data name="Settings_ModulesRestartHint" xml:space="preserve"><value>Module gates run only at startup — restart to apply.</value></data>

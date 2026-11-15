@@ -9,7 +9,7 @@ namespace AresToys.App.Services.Peek;
 /// the virtual screen, null until it has been used) and whether it should size itself to the image it shows.</summary>
 public sealed record PeekWindowSettings(PixelRect? Bounds, bool FitToContent, PeekBrowseMode Browse = PeekBrowseMode.All, Action<PeekBrowseMode>? SaveBrowse = null,
     PeekZoomMode Zoom = PeekZoomMode.Auto, Action<PeekZoomMode>? SaveZoom = null,
-    bool Strip = true, Action<bool>? SaveStrip = null)
+    bool Strip = true, Action<bool>? SaveStrip = null, bool ExtraKeys = false)
 {
     public static PeekWindowSettings Default { get; } = new(null, false);
 }
@@ -32,6 +32,9 @@ public sealed class PeekWindowStore(ISettingsStore settings, ILogger<PeekWindowS
     /// <summary>Whether the thumbnail strip shows ("1" or "0"), on when missing.</summary>
     public const string StripKey = "peek.strip";
 
+    /// <summary>Whether A/D move to the previous/next file and W/S and Up/Down zoom the image ("1" or "0"), off when missing.</summary>
+    public const string ExtraKeysKey = "peek.extra_keys";
+
     /// <summary>The stored settings; a missing or invalid value gives its default (invalid data is logged).</summary>
     public async Task<PeekWindowSettings> LoadAsync(CancellationToken ct = default)
     {
@@ -40,9 +43,13 @@ public sealed class PeekWindowStore(ISettingsStore settings, ILogger<PeekWindowS
         var browse = PeekBrowse.Parse(await ReadAsync(BrowseKey, ct).ConfigureAwait(false));
         var zoom = PeekZoom.Parse(await ReadAsync(ZoomKey, ct).ConfigureAwait(false));
         var strip = await ReadAsync(StripKey, ct).ConfigureAwait(false) != "0";
+        var extraKeys = await ReadAsync(ExtraKeysKey, ct).ConfigureAwait(false) == "1";
         return new PeekWindowSettings(bounds, fit, browse, mode => _ = SaveBrowseQuietlyAsync(mode),
-            zoom, mode => _ = SaveZoomQuietlyAsync(mode), strip, on => _ = SaveStripQuietlyAsync(on));
+            zoom, mode => _ = SaveZoomQuietlyAsync(mode), strip, on => _ = SaveStripQuietlyAsync(on), extraKeys);
     }
+
+    public Task SaveExtraKeysAsync(bool on, CancellationToken ct = default)
+        => settings.SetAsync(ExtraKeysKey, on ? "1" : "0", sensitive: false, ct);
 
     public Task SaveStripAsync(bool on, CancellationToken ct = default)
         => settings.SetAsync(StripKey, on ? "1" : "0", sensitive: false, ct);

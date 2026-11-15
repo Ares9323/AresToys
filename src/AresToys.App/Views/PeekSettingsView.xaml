@@ -75,6 +75,14 @@
                     <TextBlock Foreground="#E5484D" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"
                                Text="{Binding Peek.KeyErrorText}" />
 
+                    <!-- Extra keys: A/D previous and next, W/S and Up/Down zoom. Off by default; a configured key above wins. -->
+                    <CheckBox IsChecked="{Binding Peek.ExtraKeys, Mode=TwoWay}"
+                              Content="{Markup:Loc Peek_ExtraKeys}"
+                              Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12"
+                              HorizontalAlignment="Left" Margin="0,12,0,4" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11" TextWrapping="Wrap"
+                               Text="{Markup:Loc Peek_ExtraKeysHint}" />
+
                     <!-- The window: fit it to the image shown (off: it opens at the last size and place used). -->
                     <CheckBox IsChecked="{Binding Peek.FitToContent, Mode=TwoWay}"
                               Content="{Markup:Loc Peek_FitToContent}"

@@ -703,6 +703,8 @@
   <data name="Peek_ErrorSave" xml:space="preserve"><value>Impossibile salvare le impostazioni di Peek: {0}</value></data>
   <data name="Peek_ErrorNeedNameAndProgram" xml:space="preserve"><value>Inserisci un nome e un programma.</value></data>
   <data name="Peek_ErrorExtension" xml:space="preserve"><value>Inserisci un'estensione come .jpg, oppure .* per ogni estensione.</value></data>
+  <data name="Peek_ExtraKeys" xml:space="preserve"><value>Usa i tasti A/D e W/S</value></data>
+  <data name="Peek_ExtraKeysHint" xml:space="preserve"><value>A e D mostrano il file precedente e il successivo, W e S (o freccia su e giù) ingrandiscono e rimpiccioliscono l'immagine. Un tasto impostato qui sopra ha la precedenza.</value></data>
   <data name="Peek_FitToContent" xml:space="preserve"><value>Adatta la finestra al contenuto</value></data>
   <data name="Peek_FitToContentHint" xml:space="preserve"><value>Ridimensiona la finestra di Peek sull'immagine mostrata. Gli altri file si aprono all'ultima dimensione usata.</value></data>
   <data name="Settings_ModulesRestartHint" xml:space="preserve"><value>I gate dei moduli scattano solo all'avvio — riavvia per applicare.</value></data>

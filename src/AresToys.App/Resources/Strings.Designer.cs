@@ -6352,6 +6352,24 @@ namespace AresToys.App.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Use A/D and W/S keys.
+        /// </summary>
+        public static string Peek_ExtraKeys {
+            get {
+                return ResourceManager.GetString("Peek_ExtraKeys", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A and D show the previous and next file, W and S (or Up and Down) zoom the image.
+        /// </summary>
+        public static string Peek_ExtraKeysHint {
+            get {
+                return ResourceManager.GetString("Peek_ExtraKeysHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Fit window to content.
         /// </summary>
         public static string Peek_FitToContent {
