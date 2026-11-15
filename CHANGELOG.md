@@ -3,6 +3,29 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.2.4] — 2026-11-15
+
+### Explorer right-click menu
+- New "Unblock" entry for files and folders: it removes the "came from the
+  internet" mark from downloaded files, so Explorer previews them again. On a
+  folder it unblocks every file inside. It works with AresToys closed.
+- The AresToys entries now sit in one "AresToys" submenu, so they do not crowd
+  the menu. "New" (new file from template) stays at the top level.
+- A new Right Click Menu page in the settings (it replaces the New File from
+  Template page and is always in the sidebar) holds the Unblock and New
+  switches, with the template options under New.
+
+### Peek
+- A bar over downloaded files says they came from the internet and has an
+  Unblock button.
+- A maximize button in the title bar, and F11 for full screen (Esc goes back
+  to the window).
+- Clicking Zoom, Browse, Show as or Open in again closes its menu instead of
+  reopening it (issue #42).
+- Optional keys, off by default (Peek settings, "Use A/D and W/S keys"): A
+  and D show the previous and next file, W and S (or Up and Down) zoom the
+  image.
+
 ## [0.2.3] — 2026-11-09
 
 First release of the published history. The repository history was rewritten
