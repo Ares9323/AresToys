@@ -3,6 +3,30 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.2.5] — 2026-11-23
+
+### Explorer right-click menu
+- Two new entries in the AresToys submenu for files that another program keeps
+  open. "Unlock file" says when nothing holds the file; otherwise it names the
+  programs, asks, and closes their handles, opening the window only when the
+  file stays locked. "View lock state" opens a window, LockHunter style, with
+  the programs (name, PID, user, path) and the items each one holds, and Unlock,
+  Unlock and delete, rename, copy, delete at the next restart, end the program
+  and restart as administrator. Both work with AresToys closed and have a
+  switch on the Right Click Menu page.
+- "Unblock" is now "Trust file" (Peek's bar button too).
+- Ctrl+Shift+N (new folder) works in folders with accented names.
+
+### Windows running as administrator
+- Always on top on a window running as administrator shows a notice instead
+  of doing nothing: restart AresToys as administrator, or hide the notice for
+  30 days.
+- The Win shortcuts pressed while such a window is in front show the same
+  notice. Win+V and Win+Shift+S stay Windows' own there.
+
+### Wormholes
+- Delete wormhole no longer closes every wormhole with an error.
+
 ## [0.2.4] — 2026-11-15
 
 ### Explorer right-click menu
