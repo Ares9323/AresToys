@@ -52,6 +52,23 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        // --unlock-file / --file-locks <path>: the Explorer "Unlock file" and "Is file locked?" verbs. Same place for the
+        // same reasons: their own short lived process. Unlock file asks once and closes the handles with plain message
+        // boxes; the window (a reduced container: settings, theme, language, icons) opens for "Is file locked?" and when
+        // the item stays locked.
+        if (FileLocksPathArg(e.Args, AresToys.App.Services.FileLocks.FileLocksMenuRegistration.CommandLineArg) is { } unlockPath)
+        {
+            if (AresToys.App.Services.FileLocks.QuickUnlock.Run(unlockPath)) Shutdown();
+            else await RunFileLocksAsync(unlockPath);
+            return;
+        }
+
+        if (FileLocksPathArg(e.Args, AresToys.App.Services.FileLocks.FileLocksMenuRegistration.WindowCommandLineArg) is { } lockedPath)
+        {
+            await RunFileLocksAsync(lockedPath);
+            return;
+        }
         // The satellite (--satellite) is the non elevated companion process the main app starts. It must not
         // truncate the main app's startup trace (Begin overwrites the file), so it only appends marks.
         var isSatellite = SatelliteArgs.TryParse(e.Args, out var satelliteArgs);
@@ -365,6 +382,8 @@ public partial class App : Application
                 services.AddSingleton<AresToys.App.Services.Dictation.DictationService>();
                 services.AddSingleton<IPipelineTask, DictateTask>();
                 services.AddSingleton<AresToys.App.Services.AlwaysOnTop.AlwaysOnTopService>();
+                services.AddSingleton<AresToys.App.Services.ElevatedWindowWarning>();
+                services.AddSingleton<AresToys.App.Services.ElevatedShortcutFallback>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneLayoutStore>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneMonitors>();
                 services.AddSingleton<AresToys.App.Services.Zones.ZoneWindowTracker>();
@@ -588,6 +607,10 @@ public partial class App : Application
         // created here so it is subscribed before the satellite connects; it fills its caches when the satellite
         // sends wormholes.ready. Register the Explorer right-click "Create Wormhole" verb (idempotent, HKCU, no
         // admin) once the satellite reports the wormholes are working.
+        // The Trust file verb stores its label in the registry: rewrite it so a rename or a language change reaches the menu.
+        AresToys.App.Services.UnblockContextMenuRegistration.RefreshIfRegistered();
+        AresToys.App.Services.FileLocks.FileLocksMenuRegistration.EnsureAtStartup();
+
         var wormholeProxy = _host.Services.GetRequiredService<AresToys.App.Services.Wormholes.WormholeWindowManagerProxy>();
         if (modules.WormholesEnabled)
         {
@@ -1150,6 +1173,11 @@ public partial class App : Application
         foreach (var entry in catalog)
             await RegisterCatalogAsync(entry.Id);
 
+        // Unelevated only: while an elevated window is in front the hook is blind, so the Win shortcuts are also registered
+        // with RegisterHotKey (WM_HOTKEY crosses UIPI) and pressing one shows the "run as administrator" notice.
+        try { await _host.Services.GetRequiredService<AresToys.App.Services.ElevatedShortcutFallback>().StartAsync(id => !IsHotkeyForDisabledModule(id, modules), CancellationToken.None); }
+        catch (Exception ex) { hotkeyLogger.LogWarning(ex, "Shortcut notice for elevated windows not registered"); }
+
         // Settings UI raises Changed when the user rebinds, clears, or resets → keep the hook in
         // sync. VK 0 means the user cleared the binding, so unregister and don't re-register.
         // Hotkeys for disabled modules stay unregistered even on rebind — the module flag is the
@@ -1410,6 +1438,49 @@ public partial class App : Application
     /// <summary>When the arguments hold <c>--unblock &lt;path&gt;</c>, removes the Mark of the Web from the file or from
     /// every file below the folder (<see cref="AresToys.App.Services.MarkOfTheWeb"/>) and returns true; the caller then
     /// exits. Silent on success; files that could not be unblocked are reported in a message box.</summary>
+    private static string? FileLocksPathArg(string[] args, string name)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(args[i + 1]))
+                return Path.GetFullPath(args[i + 1]);
+        }
+
+        return null;
+    }
+
+    /// <summary>The reduced start of <c>--unlock-file</c>: settings store, theme, language and icons, then the locks
+    /// window; the process ends when the window closes.</summary>
+    private async Task RunFileLocksAsync(string path)
+    {
+        try
+        {
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureLogging(logging => ConfigureAppLogging(logging, debugLog: null))
+                .ConfigureServices(services =>
+                {
+                    services.AddAresToysStorage();
+                    AddSharedUiServices(services);
+                })
+                .Build();
+            await _host.StartAsync();
+            await _host.Services.GetRequiredService<IAresToysDatabase>().InitializeAsync(CancellationToken.None);
+            await ApplyThemeAndLocalizationAsync(_host.Services, tracePrefix: "unlock-file: ");
+
+            var window = new AresToys.App.Views.FileLocksWindow(path, _host.Services.GetRequiredService<IconService>());
+            window.Closed += (_, _) => Shutdown();
+            window.Show();
+            window.Activate();
+        }
+        catch (Exception ex)
+        {
+            _host?.Services.GetService<ILogger<App>>()?.LogError(ex, "Unlock file window failed");
+            MessageBox.Show(ex.Message, "AresToys", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+        }
+    }
+
     private static bool TryRunUnblock(string[] args)
     {
         string? path = null;

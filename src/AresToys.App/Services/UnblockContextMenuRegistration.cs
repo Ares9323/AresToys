@@ -5,7 +5,7 @@ using AresToys.App.Resources;
 namespace AresToys.App.Services;
 
 /// <summary>
-/// The "Unblock" verb in the AresToys submenu of the Explorer right-click menu (<see cref="AresToysSubmenuRegistration"/>),
+/// The "Trust file" verb (key name Unblock) in the AresToys submenu of the Explorer right-click menu (<see cref="AresToysSubmenuRegistration"/>),
 /// on files and folders. It removes the Mark of the Web (<see cref="MarkOfTheWeb"/>) so Explorer previews downloaded files
 /// again; on a folder it goes through every file below it. Clicking it runs <c>"arestoys.exe" --unblock "&lt;path&gt;"</c>,
 /// which App.OnStartup handles in the launched process and exits: the running instance is never involved, so the verb
@@ -17,6 +17,9 @@ public static class UnblockContextMenuRegistration
     public const string CommandLineArg = "--unblock";
 
     private const string VerbName = "Unblock";
+
+    // No AppliesTo filter on downloaded files: Explorer hid the verb even on marked files when it was set on this
+    // sub verb (tried "System.ZoneIdentifier:>=3", 2026-11-23). Filtering needs an IExplorerCommand handler.
 
     /// <summary>Where the first build put the verb, at the top level of the menu; removed on every change.</summary>
     private static readonly string[] OldTopLevelKeys =
@@ -46,6 +49,14 @@ public static class UnblockContextMenuRegistration
         // %1 = the path Explorer hands us; the quotes survive paths with spaces.
         AresToysSubmenuRegistration.SetVerb(VerbName, label, $"\"{exe}\" {CommandLineArg} \"%1\"",
             AresToysSubmenuRegistration.Targets.Files | AresToysSubmenuRegistration.Targets.Folders);
+    }
+
+    /// <summary>Rewrites the verb when it is registered for this exe, so the label follows renames and the UI language.
+    /// Best effort: a registry failure leaves the old label.</summary>
+    public static void RefreshIfRegistered()
+    {
+        try { if (IsRegistered()) Register(); }
+        catch { /* best effort */ }
     }
 
     /// <summary>Removes the verb from files and folders. Best effort: a missing key is fine.</summary>

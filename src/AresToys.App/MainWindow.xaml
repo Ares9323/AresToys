@@ -2098,7 +2098,7 @@
                                TextWrapping="Wrap" Margin="0,0,0,16"
                                Text="{Markup:Loc RightClickMenu_Blurb}" />
 
-                    <!-- AresToys cascade: Unblock (UnblockContextMenuRegistration; the registry is the state). -->
+                    <!-- AresToys cascade: Trust file (UnblockContextMenuRegistration; the registry is the state). -->
                     <TextBlock Text="{Markup:Loc RightClickMenu_Submenu}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
                                TextWrapping="Wrap" Margin="0,0,0,8"
@@ -2109,6 +2109,13 @@
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                FontSize="11" TextWrapping="Wrap" Margin="22,4,0,24"
                                Text="{Markup:Loc UnblockMenu_SettingHint}" />
+                    <!-- Unlock file (FileLocksMenuRegistration; on by default, the registry is the state). -->
+                    <CheckBox Content="{Markup:Loc FileLocksMenu_Setting}"
+                              Loaded="OnFileLocksMenuCheckBoxLoaded"
+                              Click="OnFileLocksMenuToggled" />
+                    <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                               FontSize="11" TextWrapping="Wrap" Margin="22,4,0,24"
+                               Text="{Markup:Loc FileLocksMenu_SettingHint}" />
 
                     <!-- New+: top level of the Explorer menu; its options show only while it is on. -->
                     <TextBlock Text="{Markup:Loc Sidebar_NewPlus}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,4" />

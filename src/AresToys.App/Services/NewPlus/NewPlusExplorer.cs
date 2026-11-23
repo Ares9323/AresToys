@@ -242,9 +242,7 @@ internal static class NewPlusExplorer
         {
             try
             {
-                string url = window.LocationURL;
-                if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.IsFile) continue;
-                if (!SamePath(uri.LocalPath, folder)) continue;
+                if (ExplorerWindows.WindowFolder(window) is not string path || !SamePath(path, folder)) continue;
                 if (foreground != IntPtr.Zero && new IntPtr((long)window.HWND) == foreground) return window.Document;
                 fallback ??= window.Document;
             }

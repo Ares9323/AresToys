@@ -6271,7 +6271,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Unblock.
+        ///   Looks up a localized string similar to Trust file.
         /// </summary>
         public static string Peek_Unblock {
             get {
@@ -6280,7 +6280,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Couldn&apos;t unblock this file. It may be read only..
+        ///   Looks up a localized string similar to Couldn&apos;t mark this file as trusted. It may be read only..
         /// </summary>
         public static string Peek_UnblockFailed {
             get {
@@ -7621,7 +7621,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Unblock.
+        ///   Looks up a localized string similar to Trust file.
         /// </summary>
         public static string UnblockMenu_Label {
             get {
@@ -7630,7 +7630,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Show &quot;Unblock&quot;.
+        ///   Looks up a localized string similar to Show &quot;Trust file&quot;.
         /// </summary>
         public static string UnblockMenu_Setting {
             get {
@@ -7648,7 +7648,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0} file(s) in &quot;{1}&quot; could not be unblocked..
+        ///   Looks up a localized string similar to {0} file(s) in &quot;{1}&quot; could not be marked as trusted..
         /// </summary>
         public static string UnblockMenu_Failed {
             get {
@@ -7657,11 +7657,47 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Couldn&apos;t update the Unblock menu entry: {0}.
+        ///   Looks up a localized string similar to Couldn&apos;t update the Trust file menu entry: {0}.
         /// </summary>
         public static string UnblockMenu_ToggleFailed {
             get {
                 return ResourceManager.GetString("UnblockMenu_ToggleFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock file.
+        /// </summary>
+        public static string FileLocksMenu_Label {
+            get {
+                return ResourceManager.GetString("FileLocksMenu_Label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show &quot;Unlock file&quot; and &quot;View lock state&quot;.
+        /// </summary>
+        public static string FileLocksMenu_Setting {
+            get {
+                return ResourceManager.GetString("FileLocksMenu_Setting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shows which programs keep a file or folder open.
+        /// </summary>
+        public static string FileLocksMenu_SettingHint {
+            get {
+                return ResourceManager.GetString("FileLocksMenu_SettingHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t update the Unlock file menu entry: {0}.
+        /// </summary>
+        public static string FileLocksMenu_ToggleFailed {
+            get {
+                return ResourceManager.GetString("FileLocksMenu_ToggleFailed", resourceCulture);
             }
         }
         
@@ -9698,6 +9734,24 @@ namespace AresToys.App.Resources {
         public static string Tray_RestartAsAdmin {
             get {
                 return ResourceManager.GetString("Tray_RestartAsAdmin", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The window in front is running as administrator, so Windows does not let AresToys see your shortcuts or change that window. Restart AresToys as administrator to use it with elevated windows..
+        /// </summary>
+        public static string ElevatedWarning_Message {
+            get {
+                return ResourceManager.GetString("ElevatedWarning_Message", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Don't show again.
+        /// </summary>
+        public static string ElevatedWarning_DontShowAgain {
+            get {
+                return ResourceManager.GetString("ElevatedWarning_DontShowAgain", resourceCulture);
             }
         }
         
@@ -14153,6 +14207,346 @@ namespace AresToys.App.Resources {
         public static string Wormholes_RefreshButton {
             get {
                 return ResourceManager.GetString("Wormholes_RefreshButton", resourceCulture);
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized string similar to What&#x27;s locking this file?.
+        /// </summary>
+        public static string FileLocks_Title {
+            get {
+                return ResourceManager.GetString("FileLocks_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Searching for the programs that use this item….
+        /// </summary>
+        public static string FileLocks_Searching {
+            get {
+                return ResourceManager.GetString("FileLocks_Searching", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No program is using this item..
+        /// </summary>
+        public static string FileLocks_NoneFound {
+            get {
+                return ResourceManager.GetString("FileLocks_NoneFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Programs using this item: {0}.
+        /// </summary>
+        public static string FileLocks_Found {
+            get {
+                return ResourceManager.GetString("FileLocks_Found", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to AresToys is not running as administrator, so programs running as administrator or as another user are not listed..
+        /// </summary>
+        public static string FileLocks_Partial {
+            get {
+                return ResourceManager.GetString("FileLocks_Partial", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Program.
+        /// </summary>
+        public static string FileLocks_ColProcess {
+            get {
+                return ResourceManager.GetString("FileLocks_ColProcess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to PID.
+        /// </summary>
+        public static string FileLocks_ColPid {
+            get {
+                return ResourceManager.GetString("FileLocks_ColPid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to User.
+        /// </summary>
+        public static string FileLocks_ColUser {
+            get {
+                return ResourceManager.GetString("FileLocks_ColUser", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Path.
+        /// </summary>
+        public static string FileLocks_ColPath {
+            get {
+                return ResourceManager.GetString("FileLocks_ColPath", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Items held by the selected program.
+        /// </summary>
+        public static string FileLocks_Details {
+            get {
+                return ResourceManager.GetString("FileLocks_Details", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} (loaded module, closes only with the program).
+        /// </summary>
+        public static string FileLocks_Module {
+            get {
+                return ResourceManager.GetString("FileLocks_Module", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh.
+        /// </summary>
+        public static string FileLocks_Refresh {
+            get {
+                return ResourceManager.GetString("FileLocks_Refresh", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock.
+        /// </summary>
+        public static string FileLocks_Unlock {
+            get {
+                return ResourceManager.GetString("FileLocks_Unlock", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Closes the handles the programs hold on the item. Programs that still hold it are ended after asking..
+        /// </summary>
+        public static string FileLocks_UnlockTooltip {
+            get {
+                return ResourceManager.GetString("FileLocks_UnlockTooltip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock and delete.
+        /// </summary>
+        public static string FileLocks_Delete {
+            get {
+                return ResourceManager.GetString("FileLocks_Delete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Other.
+        /// </summary>
+        public static string FileLocks_Other {
+            get {
+                return ResourceManager.GetString("FileLocks_Other", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock and rename….
+        /// </summary>
+        public static string FileLocks_Rename {
+            get {
+                return ResourceManager.GetString("FileLocks_Rename", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock and copy….
+        /// </summary>
+        public static string FileLocks_Copy {
+            get {
+                return ResourceManager.GetString("FileLocks_Copy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete at next restart.
+        /// </summary>
+        public static string FileLocks_DeleteAtRestart {
+            get {
+                return ResourceManager.GetString("FileLocks_DeleteAtRestart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to End the selected program.
+        /// </summary>
+        public static string FileLocks_EndProcess {
+            get {
+                return ResourceManager.GetString("FileLocks_EndProcess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open the program&#x27;s folder.
+        /// </summary>
+        public static string FileLocks_OpenLocation {
+            get {
+                return ResourceManager.GetString("FileLocks_OpenLocation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close.
+        /// </summary>
+        public static string FileLocks_Close {
+            get {
+                return ResourceManager.GetString("FileLocks_Close", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to These programs still hold the item after closing their handles:.
+        /// </summary>
+        public static string FileLocks_ConfirmKill {
+            get {
+                return ResourceManager.GetString("FileLocks_ConfirmKill", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to End {0} (PID {1})? Unsaved work in it is lost..
+        /// </summary>
+        public static string FileLocks_ConfirmEnd {
+            get {
+                return ResourceManager.GetString("FileLocks_ConfirmEnd", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unlocked: no program is using the item any more..
+        /// </summary>
+        public static string FileLocks_Unlocked {
+            get {
+                return ResourceManager.GetString("FileLocks_Unlocked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Still in use by: {0}.
+        /// </summary>
+        public static string FileLocks_StillLocked {
+            get {
+                return ResourceManager.GetString("FileLocks_StillLocked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to It did not work: {0}.
+        /// </summary>
+        public static string FileLocks_Failed {
+            get {
+                return ResourceManager.GetString("FileLocks_Failed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to New name.
+        /// </summary>
+        public static string FileLocks_RenamePrompt {
+            get {
+                return ResourceManager.GetString("FileLocks_RenamePrompt", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Renamed to {0}..
+        /// </summary>
+        public static string FileLocks_Renamed {
+            get {
+                return ResourceManager.GetString("FileLocks_Renamed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copied to {0}..
+        /// </summary>
+        public static string FileLocks_Copied {
+            get {
+                return ResourceManager.GetString("FileLocks_Copied", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Moved to the Recycle Bin..
+        /// </summary>
+        public static string FileLocks_Deleted {
+            get {
+                return ResourceManager.GetString("FileLocks_Deleted", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The item will be deleted at the next restart..
+        /// </summary>
+        public static string FileLocks_DeleteAtRestartDone {
+            get {
+                return ResourceManager.GetString("FileLocks_DeleteAtRestartDone", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Windows refused: restart AresToys as administrator to schedule the deletion..
+        /// </summary>
+        public static string FileLocks_DeleteAtRestartFailed {
+            get {
+                return ResourceManager.GetString("FileLocks_DeleteAtRestartFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The item no longer exists: {0}.
+        /// </summary>
+        public static string FileLocks_NotFound {
+            get {
+                return ResourceManager.GetString("FileLocks_NotFound", resourceCulture);
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized string similar to View lock state.
+        /// </summary>
+        public static string FileLocksMenu_WindowLabel {
+            get {
+                return ResourceManager.GetString("FileLocksMenu_WindowLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is not locked: no program is using it..
+        /// </summary>
+        public static string FileLocks_QuickNotLocked {
+            get {
+                return ResourceManager.GetString("FileLocks_QuickNotLocked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unlock {0}?.
+        /// </summary>
+        public static string FileLocks_QuickConfirm {
+            get {
+                return ResourceManager.GetString("FileLocks_QuickConfirm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is unlocked..
+        /// </summary>
+        public static string FileLocks_QuickDone {
+            get {
+                return ResourceManager.GetString("FileLocks_QuickDone", resourceCulture);
             }
         }
     }

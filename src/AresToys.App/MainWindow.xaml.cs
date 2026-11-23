@@ -1268,6 +1268,30 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    private void OnFileLocksMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.CheckBox cb)
+            cb.IsChecked = AresToys.App.Services.FileLocks.FileLocksMenuRegistration.IsRegistered();
+    }
+
+    private void OnFileLocksMenuToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox cb) return;
+        try
+        {
+            AresToys.App.Services.FileLocks.FileLocksMenuRegistration.SetEnabled(cb.IsChecked == true);
+        }
+        catch (Exception ex)
+        {
+            cb.IsChecked = AresToys.App.Services.FileLocks.FileLocksMenuRegistration.IsRegistered();
+#pragma warning disable CA1863
+            System.Windows.MessageBox.Show(this,
+                string.Format(System.Globalization.CultureInfo.CurrentCulture, AresToys.App.Resources.Strings.FileLocksMenu_ToggleFailed, ex.Message),
+                "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+#pragma warning restore CA1863
+        }
+    }
+
     private void OnExplorerContextMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.CheckBox cb)

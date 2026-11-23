@@ -775,6 +775,15 @@ public partial class WormholeWindow : Window
         return helper.Handle != IntPtr.Zero ? main : null;
     }
 
+    /// <summary>Every message box of the wormhole goes through here. MessageBox.Show(Window owner, ...) throws on
+    /// a null owner, and <see cref="OwnerForDialogs"/> is null in the satellite process (no MainWindow there):
+    /// calling it directly took the whole satellite down, and every wormhole with it.</summary>
+    private static MessageBoxResult ShowMessage(string text, string caption, MessageBoxButton button,
+        MessageBoxImage icon, MessageBoxResult defaultResult = MessageBoxResult.None)
+        => OwnerForDialogs() is { } owner
+            ? MessageBox.Show(owner, text, caption, button, icon, defaultResult)
+            : MessageBox.Show(text, caption, button, icon, defaultResult);
+
     /// <summary>Re-apply title / lock / roll state from the underlying record. Called by
     /// <see cref="AresToys.App.Services.Wormholes.WormholeWindowManager.ReconcileAsync"/> when the
     /// record was mutated from outside the chrome (typically the Wormholes Settings tab toggling
@@ -1589,7 +1598,7 @@ public partial class WormholeWindow : Window
         var delete = new System.Windows.Controls.MenuItem { Header = "Delete wormhole…" };
         delete.Click += (_, _) =>
         {
-            var confirm = MessageBox.Show(OwnerForDialogs(),
+            var confirm = ShowMessage(
                 $"Delete wormhole \"{_active.Title}\"?\n\nThe source folder on disk is NOT touched.",
                 "AresToys",
                 MessageBoxButton.OKCancel, MessageBoxImage.Question,
@@ -1603,7 +1612,7 @@ public partial class WormholeWindow : Window
             if (_active.Portal is { SourcePath: { Length: > 0 } src }
                 && Directory.Exists(src) && IsEmptyDirectory(src))
             {
-                var alsoDelete = MessageBox.Show(OwnerForDialogs(),
+                var alsoDelete = ShowMessage(
                     $"The source folder is empty:\n\n  {src}\n\nDelete it from disk as well?",
                     "AresToys", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
                 if (alsoDelete == MessageBoxResult.Yes)
@@ -1614,7 +1623,7 @@ public partial class WormholeWindow : Window
                         // Best-effort: a permission denied / locked-by-AV failure here shouldn't
                         // block the wormhole record deletion below. Inform the user so they can
                         // clean up by hand if they care.
-                        MessageBox.Show(OwnerForDialogs(),
+                        ShowMessage(
                             "The wormhole was deleted, but the empty folder couldn't be removed:\n" + ex.Message,
                             "AresToys", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
@@ -1633,7 +1642,7 @@ public partial class WormholeWindow : Window
         var folder = _active.Portal?.SourcePath;
         if (string.IsNullOrWhiteSpace(folder))
         {
-            MessageBox.Show(OwnerForDialogs(),"No folder is associated with this wormhole.", "AresToys",
+            ShowMessage("No folder is associated with this wormhole.", "AresToys",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1644,7 +1653,7 @@ public partial class WormholeWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(OwnerForDialogs(),"Couldn't open the folder:\n" + ex.Message,
+            ShowMessage("Couldn't open the folder:\n" + ex.Message,
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -1956,7 +1965,7 @@ public partial class WormholeWindow : Window
             }
             catch (Exception ex)
             {
-                MessageBox.Show(OwnerForDialogs(),
+                ShowMessage(
                     $"Couldn't open with {Path.GetFileName(resolved)}:\n{ex.Message}",
                     "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
@@ -2063,7 +2072,7 @@ public partial class WormholeWindow : Window
         var dest = _active.Portal.SourcePath;
         if (!Directory.Exists(dest))
         {
-            MessageBox.Show(OwnerForDialogs(),"The Portal source folder isn't currently available.",
+            ShowMessage("The Portal source folder isn't currently available.",
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -2146,7 +2155,7 @@ public partial class WormholeWindow : Window
         // No manual refresh — the FolderWatcher will pick the changes up after its 300 ms tick
         // and the manager calls RefreshPortalItems(). Only show errors here.
         if (errors.Count > 0)
-            MessageBox.Show(OwnerForDialogs(),"Some items couldn't be moved/copied:\n\n" + string.Join("\n", errors),
+            ShowMessage("Some items couldn't be moved/copied:\n\n" + string.Join("\n", errors),
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
@@ -3110,7 +3119,7 @@ public partial class WormholeWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(OwnerForDialogs(),"Couldn't open the item:\n" + ex.Message,
+            ShowMessage("Couldn't open the item:\n" + ex.Message,
                 "AresToys", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }

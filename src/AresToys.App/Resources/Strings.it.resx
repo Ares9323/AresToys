@@ -111,6 +111,8 @@
   <data name="Tray_OpenScreenshotFolder" xml:space="preserve"><value>Apri cartella screenshot</value></data>
   <data name="Tray_AppSettings" xml:space="preserve"><value>Impostazioni app</value></data>
   <data name="Tray_RestartAsAdmin" xml:space="preserve"><value>Riavvia come amministratore</value></data>
+  <data name="ElevatedWarning_Message" xml:space="preserve"><value>La finestra in primo piano è in esecuzione come amministratore, quindi Windows non permette ad AresToys di ricevere le scorciatoie né di modificarla. Riavvia AresToys come amministratore per usarlo con le finestre elevate.</value></data>
+  <data name="ElevatedWarning_DontShowAgain" xml:space="preserve"><value>Non mostrare più</value></data>
   <data name="Tray_RestartNormally" xml:space="preserve"><value>Riavvia normalmente</value></data>
   <data name="Tray_Quit" xml:space="preserve"><value>Esci</value></data>
 
@@ -680,8 +682,8 @@
   <data name="Peek_Change" xml:space="preserve"><value>Cambia</value></data>
   <data name="Peek_ErrorKeyNavigation" xml:space="preserve"><value>Questo tasto è già usato in Peek.</value></data>
   <data name="Peek_BlockedFile" xml:space="preserve"><value>Questo file proviene da internet, quindi Explorer non ne mostra l'anteprima.</value></data>
-  <data name="Peek_Unblock" xml:space="preserve"><value>Sblocca</value></data>
-  <data name="Peek_UnblockFailed" xml:space="preserve"><value>Impossibile sbloccare il file. Forse è di sola lettura.</value></data>
+  <data name="Peek_Unblock" xml:space="preserve"><value>Considera attendibile</value></data>
+  <data name="Peek_UnblockFailed" xml:space="preserve"><value>Impossibile considerare attendibile il file. Forse è di sola lettura.</value></data>
   <data name="Peek_ErrorKeyMouse" xml:space="preserve"><value>Qui non si può usare un pulsante del mouse.</value></data>
   <data name="Peek_ErrorKeysSame" xml:space="preserve"><value>I tasti di Peek devono essere tutti diversi.</value></data>
   <data name="Peek_ProgramsTitle" xml:space="preserve"><value>Programmi per Apri con</value></data>
@@ -1467,11 +1469,16 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="ResizerMenu_Custom" xml:space="preserve"><value>Personalizzato...</value></data>
   <data name="ResizerMenu_Setting" xml:space="preserve"><value>Mostra "Image Resizer" nel menu di Explorer per le immagini</value></data>
   <data name="ResizerMenu_SettingHint" xml:space="preserve"><value>Aggiunge un sottomenu con i workflow elencati qui sotto e una voce Personalizzato. Su Windows 11 compare sotto "Mostra altre opzioni". L'elenco si aggiorna quando aggiungi, duplichi, rinomini o cancelli un workflow resizer.</value></data>
-  <data name="UnblockMenu_Label" xml:space="preserve"><value>Sblocca</value></data>
-  <data name="UnblockMenu_Setting" xml:space="preserve"><value>Mostra "Sblocca"</value></data>
-  <data name="UnblockMenu_SettingHint" xml:space="preserve"><value>Toglie dai file scaricati il segno "proviene da internet", così Explorer torna a mostrarne l'anteprima. Su una cartella sblocca tutti i file al suo interno. Su Windows 11 compare sotto "Mostra altre opzioni".</value></data>
-  <data name="UnblockMenu_Failed" xml:space="preserve"><value>Non è stato possibile sbloccare {0} file in "{1}". Forse sono di sola lettura o su un'unità che non conserva il segno.</value></data>
-  <data name="UnblockMenu_ToggleFailed" xml:space="preserve"><value>Impossibile aggiornare la voce Sblocca del menu:
+  <data name="UnblockMenu_Label" xml:space="preserve"><value>Considera attendibile</value></data>
+  <data name="UnblockMenu_Setting" xml:space="preserve"><value>Mostra "Considera attendibile"</value></data>
+  <data name="UnblockMenu_SettingHint" xml:space="preserve"><value>Toglie dai file scaricati il segno "proviene da internet", così Explorer torna a mostrarne l'anteprima. Su una cartella fa lo stesso con tutti i file al suo interno. Su Windows 11 compare sotto "Mostra altre opzioni".</value></data>
+  <data name="UnblockMenu_Failed" xml:space="preserve"><value>Non è stato possibile considerare attendibili {0} file in "{1}". Forse sono di sola lettura o su un'unità che non conserva il segno.</value></data>
+  <data name="UnblockMenu_ToggleFailed" xml:space="preserve"><value>Impossibile aggiornare la voce Considera attendibile del menu:
+{0}</value></data>
+  <data name="FileLocksMenu_Label" xml:space="preserve"><value>Sblocca file</value></data>
+  <data name="FileLocksMenu_Setting" xml:space="preserve"><value>Mostra "Sblocca file" e "Vedi stato blocco"</value></data>
+  <data name="FileLocksMenu_SettingHint" xml:space="preserve"><value>Mostra quali programmi tengono aperto un file o una cartella, così vedi perché non si può eliminare, spostare o rinominare, e puoi sbloccarlo, chiudere il programma o eliminarlo. Su Windows 11 compare sotto "Mostra altre opzioni".</value></data>
+  <data name="FileLocksMenu_ToggleFailed" xml:space="preserve"><value>Impossibile aggiornare le voci Sblocca file del menu:
 {0}</value></data>
   <data name="ResizeQuick_SaveAsPreset" xml:space="preserve"><value>Salva come preset...</value></data>
   <data name="ResizeQuick_PresetName" xml:space="preserve"><value>Nome del preset</value></data>
@@ -1627,4 +1634,50 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="Peek_FileTypesTitle" xml:space="preserve"><value>Tipi di file</value></data>
   <data name="Peek_FileTypesHint" xml:space="preserve"><value>La vista scelta con Mostra come nel piè di pagina di Peek, per ogni estensione. Rimuovine una per tornare ad Auto.</value></data>
   <data name="Peek_FileTypesEmpty" xml:space="preserve"><value>Nessuna estensione ha ancora una vista propria.</value></data>
+  <data name="FileLocks_Title" xml:space="preserve"><value>Chi blocca questo file?</value></data>
+  <data name="FileLocks_Searching" xml:space="preserve"><value>Cerco i programmi che usano questo elemento…</value></data>
+  <data name="FileLocks_NoneFound" xml:space="preserve"><value>Nessun programma sta usando questo elemento.</value></data>
+  <data name="FileLocks_Found" xml:space="preserve"><value>Programmi che usano questo elemento: {0}</value></data>
+  <data name="FileLocks_Partial" xml:space="preserve"><value>AresToys non è in esecuzione come amministratore: i programmi avviati come amministratore o da un altro utente non sono elencati.</value></data>
+  <data name="FileLocks_ColProcess" xml:space="preserve"><value>Programma</value></data>
+  <data name="FileLocks_ColPid" xml:space="preserve"><value>PID</value></data>
+  <data name="FileLocks_ColUser" xml:space="preserve"><value>Utente</value></data>
+  <data name="FileLocks_ColPath" xml:space="preserve"><value>Percorso</value></data>
+  <data name="FileLocks_Details" xml:space="preserve"><value>Elementi tenuti aperti dal programma selezionato</value></data>
+  <data name="FileLocks_Module" xml:space="preserve"><value>{0} (modulo caricato, si chiude solo con il programma)</value></data>
+  <data name="FileLocks_Refresh" xml:space="preserve"><value>Aggiorna</value></data>
+  <data name="FileLocks_Unlock" xml:space="preserve"><value>Sblocca</value></data>
+  <data name="FileLocks_UnlockTooltip" xml:space="preserve"><value>Chiude gli handle che i programmi tengono sull'elemento. I programmi che lo tengono ancora vengono chiusi dopo una conferma.</value></data>
+  <data name="FileLocks_Delete" xml:space="preserve"><value>Sblocca ed elimina</value></data>
+  <data name="FileLocks_Other" xml:space="preserve"><value>Altro</value></data>
+  <data name="FileLocks_Rename" xml:space="preserve"><value>Sblocca e rinomina…</value></data>
+  <data name="FileLocks_Copy" xml:space="preserve"><value>Sblocca e copia…</value></data>
+  <data name="FileLocks_DeleteAtRestart" xml:space="preserve"><value>Elimina al prossimo riavvio</value></data>
+  <data name="FileLocks_EndProcess" xml:space="preserve"><value>Chiudi il programma selezionato</value></data>
+  <data name="FileLocks_OpenLocation" xml:space="preserve"><value>Apri la cartella del programma</value></data>
+  <data name="FileLocks_Close" xml:space="preserve"><value>Chiudi</value></data>
+  <data name="FileLocks_ConfirmKill" xml:space="preserve"><value>Questi programmi tengono ancora l'elemento dopo la chiusura degli handle:
+
+{0}
+
+Vuoi chiuderli? Il lavoro non salvato in questi programmi va perso.</value></data>
+  <data name="FileLocks_ConfirmEnd" xml:space="preserve"><value>Chiudere {0} (PID {1})? Il lavoro non salvato va perso.</value></data>
+  <data name="FileLocks_Unlocked" xml:space="preserve"><value>Sbloccato: nessun programma usa più l'elemento.</value></data>
+  <data name="FileLocks_StillLocked" xml:space="preserve"><value>Ancora in uso da: {0}</value></data>
+  <data name="FileLocks_Failed" xml:space="preserve"><value>Non è riuscito: {0}</value></data>
+  <data name="FileLocks_RenamePrompt" xml:space="preserve"><value>Nuovo nome</value></data>
+  <data name="FileLocks_Renamed" xml:space="preserve"><value>Rinominato in {0}.</value></data>
+  <data name="FileLocks_Copied" xml:space="preserve"><value>Copiato in {0}.</value></data>
+  <data name="FileLocks_Deleted" xml:space="preserve"><value>Spostato nel Cestino.</value></data>
+  <data name="FileLocks_DeleteAtRestartDone" xml:space="preserve"><value>L'elemento verrà eliminato al prossimo riavvio.</value></data>
+  <data name="FileLocks_DeleteAtRestartFailed" xml:space="preserve"><value>Windows ha rifiutato: riavvia AresToys come amministratore per programmare l'eliminazione.</value></data>
+  <data name="FileLocks_NotFound" xml:space="preserve"><value>L'elemento non esiste più: {0}</value></data>
+  <data name="FileLocksMenu_WindowLabel" xml:space="preserve"><value>Vedi stato blocco</value></data>
+  <data name="FileLocks_QuickNotLocked" xml:space="preserve"><value>{0} non è bloccato: nessun programma lo sta usando.</value></data>
+  <data name="FileLocks_QuickConfirm" xml:space="preserve"><value>Sbloccare {0}?
+
+Tenuto da: {1}
+
+Chiudere un file sotto un programma che ci sta scrivendo può fargli perdere dati.</value></data>
+  <data name="FileLocks_QuickDone" xml:space="preserve"><value>{0} è sbloccato.</value></data>
 </root>

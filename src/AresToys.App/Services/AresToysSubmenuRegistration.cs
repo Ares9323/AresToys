@@ -72,6 +72,8 @@ public static class AresToysSubmenuRegistration
             // A single '&' in a menu text marks an accelerator; double it to show the literal character.
             key.SetValue("MUIVerb", label.Replace("&", "&&", StringComparison.Ordinal));
             key.SetValue("MultiSelectModel", MultiSelectModel);
+            // A build of 2026-11-23 wrote an AppliesTo filter that hid the verb everywhere: clear it.
+            key.DeleteValue("AppliesTo", throwOnMissingValue: false);
             using var commandKey = key.CreateSubKey(CommandKeyName);
             commandKey.SetValue(null, command);
         }

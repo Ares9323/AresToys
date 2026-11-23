@@ -242,6 +242,37 @@ public sealed class ElevationService
 
     private const uint StartfUseShowWindow = 0x00000001;
 
+    /// <summary>True when the process that owns <paramref name="hwnd"/> runs elevated. A process we cannot
+    /// open even with PROCESS_QUERY_LIMITED_INFORMATION (a protected one) counts as elevated: from an
+    /// unelevated AresToys it is just as out of reach. False for a window that no longer exists.</summary>
+    public static bool IsWindowElevated(IntPtr hwnd)
+    {
+        if (GetWindowThreadProcessId(hwnd, out var pid) == 0 || pid == 0) return false;
+        var process = OpenProcess(ProcessQueryLimitedInformation, false, pid);
+        if (process == IntPtr.Zero) return true;
+        try
+        {
+            if (!OpenProcessToken(process, TOKEN_QUERY, out SafeFileHandle token) || token.IsInvalid) return true;
+            using (token)
+            {
+                var elevation = new TOKEN_ELEVATION();
+                if (!GetTokenInformation(token, TOKEN_INFORMATION_CLASS.TokenElevation, ref elevation,
+                        (uint)Marshal.SizeOf<TOKEN_ELEVATION>(), out _))
+                    return false;
+                return elevation.TokenIsElevated != 0;
+            }
+        }
+        finally { CloseHandle(process); }
+    }
+
+    private const uint ProcessQueryLimitedInformation = 0x1000;
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true, EntryPoint = "OpenProcess")]
+    private static extern IntPtr OpenProcess(uint desiredAccess, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
     // ── TokenElevation P/Invoke ───────────────────────────────────────────────────────────────
 
     private static bool DetectProcessElevation()

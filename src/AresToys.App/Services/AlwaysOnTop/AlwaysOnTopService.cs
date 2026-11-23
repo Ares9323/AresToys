@@ -22,9 +22,12 @@ public sealed class AlwaysOnTopService : IDisposable
     private DispatcherTimer? _timer;
     private bool _disposed;
 
-    public AlwaysOnTopService(ISettingsStore settings)
+    private readonly ElevatedWindowWarning _elevatedWarning;
+
+    public AlwaysOnTopService(ISettingsStore settings, ElevatedWindowWarning elevatedWarning)
     {
         _settings = settings;
+        _elevatedWarning = elevatedWarning;
         _hookProc = OnWinEvent;
     }
 
@@ -41,6 +44,13 @@ public sealed class AlwaysOnTopService : IDisposable
 
         var target = AresToys.App.Native.AppNativeMethods.GetForegroundWindow();
         if (target == 0 || IsShellWindow(target)) return false;
+
+        // Windows refuses SetWindowPos on an elevated window from an unelevated process: say why, as PowerToys does.
+        if (ElevatedWindowWarning.IsOutOfReach(target))
+        {
+            await _elevatedWarning.WarnAsync(AresToys.App.Resources.Strings.Workflow_AlwaysOnTop, cancellationToken).ConfigureAwait(false);
+            return false;
+        }
 
         var settings = await AlwaysOnTopSettings.LoadAsync(_settings, cancellationToken).ConfigureAwait(false);
         var dispatcher = System.Windows.Application.Current.Dispatcher;

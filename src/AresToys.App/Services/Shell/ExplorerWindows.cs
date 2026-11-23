@@ -118,9 +118,8 @@ public static class ExplorerWindows
             try
             {
                 if (new IntPtr((long)window.HWND) != root) continue;
-                string url = window.LocationURL;
-                if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.IsFile) continue;
-                candidates.Add(((object)window, uri.LocalPath));
+                if (WindowFolder(window) is not string path) continue;
+                candidates.Add(((object)window, path));
             }
             catch { /* not a folder view */ }
         }
@@ -129,6 +128,22 @@ public static class ExplorerWindows
         foreach (var candidate in candidates)
             if (IsOpenTab(candidate.Window, root)) return candidate;
         return null;
+    }
+
+    /// <summary>The file system folder a shell window (an Explorer tab) shows; null when it shows none (This PC, a
+    /// search). The path comes from the shell item, not from LocationURL: the URL escapes non-ASCII letters with the
+    /// ANSI code page ("Contabilità" is "Contabilit%E0"), which <see cref="Uri.LocalPath"/> leaves undecoded.</summary>
+    internal static string? WindowFolder(dynamic window)
+    {
+        string url = window.LocationURL;
+        if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.IsFile) return null;
+        try
+        {
+            string path = window.Document.Folder.Self.Path;
+            if (!string.IsNullOrEmpty(path) && Path.IsPathFullyQualified(path)) return path;
+        }
+        catch (Exception ex) when (ex is COMException or RuntimeBinderException) { /* view still loading: the URL below */ }
+        return uri.LocalPath;
     }
 
     /// <summary>The folder view <paramref name="root"/> stands for: the desktop when it is the desktop window (class
