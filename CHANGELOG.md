@@ -3,6 +3,13 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.2.6] — 2026-11-26
+
+### Explorer right-click menu
+- "Create wormhole" is now the first entry of the AresToys submenu, on
+  folders and on the background of an open folder, instead of a separate
+  "Create AresToys Wormhole" entry at the top level of the menu.
+
 ## [0.2.5] — 2026-11-23
 
 ### Explorer right-click menu
