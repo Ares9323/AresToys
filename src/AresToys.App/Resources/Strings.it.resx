@@ -1470,6 +1470,7 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="ResizerMenu_Setting" xml:space="preserve"><value>Mostra "Image Resizer" nel menu di Explorer per le immagini</value></data>
   <data name="ResizerMenu_SettingHint" xml:space="preserve"><value>Aggiunge un sottomenu con i workflow elencati qui sotto e una voce Personalizzato. Su Windows 11 compare sotto "Mostra altre opzioni". L'elenco si aggiorna quando aggiungi, duplichi, rinomini o cancelli un workflow resizer.</value></data>
   <data name="UnblockMenu_Label" xml:space="preserve"><value>Considera attendibile</value></data>
+  <data name="WormholeMenu_Label" xml:space="preserve"><value>Crea wormhole</value></data>
   <data name="UnblockMenu_Setting" xml:space="preserve"><value>Mostra "Considera attendibile"</value></data>
   <data name="UnblockMenu_SettingHint" xml:space="preserve"><value>Toglie dai file scaricati il segno "proviene da internet", così Explorer torna a mostrarne l'anteprima. Su una cartella fa lo stesso con tutti i file al suo interno. Su Windows 11 compare sotto "Mostra altre opzioni".</value></data>
   <data name="UnblockMenu_Failed" xml:space="preserve"><value>Non è stato possibile considerare attendibili {0} file in "{1}". Forse sono di sola lettura o su un'unità che non conserva il segno.</value></data>

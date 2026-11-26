@@ -7628,6 +7628,14 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("UnblockMenu_Label", resourceCulture);
             }
         }
+        /// <summary>
+        ///   Looks up a localized string similar to Create wormhole.
+        /// </summary>
+        public static string WormholeMenu_Label {
+            get {
+                return ResourceManager.GetString("WormholeMenu_Label", resourceCulture);
+            }
+        }
 
         /// <summary>
         ///   Looks up a localized string similar to Show &quot;Trust file&quot;.

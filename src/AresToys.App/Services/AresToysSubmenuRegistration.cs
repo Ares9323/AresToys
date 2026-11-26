@@ -5,11 +5,14 @@ namespace AresToys.App.Services;
 /// <summary>
 /// The "AresToys" entry of the Explorer right-click menu on files and folders: one cascade (the arrow on the right) that
 /// holds the AresToys verbs, so they do not crowd the menu. Each verb owner adds or removes its sub verb through
-/// <see cref="SetVerb"/>; the cascade goes away with its last sub verb. Today it holds Unblock
-/// (<see cref="UnblockContextMenuRegistration"/>). New file from template stays at the top level of the menu.
+/// <see cref="SetVerb"/>; the cascade goes away with its last sub verb. It holds Create wormhole
+/// (<see cref="Wormholes.WormholeShellRegistration"/>), Trust file (<see cref="UnblockContextMenuRegistration"/>) and
+/// the file lock verbs. Explorer lists the sub verbs by key name, not by label. New file from template stays at the
+/// top level of the menu.
 /// <code>
-/// HKCU\Software\Classes\*\shell\AresToys.Menu            (files)
-/// HKCU\Software\Classes\Directory\shell\AresToys.Menu    (folders)
+/// HKCU\Software\Classes\*\shell\AresToys.Menu                       (files)
+/// HKCU\Software\Classes\Directory\shell\AresToys.Menu               (folders)
+/// HKCU\Software\Classes\Directory\Background\shell\AresToys.Menu   (the background of an open folder)
 ///     MUIVerb          = "AresToys"
 ///     Icon             = "&lt;exe&gt;"
 ///     SubCommands      = ""          (empty: the sub verbs live in the nested shell key)
@@ -29,10 +32,12 @@ public static class AresToysSubmenuRegistration
         None = 0,
         Files = 1,
         Folders = 2,
+        Background = 4,
     }
 
     private const string FilesRoot = @"Software\Classes\*\shell\AresToys.Menu";
     private const string FoldersRoot = @"Software\Classes\Directory\shell\AresToys.Menu";
+    private const string BackgroundRoot = @"Software\Classes\Directory\Background\shell\AresToys.Menu";
     private const string Label = "AresToys";
     private const string SubVerbsKeyName = "shell";
     private const string CommandKeyName = "command";
@@ -53,11 +58,17 @@ public static class AresToysSubmenuRegistration
     /// <summary>Writes sub verb <paramref name="verb"/> (a key name, not shown) under the cascade on
     /// <paramref name="targets"/> and removes it from the others. Throws on registry failures.</summary>
     public static void SetVerb(string verb, string label, string command, Targets targets)
+        => SetVerb(verb, label, target => (targets & target) != 0 ? command : null);
+
+    /// <summary>Writes sub verb <paramref name="verb"/> with the command <paramref name="commandFor"/> gives for each
+    /// target (one of <see cref="Targets"/>), and removes it where that is null. Throws on registry failures.</summary>
+    public static void SetVerb(string verb, string label, Func<Targets, string?> commandFor)
     {
         var exe = ExplorerContextMenuRegistration.CurrentExePath();
         foreach (var (root, target) in Roots())
         {
-            if ((targets & target) == 0)
+            var command = commandFor(target);
+            if (command is null)
             {
                 RemoveVerb(root, verb);
                 continue;
@@ -115,5 +126,6 @@ public static class AresToysSubmenuRegistration
     {
         yield return (FilesRoot, Targets.Files);
         yield return (FoldersRoot, Targets.Folders);
+        yield return (BackgroundRoot, Targets.Background);
     }
 }
