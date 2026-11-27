@@ -198,6 +198,67 @@ public class PipelineExecutorTests
         Assert.False(ctx.Aborted);
     }
 
+    [Theory]
+    [InlineData(0, 1)] // a tap: released before the second pass
+    [InlineData(3, 4)] // held for three checks
+    public async Task Repeat_WhileHeld_RunsUntilTheKeyIsReleased(int heldChecks, int expectedRuns)
+    {
+        var calls = new List<string>();
+        var keyHold = new FakeKeyHold(heldChecks);
+        var ctx = RepeatContext(keyHold);
+
+        await RepeatExecutor(calls).RunAsync(RepeatProfile(count: 2), ctx, CancellationToken.None);
+
+        Assert.Equal(expectedRuns, calls.Count(c => c == "body"));
+        Assert.Equal(new[] { "after" }, calls.Where(c => c != "body"));
+    }
+
+    [Fact]
+    public async Task Repeat_WhileHeld_WithoutHotkey_RunsOnce()
+    {
+        var calls = new List<string>();
+        var ctx = RepeatContext(new FakeKeyHold(heldChecks: 5, hasHotkey: false));
+
+        await RepeatExecutor(calls).RunAsync(RepeatProfile(count: 7), ctx, CancellationToken.None);
+
+        Assert.Equal(1, calls.Count(c => c == "body"));
+    }
+
+    private static PipelineExecutor RepeatExecutor(List<string> calls) => new(
+        new PipelineTaskRegistry(new IPipelineTask[] { new RecordingTask("body", calls), new RecordingTask("after", calls) }),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<PipelineExecutor>.Instance);
+
+    private static PipelineContext RepeatContext(FakeKeyHold keyHold)
+    {
+        var ctx = new PipelineContext(new SingleService(typeof(IWorkflowKeyHold), keyHold));
+        ctx.Bag[PipelineBagKeys.WorkflowId] = "wf";
+        return ctx;
+    }
+
+    private static PipelineProfile RepeatProfile(int count) => new(
+        "p", "P", "test",
+        new[]
+        {
+            new PipelineStep("arestoys.repeat",
+                Config: System.Text.Json.Nodes.JsonNode.Parse($"{{\"count\":{count},\"delayMs\":\"0\",\"whileHeld\":true}}")),
+            new PipelineStep("body"),
+            new PipelineStep("arestoys.end-repeat"),
+            new PipelineStep("after"),
+        });
+
+    private sealed class FakeKeyHold(int heldChecks, bool hasHotkey = true) : IWorkflowKeyHold
+    {
+        private int _left = heldChecks;
+
+        public Task<Func<bool>?> GetProbeAsync(string workflowId, CancellationToken cancellationToken)
+            => Task.FromResult<Func<bool>?>(hasHotkey ? () => _left-- > 0 : null);
+    }
+
+    private sealed class SingleService(Type type, object instance) : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => serviceType == type ? instance : null;
+    }
+
     [Fact]
     public async Task RunAsync_ProfileTaskThrowsWithAbortOnError_AbortsContext()
     {

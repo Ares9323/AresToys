@@ -332,6 +332,25 @@ public sealed class KeyboardHook : IDisposable
         }
     }
 
+    /// <summary>True for a KEYDOWN of a key whose last press a binding swallowed and that is still held (its KEYUP
+    /// pending, its last KEYDOWN fresh): an auto repeat. Refreshes the held tick so <see cref="IsHeld"/> stays true
+    /// for as long as the key is down. A stale entry (lost KEYUP) is not a repeat: the press goes through matching.</summary>
+    private bool IsSwallowedPressRepeat(uint vkCode, uint time)
+    {
+        bool pendingUp;
+        lock (_suppressedKeyUpsLock) pendingUp = _suppressedKeyUps.Contains(vkCode);
+        if (!pendingUp) return false;
+        lock (_heldKeysLock)
+        {
+            if (!_heldKeys.Contains(vkCode)
+                || !_heldKeyLastDownTick.TryGetValue(vkCode, out var lastDown)
+                || unchecked(time - lastDown) >= HeldKeyStaleMs)
+                return false;
+            _heldKeyLastDownTick[vkCode] = time;
+            return true;
+        }
+    }
+
     /// <summary>Test-only seam: drive <see cref="MouseHookProc"/> with a synthetic mouse message.</summary>
     internal int InvokeMouseHookForTest(int message, uint mouseData)
     {
@@ -359,6 +378,7 @@ public sealed class KeyboardHook : IDisposable
             flags = (uint)Marshal.ReadInt32(lParam, 8),
             time = (uint)Marshal.ReadInt32(lParam, 12),
         };
+        TrackMaskedModifier(data, wParam);
         // Skip events we (or another tool) injected via SendInput, otherwise we recurse.
         if ((data.flags & LLKHF_INJECTED) != 0)
             return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
@@ -407,6 +427,11 @@ public sealed class KeyboardHook : IDisposable
         {
             return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }
+
+        // Auto repeat of a key whose press a binding swallowed: swallow it too and keep it held, before matching.
+        // The modifiers may no longer match by then (Press key releases the held Ctrl before it injects), and an
+        // unmatched repeat would reach the app and leave Windows seeing the key down with its KEYUP swallowed.
+        if (isKeyDown && IsSwallowedPressRepeat(data.vkCode, data.time)) return (IntPtr)1;
 
         var modifiers = ReadModifiers();
 
@@ -645,9 +670,54 @@ public sealed class KeyboardHook : IDisposable
         if ((GetAsyncKeyState(vk) & 0x8000) != 0) state[vk] = 0x80;
     }
 
-    private static HotkeyModifiers ReadModifiers()
+    // Modifier keys the user physically holds while an injected KEYUP told Windows they are up. Press key steps
+    // and pastes release the held modifiers before they inject (KeyInjector.ReleaseStickyModifiers), so with Ctrl
+    // still held a second Up press would read as plain Up and miss its Ctrl+Up binding. Set by an injected KEYUP of a
+    // key the user pressed, cleared by the user's own KEYDOWN or KEYUP of it.
+    private readonly HashSet<uint> _physicallyDownModifiers = new();
+    private readonly HashSet<uint> _maskedModifiers = new();
+    private readonly object _modifierLock = new();
+
+    private void TrackMaskedModifier(KBDLLHOOKSTRUCT data, IntPtr wParam)
+    {
+        if (ModifierOf(data.vkCode) == HotkeyModifiers.None) return;
+        var down = wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN;
+        var up = wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
+        if (!down && !up) return;
+        var injected = (data.flags & LLKHF_INJECTED) != 0;
+        lock (_modifierLock)
+        {
+            if (!injected)
+            {
+                _maskedModifiers.Remove(data.vkCode);
+                if (down) _physicallyDownModifiers.Add(data.vkCode);
+                else _physicallyDownModifiers.Remove(data.vkCode);
+            }
+            else if (up && _physicallyDownModifiers.Contains(data.vkCode))
+            {
+                _maskedModifiers.Add(data.vkCode);
+            }
+            else if (down)
+            {
+                _maskedModifiers.Remove(data.vkCode);
+            }
+        }
+    }
+
+    private static HotkeyModifiers ModifierOf(uint vk) => vk switch
+    {
+        VK_LCONTROL or VK_RCONTROL or VK_CONTROL => HotkeyModifiers.Control,
+        VK_LMENU or VK_RMENU or VK_MENU => HotkeyModifiers.Alt,
+        VK_LSHIFT or VK_RSHIFT or VK_SHIFT => HotkeyModifiers.Shift,
+        VK_LWIN or VK_RWIN => HotkeyModifiers.Win,
+        _ => HotkeyModifiers.None,
+    };
+
+    private HotkeyModifiers ReadModifiers()
     {
         var m = HotkeyModifiers.None;
+        lock (_modifierLock)
+            foreach (var vk in _maskedModifiers) m |= ModifierOf(vk);
         if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) m |= HotkeyModifiers.Control;
         if ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0) m |= HotkeyModifiers.Alt;
         if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) m |= HotkeyModifiers.Shift;

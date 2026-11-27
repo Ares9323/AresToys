@@ -196,6 +196,21 @@ public sealed class PipelineExecutor
         delayMs = Math.Max(0, delayMs);
         var cancelCombo = (string?)repeatStep.Config?["cancelCombo"];
 
+        // "While held": the body runs once, then again for as long as the workflow's hotkey stays down; Count is
+        // ignored. With no hotkey to hold (a menu, the launcher, a manual run) the body runs once.
+        Func<bool>? isHeld = null;
+        var whileHeld = ReadBool(repeatStep.Config?["whileHeld"]);
+        if (whileHeld)
+        {
+            var keyHold = (IWorkflowKeyHold?)context.Services.GetService(typeof(IWorkflowKeyHold));
+            if (keyHold is not null
+                && context.Bag.TryGetValue(PipelineBagKeys.WorkflowId, out var idObject) && idObject is string workflowId)
+            {
+                isHeld = await keyHold.GetProbeAsync(workflowId, outerToken).ConfigureAwait(false);
+            }
+            count = isHeld is null ? 1 : int.MaxValue;
+        }
+
         // Find the matching End Repeat marker. No nesting support — first End we hit closes
         // this Repeat. If we never find one, the body extends to end-of-workflow (back-compat
         // with the original tail-only behaviour).
@@ -210,7 +225,7 @@ public sealed class PipelineExecutor
         }
 
         _logger.LogInformation("Repeat: {Count} iterations of {BodyCount} body steps (delay {Delay} ms, cancel '{Cancel}', body=[{Start}..{End}])",
-            count, endIndex - repeatIndex - 1, delayMs, cancelCombo ?? "(none)", repeatIndex + 1, endIndex - 1);
+            isHeld is null ? count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "while held", endIndex - repeatIndex - 1, delayMs, cancelCombo ?? "(none)", repeatIndex + 1, endIndex - 1);
 
         using var inner = CancellationTokenSource.CreateLinkedTokenSource(outerToken);
         IDisposable? hotkeyToken = null;
@@ -247,6 +262,8 @@ public sealed class PipelineExecutor
             for (var iter = 0; iter < count; iter++)
             {
                 if (inner.Token.IsCancellationRequested || context.Aborted) break;
+                // The key is read before every pass after the first, after the delay: a tap runs the body once.
+                if (iter > 0 && isHeld is not null && !isHeld()) break;
                 _logger.LogDebug("Repeat iteration {Iter}/{Count}", iter + 1, count);
 
                 // Reset bag to pre-Repeat snapshot at the start of every iteration except the
@@ -298,9 +315,9 @@ public sealed class PipelineExecutor
                     }
                 }
 
-                if (iter < count - 1 && delayMs > 0)
+                if (iter < count - 1 && delayMs > 0 && (isHeld is null || isHeld()))
                 {
-                    try { await Task.Delay(delayMs, inner.Token).ConfigureAwait(false); }
+                    try { await DelayAsync(delayMs, isHeld, inner.Token).ConfigureAwait(false); }
                     catch (OperationCanceledException) { break; }
                 }
             }
@@ -312,5 +329,40 @@ public sealed class PipelineExecutor
         // Resume the outer executor loop AFTER the End Repeat marker (or past end-of-steps when
         // no End was found — in which case endIndex == Steps.Count and the outer loop exits).
         return (ran, endIndex + 1);
+    }
+
+    /// <summary>The wait between passes. While held it ends as soon as the key is released, so letting go stops the
+    /// loop at once instead of after the rest of the delay.</summary>
+    private static async Task DelayAsync(int delayMs, Func<bool>? isHeld, CancellationToken cancellationToken)
+    {
+        if (isHeld is null)
+        {
+            await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        const int SliceMs = 15;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < delayMs && isHeld())
+            await Task.Delay((int)Math.Min(SliceMs, delayMs - watch.ElapsedMilliseconds), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>A checkbox value: a JSON bool, or the strings "true"/"false" of profiles written by hand.</summary>
+    private static bool ReadBool(System.Text.Json.Nodes.JsonNode? node)
+    {
+        if (node is null) return false;
+        try
+        {
+            return node.GetValueKind() switch
+            {
+                System.Text.Json.JsonValueKind.True => true,
+                System.Text.Json.JsonValueKind.String => bool.TryParse(node.GetValue<string>(), out var b) && b,
+                _ => false,
+            };
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

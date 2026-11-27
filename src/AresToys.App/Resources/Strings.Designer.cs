@@ -13092,7 +13092,16 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("WorkflowActionParam_arestoys_repeat_delayMs", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Repeat while the workflow&apos;s hotkey is held (ignores Count).
+        /// </summary>
+        public static string WorkflowActionParam_arestoys_repeat_whileHeld {
+            get {
+                return ResourceManager.GetString("WorkflowActionParam_arestoys_repeat_whileHeld", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to File name template ({name} {preset} {w} {h} {ow} {oh} {format} {date} {time} {counter}).
         /// </summary>

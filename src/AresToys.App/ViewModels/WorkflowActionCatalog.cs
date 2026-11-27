@@ -549,15 +549,19 @@ public static class WorkflowActionCatalog
 
         new("arestoys.repeat",
             "Repeat next steps",
-            "Re-execute every step BELOW this one N times. The visual indent on the workflow editor highlights which steps are inside the loop. Optional 'Cancel hotkey' breaks out early (capture a combo like Ctrl+Shift+X — useful safety net for high counts). Pair with Delay for spaced spamming. Nested Repeat tasks are not supported. Hard-capped at 1000 iterations to avoid foot-guns.",
+            "Re-execute every step BELOW this one N times, or for as long as the workflow's hotkey is held. The visual indent on the workflow editor highlights which steps are inside the loop. Optional 'Cancel hotkey' breaks out early (capture a combo like Ctrl+Shift+X — useful safety net for high counts). Pair with Delay for spaced spamming. Nested Repeat tasks are not supported. Hard-capped at 1000 iterations to avoid foot-guns.",
             "Flow",
             WarningMessage: "WARNING: every step below runs N times. Set a Cancel hotkey before bumping Count past 20, and double-check that the body doesn't run anything destructive (Run command, Launch app, Send key combos to active windows).",
             // delayMs is a StringParameter (no IntParameters-list support in the descriptor yet),
             // so the default JSON value MUST be a string — a JsonNode Number can't be cast to
             // string when the editor hydrates the parameter row, and would throw InvalidOperation
             // ("An element of type 'Number' cannot be converted to System.String") on first open.
-            DefaultConfigJson: "{\"count\":2,\"delayMs\":\"0\",\"cancelCombo\":\"\"}",
+            DefaultConfigJson: "{\"count\":2,\"delayMs\":\"0\",\"cancelCombo\":\"\",\"whileHeld\":false}",
             IntParameter: new IntParameter(Key: "count", Label: "Count", DefaultValue: 2, Min: 1, Max: 1000),
+            BoolParameters: new[]
+            {
+                new BoolParameter("whileHeld", "Repeat while the workflow's hotkey is held (ignores Count)", false),
+            },
             StringParameters: new[]
             {
                 new StringParameter("delayMs", "Delay between iterations (ms)", "0", Placeholder: "0"),
