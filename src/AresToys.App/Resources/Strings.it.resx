@@ -1554,6 +1554,9 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="RightClickMenu_ModernHint" xml:space="preserve"><value>Aggiunge le voci di AresToys al nuovo menu del tasto destro, così non serve più "Mostra altre opzioni" per raggiungerle. Windows chiede una volta i permessi di amministratore per installare il pacchetto del menu, e di nuovo solo dopo un aggiornamento che lo cambia.</value></data>
   <data name="RightClickMenu_ModernFailed" xml:space="preserve"><value>Impossibile aggiornare il menu di Windows 11:
 {0}</value></data>
+  <data name="RightClickMenu_Slots" xml:space="preserve"><value>Voci di altre app</value></data>
+  <data name="RightClickMenu_SlotsHint" xml:space="preserve"><value>Scegli fino a 8 voci che altre app aggiungono a "Mostra altre opzioni": ognuna compare anche nel nuovo menu, su una riga sua, ed esce da "Mostra altre opzioni" così non compare mai due volte. Togliendo la spunta torna com'era.</value></data>
+  <data name="RightClickMenu_SlotsNone" xml:space="preserve"><value>Nessuna altra app aggiunge una voce che si possa mostrare qui.</value></data>
   <data name="RightClickMenu_Submenu" xml:space="preserve"><value>Sottomenu AresToys</value></data>
   <data name="RightClickMenu_SubmenuHint" xml:space="preserve"><value>Queste voci stanno raccolte sotto un'unica voce "AresToys" con la freccia, così non affollano il menu.</value></data>
   <data name="NewPlusMenu_Label" xml:space="preserve"><value>Nuovo</value></data>

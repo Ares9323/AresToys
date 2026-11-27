@@ -42,7 +42,8 @@ internal sealed partial class RegistryVerbCommand : IExplorerCommand, IObjectWit
         name = 0;
         try
         {
-            var title = ReadVerbKey(FirstOf(Targets(items)), key => MenuText(key.GetValue("MUIVerb") as string ?? key.GetValue(null) as string));
+            var title = ReadVerbKey(FirstOf(Targets(items)),
+                key => MenuText(IndirectString.Resolve(key.GetValue("MUIVerb") as string ?? key.GetValue(null) as string)));
             if (string.IsNullOrEmpty(title)) return HResult.E_FAIL;
             name = Marshal.StringToCoTaskMemUni(title);
             return HResult.S_OK;
@@ -58,7 +59,9 @@ internal sealed partial class RegistryVerbCommand : IExplorerCommand, IObjectWit
         icon = 0;
         try
         {
-            var path = ReadVerbKey(FirstOf(Targets(items)), key => IconResource(key.GetValue("Icon") as string));
+            // Another app's verb often has no Icon value (the classic menu then shows none): its program's icon then.
+            var path = ReadVerbKey(FirstOf(Targets(items)), key => IconResource(key.GetValue("Icon") as string)
+                ?? (_source.IconFromCommand ? IconResource(CommandExe(ReadCommand(key))) : null));
             if (path is null) return HResult.E_NOTIMPL;
             icon = Marshal.StringToCoTaskMemUni(path);
             return HResult.S_OK;
@@ -107,12 +110,8 @@ internal sealed partial class RegistryVerbCommand : IExplorerCommand, IObjectWit
             // MultiSelectModel Player and Document both mean one process per selected item, as Explorer runs them.
             foreach (var target in targets)
             {
-                var command = ReadVerbKey(target, key =>
-                {
-                    using var commandKey = key.OpenSubKey(CommandKeyName);
-                    return commandKey?.GetValue(null) as string;
-                });
-                if (!string.IsNullOrWhiteSpace(command)) Launch(command, target.Path);
+                var command = ReadVerbKey(target, ReadCommand);
+                if (!string.IsNullOrWhiteSpace(command)) Launch(command, target.Path, _source.Background);
             }
 
             return HResult.S_OK;
@@ -231,7 +230,7 @@ internal sealed partial class RegistryVerbCommand : IExplorerCommand, IObjectWit
         IEnumerable<string>? common = null;
         foreach (var key in targets.Select(t => t.Key).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            using var subVerbs = Registry.CurrentUser.OpenSubKey($@"{key}\{SubVerbsKeyName}");
+            using var subVerbs = RegistryPath.Open($@"{key}\{SubVerbsKeyName}");
             var names = subVerbs?.GetSubKeyNames() ?? [];
             common = common is null ? names : common.Intersect(names, StringComparer.OrdinalIgnoreCase);
         }
@@ -250,7 +249,7 @@ internal sealed partial class RegistryVerbCommand : IExplorerCommand, IObjectWit
     {
         if (target is null || string.IsNullOrEmpty(target.Key)) return default;
         var path = _subVerb is null ? target.Key : $@"{target.Key}\{SubVerbsKeyName}\{_subVerb}";
-        using var key = Registry.CurrentUser.OpenSubKey(path);
+        using var key = RegistryPath.Open(path);
         return key is null ? default : read(key);
     }
 
@@ -281,33 +280,52 @@ internal sealed partial class RegistryVerbCommand : IExplorerCommand, IObjectWit
         return $"{text},{index}";
     }
 
-    /// <summary>Runs a registry command line the way Explorer would for one item: %1, %L and %V are its path.</summary>
-    private static void Launch(string command, string path)
+    /// <summary>The command line of a verb key (its command sub key's default value), or null.</summary>
+    private static string? ReadCommand(RegistryKey verbKey)
     {
-        var line = command.Replace("%1", path, StringComparison.Ordinal)
-            .Replace("%L", path, StringComparison.OrdinalIgnoreCase)
-            .Replace("%V", path, StringComparison.OrdinalIgnoreCase)
-            .Trim();
-        string exe, arguments;
+        using var commandKey = verbKey.OpenSubKey(CommandKeyName);
+        return commandKey?.GetValue(null) as string;
+    }
+
+    /// <summary>A command line split into its program and its arguments, as CreateProcess reads it.</summary>
+    private static (string Exe, string Arguments)? SplitCommand(string line)
+    {
+        line = line.Trim();
         if (line.StartsWith('"'))
         {
             var close = line.IndexOf('"', 1);
-            if (close < 0) return;
-            exe = line[1..close];
-            arguments = line[(close + 1)..].TrimStart();
-        }
-        else
-        {
-            var space = line.IndexOf(' ');
-            exe = space < 0 ? line : line[..space];
-            arguments = space < 0 ? string.Empty : line[(space + 1)..];
+            return close < 0 ? null : (line[1..close], line[(close + 1)..].TrimStart());
         }
 
-        var folder = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-        using var process = Process.Start(new ProcessStartInfo(Environment.ExpandEnvironmentVariables(exe), arguments)
+        var space = line.IndexOf(' ');
+        return space < 0 ? (line, string.Empty) : (line[..space], line[(space + 1)..]);
+    }
+
+    /// <summary>The program of a command line, when it names a file that exists (a bare "wt.exe" does not).</summary>
+    private static string? CommandExe(string? command)
+    {
+        if (string.IsNullOrWhiteSpace(command) || SplitCommand(command) is not { } split) return null;
+        var exe = Environment.ExpandEnvironmentVariables(split.Exe);
+        return Path.IsPathRooted(exe) && File.Exists(exe) ? exe : null;
+    }
+
+    /// <summary>Runs a registry command line the way Explorer would for one item: %1, %L and %V are its path, %W the
+    /// folder it sits in (the open folder itself for a background entry).</summary>
+    private static void Launch(string command, string path, bool background)
+    {
+        // A drive root has no parent: it is its own folder then.
+        var folder = background ? path : Path.GetDirectoryName(path) ?? path;
+        var line = command.Replace("%1", path, StringComparison.Ordinal)
+            .Replace("%L", path, StringComparison.OrdinalIgnoreCase)
+            .Replace("%V", path, StringComparison.OrdinalIgnoreCase)
+            .Replace("%W", folder, StringComparison.OrdinalIgnoreCase);
+        if (SplitCommand(line) is not { } split) return;
+
+        var workingDirectory = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+        using var process = Process.Start(new ProcessStartInfo(Environment.ExpandEnvironmentVariables(split.Exe), split.Arguments)
         {
             UseShellExecute = false,
-            WorkingDirectory = folder ?? string.Empty,
+            WorkingDirectory = workingDirectory ?? string.Empty,
         });
     }
 
@@ -327,14 +345,39 @@ internal sealed class VerbSource(bool background, Func<string, string?> keyFor, 
 {
     private const string Classes = @"Software\Classes";
 
+    /// <summary>Where the app writes what each slot package shows (ShellMenuSlots in the app): one sub key per slot
+    /// number, whose Files, Folders and Background values are the full path of the classic verb key it mirrors.</summary>
+    private const string SlotsKey = @"Software\AresToys\ShellMenu\Slots";
+
     /// <summary>Other verbs shown at the end of this cascade, each with its own visibility.</summary>
     public IReadOnlyList<VerbSource> Extras { get; } = extras;
 
     /// <summary>True for a Directory\Background entry: it acts on the open folder, taken from the site.</summary>
     public bool Background { get; } = background;
 
-    /// <summary>The verb key (under HKCU) for one item, or null when the verb does not apply to it.</summary>
+    /// <summary>True for another app's verb: with no Icon value it shows its program's icon.</summary>
+    public bool IconFromCommand { get; private init; }
+
+    /// <summary>The verb key for one item (under HKCU, or with an HKLM\ or HKCU\ prefix, see
+    /// <see cref="RegistryPath"/>), or null when the verb does not apply to it.</summary>
     public string? KeyFor(string path) => keyFor(path);
+
+    /// <summary>Slot <paramref name="number"/> on files and folders: the verb picked for files, or for folders.</summary>
+    public static VerbSource SlotItems(int number) =>
+        new(false, path => SlotKey(number, Directory.Exists(path) ? "Folders" : "Files")) { IconFromCommand = true };
+
+    /// <summary>Slot <paramref name="number"/> on the background of an open folder.</summary>
+    public static VerbSource SlotBackground(int number) =>
+        new(true, _ => SlotKey(number, "Background")) { IconFromCommand = true };
+
+    /// <summary>The verb key a slot mirrors for one item kind, read when the menu opens; null hides the slot. The path
+    /// names the original key in its own hive, never HKCR: AresToys hides an HKLM original behind an HKCU key of the
+    /// same name, and HKCR would show that empty key (gotchas#hkcr-shadow-hides-hklm-verb).</summary>
+    private static string? SlotKey(int number, string kind)
+    {
+        using var slot = Registry.CurrentUser.OpenSubKey($@"{SlotsKey}\{number}");
+        return slot?.GetValue(kind) is string path && !string.IsNullOrWhiteSpace(path) ? path : null;
+    }
 
     /// <summary>Image Resizer (ResizerContextMenuRegistration): only when every selected item is an image it lists.</summary>
     public static VerbSource Resize { get; } = new(false, path =>
@@ -361,6 +404,38 @@ internal sealed class VerbSource(bool background, Func<string, string?> keyFor, 
     /// <summary>New+ (NewPlusContextMenuRegistration): the only entry of its own package (Package\NewPlus), so Windows
     /// shows it at the top level of the menu as PowerToys shows New+, not inside AresToys.</summary>
     public static VerbSource NewPlus { get; } = new(true, _ => $@"{Classes}\Directory\Background\shell\AresToysNewPlus");
+}
+
+/// <summary>Opens a registry key path read only: "HKLM\..." in HKEY_LOCAL_MACHINE, "HKCU\..." or a bare path in
+/// HKEY_CURRENT_USER.</summary>
+internal static class RegistryPath
+{
+    public static RegistryKey? Open(string path)
+    {
+        if (StripHive(path, "HKLM\\") is { } machine) return Registry.LocalMachine.OpenSubKey(machine);
+        if (StripHive(path, "HKEY_LOCAL_MACHINE\\") is { } machineLong) return Registry.LocalMachine.OpenSubKey(machineLong);
+        if (StripHive(path, "HKCU\\") is { } user) return Registry.CurrentUser.OpenSubKey(user);
+        if (StripHive(path, "HKEY_CURRENT_USER\\") is { } userLong) return Registry.CurrentUser.OpenSubKey(userLong);
+        return Registry.CurrentUser.OpenSubKey(path);
+    }
+
+    private static string? StripHive(string path, string prefix) =>
+        path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? path[prefix.Length..] : null;
+}
+
+/// <summary>Resolves a "@dll,-id" menu text (another app's MUIVerb) to its string, as Explorer does.</summary>
+internal static unsafe class IndirectString
+{
+    public static string? Resolve(string? text)
+    {
+        if (string.IsNullOrEmpty(text) || text[0] != '@') return text;
+        const int Size = 512;
+        var buffer = stackalloc char[Size];
+        return SHLoadIndirectString(text, buffer, Size, 0) >= 0 ? new string(buffer) : null;
+    }
+
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int SHLoadIndirectString(string source, char* outBuffer, int outBufferSize, nint reserved);
 }
 
 /// <summary>The enumerator Explorer walks to list a cascade's sub commands.</summary>

@@ -8599,6 +8599,33 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("RightClickMenu_ModernFailed", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Other apps&apos; entries.
+        /// </summary>
+        public static string RightClickMenu_Slots {
+            get {
+                return ResourceManager.GetString("RightClickMenu_Slots", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pick up to 8 entries other apps add to &quot;Show more options&quot;.
+        /// </summary>
+        public static string RightClickMenu_SlotsHint {
+            get {
+                return ResourceManager.GetString("RightClickMenu_SlotsHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No other app adds an entry that can be shown here.
+        /// </summary>
+        public static string RightClickMenu_SlotsNone {
+            get {
+                return ResourceManager.GetString("RightClickMenu_SlotsNone", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Peek.

@@ -15,6 +15,7 @@ namespace AresToys.App.Services.ShellMenu;
 /// <code>
 /// AresToys.ContextMenu  AresToys.ShellMenu.msix  ExternalLocation = install folder          (AresToys cascade, Resize, Upload)
 /// AresToys.NewPlus      AresToys.NewPlus.msix    ExternalLocation = install folder\NewPlus  (New+, its own slot in the menu)
+/// AresToys.Slot1..8     Slots\AresToys.SlotN.msix  ExternalLocation = install folder\Slots\N  (other apps' verbs, ShellMenuSlots)
 /// </code>
 /// The packages are unsigned, and Windows registers an unsigned package only from an elevated process: turning the
 /// option on (and an update that ships a newer package version) runs <c>AresToys.exe --register-shellmenu</c> through
@@ -42,10 +43,13 @@ public static class ShellMenuPackage
 
     private sealed record Part(string Name, string MsixFile, string ExternalSubfolder);
 
+    // The slot packages (ShellMenuSlots) come with the other two: an empty slot hides itself, and having them all
+    // registered is what lets a verb be picked later without UAC.
     private static readonly Part[] Parts =
     [
         new("AresToys.ContextMenu", "AresToys.ShellMenu.msix", ""),
         new("AresToys.NewPlus", "AresToys.NewPlus.msix", "NewPlus"),
+        .. Enumerable.Range(1, ShellMenuSlots.Count).Select(n => new Part($"AresToys.Slot{n}", $@"Slots\AresToys.Slot{n}.msix", $@"Slots\{n}")),
     ];
 
     // The classic verbs the packages show in the new menu (see ExplorerCommands.cs in AresToys.ShellMenu).
@@ -164,6 +168,7 @@ public static class ShellMenuPackage
         try { hide = IsRegistered; }
         catch { return; }
         SetClassicVerbsHidden(hide);
+        ShellMenuSlots.SyncHidden(hide);
     }
 
     private static void SetClassicVerbsHidden(bool hide)
@@ -254,6 +259,7 @@ public static class ShellMenuPackage
             }
 
             SetClassicVerbsHidden(false);
+            ShellMenuSlots.SyncHidden(false);
             SetRegisteredLocation(null);
             WriteLog(null);
             return 0;

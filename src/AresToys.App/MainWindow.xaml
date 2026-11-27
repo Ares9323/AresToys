@@ -2106,6 +2106,18 @@
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                    FontSize="11" TextWrapping="Wrap" Margin="22,4,0,24"
                                    Text="{Markup:Loc RightClickMenu_ModernHint}" />
+                        <!-- Other apps' classic verbs promoted to the Windows 11 menu, one slot package each
+                             (ShellMenuSlots; the Slots key is the state). Shown only while the packages are registered. -->
+                        <StackPanel x:Name="ModernSlotsPanel" Visibility="Collapsed" Margin="22,0,0,24">
+                            <TextBlock Text="{Markup:Loc RightClickMenu_Slots}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                       FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
+                                       Text="{Markup:Loc RightClickMenu_SlotsHint}" />
+                            <StackPanel x:Name="ModernSlotsList" />
+                            <TextBlock x:Name="ModernSlotsEmpty" Visibility="Collapsed"
+                                       Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
+                                       Text="{Markup:Loc RightClickMenu_SlotsNone}" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- AresToys cascade: Trust file (UnblockContextMenuRegistration; the registry is the state). -->

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The template of the slot packages AresToys.Slot1 to AresToys.Slot8 (the csproj's PackSlotMsix target fills in
+     the slot number and the two CLSIDs from its _Slot items). Each slot shows one classic verb of another app in the Windows 11 menu, picked on the Right Click
+     Menu page and kept in HKCU\Software\AresToys\ShellMenu\Slots\N: one package per verb, because Windows folds every
+     entry of one package into a submenu named after it. An empty slot hides itself, so all of them are registered
+     with the other packages and picking a verb needs no UAC. Its ExternalLocation is the Slots\N subfolder of the
+     install folder, with its own DLL copy, Assets and resources.pri, as New+ has. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap rescap desktop4 desktop5 uap10 com">
+  <Identity Name="AresToys.Slot__N__" ProcessorArchitecture="neutral" Publisher="CN=AresToys, OID.2.25.311729368913984317654407730594956997722=1" Version="1.0.0.0" />
+  <Properties>
+    <DisplayName>AresToys menu entry __N__</DisplayName>
+    <PublisherDisplayName>AresToys</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+  <Applications>
+    <!-- An Executable of its own that does not exist, as the New+ package has: the package only carries the verb. -->
+    <Application Id="AresToysSlot__N__" Executable="AresToys.Slot__N__.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements AppListEntry="none" DisplayName="AresToys menu entry __N__" Description="AresToys context menu entry __N__" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <!-- One CLSID for files and folders and one for the folder background, as the main package has: the
+                 background one takes its folder from the site. The Verb Id must never equal a classic verb's key
+                 name, or the verb never shows. -->
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="AresToysSlot__N__Command" Clsid="__CLSID__" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="AresToysSlot__N__Command" Clsid="__CLSID__" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory\Background">
+              <desktop5:Verb Id="AresToysSlot__N__Background" Clsid="__BGCLSID__" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="AresToys context menu entry __N__">
+              <com:Class Id="__CLSID__" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
+              <com:Class Id="__BGCLSID__" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
