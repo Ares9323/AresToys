@@ -672,6 +672,15 @@ public partial class App : Application
         // Same for the New+ submenu (a no-op that removes its keys while New+ is off).
         _ = _host.Services.GetRequiredService<AresToys.App.Services.NewPlus.NewPlusContextMenuSync>().ApplyAsync();
 
+        // The Windows 11 menu packages: re-registered (one UAC prompt) only when they are on and an update shipped a
+        // newer package version. Fire and forget, never throws.
+        _ = Task.Run(async () =>
+        {
+            var error = await AresToys.App.Services.ShellMenu.ShellMenuPackage.EnsureCurrentAsync().ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(error))
+                _host?.Services.GetService<ILogger<App>>()?.LogWarning("Windows 11 menu packages not updated: {Error}", error);
+        });
+
         // Window snapping is opt in: this loads the layouts and starts the drag hooks only when the
         // user turned it on. InitializeAsync logs its own failures and never throws.
         _ = _host.Services.GetRequiredService<AresToys.App.Services.Zones.WindowSnappingService>()

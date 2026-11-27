@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The second sparse package: New+ alone. Windows 11 folds the entries of one package into a submenu named after it,
+     so New+ has a package of its own to sit at the top level of the folder background menu, next to AresToys, as
+     PowerToys does with Microsoft.PowerToys.NewPlusContextMenu. Its ExternalLocation is the NewPlus subfolder of the
+     install folder, with its own copy of AresToys.ShellMenu.dll, Assets and resources.pri: the resources.pri of the
+     install folder belongs to the other package, and without one of its own Settings draws this logo on a grey plate.
+     Unsigned and registered elevated like the other. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap rescap desktop4 desktop5 uap10 com">
+  <Identity Name="AresToys.NewPlus" ProcessorArchitecture="neutral" Publisher="CN=AresToys, OID.2.25.311729368913984317654407730594956997722=1" Version="1.0.0.3" />
+  <Properties>
+    <DisplayName>AresToys New+</DisplayName>
+    <PublisherDisplayName>AresToys</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+  <Applications>
+    <!-- Its own Executable, as PowerToys does with a NewPlus.exe it does not ship: this file does not exist either, the
+         package only carries the menu verb. -->
+    <Application Id="AresToysNewPlus" Executable="AresToys.NewPlus.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements AppListEntry="none" DisplayName="AresToys New+" Description="AresToys New+ context menu" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="Directory\Background">
+              <!-- Not "AresToysNewPlus": that is the classic verb's key under Directory\Background\shell, and a packaged
+                   verb whose Id matches a classic verb name never shows in the new menu. -->
+              <desktop5:Verb Id="AresToysNewPlusCommand" Clsid="D66809E6-0223-423E-9B30-C06804512E90" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="AresToys New+ context menu">
+              <com:Class Id="D66809E6-0223-423E-9B30-C06804512E90" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

@@ -1618,6 +1618,10 @@ It will be removed from every item that carries it. The items themselves are kep
   <data name="Sidebar_NewPlus" xml:space="preserve"><value>New File from Template</value></data>
   <data name="Sidebar_RightClickMenu" xml:space="preserve"><value>Right Click Menu</value></data>
   <data name="RightClickMenu_Blurb" xml:space="preserve"><value>Entries AresToys adds to the Explorer right-click menu. They are per user and need no administrator rights. On Windows 11 they appear under "Show more options".</value></data>
+  <data name="RightClickMenu_Modern" xml:space="preserve"><value>Show in the Windows 11 menu</value></data>
+  <data name="RightClickMenu_ModernHint" xml:space="preserve"><value>Adds the AresToys entries to the new right-click menu, so you no longer need "Show more options" to reach them. Windows asks once for administrator rights to install the menu package, and again only after an update that changes it.</value></data>
+  <data name="RightClickMenu_ModernFailed" xml:space="preserve"><value>Couldn't update the Windows 11 menu:
+{0}</value></data>
   <data name="RightClickMenu_Submenu" xml:space="preserve"><value>AresToys submenu</value></data>
   <data name="RightClickMenu_SubmenuHint" xml:space="preserve"><value>These entries are grouped under one "AresToys" item with an arrow, so they do not crowd the menu.</value></data>
   <data name="NewPlusMenu_Label" xml:space="preserve"><value>New</value></data>

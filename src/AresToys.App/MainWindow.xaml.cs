@@ -1292,6 +1292,44 @@ public partial class MainWindow : FluentWindow
         }
     }
 
+    private async void OnModernMenuPanelLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.StackPanel panel
+            || panel.Children[0] is not System.Windows.Controls.CheckBox cb) return;
+        var (available, registered) = await Task.Run(() =>
+        {
+            var on = AresToys.App.Services.ShellMenu.ShellMenuPackage.IsAvailable;
+            return (on, on && AresToys.App.Services.ShellMenu.ShellMenuPackage.IsRegistered);
+        });
+        panel.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        cb.IsChecked = registered;
+    }
+
+    private async void OnModernMenuToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox cb) return;
+        cb.IsEnabled = false;
+        try
+        {
+            var error = cb.IsChecked == true
+                ? await AresToys.App.Services.ShellMenu.ShellMenuPackage.EnableAsync()
+                : await AresToys.App.Services.ShellMenu.ShellMenuPackage.DisableAsync();
+            cb.IsChecked = await Task.Run(() => AresToys.App.Services.ShellMenu.ShellMenuPackage.IsRegistered);
+            if (!string.IsNullOrEmpty(error))
+            {
+#pragma warning disable CA1863
+                System.Windows.MessageBox.Show(this,
+                    string.Format(System.Globalization.CultureInfo.CurrentCulture, AresToys.App.Resources.Strings.RightClickMenu_ModernFailed, error),
+                    "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+#pragma warning restore CA1863
+            }
+        }
+        finally
+        {
+            cb.IsEnabled = true;
+        }
+    }
+
     private void OnExplorerContextMenuCheckBoxLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.CheckBox cb)

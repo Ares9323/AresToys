@@ -2098,6 +2098,16 @@
                                TextWrapping="Wrap" Margin="0,0,0,16"
                                Text="{Markup:Loc RightClickMenu_Blurb}" />
 
+                    <!-- Windows 11 menu (ShellMenuPackage; the registered packages are the state). Shown only on
+                         Windows 11 with the packages next to the exe. -->
+                    <StackPanel Loaded="OnModernMenuPanelLoaded" Visibility="Collapsed">
+                        <CheckBox Content="{Markup:Loc RightClickMenu_Modern}"
+                                  Click="OnModernMenuToggled" />
+                        <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
+                                   FontSize="11" TextWrapping="Wrap" Margin="22,4,0,24"
+                                   Text="{Markup:Loc RightClickMenu_ModernHint}" />
+                    </StackPanel>
+
                     <!-- AresToys cascade: Trust file (UnblockContextMenuRegistration; the registry is the state). -->
                     <TextBlock Text="{Markup:Loc RightClickMenu_Submenu}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,4" />
                     <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"

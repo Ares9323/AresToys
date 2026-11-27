@@ -143,6 +143,18 @@ jobs:
           -p:PublishReadyToRun=false
           -o publish
 
+      # The Windows 11 context menu: a NativeAOT DLL plus two sparse packages (AresToys.ShellMenu.msix and
+      # AresToys.NewPlus.msix), their logos and resources.pri, and a NewPlus\ subfolder that is the New+ package's
+      # external location. The app registers them from its own folder (Settings > Right Click Menu), so they ship
+      # next to AresToys.exe. NativeAOT needs the MSVC linker and makeappx/makepri from the Windows SDK, both on the
+      # windows runner.
+      - name: Publish AresToys.ShellMenu
+        run: >
+          dotnet publish src/AresToys.ShellMenu/AresToys.ShellMenu.csproj
+          --configuration Release
+          --runtime win-x64
+          -o publish
+
       # --releaseNotes used to point straight at CHANGELOG.md, so every GitHub Release page and
       # every in-app update prompt carried the WHOLE project history instead of the version being
       # shipped. Pull out just this version's section — the next "## " heading (or EOF) ends it.

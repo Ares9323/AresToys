@@ -8572,6 +8572,33 @@ namespace AresToys.App.Resources {
                 return ResourceManager.GetString("RightClickMenu_SubmenuHint", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show in the Windows 11 menu.
+        /// </summary>
+        public static string RightClickMenu_Modern {
+            get {
+                return ResourceManager.GetString("RightClickMenu_Modern", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Adds the AresToys entries to the new right-click menu.
+        /// </summary>
+        public static string RightClickMenu_ModernHint {
+            get {
+                return ResourceManager.GetString("RightClickMenu_ModernHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn't update the Windows 11 menu: {0}.
+        /// </summary>
+        public static string RightClickMenu_ModernFailed {
+            get {
+                return ResourceManager.GetString("RightClickMenu_ModernFailed", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Peek.

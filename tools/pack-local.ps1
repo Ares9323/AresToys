@@ -105,6 +105,19 @@ if (-not $SkipPublish) {
         -p:PublishReadyToRun=false `
         -o publish | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
+
+    # The Windows 11 context menu DLL, its two sparse packages, logos and NewPlus\ folder, next to AresToys.exe
+    # (the app registers them from its own folder). NativeAOT finds the MSVC linker through vswhere.
+    Write-Host "==> Publishing AresToys.ShellMenu ($Runtime, NativeAOT)" -ForegroundColor Cyan
+    $vsInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+    if ((Test-Path "$vsInstaller\vswhere.exe") -and -not (Get-Command vswhere.exe -ErrorAction SilentlyContinue)) {
+        $env:PATH = "$vsInstaller;$env:PATH"
+    }
+    dotnet publish src/AresToys.ShellMenu/AresToys.ShellMenu.csproj `
+        --configuration Release `
+        --runtime $Runtime `
+        -o publish | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish of AresToys.ShellMenu failed" }
 }
 else {
     Write-Host "==> Skipping publish (-SkipPublish)" -ForegroundColor Yellow

@@ -1550,6 +1550,10 @@ Verrà rimosso da tutti gli elementi che lo hanno. Gli elementi restano.</value>
   <data name="Sidebar_NewPlus" xml:space="preserve"><value>Nuovo file da template</value></data>
   <data name="Sidebar_RightClickMenu" xml:space="preserve"><value>Menu tasto destro</value></data>
   <data name="RightClickMenu_Blurb" xml:space="preserve"><value>Le voci che AresToys aggiunge al menu del tasto destro di Explorer. Valgono per il tuo utente e non chiedono i permessi di amministratore. Su Windows 11 compaiono sotto "Mostra altre opzioni".</value></data>
+  <data name="RightClickMenu_Modern" xml:space="preserve"><value>Mostra nel menu di Windows 11</value></data>
+  <data name="RightClickMenu_ModernHint" xml:space="preserve"><value>Aggiunge le voci di AresToys al nuovo menu del tasto destro, così non serve più "Mostra altre opzioni" per raggiungerle. Windows chiede una volta i permessi di amministratore per installare il pacchetto del menu, e di nuovo solo dopo un aggiornamento che lo cambia.</value></data>
+  <data name="RightClickMenu_ModernFailed" xml:space="preserve"><value>Impossibile aggiornare il menu di Windows 11:
+{0}</value></data>
   <data name="RightClickMenu_Submenu" xml:space="preserve"><value>Sottomenu AresToys</value></data>
   <data name="RightClickMenu_SubmenuHint" xml:space="preserve"><value>Queste voci stanno raccolte sotto un'unica voce "AresToys" con la freccia, così non affollano il menu.</value></data>
   <data name="NewPlusMenu_Label" xml:space="preserve"><value>Nuovo</value></data>

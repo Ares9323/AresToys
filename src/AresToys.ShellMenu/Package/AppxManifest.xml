@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sparse package that gives AresToys package identity, so the Windows 11 context menu shows its IExplorerCommand
+     handlers (AresToys.ShellMenu.dll). It holds no binaries: AresToys registers it with ExternalLocation = the folder of
+     AresToys.exe. Unsigned on purpose: the OID in Publisher marks it as an unsigned package, which Windows 11 installs
+     with AllowUnsigned and no certificate, but only from an elevated process (one UAC prompt per new version).
+     One CLSID per entry and context (Exports.Commands maps them): each entry mirrors a registry verb AresToys already
+     writes, so the classic menu and this one never disagree. One entry per item type: Windows folds the entries of one
+     package into a submenu named after it, so Image Resizer and Upload go inside the AresToys cascade and New+ has its
+     own package (NewPlus\AppxManifest.xml) to stay at the top level. Logos follow the Windows Terminal layout
+     (Square44x44Logo scale, targetsize and unplated variants): with one shared logo file Settings > Context menu draws
+     the logo on a grey plate. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap rescap desktop4 desktop5 uap10 com">
+  <Identity Name="AresToys.ContextMenu" ProcessorArchitecture="neutral" Publisher="CN=AresToys, OID.2.25.311729368913984317654407730594956997722=1" Version="1.0.0.3" />
+  <Properties>
+    <DisplayName>AresToys</DisplayName>
+    <PublisherDisplayName>AresToys</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+  <Applications>
+    <Application Id="AresToys" Executable="AresToys.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements AppListEntry="none" DisplayName="AresToys" Description="AresToys context menu" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="AresToysMenu" Clsid="3CF8552D-F822-4105-A28D-B0AB7443049C" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="AresToysMenu" Clsid="3CF8552D-F822-4105-A28D-B0AB7443049C" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory\Background">
+              <desktop5:Verb Id="AresToysMenuBackground" Clsid="46AA68D6-AC05-419F-AB0C-CF53BED3D892" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="AresToys context menu">
+              <com:Class Id="3CF8552D-F822-4105-A28D-B0AB7443049C" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
+              <com:Class Id="46AA68D6-AC05-419F-AB0C-CF53BED3D892" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

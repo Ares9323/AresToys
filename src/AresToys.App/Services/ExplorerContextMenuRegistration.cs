@@ -79,9 +79,11 @@ public static class ExplorerContextMenuRegistration
            ?? throw new InvalidOperationException("Couldn't resolve AresToys executable path for context-menu registration.");
 
     /// <summary>Tell Explorer the file associations changed so a new or removed verb shows up
-    /// without restarting it. Shared with <see cref="ResizerContextMenuRegistration"/>.</summary>
+    /// without restarting it. Shared with <see cref="ResizerContextMenuRegistration"/> and every other verb writer,
+    /// which is why it also re-hides the classic verbs the Windows 11 menu packages already show.</summary>
     internal static void NotifyShell()
     {
+        ShellMenu.ShellMenuPackage.SyncClassicVerbs();
         const uint SHCNE_ASSOCCHANGED = 0x08000000;
         const uint SHCNF_IDLIST = 0x0000;
         try { SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero); }

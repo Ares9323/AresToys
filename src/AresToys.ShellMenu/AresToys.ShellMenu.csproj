@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The handler of the Windows 11 context menu: an in-process COM server (IExplorerCommand) that dllhost loads for
+       the AresToys sparse package (AppxManifest.xml). NativeAOT, so it needs no .NET runtime in dllhost and loads fast.
+       Built and packed only by publish: `dotnet publish -r win-x64 -c Release`. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>AresToys.ShellMenu</RootNamespace>
+    <AssemblyName>AresToys.ShellMenu</AssemblyName>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- The ILCompiler package follows the runtime pack version. SDK 10.0.401 brings 10.0.12, which NuGet audit flags
+         (GHSA-p3jp-9v83-76w9); pin the patched servicing release. Raise it when the SDK moves past it. -->
+    <RuntimeFrameworkVersion>10.0.15</RuntimeFrameworkVersion>
+    <!-- CA1515 (make public types internal) and CA1062 do not fit COM entry points the generators need public. -->
+    <NoWarn>$(NoWarn);CA1515;CA1062;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Package\**" CopyToPublishDirectory="Never" />
+    <!-- The one reader of the Mark of the Web, shared with the app: Trust file shows only on blocked files. -->
+    <Compile Include="..\AresToys.App\Services\MarkOfTheWeb.cs" Link="Shared\MarkOfTheWeb.cs" />
+  </ItemGroup>
+
+  <!-- After publish: pack Package\AppxManifest.xml and the logo into AresToys.ShellMenu.msix next to the DLL.
+       The package holds no binaries: it is a sparse package whose files are the install folder (ExternalLocation). -->
+  <Target Name="PackSparseMsix" AfterTargets="Publish">
+    <ItemGroup>
+      <_MakeAppxCandidates Include="$(MSBuildProgramFiles32)\Windows Kits\10\bin\10.*\x64\makeappx.exe" />
+    </ItemGroup>
+    <PropertyGroup>
+      <!-- Batched over the candidates in path order, so the last (newest SDK) wins. -->
+      <_MakeAppx>%(_MakeAppxCandidates.FullPath)</_MakeAppx>
+      <_MsixStage>$(IntermediateOutputPath)msix\</_MsixStage>
+    </PropertyGroup>
+    <Error Condition="'$(_MakeAppx)' == ''" Text="makeappx.exe not found: install the Windows 10/11 SDK." />
+    <RemoveDir Directories="$(_MsixStage)" />
+    <Copy SourceFiles="Package\AppxManifest.xml" DestinationFolder="$(_MsixStage)" />
+    <ItemGroup>
+      <!-- Square44x44Logo, Square150x150Logo and StoreLogo in their scale, targetsize and unplated variants, named as
+           Windows Terminal names them (regenerate from Package\logo-source.png). One shared logo file made Settings
+           draw it on a grey plate the other app extensions do not have. -->
+      <_PackageAssets Include="Package\Assets\*.png" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_MsixStage)Assets" />
+    <!-- Windows resolves the manifest logos of a sparse package against its ExternalLocation (the install folder), as
+         PowerToys ships its context menu Assets next to the DLL: the logos must be there too, not only in the .msix. -->
+    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(PublishDir)Assets" />
+    <!-- Settings > Context menu > App extensions shows the package logo only when resources.pri indexes it;
+         without one it falls back to the generic app icon. makepri sits next to makeappx. -->
+    <PropertyGroup>
+      <_MakePri>$([System.IO.Path]::GetDirectoryName('$(_MakeAppx)'))\makepri.exe</_MakePri>
+      <_PriConfig>$(IntermediateOutputPath)priconfig.xml</_PriConfig>
+    </PropertyGroup>
+    <Exec Command="&quot;$(_MakePri)&quot; createconfig /cf &quot;$(_PriConfig)&quot; /dq en-US /o" />
+    <Exec Command="&quot;$(_MakePri)&quot; new /pr &quot;$(_MsixStage.TrimEnd('\'))&quot; /cf &quot;$(_PriConfig)&quot; /mn &quot;$(_MsixStage)AppxManifest.xml&quot; /of &quot;$(_MsixStage)resources.pri&quot; /o" />
+    <!-- The index goes next to the logos in the ExternalLocation too, so whatever reads them from there resolves the
+         unplated variants instead of the plain file. -->
+    <Copy SourceFiles="$(_MsixStage)resources.pri" DestinationFolder="$(PublishDir)" />
+    <Exec Command="&quot;$(_MakeAppx)&quot; pack /o /nv /d &quot;$(_MsixStage.TrimEnd('\'))&quot; /p &quot;$(PublishDir)AresToys.ShellMenu.msix&quot;" />
+
+    <!-- The New+ package (Package\NewPlus): its own package so Windows shows New+ at the top level, not folded into
+         AresToys. Its ExternalLocation is PublishDir\NewPlus, with its own DLL copy, the same logos and its own
+         resources.pri: the install folder's pri belongs to the AresToys package, and without one Settings plates the logo. -->
+    <PropertyGroup>
+      <_NewPlusStage>$(IntermediateOutputPath)msix-newplus\</_NewPlusStage>
+      <_NewPlusDir>$(PublishDir)NewPlus\</_NewPlusDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_NewPlusStage)" />
+    <Copy SourceFiles="Package\NewPlus\AppxManifest.xml" DestinationFolder="$(_NewPlusStage)" />
+    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_NewPlusStage)Assets" />
+    <Exec Command="&quot;$(_MakePri)&quot; new /pr &quot;$(_NewPlusStage.TrimEnd('\'))&quot; /cf &quot;$(_PriConfig)&quot; /mn &quot;$(_NewPlusStage)AppxManifest.xml&quot; /of &quot;$(_NewPlusStage)resources.pri&quot; /o" />
+    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_NewPlusDir)Assets" />
+    <Copy SourceFiles="$(_NewPlusStage)resources.pri;$(PublishDir)$(TargetName).dll" DestinationFolder="$(_NewPlusDir)" />
+    <Exec Command="&quot;$(_MakeAppx)&quot; pack /o /nv /d &quot;$(_NewPlusStage.TrimEnd('\'))&quot; /p &quot;$(PublishDir)AresToys.NewPlus.msix&quot;" />
+  </Target>
+</Project>
