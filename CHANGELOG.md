@@ -3,6 +3,24 @@
 All notable changes to AresToys. Format loosely follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [0.2.7] — 2026-11-27
+
+### Explorer right-click menu
+- AresToys entries in the Windows 11 context menu, no longer only under
+  "Show more options". Turn on "Show in the Windows 11 menu" on the Right
+  Click Menu page (Windows asks for administrator rights once). The AresToys
+  submenu shows on files, folders and the folder background, and New+ gets
+  an entry of its own. The classic copies are hidden so nothing shows twice,
+  and uninstalling AresToys removes the entries.
+- Other apps' entries that only live in the classic menu (Visual Studio Code,
+  Visual Studio, WizTree and the like) can be brought into the Windows 11 menu
+  too: check them on the Right Click Menu page and press Apply. Each one keeps
+  its own name and icon, sits on its own line, and its classic copy is hidden.
+
+### Workflows
+- The Repeat step has a "while held" option: its steps repeat for as long as
+  the workflow's hotkey stays pressed, and stop when it is released.
+
 ## [0.2.6] — 2026-11-26
 
 ### Explorer right-click menu
