@@ -1309,11 +1309,13 @@ public partial class MainWindow : FluentWindow
     /// <summary>Fills the list of other apps' classic verbs, the picked ones checked, while the packages are registered.</summary>
     private async Task RefreshModernSlotsAsync(bool registered)
     {
-        ModernSlotsPanel.Visibility = registered ? Visibility.Visible : Visibility.Collapsed;
+        ModernSlotsPanel.Visibility = registered && AresToys.App.Services.ShellMenu.ShellMenuVerbs.IsAvailable
+            ? Visibility.Visible : Visibility.Collapsed;
         ModernSlotsList.Children.Clear();
-        if (!registered) return;
+        ModernSlotsApply.IsEnabled = false;
+        if (ModernSlotsPanel.Visibility != Visibility.Visible) return;
         var (verbs, picked) = await Task.Run(() =>
-            (AresToys.App.Services.ShellMenu.ShellMenuSlots.FindClassicVerbs(), AresToys.App.Services.ShellMenu.ShellMenuSlots.PickedNames()));
+            (AresToys.App.Services.ShellMenu.ShellMenuVerbs.FindClassicVerbs(), AresToys.App.Services.ShellMenu.ShellMenuVerbs.PickedNames()));
         var pickedSet = new HashSet<string>(picked, StringComparer.OrdinalIgnoreCase);
         foreach (var verb in verbs)
         {
@@ -1324,55 +1326,37 @@ public partial class MainWindow : FluentWindow
                 IsChecked = pickedSet.Contains(verb.Name),
                 Margin = new Thickness(0, 0, 0, 4),
             };
-            box.Click += OnModernSlotToggled;
+            box.Click += (_, _) => ModernSlotsApply.IsEnabled = true;
             ModernSlotsList.Children.Add(box);
         }
 
         ModernSlotsEmpty.Visibility = verbs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        UpdateModernSlotsLimit();
     }
 
-    // At most ShellMenuSlots.Count verbs: once full, the unchecked ones are disabled.
-    private void UpdateModernSlotsLimit()
+    // One package per checked verb, written and registered together: one UAC prompt for all the new ones.
+    private async void OnModernSlotsApplyClicked(object sender, RoutedEventArgs e)
     {
-        var boxes = ModernSlotsList.Children.OfType<System.Windows.Controls.CheckBox>().ToList();
-        var full = boxes.Count(b => b.IsChecked == true) >= AresToys.App.Services.ShellMenu.ShellMenuSlots.Count;
-        foreach (var box in boxes) box.IsEnabled = !full || box.IsChecked == true;
-    }
-
-    private async void OnModernSlotToggled(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.CheckBox changed) return;
-        // Slot order: the ones already picked keep theirs, a new pick goes last.
-        var before = AresToys.App.Services.ShellMenu.ShellMenuSlots.PickedNames();
-        var boxes = ModernSlotsList.Children.OfType<System.Windows.Controls.CheckBox>().ToList();
-        var checkedVerbs = boxes.Where(b => b.IsChecked == true)
-            .Select(b => (AresToys.App.Services.ShellMenu.ShellMenuSlots.ClassicVerb)b.Tag).ToList();
-        var picked = before
-            .Select(name => checkedVerbs.FirstOrDefault(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)))
-            .OfType<AresToys.App.Services.ShellMenu.ShellMenuSlots.ClassicVerb>()
-            .Concat(checkedVerbs.Where(v => !before.Contains(v.Name, StringComparer.OrdinalIgnoreCase)))
-            .Take(AresToys.App.Services.ShellMenu.ShellMenuSlots.Count)
+        var picked = ModernSlotsList.Children.OfType<System.Windows.Controls.CheckBox>()
+            .Where(b => b.IsChecked == true)
+            .Select(b => (AresToys.App.Services.ShellMenu.ShellMenuVerbs.ClassicVerb)b.Tag)
             .ToList();
-        UpdateModernSlotsLimit();
-        ModernSlotsList.IsEnabled = false;
+        ModernSlotsPanel.IsEnabled = false;
         try
         {
-            await Task.Run(() => AresToys.App.Services.ShellMenu.ShellMenuSlots.SetPicked(picked));
-        }
-        catch (Exception ex)
-        {
-            changed.IsChecked = !changed.IsChecked;
-            UpdateModernSlotsLimit();
+            var error = await AresToys.App.Services.ShellMenu.ShellMenuPackage.ApplyVerbsAsync(picked);
+            if (!string.IsNullOrEmpty(error))
+            {
 #pragma warning disable CA1863
-            System.Windows.MessageBox.Show(this,
-                string.Format(System.Globalization.CultureInfo.CurrentCulture, AresToys.App.Resources.Strings.RightClickMenu_ModernFailed, ex.Message),
-                "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                System.Windows.MessageBox.Show(this,
+                    string.Format(System.Globalization.CultureInfo.CurrentCulture, AresToys.App.Resources.Strings.RightClickMenu_ModernFailed, error),
+                    "AresToys", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
 #pragma warning restore CA1863
+            }
         }
         finally
         {
-            ModernSlotsList.IsEnabled = true;
+            ModernSlotsPanel.IsEnabled = true;
+            await RefreshModernSlotsAsync(registered: true);
         }
     }
 

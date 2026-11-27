@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The template of the slot packages AresToys.Slot1 to AresToys.Slot8 (the csproj's PackSlotMsix target fills in
-     the slot number and the two CLSIDs from its _Slot items). Each slot shows one classic verb of another app in the Windows 11 menu, picked on the Right Click
-     Menu page and kept in HKCU\Software\AresToys\ShellMenu\Slots\N: one package per verb, because Windows folds every
-     entry of one package into a submenu named after it. An empty slot hides itself, so all of them are registered
-     with the other packages and picking a verb needs no UAC. Its ExternalLocation is the Slots\N subfolder of the
-     install folder, with its own DLL copy, Assets and resources.pri, as New+ has. -->
+<!-- The template of the packages that show other apps' classic verbs in the Windows 11 menu (ShellMenuVerbs in the
+     app). One package per verb, because Windows folds every entry of one package into a submenu named after it. The
+     app writes each package when the verb is picked on the Right Click Menu page, with Windows' packaging API, from
+     this file: __ID__ (8 hex digits, the package name), __TITLE__ (the verb's text, XML escaped), __CLSID__ and
+     __BGCLSID__. The build ships it as VerbTemplate\ with the logos and a resources.pri made for the name
+     AresToys.V00000000, which the app patches to the package's own name (same length). -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
@@ -14,9 +14,9 @@
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
   IgnorableNamespaces="uap rescap desktop4 desktop5 uap10 com">
-  <Identity Name="AresToys.Slot__N__" ProcessorArchitecture="neutral" Publisher="CN=AresToys, OID.2.25.311729368913984317654407730594956997722=1" Version="1.0.0.0" />
+  <Identity Name="AresToys.V__ID__" ProcessorArchitecture="neutral" Publisher="CN=AresToys, OID.2.25.311729368913984317654407730594956997722=1" Version="1.0.0.0" />
   <Properties>
-    <DisplayName>AresToys menu entry __N__</DisplayName>
+    <DisplayName>__TITLE__</DisplayName>
     <PublisherDisplayName>AresToys</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
@@ -33,8 +33,8 @@
   </Capabilities>
   <Applications>
     <!-- An Executable of its own that does not exist, as the New+ package has: the package only carries the verb. -->
-    <Application Id="AresToysSlot__N__" Executable="AresToys.Slot__N__.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
-      <uap:VisualElements AppListEntry="none" DisplayName="AresToys menu entry __N__" Description="AresToys context menu entry __N__" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+    <Application Id="AresToysV__ID__" Executable="AresToys.V__ID__.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements AppListEntry="none" DisplayName="__TITLE__" Description="__TITLE__" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
       <Extensions>
         <desktop4:Extension Category="windows.fileExplorerContextMenus">
           <desktop4:FileExplorerContextMenus>
@@ -42,19 +42,19 @@
                  background one takes its folder from the site. The Verb Id must never equal a classic verb's key
                  name, or the verb never shows. -->
             <desktop5:ItemType Type="*">
-              <desktop5:Verb Id="AresToysSlot__N__Command" Clsid="__CLSID__" />
+              <desktop5:Verb Id="AresToysV__ID__Command" Clsid="__CLSID__" />
             </desktop5:ItemType>
             <desktop5:ItemType Type="Directory">
-              <desktop5:Verb Id="AresToysSlot__N__Command" Clsid="__CLSID__" />
+              <desktop5:Verb Id="AresToysV__ID__Command" Clsid="__CLSID__" />
             </desktop5:ItemType>
             <desktop5:ItemType Type="Directory\Background">
-              <desktop5:Verb Id="AresToysSlot__N__Background" Clsid="__BGCLSID__" />
+              <desktop5:Verb Id="AresToysV__ID__Background" Clsid="__BGCLSID__" />
             </desktop5:ItemType>
           </desktop4:FileExplorerContextMenus>
         </desktop4:Extension>
         <com:Extension Category="windows.comServer">
           <com:ComServer>
-            <com:SurrogateServer DisplayName="AresToys context menu entry __N__">
+            <com:SurrogateServer DisplayName="__TITLE__">
               <com:Class Id="__CLSID__" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
               <com:Class Id="__BGCLSID__" Path="AresToys.ShellMenu.dll" ThreadingModel="STA" />
             </com:SurrogateServer>

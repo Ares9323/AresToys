@@ -2106,8 +2106,9 @@
                         <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
                                    FontSize="11" TextWrapping="Wrap" Margin="22,4,0,24"
                                    Text="{Markup:Loc RightClickMenu_ModernHint}" />
-                        <!-- Other apps' classic verbs promoted to the Windows 11 menu, one slot package each
-                             (ShellMenuSlots; the Slots key is the state). Shown only while the packages are registered. -->
+                        <!-- Other apps' classic verbs promoted to the Windows 11 menu, one package each, written when
+                             Apply is pressed (ShellMenuVerbs; the Verbs key is the state). Shown only while the packages
+                             are registered. -->
                         <StackPanel x:Name="ModernSlotsPanel" Visibility="Collapsed" Margin="22,0,0,24">
                             <TextBlock Text="{Markup:Loc RightClickMenu_Slots}" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <TextBlock Foreground="{DynamicResource AccentForegroundDarkBrush}"
@@ -2117,6 +2118,9 @@
                             <TextBlock x:Name="ModernSlotsEmpty" Visibility="Collapsed"
                                        Foreground="{DynamicResource AccentForegroundDarkBrush}" FontSize="11"
                                        Text="{Markup:Loc RightClickMenu_SlotsNone}" />
+                            <ui:Button x:Name="ModernSlotsApply" Content="{Markup:Loc Common_Apply}" Padding="14,4"
+                                       Margin="0,8,0,0" HorizontalAlignment="Left" IsEnabled="False"
+                                       Click="OnModernSlotsApplyClicked" />
                         </StackPanel>
                     </StackPanel>
 

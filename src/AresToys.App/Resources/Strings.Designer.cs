@@ -8610,7 +8610,7 @@ namespace AresToys.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Pick up to 8 entries other apps add to &quot;Show more options&quot;.
+        ///   Looks up a localized string similar to Check the entries other apps add to &quot;Show more options&quot; and press Apply.
         /// </summary>
         public static string RightClickMenu_SlotsHint {
             get {

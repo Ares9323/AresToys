@@ -345,9 +345,10 @@ internal sealed class VerbSource(bool background, Func<string, string?> keyFor, 
 {
     private const string Classes = @"Software\Classes";
 
-    /// <summary>Where the app writes what each slot package shows (ShellMenuSlots in the app): one sub key per slot
-    /// number, whose Files, Folders and Background values are the full path of the classic verb key it mirrors.</summary>
-    private const string SlotsKey = @"Software\AresToys\ShellMenu\Slots";
+    /// <summary>Where the app writes the other apps' verbs it made a package for (ShellMenuVerbs in the app): one sub
+    /// key per package, whose Clsid and BgClsid values name its two entries and whose Files, Folders and Background
+    /// values are the full path of the classic verb key it mirrors.</summary>
+    private const string VerbsKey = @"Software\AresToys\ShellMenu\Verbs";
 
     /// <summary>Other verbs shown at the end of this cascade, each with its own visibility.</summary>
     public IReadOnlyList<VerbSource> Extras { get; } = extras;
@@ -362,21 +363,36 @@ internal sealed class VerbSource(bool background, Func<string, string?> keyFor, 
     /// <see cref="RegistryPath"/>), or null when the verb does not apply to it.</summary>
     public string? KeyFor(string path) => keyFor(path);
 
-    /// <summary>Slot <paramref name="number"/> on files and folders: the verb picked for files, or for folders.</summary>
-    public static VerbSource SlotItems(int number) =>
-        new(false, path => SlotKey(number, Directory.Exists(path) ? "Folders" : "Files")) { IconFromCommand = true };
-
-    /// <summary>Slot <paramref name="number"/> on the background of an open folder.</summary>
-    public static VerbSource SlotBackground(int number) =>
-        new(true, _ => SlotKey(number, "Background")) { IconFromCommand = true };
-
-    /// <summary>The verb key a slot mirrors for one item kind, read when the menu opens; null hides the slot. The path
-    /// names the original key in its own hive, never HKCR: AresToys hides an HKLM original behind an HKCU key of the
-    /// same name, and HKCR would show that empty key (gotchas#hkcr-shadow-hides-hklm-verb).</summary>
-    private static string? SlotKey(int number, string kind)
+    /// <summary>The other app's verb whose package names <paramref name="clsid"/> (its files and folders entry, or its
+    /// folder background one), or null when no package of ours does.</summary>
+    public static VerbSource? ForClsid(Guid clsid)
     {
-        using var slot = Registry.CurrentUser.OpenSubKey($@"{SlotsKey}\{number}");
-        return slot?.GetValue(kind) is string path && !string.IsNullOrWhiteSpace(path) ? path : null;
+        using var verbs = Registry.CurrentUser.OpenSubKey(VerbsKey);
+        if (verbs is null) return null;
+        foreach (var id in verbs.GetSubKeyNames())
+        {
+            using var verb = verbs.OpenSubKey(id);
+            if (Guid.TryParse(verb?.GetValue("Clsid") as string, out var items) && items == clsid)
+            {
+                return new(false, path => VerbKey(id, Directory.Exists(path) ? "Folders" : "Files")) { IconFromCommand = true };
+            }
+
+            if (Guid.TryParse(verb?.GetValue("BgClsid") as string, out var background) && background == clsid)
+            {
+                return new(true, _ => VerbKey(id, "Background")) { IconFromCommand = true };
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The verb key a package mirrors for one item kind, read when the menu opens; null hides the entry. The
+    /// path names the original key in its own hive, never HKCR: AresToys hides an HKLM original behind an HKCU key of
+    /// the same name, and HKCR would show that empty key (gotchas#hkcr-shadow-hides-hklm-verb).</summary>
+    private static string? VerbKey(string id, string kind)
+    {
+        using var verb = Registry.CurrentUser.OpenSubKey($@"{VerbsKey}\{id}");
+        return verb?.GetValue(kind) is string path && !string.IsNullOrWhiteSpace(path) ? path : null;
     }
 
     /// <summary>Image Resizer (ResizerContextMenuRegistration): only when every selected item is an image it lists.</summary>

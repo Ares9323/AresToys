@@ -15,7 +15,7 @@ namespace AresToys.App.Services.ShellMenu;
 /// <code>
 /// AresToys.ContextMenu  AresToys.ShellMenu.msix  ExternalLocation = install folder          (AresToys cascade, Resize, Upload)
 /// AresToys.NewPlus      AresToys.NewPlus.msix    ExternalLocation = install folder\NewPlus  (New+, its own slot in the menu)
-/// AresToys.Slot1..8     Slots\AresToys.SlotN.msix  ExternalLocation = install folder\Slots\N  (other apps' verbs, ShellMenuSlots)
+/// AresToys.V&lt;id&gt;       one per other app's verb picked on the page, written at runtime (ShellMenuVerbs)
 /// </code>
 /// The packages are unsigned, and Windows registers an unsigned package only from an elevated process: turning the
 /// option on (and an update that ships a newer package version) runs <c>AresToys.exe --register-shellmenu</c> through
@@ -29,6 +29,10 @@ public static class ShellMenuPackage
     /// <summary>The hidden command line verbs <see cref="Program"/> hands to <see cref="RunCommandLine"/>.</summary>
     public const string RegisterArg = "--register-shellmenu";
     public const string UnregisterArg = "--unregister-shellmenu";
+    public const string SyncVerbsArg = "--sync-shellmenu-verbs";
+
+    // The 8 fixed slot packages of the first version (commit f082764): removed wherever they are still registered.
+    private const string OldSlotPrefix = "AresToys.Slot";
 
     /// <summary>Exit code of the elevated helper when the user declined the UAC prompt.</summary>
     public const int Cancelled = 1223;
@@ -43,13 +47,10 @@ public static class ShellMenuPackage
 
     private sealed record Part(string Name, string MsixFile, string ExternalSubfolder);
 
-    // The slot packages (ShellMenuSlots) come with the other two: an empty slot hides itself, and having them all
-    // registered is what lets a verb be picked later without UAC.
     private static readonly Part[] Parts =
     [
         new("AresToys.ContextMenu", "AresToys.ShellMenu.msix", ""),
         new("AresToys.NewPlus", "AresToys.NewPlus.msix", "NewPlus"),
-        .. Enumerable.Range(1, ShellMenuSlots.Count).Select(n => new Part($"AresToys.Slot{n}", $@"Slots\AresToys.Slot{n}.msix", $@"Slots\{n}")),
     ];
 
     // The classic verbs the packages show in the new menu (see ExplorerCommands.cs in AresToys.ShellMenu).
@@ -94,7 +95,42 @@ public static class ShellMenuPackage
         if (args.Length == 0) return null;
         if (string.Equals(args[0], RegisterArg, StringComparison.OrdinalIgnoreCase)) return RegisterHere();
         if (string.Equals(args[0], UnregisterArg, StringComparison.OrdinalIgnoreCase)) return UnregisterHere();
+        if (string.Equals(args[0], SyncVerbsArg, StringComparison.OrdinalIgnoreCase))
+        {
+            var ids = args.Length > 1 ? args[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [];
+            return SyncVerbsHere(ids) is { } error ? Fail(error, 9) : Succeed();
+        }
+
         return null;
+    }
+
+    /// <summary>Gives each verb in <paramref name="picked"/> its package and removes the packages of the verbs no
+    /// longer picked. Removing needs no admin rights; adding an unsigned package does, so a pick that adds one runs
+    /// <c>AresToys.exe --sync-shellmenu-verbs</c> through UAC once, for all of them. Same return contract as
+    /// <see cref="EnableAsync"/>.</summary>
+    public static async Task<string?> ApplyVerbsAsync(IReadOnlyList<ShellMenuVerbs.ClassicVerb> picked)
+    {
+        int code;
+        try
+        {
+            var ids = await Task.Run(() => ShellMenuVerbs.Prepare(picked)).ConfigureAwait(false);
+            var adds = await Task.Run(() => ids.Except(RegisteredVerbIds(), StringComparer.OrdinalIgnoreCase).Any()).ConfigureAwait(false);
+            code = !adds || Environment.IsPrivilegedProcess
+                ? await Task.Run(() => SyncVerbsHere(ids) is { } error ? Fail(error, 9) : Succeed()).ConfigureAwait(false)
+                : await RunElevatedAsync($"{SyncVerbsArg} {string.Join(',', ids)}").ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
+        finally
+        {
+            await Task.Run(() => ShellMenuVerbs.Prune(RegisteredVerbIds())).ConfigureAwait(false);
+            Refresh();
+        }
+
+        if (code == 0) return null;
+        return code == Cancelled ? string.Empty : ReadLog() ?? $"0x{code:X8}";
     }
 
     /// <summary>Registers both packages (UAC once unless AresToys already runs elevated) and hides the classic
@@ -136,6 +172,8 @@ public static class ShellMenuPackage
             {
                 Refresh();
                 if (!IsAvailable || !IsRegistered) return false;
+                // The verb packages load their own copy of the DLL: an update brings a new one.
+                ShellMenuVerbs.RefreshDlls();
                 return !RegisteredHere() || Parts.Any(p => FindPackage(p.Name) is not { } registered
                     || ManifestVersion(MsixPath(p)) is { } shipped && shipped > registered);
             }).ConfigureAwait(false);
@@ -168,7 +206,7 @@ public static class ShellMenuPackage
         try { hide = IsRegistered; }
         catch { return; }
         SetClassicVerbsHidden(hide);
-        ShellMenuSlots.SyncHidden(hide);
+        ShellMenuVerbs.SyncHidden(hide);
     }
 
     private static void SetClassicVerbsHidden(bool hide)
@@ -233,6 +271,8 @@ public static class ShellMenuPackage
             }
 
             SetRegisteredLocation(InstallFolder);
+            // The verbs picked before the option was turned off come back with it.
+            if (SyncVerbsHere(ShellMenuVerbs.ConfiguredIds()) is { } verbsError) return Fail(verbsError, 9);
             WriteLog(null);
             return 0;
         }
@@ -253,13 +293,16 @@ public static class ShellMenuPackage
                 if (error is not null) return Fail(error, 4);
             }
 
+            // The verb packages go too; their Verbs keys and files stay, so turning the option on brings them back.
+            if (SyncVerbsHere([]) is { } verbsError) return Fail(verbsError, 4);
+
             lock (Gate)
             {
                 _registered = false;
             }
 
             SetClassicVerbsHidden(false);
-            ShellMenuSlots.SyncHidden(false);
+            ShellMenuVerbs.SyncHidden(false);
             SetRegisteredLocation(null);
             WriteLog(null);
             return 0;
@@ -268,6 +311,72 @@ public static class ShellMenuPackage
         {
             return Fail(ex.Message, ex.HResult == 0 ? 5 : ex.HResult);
         }
+    }
+
+    /// <summary>Registers the package of each verb in <paramref name="ids"/> that is not registered yet, and removes
+    /// every other verb package of ours (and the old fixed slot packages). The error text, or null.</summary>
+    private static string? SyncVerbsHere(IReadOnlyCollection<string> ids)
+    {
+        var want = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+        var manager = new PackageManager();
+        var registered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var package in OurPackages(manager))
+        {
+            var name = package.Id.Name;
+            var id = ShellMenuVerbs.IdOfPackage(name);
+            if (id is not null && want.Contains(id))
+            {
+                registered.Add(id);
+                continue;
+            }
+
+            if (id is null && !name.StartsWith(OldSlotPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+            var result = manager.RemovePackageAsync(package.Id.FullName).AsTask().GetAwaiter().GetResult();
+            if (result.ExtendedErrorCode is { } error) return $"{name}: {result.ErrorText} (0x{error.HResult:X8})";
+        }
+
+        foreach (var id in want.Where(id => !registered.Contains(id)))
+        {
+            var msix = ShellMenuVerbs.MsixPath(id);
+            if (!File.Exists(msix)) return $"Missing {msix}.";
+            var options = new AddPackageOptions
+            {
+                ExternalLocationUri = new Uri(ShellMenuVerbs.ExternalFolder(id)),
+                AllowUnsigned = true,
+            };
+            var result = manager.AddPackageByUriAsync(new Uri(msix), options).AsTask().GetAwaiter().GetResult();
+            if (result.ExtendedErrorCode is { } error)
+            {
+                return $"{ShellMenuVerbs.PackagePrefix}{id}: {result.ErrorText} (0x{error.HResult:X8})";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The ids of the verb packages registered for this user.</summary>
+    private static HashSet<string> RegisteredVerbIds()
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!IsWindows11) return ids;
+        foreach (var package in OurPackages(new PackageManager()))
+        {
+            if (ShellMenuVerbs.IdOfPackage(package.Id.Name) is { } id) ids.Add(id);
+        }
+
+        return ids;
+    }
+
+    // Every package of this user with our publisher. FindPackagesForUser has no publisher-only form for the current user.
+    private static IEnumerable<Windows.ApplicationModel.Package> OurPackages(PackageManager manager) =>
+        manager.FindPackagesForUser(string.Empty)
+            .Where(p => string.Equals(p.Id.Publisher, Publisher, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    private static int Succeed()
+    {
+        WriteLog(null);
+        return 0;
     }
 
     /// <summary>Removes every registered version of <paramref name="name"/> for this user; the error text, or null.</summary>

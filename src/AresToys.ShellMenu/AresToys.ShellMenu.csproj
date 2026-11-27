@@ -80,38 +80,21 @@
     <Exec Command="&quot;$(_MakeAppx)&quot; pack /o /nv /d &quot;$(_NewPlusStage.TrimEnd('\'))&quot; /p &quot;$(PublishDir)AresToys.NewPlus.msix&quot;" />
   </Target>
 
-  <!-- The slot packages AresToys.Slot1 to AresToys.Slot8: each shows one classic verb of another app in the Windows 11
-       menu (one package per verb, or Windows folds them under one name). Built from Package\Slot\AppxManifest.xml, one
-       CLSID for files and folders and one for the folder background each; they must match Exports.Commands. Each one
-       has its own ExternalLocation PublishDir\Slots\N with a DLL copy, the logos and its own resources.pri, as New+. -->
-  <ItemGroup>
-    <_Slot Include="1" Clsid="057823C3-9F2E-4A8B-B795-FD44E2421C8B" BgClsid="CACEC6F7-08AF-4B6F-8C1D-5EADA6E09D03" />
-    <_Slot Include="2" Clsid="69F3035C-D182-414A-9240-86BDB6E4A6D4" BgClsid="68E93DC8-95AB-4785-B4D8-EB189A427EC1" />
-    <_Slot Include="3" Clsid="AF13E83B-C60C-40EC-AA66-CF4F25231A87" BgClsid="4ECBC814-8F11-49B5-A0D4-1EE472A366BE" />
-    <_Slot Include="4" Clsid="892C049A-E41F-492B-857A-4A8E9BEAA8C3" BgClsid="C0B91EA2-1332-4BB5-9D2E-1ED1291952D2" />
-    <_Slot Include="5" Clsid="55183CA2-2055-44D2-B816-0787C2FD7096" BgClsid="FD06F9EF-D36E-46A2-995B-115E1DB9BBB4" />
-    <_Slot Include="6" Clsid="4C1CAFC7-590F-449A-B8B6-F79BA3504F19" BgClsid="C527D6F2-2811-4FD9-A87B-D0CC4036E3F8" />
-    <_Slot Include="7" Clsid="E3F8DC07-4A5E-40F7-9316-E84978DAF0E2" BgClsid="B292A32E-07BB-483F-AEA6-999646874BDD" />
-    <_Slot Include="8" Clsid="BB53DCF2-90EE-49CB-867A-A3FBC96E4E7D" BgClsid="47F8E263-CB0B-4C9B-9223-BEEC8699D8BA" />
-  </ItemGroup>
-
-  <!-- Runs once per _Slot item (Outputs batching); _MakeAppx, _MakePri, _PriConfig and _PackageAssets come from
-       PackSparseMsix. The manifest is the template with its tokens replaced, escaped so the "*" item type and any
-       semicolon reach the file as written. -->
-  <Target Name="PackSlotMsix" AfterTargets="PackSparseMsix" Outputs="%(_Slot.Identity)">
+  <!-- The template the app writes other apps' verb packages from (ShellMenuVerbs): PublishDir\VerbTemplate holds
+       Package\Slot\AppxManifest.xml as is (tokens included), the logos and a resources.pri made for the package name
+       AresToys.V00000000, which the app patches to each package's own name of the same length. -->
+  <Target Name="PackVerbTemplate" AfterTargets="PackSparseMsix">
     <PropertyGroup>
-      <_SlotN>%(_Slot.Identity)</_SlotN>
-      <_SlotStage>$(IntermediateOutputPath)msix-slot$(_SlotN)\</_SlotStage>
-      <_SlotDir>$(PublishDir)Slots\$(_SlotN)\</_SlotDir>
-      <_SlotManifest>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package\Slot\AppxManifest.xml').Replace('__N__', '$(_SlotN)').Replace('__BGCLSID__', '%(_Slot.BgClsid)').Replace('__CLSID__', '%(_Slot.Clsid)'))</_SlotManifest>
+      <_VerbStage>$(IntermediateOutputPath)msix-verb\</_VerbStage>
+      <_VerbDir>$(PublishDir)VerbTemplate\</_VerbDir>
+      <_VerbManifest>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Package\Slot\AppxManifest.xml').Replace('__ID__', '00000000').Replace('__TITLE__', 'AresToys').Replace('__BGCLSID__', '00000000-0000-0000-0000-000000000002').Replace('__CLSID__', '00000000-0000-0000-0000-000000000001'))</_VerbManifest>
     </PropertyGroup>
-    <RemoveDir Directories="$(_SlotStage)" />
-    <MakeDir Directories="$(_SlotStage)" />
-    <WriteLinesToFile File="$(_SlotStage)AppxManifest.xml" Lines="$([MSBuild]::Escape('$(_SlotManifest)'))" Overwrite="true" />
-    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_SlotStage)Assets" />
-    <Exec Command="&quot;$(_MakePri)&quot; new /pr &quot;$(_SlotStage.TrimEnd('\'))&quot; /cf &quot;$(_PriConfig)&quot; /mn &quot;$(_SlotStage)AppxManifest.xml&quot; /of &quot;$(_SlotStage)resources.pri&quot; /o" />
-    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_SlotDir)Assets" />
-    <Copy SourceFiles="$(_SlotStage)resources.pri;$(PublishDir)$(TargetName).dll" DestinationFolder="$(_SlotDir)" />
-    <Exec Command="&quot;$(_MakeAppx)&quot; pack /o /nv /d &quot;$(_SlotStage.TrimEnd('\'))&quot; /p &quot;$(PublishDir)Slots\AresToys.Slot$(_SlotN).msix&quot;" />
+    <RemoveDir Directories="$(_VerbStage);$(PublishDir)Slots" />
+    <MakeDir Directories="$(_VerbStage)" />
+    <WriteLinesToFile File="$(_VerbStage)AppxManifest.xml" Lines="$([MSBuild]::Escape('$(_VerbManifest)'))" Overwrite="true" />
+    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_VerbStage)Assets" />
+    <Exec Command="&quot;$(_MakePri)&quot; new /pr &quot;$(_VerbStage.TrimEnd('\'))&quot; /cf &quot;$(_PriConfig)&quot; /mn &quot;$(_VerbStage)AppxManifest.xml&quot; /of &quot;$(_VerbStage)resources.pri&quot; /o" />
+    <Copy SourceFiles="@(_PackageAssets)" DestinationFolder="$(_VerbDir)Assets" />
+    <Copy SourceFiles="$(_VerbStage)resources.pri;Package\Slot\AppxManifest.xml" DestinationFolder="$(_VerbDir)" />
   </Target>
 </Project>
